@@ -1,7 +1,7 @@
 import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 
-// Contrast of the Thyme token pairs DESIGN.md documents, read from the shipped
+// Contrast of the ink token pairs DESIGN.md documents, read from the shipped
 // stylesheet so a token change cannot silently break them.
 
 const css = readFileSync(new URL("./globals.css", import.meta.url), "utf8");
@@ -29,14 +29,27 @@ function contrast(foreground: string, background: string) {
   return (lighter! + 0.05) / (darker! + 0.05);
 }
 
-describe("Thyme theme contrast", () => {
+describe("ink theme contrast", () => {
   it("keeps the ratios DESIGN.md documents for the flat token pairs", () => {
-    expect(contrast("foreground", "background")).toBeCloseTo(11.71, 2);
-    expect(contrast("muted-foreground", "background")).toBeCloseTo(5.49, 2);
-    expect(contrast("primary-foreground", "primary")).toBeCloseTo(7.33, 2);
+    expect(contrast("foreground", "background")).toBeCloseTo(14.51, 2);
+    expect(contrast("muted-foreground", "background")).toBeCloseTo(5.82, 2);
+    expect(contrast("muted-foreground", "secondary")).toBeCloseTo(5.17, 2);
+    expect(contrast("primary-foreground", "primary")).toBeCloseTo(10.63, 2);
+    expect(contrast("logo", "background")).toBeCloseTo(6.06, 2);
     for (const status of ["destructive", "warning", "success"]) {
       expect(contrast(status, "background")).toBeGreaterThan(6);
     }
+  });
+
+  it("keeps the ratios DESIGN.md documents on the ink-blue panel and the ink night", () => {
+    expect(contrast("canvas", "panel")).toBeCloseTo(9.91, 2);
+    expect(contrast("panel-mist", "panel")).toBeCloseTo(6.71, 2);
+    expect(contrast("canvas", "panel-bubble")).toBeCloseTo(7.86, 2);
+    expect(contrast("ink", "panel-me")).toBeCloseTo(12.07, 2);
+    expect(contrast("canvas", "night")).toBeCloseTo(14.51, 2);
+    expect(contrast("night-muted", "night")).toBeCloseTo(7.36, 2);
+    expect(contrast("night-accent", "night")).toBeCloseTo(6.58, 2);
+    expect(contrast("canvas", "night-raise")).toBeGreaterThanOrEqual(4.5);
   });
 
   it.each([
@@ -44,10 +57,12 @@ describe("Thyme theme contrast", () => {
     ["foreground", "popover"],
     ["foreground", "secondary"],
     ["foreground", "accent"],
+    ["foreground", "panel-me"],
     ["muted-foreground", "card"],
     ["muted-foreground", "secondary"],
     ["primary", "background"],
     ["primary", "card"],
+    ["primary", "secondary"],
     ["primary-foreground", "primary-hover"],
     ["primary-foreground", "primary-pressed"],
     ["primary-foreground", "destructive"],
@@ -64,33 +79,16 @@ describe("Thyme theme contrast", () => {
     expect(contrast(boundary, background)).toBeGreaterThanOrEqual(3);
   });
 
-  it("keeps text readable on the darkest textured area", () => {
-    // The grain is neutral and at most 4% opaque, so the darkest point of the
-    // paper is the canvas with 4% black over it.
-    const canvas = luminance(token("background"));
-    const darkest = token("background")
-      .replace("#", "")
-      .match(/../g)!
-      .map((pair) => Math.round(parseInt(pair, 16) * 0.96).toString(16).padStart(2, "0"))
-      .join("");
-    const ratio = (name: string) => {
-      const [lighter, darker] = [luminance(`#${darkest}`), luminance(token(name))].sort((a, b) => b - a);
-      return (lighter! + 0.05) / (darker! + 0.05);
-    };
-
-    expect(luminance(`#${darkest}`)).toBeLessThan(canvas);
-    expect(ratio("foreground")).toBeGreaterThanOrEqual(4.5);
-    expect(ratio("muted-foreground")).toBeGreaterThanOrEqual(4.5);
-    expect(ratio("primary")).toBeGreaterThanOrEqual(4.5);
-    expect(ratio("ring")).toBeGreaterThanOrEqual(3);
-  });
-
-  it("keeps the decorative hairline and botanical olive out of text roles", () => {
+  it("keeps the decorative hairline and slate line out of text roles", () => {
     // Too faint for text or as an interactive control's only boundary.
     expect(contrast("border", "background")).toBeLessThan(3);
     expect(contrast("botanical", "background")).toBeLessThan(4.5);
     for (const role of ["foreground", "muted-foreground", "card-foreground", "primary"]) {
       expect(["border", "botanical"].map((name) => token(name))).not.toContain(token(role));
     }
+  });
+
+  it("draws no paper grain", () => {
+    expect(css).not.toMatch(/grain/i);
   });
 });

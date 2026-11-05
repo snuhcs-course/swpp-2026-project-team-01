@@ -1,0 +1,57 @@
+{
+  "branch": "feat/whatsapp-conversation-signals",
+  "user": "sim@example.test",
+  "sessions": {
+    "claude:de8a0e74-86f2-42cb-9c0d-846228f88d03": {
+      "agent": "claude-code",
+      "client": "claude-desktop",
+      "agent_ms": 0,
+      "models": {
+        "claude-opus-5-5": {
+          "input": 70,
+          "cache_read": 11088894,
+          "cache_write_5m": 0,
+          "cache_write_1h": 35208,
+          "output": 12705,
+          "reasoning": 0
+        }
+      },
+      "first": "2026-11-04T05:50:18.759Z",
+      "last": "2026-11-04T06:24:04.435Z"
+    },
+    "claude:de8a0e74-86f2-42cb-9c0d-846228f88d03/agent-a62bd8dc32c32a8ed": {
+      "agent": "claude-code",
+      "client": "claude-desktop",
+      "agent_ms": 0,
+      "models": {
+        "claude-opus-5-5": {
+          "input": 142,
+          "cache_read": 13549756,
+          "cache_write_5m": 272456,
+          "cache_write_1h": 0,
+          "output": 57133,
+          "reasoning": 0
+        }
+      },
+      "first": "2026-11-04T05:51:06.726Z",
+      "last": "2026-11-04T06:02:50.269Z"
+    },
+    "claude:de8a0e74-86f2-42cb-9c0d-846228f88d03/agent-acacb0971102313f1": {
+      "agent": "claude-code",
+      "client": "claude-desktop",
+      "agent_ms": 0,
+      "models": {
+        "claude-sonnet-5-5": {
+          "input": 12,
+          "cache_read": 483033,
+          "cache_write_5m": 61512,
+          "cache_write_1h": 0,
+          "output": 4442,
+          "reasoning": 0
+        }
+      },
+      "first": "2026-11-04T06:04:41.071Z",
+      "last": "2026-11-04T06:05:15.302Z"
+    }
+  }
+}

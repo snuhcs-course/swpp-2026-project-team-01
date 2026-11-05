@@ -1,14 +1,33 @@
 import type { MessageStreamEvent } from "eve/client";
-import type { MessagingChannel } from "../contracts/messaging-channel";
+import type { StoredChannel } from "../contracts/messaging-channel";
 import { agentUrlFromEnvironment, type ConversationRuntime, eveRuntime } from "./conversations";
 import { database, type Database, type Transaction } from "./database";
 import { turnReplyText } from "./email-replies";
 import { internalSigningKey, signInternalBearer } from "./internal-bearer";
 import { type JobHandler, publishJob } from "./jobs";
 import { assertMessagingAdmitted } from "./messaging";
-import { type PhotonConfig, photonConfig, type PhotonContent, type PhotonRecipient, type PhotonTransport, photonTransport, SPECTRUM_ENDPOINT } from "./photon";
+import {
+  type PhotonConfig,
+  photonConfig,
+  type PhotonContent,
+  type PhotonRecipient,
+  type PhotonTransport,
+  photonTransport,
+  SPECTRUM_ENDPOINT,
+  type WhatsAppButtons,
+} from "./photon";
 import { requestRef } from "./request-ref";
 import { redactCredentials } from "./redaction";
+import {
+  TELEGRAM_CHAT_SPACING_MS,
+  TELEGRAM_EDIT_HOURS,
+  type TelegramButtons,
+  telegramButtonsOf,
+  type TelegramConfig,
+  telegramClient,
+  telegramConfig,
+  telegramTransport,
+} from "./telegram";
 import { openToken, sealToken, type TokenKey, tokenKeyFromEnvironment } from "./token-encryption";
 
 // Every message the iMessage line sends (host-imessage-channel design 3 and 9,
@@ -40,6 +59,23 @@ import { openToken, sealToken, type TokenKey, tokenKeyFromEnvironment } from "./
 // window's summary of a new request, a proposal awaiting approval or a booking
 // outcome queues one template instead, at most one per host per 12 hours and at
 // most the daily limit per line.
+// A guest's rows (guest-whatsapp-link design 1 and 3) take the guest binding's
+// channel and its last_inbound_at as the window; outside it they are suppressed
+// with window_closed, and no template follows, since guests have none.
+// Telegram rows (host-telegram-channel design 9, D11) go through the Bot API
+// transport instead of Photon's. Consecutive sends to one chat are at least a
+// second apart: the claim reserves the chat's next slot under a lock and the
+// send waits for it. A 429 puts the row back and a new job sends it after the
+// delay Telegram names, spending no attempt. A 403 (the user blocked or deleted
+// the bot) fails the row as blocked and ends its binding as stop does, with
+// whatever was still queued for it suppressed.
+// A Telegram row may carry inline buttons (design 7, D8), sent on its last part
+// and kept on the row with Telegram's message ID; an edit_markup row removes
+// them again within Telegram's 48-hour edit limit (D9), and a callback_answer row
+// answers a tap. A booking confirmation or a booking still in progress needs
+// nothing from the host, so it goes out silently (D10). Signals, callback
+// answers and failed edits are best-effort and take no slot in the chat's
+// one-second spacing, since none is a message.
 
 export const IMESSAGE_SEND_JOB = "imessage_send";
 // A refusal before sending retries with backoff; five attempts span about five minutes.
@@ -81,14 +117,16 @@ export type OutboxKind =
   | "notice"
   | "contact_card"
   | "signal"
-  | "template";
+  | "template"
+  | "edit_markup"
+  | "callback_answer";
 
 export type OutboxState = "waiting" | "queued" | "dispatching" | "accepted" | "failed" | "uncertain" | "suppressed";
 
 export type RecordOutbound = {
   readonly kind: OutboxKind;
   // The platform; by default the binding's or the link attempt's, else iMessage.
-  readonly channel?: MessagingChannel;
+  readonly channel?: StoredChannel;
   // A template row's template (WhatsApp only).
   readonly templateName?: string;
   // One message per (kind, dedupeKey): a retried recording returns the existing one.
@@ -109,6 +147,10 @@ export type RecordOutbound = {
   readonly inputId?: string;
   // The frozen text; none for a turn reply or a contact card.
   readonly text?: string;
+  // A decision summary's buttons: on WhatsApp, reply buttons sealed with the
+  // text (host-whatsapp-channel design 11, D17); on Telegram, an inline
+  // keyboard kept on the row (host-telegram-channel design 7). Dropped on iMessage.
+  readonly buttons?: WhatsAppButtons;
   // Records the message as already suppressed with this category, sending
   // nothing, so it still counts toward the send limits.
   readonly suppressedAs?: string;
@@ -132,16 +174,21 @@ export async function recordOutbound(tx: Transaction, message: RecordOutbound): 
   const context = outboxSealContext(id);
   const suppressed = message.suppressedAs ?? null;
   const recipient = suppressed ? null : sealToken(message.tokenKey, JSON.stringify(message.recipient), context);
-  const text = suppressed || message.text === undefined ? null : sealToken(message.tokenKey, message.text, context);
   const turn = message.kind === "turn";
   const channel = message.channel ?? (await ownerChannel(tx, message));
+  const buttons = channel === "whatsapp" && BUTTON_KINDS.has(message.kind) && message.buttons?.items.length ? message.buttons : null;
+  const text =
+    suppressed || message.text === undefined ? null : sealToken(message.tokenKey, buttons ? sealedWithButtons(message.text, buttons) : message.text, context);
+  // Telegram keeps its keyboard on the row (design 7, D9), where button retirement finds it.
+  const keyboard = channel === "telegram" && message.buttons ? telegramButtonsOf(message.buttons) : null;
+  const keyboardJson = keyboard ? tx.json(keyboard as unknown as Parameters<typeof tx.json>[0]) : null;
 
   const [created] = await tx<{ id: string }[]>`
     insert into app.imessage_outbox
-      (id, channel, kind, template_name, dedupe_key, host_account_id, binding_id, requester_binding_id, link_id, request_id, input_id,
+      (id, channel, kind, template_name, buttons, dedupe_key, host_account_id, binding_id, requester_binding_id, link_id, request_id, input_id,
        recipient_hash, recipient_ciphertext, text_ciphertext, sealed_key_id, state, failure_category, completed_at)
     values
-      (${id}, ${channel}, ${message.kind}, ${message.templateName ?? null}, ${message.dedupeKey}, ${message.hostAccountId ?? null},
+      (${id}, ${channel}, ${message.kind}, ${message.templateName ?? null}, ${keyboardJson}, ${message.dedupeKey}, ${message.hostAccountId ?? null},
        ${message.bindingId ?? null}, ${message.requesterBindingId ?? null}, ${message.linkId ?? null}, ${message.requestId ?? null},
        ${message.inputId ?? null}, ${message.recipientHash},
        ${recipient?.ciphertext ?? null}, ${text?.ciphertext ?? null}, ${message.tokenKey.id},
@@ -174,13 +221,19 @@ export async function recordOutbound(tx: Transaction, message: RecordOutbound): 
   return { created: true, id };
 }
 
-async function ownerChannel(tx: Transaction, message: RecordOutbound): Promise<MessagingChannel> {
+async function ownerChannel(tx: Transaction, message: RecordOutbound): Promise<StoredChannel> {
+  if (message.requesterBindingId) {
+    const [binding] = await tx<{ channel: StoredChannel }[]>`
+      select channel from app.requester_imessage_bindings where id = ${message.requesterBindingId}
+    `;
+    if (binding) return binding.channel;
+  }
   if (message.bindingId) {
-    const [binding] = await tx<{ channel: MessagingChannel }[]>`select channel from app.imessage_bindings where id = ${message.bindingId}`;
+    const [binding] = await tx<{ channel: StoredChannel }[]>`select channel from app.imessage_bindings where id = ${message.bindingId}`;
     if (binding) return binding.channel;
   }
   if (message.linkId) {
-    const [link] = await tx<{ channel: MessagingChannel }[]>`select channel from app.imessage_links where id = ${message.linkId}`;
+    const [link] = await tx<{ channel: StoredChannel }[]>`select channel from app.imessage_links where id = ${message.linkId}`;
     if (link) return link.channel;
   }
   return "imessage";
@@ -229,6 +282,9 @@ export type ImessageSendDependencies = {
   readonly origin: string;
   readonly env?: Readonly<Record<string, string | undefined>>;
   readonly transport?: PhotonTransport;
+  // The Telegram bot (TELEGRAM_BOT_TOKEN, TELEGRAM_API_URL) and, in tests, its transport.
+  readonly telegram?: TelegramConfig;
+  readonly telegramTransport?: PhotonTransport;
   // Template notices per WhatsApp line per rolling 24 hours (PHOTON_WHATSAPP_TEMPLATE_DAILY_LIMIT).
   readonly templateDailyLimit?: number;
 };
@@ -247,9 +303,11 @@ function sendDependenciesFromEnvironment(): ImessageSendDependencies {
 
 type OutboxRow = {
   readonly id: string;
-  readonly channel: MessagingChannel;
+  readonly channel: StoredChannel;
+  readonly recipient_hash: string;
   readonly kind: OutboxKind;
   readonly template_name: string | null;
+  readonly buttons: TelegramButtons | null;
   readonly dedupe_key: string;
   readonly host_account_id: string | null;
   readonly request_id: string | null;
@@ -351,10 +409,11 @@ export function createImessageSendHandler(load: () => ImessageSendDependencies =
 
     const deps = load();
     const transport = deps.transport ?? photonTransport(deps.config, deps.env);
+    const telegram = () => deps.telegramTransport ?? telegramTransport(telegramClient(deps.telegram ?? telegramConfig(deps.env ?? process.env), deps.env));
     // A denied environment touches no outbound state.
     assertMessagingAdmitted(transport.endpoint, deps.env);
     const select = (q: Transaction | Database) => q<OutboxRow[]>`
-      select id, channel, kind, template_name, dedupe_key, host_account_id, request_id, binding_id, requester_binding_id, input_id,
+      select id, channel, recipient_hash, kind, template_name, buttons, dedupe_key, host_account_id, request_id, binding_id, requester_binding_id, input_id,
              recipient_ciphertext, text_ciphertext, sealed_key_id, state,
              created_at < now() - make_interval(mins => ${TURN_REPLY_WAIT_MINUTES}) as stale,
              created_at > now() - make_interval(mins => ${WHATSAPP_WINDOW_MINUTES}) as fresh
@@ -413,6 +472,20 @@ export function createImessageSendHandler(load: () => ImessageSendDependencies =
         inWindow = binding.in_window;
       }
 
+      // A guest's window runs from their last message, the link message
+      // included (guest-whatsapp-link design 3); an unlinked guest gets nothing.
+      if (row.requester_binding_id) {
+        const [binding] = await claimTx<{ state: string; in_window: boolean }[]>`
+          select state, coalesce(last_inbound_at > now() - make_interval(mins => ${WHATSAPP_WINDOW_MINUTES}), false) as in_window
+          from app.requester_imessage_bindings where id = ${row.requester_binding_id}
+        `;
+        if (binding?.state === "unlinked") {
+          await finish(claimTx, row.id, row.state, "suppressed", { category: "unlinked" });
+          return { state: "suppressed" as const };
+        }
+        if (binding) inWindow = binding.in_window;
+      }
+
       // Free-form WhatsApp text outside the window is never sent (D8).
       if (row.channel === "whatsapp" && row.kind !== "template" && !inWindow) {
         await finish(claimTx, row.id, row.state, "suppressed", { category: WINDOW_CLOSED });
@@ -420,19 +493,22 @@ export function createImessageSendHandler(load: () => ImessageSendDependencies =
         return { state: "suppressed" as const };
       }
 
-      if (row.requester_binding_id) {
-        const [binding] = await claimTx<{ state: string }[]>`
-          select state from app.requester_imessage_bindings where id = ${row.requester_binding_id}
+      // An edit past Telegram's limit would only fail; a stale tap is refused anyway (D9).
+      if (row.kind === "edit_markup") {
+        const [edited] = await claimTx<{ editable: boolean }[]>`
+          select completed_at > now() - make_interval(hours => ${TELEGRAM_EDIT_HOURS}) as editable
+          from app.imessage_outbox where id::text = ${row.dedupe_key.slice("edit:".length)} and state = 'accepted'
         `;
-        if (binding?.state === "unlinked") {
-          await finish(claimTx, row.id, row.state, "suppressed", { category: "unlinked" });
+        if (!edited?.editable) {
+          await finish(claimTx, row.id, row.state, "suppressed", { category: "edit_expired" });
           return { state: "suppressed" as const };
         }
       }
 
       // Denied environments fail the attempt before dispatching; nothing is
       // marked and nothing falls back.
-      assertMessagingAdmitted(transport.endpoint, deps.env);
+      const rowTransport = row.channel === "telegram" ? telegram() : transport;
+      assertMessagingAdmitted(rowTransport.endpoint, deps.env);
 
       const recipientJson = open(deps, row, row.recipient_ciphertext);
       if (!recipientJson) {
@@ -457,23 +533,25 @@ export function createImessageSendHandler(load: () => ImessageSendDependencies =
 
       const context = outboxSealContext(row.id);
       const frozen = text === null ? null : sealToken({ id: row.sealed_key_id!, key: keyOf(deps, row.sealed_key_id!) }, text, context);
+      const waitMs = row.channel === "telegram" && !UNSPACED.has(row.kind) ? await telegramSlot(claimTx, row.recipient_hash) : 0;
       await claimTx`
         update app.imessage_outbox
         set state = 'dispatching', text_ciphertext = coalesce(${frozen?.ciphertext ?? null}, text_ciphertext),
-            dispatched_at = now(), updated_at = now()
+            dispatched_at = now() + make_interval(secs => ${waitMs / 1000}), updated_at = now()
         where id = ${row.id}
       `;
-      return { recipient: JSON.parse(recipientJson) as PhotonRecipient, row, state: "dispatching" as const, text };
+      return { recipient: JSON.parse(recipientJson) as PhotonRecipient, row, state: "dispatching" as const, text, transport: rowTransport, waitMs };
     });
 
     if (claim.state !== "dispatching") return { outboxId, state: claim.state };
+    if (claim.waitMs > 0) await new Promise((resolve) => setTimeout(resolve, claim.waitMs));
 
     let result;
 
     try {
-      result = await transport.send({
+      result = await claim.transport.send({
         channel: claim.row.channel,
-        content: contentOf(claim.row, claim.text),
+        content: contentOf(claim.row, claim.text, whatsAppButtonsEnabled(deps.env)),
         idempotencyKey: claim.row.id,
         recipient: claim.recipient,
       });
@@ -483,7 +561,8 @@ export function createImessageSendHandler(load: () => ImessageSendDependencies =
 
     // A signal is best-effort: it is never retried or reported as a delivery
     // problem, so a missed read mark or typing bubble never holds a reply back.
-    if (claim.row.kind === "signal" && result.status !== "accepted") {
+    // A callback answer is too: a late one is refused by Telegram anyway.
+    if ((claim.row.kind === "signal" || claim.row.kind === "callback_answer") && result.status !== "accepted") {
       await finish(tx, outboxId, "dispatching", "failed", { category: result.status === "rejected" ? result.category : result.status });
       return { outboxId, state: "failed" };
     }
@@ -495,8 +574,28 @@ export function createImessageSendHandler(load: () => ImessageSendDependencies =
 
     if (result.status === "rejected") {
       await finish(tx, outboxId, "dispatching", "failed", { category: result.category });
+      if (result.category === "blocked" && claim.row.binding_id) await endBlockedBinding(tx, claim.row.binding_id);
       if (result.category === WINDOW_CLOSED && claim.row.kind !== "template") await queueTemplate(tx, deps, claim.row);
       return { outboxId, state: "failed" };
+    }
+
+    const rateLimits = typeof job.payload.rateLimits === "number" ? job.payload.rateLimits : 0;
+
+    if (result.status === "unavailable" && typeof result.retryAfterSeconds === "number" && rateLimits < RATE_LIMIT_RETRIES) {
+      // Rate limited: nothing was sent. A new job sends the row once the delay
+      // Telegram named has passed, so the limit spends no attempt.
+      await tx`
+        update app.imessage_outbox set state = 'queued', failure_category = 'rate_limited', updated_at = now()
+        where id = ${outboxId} and state = 'dispatching'
+      `;
+      await publishJob(tx, {
+        dedupeKey: `outbox:${outboxId}:rate:${rateLimits + 1}`,
+        kind: IMESSAGE_SEND_JOB,
+        maxAttempts: job.maxAttempts,
+        payload: { ...job.payload, outboxId, rateLimits: rateLimits + 1 },
+        runAfter: new Date(Date.now() + Math.max(result.retryAfterSeconds, 1) * 1000),
+      });
+      return { outboxId, state: "queued" };
     }
 
     if (result.status === "unavailable") {
@@ -537,6 +636,40 @@ export function createImessageSendHandler(load: () => ImessageSendDependencies =
 }
 
 export const WINDOW_CLOSED = "window_closed";
+
+// Rate limits a Telegram row waits out before an ordinary failed attempt.
+export const RATE_LIMIT_RETRIES = 10;
+
+// Telegram rows that are not messages, and so take no slot in the chat's spacing.
+const UNSPACED: ReadonlySet<OutboxKind> = new Set(["signal", "callback_answer"]);
+
+// The wait before the next send to a Telegram chat may start, reserved under a
+// per-chat lock: the row claimed here dispatches at least a second after the
+// last one claimed for the same chat.
+async function telegramSlot(tx: Transaction, recipientHash: string) {
+  await tx`select pg_advisory_xact_lock(hashtextextended(${`app.telegram_chat:${recipientHash}`}, 0))`;
+  const [slot] = await tx<{ wait_ms: number }[]>`
+    select greatest(0, ceil(extract(epoch from (max(dispatched_at) + make_interval(secs => ${TELEGRAM_CHAT_SPACING_MS / 1000}) - now())) * 1000))::int as wait_ms
+    from app.imessage_outbox
+    where channel = 'telegram' and recipient_hash = ${recipientHash} and dispatched_at is not null
+  `;
+  return slot?.wait_ms ?? 0;
+}
+
+// The user blocked or deleted the bot (D11): the binding ends as stop ends it,
+// and nothing still queued for it goes out.
+export async function endBlockedBinding(tx: Transaction, bindingId: string) {
+  await tx`
+    update app.imessage_bindings set state = 'unlinked', ended_at = now(), sender_ciphertext = null, space_ciphertext = null
+    where id = ${bindingId} and state = 'active'
+  `;
+  await tx`
+    update app.imessage_outbox
+    set state = 'suppressed', failure_category = 'blocked', recipient_ciphertext = null, text_ciphertext = null,
+        completed_at = now(), updated_at = now()
+    where binding_id = ${bindingId} and state in ('waiting', 'queued')
+  `;
+}
 
 // The summary a closed window stopped becomes one template (design 8): only for
 // the events that have one, only to an active WhatsApp binding, and only within
@@ -587,10 +720,56 @@ async function queueTemplate(
   });
 }
 
+// A summary's buttons are sealed with its text as one JSON envelope, so the
+// outbox needs no column of its own; only notice and command rows on WhatsApp
+// carry one, and only their sealed text is read as an envelope.
+const BUTTON_KINDS: ReadonlySet<OutboxKind> = new Set(["notice", "command"]);
+const BUTTONS_ENVELOPE = "fmat_buttons_v1";
+
+function sealedWithButtons(text: string, buttons: WhatsAppButtons) {
+  return JSON.stringify({ [BUTTONS_ENVELOPE]: true, buttons, text });
+}
+
+export function openedWithButtons(kind: OutboxKind, sealed: string): { text: string; buttons: WhatsAppButtons | null } {
+  if (!BUTTON_KINDS.has(kind) || !sealed.startsWith(`{"${BUTTONS_ENVELOPE}":true,`)) return { buttons: null, text: sealed };
+  try {
+    const value = JSON.parse(sealed) as { buttons?: WhatsAppButtons; text?: unknown };
+    if (typeof value.text !== "string") return { buttons: null, text: sealed };
+    return { buttons: value.buttons ?? null, text: value.text };
+  } catch {
+    return { buttons: null, text: sealed };
+  }
+}
+
+// Buttons are offered only once a real button reply has shown that Photon's
+// webhook carries the button's ID (design 11): WHATSAPP_BUTTONS=1 turns them on.
+export function whatsAppButtonsEnabled(env: Readonly<Record<string, string | undefined>> = process.env) {
+  return env.WHATSAPP_BUTTONS?.trim() === "1";
+}
+
 // Templates are registered in en_US (design 8); the sealed text is the request reference.
 export const TEMPLATE_LANGUAGE = "en_US";
 
-function contentOf(row: Pick<OutboxRow, "kind" | "template_name">, text: string | null): PhotonContent {
+// Host notices that need nothing from the host go out silently on Telegram (D10).
+const SILENT_NOTICES = ["notice:booking_confirmed:", "notice:booking_pending:"];
+
+// A row reaches contentOf only inside the WhatsApp window (outside it, it was
+// suppressed and a template queued), so buttons need only the switch; a template
+// never carries them. A Telegram row carries its keyboard from the row itself.
+function contentOf(
+  row: Pick<OutboxRow, "kind" | "template_name" | "channel" | "buttons" | "dedupe_key">,
+  text: string | null,
+  buttonsOn: boolean,
+): PhotonContent {
+  if (row.kind === "edit_markup") return { kind: "edit_markup", messageId: text ?? "" };
+  if (row.kind === "callback_answer") {
+    const answer = JSON.parse(text ?? "{}") as Partial<CallbackAnswer>;
+    return { answer: answer.text ?? null, callbackId: answer.callbackId ?? "", kind: "callback_answer" };
+  }
+  if (row.channel === "telegram" && text !== null && row.kind !== "signal") {
+    const silent = row.kind === "notice" && SILENT_NOTICES.some((prefix) => row.dedupe_key.startsWith(prefix));
+    return { kind: "text", text, ...(row.buttons ? { keyboard: row.buttons } : {}), ...(silent ? { silent } : {}) };
+  }
   if (row.kind === "template" && row.template_name) {
     return { kind: "template", languageCode: TEMPLATE_LANGUAGE, name: row.template_name, params: text === null ? [] : [text] };
   }
@@ -598,15 +777,28 @@ function contentOf(row: Pick<OutboxRow, "kind" | "template_name">, text: string 
     const signal = JSON.parse(text ?? "{}") as Partial<ImessageSignal>;
     return { kind: "signal", messageId: signal.messageId ?? null, reaction: signal.reaction ?? null, typing: signal.typing === true };
   }
-  return text === null ? { kind: "contact_card" } : { kind: "text", text };
+  if (text === null) return { kind: "contact_card" };
+  const opened = openedWithButtons(row.kind, text);
+  return opened.buttons && buttonsOn && row.channel === "whatsapp"
+    ? { buttons: opened.buttons, kind: "text", text: opened.text }
+    : { kind: "text", text: opened.text };
 }
 
-// What a signal row asks for (host-imessage-channel design 18): read the host's
-// message, react to it, show typing. Sealed as JSON in text_ciphertext.
+// What a signal row asks for (host-imessage-channel design 18, and on WhatsApp
+// host-whatsapp-channel design 11): read the host's message, react to it, show
+// typing. Sealed as JSON in text_ciphertext.
 export type ImessageSignal = { readonly messageId: string | null; readonly typing: boolean; readonly reaction: string | null };
 
 export function signalText(signal: ImessageSignal) {
   return JSON.stringify(signal);
+}
+
+// What a callback_answer row sends (design 7): the tap's callback ID and the
+// answer Telegram shows, if any. Sealed as JSON in text_ciphertext.
+export type CallbackAnswer = { readonly callbackId: string; readonly text: string | null };
+
+export function callbackAnswerText(answer: CallbackAnswer) {
+  return JSON.stringify(answer);
 }
 
 function keyOf(deps: ImessageSendDependencies, keyId: string) {

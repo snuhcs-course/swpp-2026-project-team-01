@@ -371,7 +371,7 @@
 | 보존(D14) | `supabase/tests/imessage_channel.test.sql`; `imessage-setup.test.ts` "retention" |
 
 | iMessage 시작(D15) | `tests/integration/imessage-start.test.ts`: 발신자는 이 브라우저에만 기록되고 로그인과 **확인 후 연결(Confirm and link)** 뒤에 바인딩됨; 대체된 시작과 만료된 시작; 다른 호스트가 가진 발신자는 확인 시점에 거부됨; 출처별 한도. `google-sign-in.test.ts` "gives this browser's iMessage start to the host who signs in, and clears its cookie (D15)"; `tests/e2e/imessage-link.test.ts` "the landing's iMessage start opens the send popup, and the arriving message asks for Google" |
-| 연결 단계와 랜딩(D16–D18) | `tests/e2e/imessage-link.test.ts`: 1280 px의 연결 단계, **여기 웹 채팅에서 설정하기(Set up here in web chat)**, iPhone에서 연결 단계의 딥링크; `tests/e2e/public-entry.test.ts`: 캘린더 상자, iMessage 시작, `lang` 쿠키; `google-sign-in.test.ts` "asks for identity only for ?calendar=0, and for Calendar with any other value"; Mac 플랫폼은 `lib/contracts/imessage.test.ts` |
+| 연결 단계와 랜딩(D16–D18) | `tests/e2e/imessage-link.test.ts`: 1280 px의 연결 단계, **여기 웹 채팅에서 설정하기(Set up here in web chat)**, iPhone에서 연결 단계의 딥링크; `tests/e2e/public-entry.test.ts`: Google 시작(캘린더 상자는 2026-11-04에 제거됨), iMessage 시작, `lang` 쿠키; `google-sign-in.test.ts` "asks for identity only for ?calendar=0, and for Calendar with any other value"; Mac 플랫폼은 `lib/contracts/imessage.test.ts` |
 | iMessage에서 이어가기(D19) | `imessage-start.test.ts`: **확인 후 연결(Confirm and link)** 전까지 한 호스트에게만 유효한 로그인 링크, 기한이 지나면 거부, 로컬 Auth를 거쳐 "Google에서 돌아왔다" 메시지까지 이어짐; `imessage-links.test.ts` "welcomes a host still setting up into setup, Calendar first, and tells a ready host what Thyme can do" |
 | 읽음 확인과 입력 중 신호 | `lib/server/photon-receiver.test.ts` "does not turn an inbound read/typing signal into a message" |
 | 기기 확인(PR #39) | 2026-10-23, 사용자의 iPhone과 Mac에서 `fmat-spike` 회선과 로컬 수신기(저장소 밖의 임시 재정의)로: 랜딩의 **메시지 열기(Open Messages)**가 iOS Safari와 Mac에서 회선 번호와 메시지를 채움; 보낸 코드로 페이지가 받음 상태로 바뀜; 환영 메시지가 도착했고 답장하자 다음 설정 질문이 옴 |
@@ -498,9 +498,12 @@
 | `PHOTON_WHATSAPP_NUMBER` | 2026-11-04 | — | `findmeatime-release` Production에 `17114549153`으로 설정했습니다 |
 | 깨끗한 체크아웃에서 `vercel deploy --prod` | 2026-11-04 | `44c71257` | Ready 상태이며 `https://findmeatime.com`에 별칭이 연결되었습니다 |
 | 읽기 전용 점검 | 2026-11-04 | `44c71257` | `/`와 `/?flow=whatsapp`가 200으로 응답하고, `GET /api/imessage/start`가 WhatsApp 번호와 함께 두 채널을 명시하며, 서명 없는 `POST /photon/webhook`은 거부됩니다 |
+| 휴대폰에서 연결 시도 | 2026-11-04 | `db1e4e67` | 실패: 04:27부터 04:33 UTC 사이에 연결 코드 네 개가 만들어졌지만 `/photon/webhook`은 어떤 전달도 받지 못했습니다. Photon은 이 회선을 `BANNED`로 보고하며, Meta는 2026-11-03 18:41 UTC에 WhatsApp Business 계정을 비활성화했습니다([공급자 설정](03_provider_setup.md#whatsapp-business)) |
+| +1 555-701-1140으로 전환 | 2026-11-04 | `db1e4e67` | +1 711 회선을 Photon에서 제거했고, Production에 `PHOTON_WHATSAPP_NUMBER=15557011140`을 설정했으며, 다시 배포해 `https://findmeatime.com`에 별칭을 연결했습니다. `GET /api/imessage/start`는 WhatsApp `15557011140`을 알려 주고, `/`, `/app`, `/?flow=whatsapp`은 200으로 응답합니다 |
 
 ### 알려진 공백
 
+- **WhatsApp Business 계정 비활성화 후 복구.** Meta가 2026-11-03에 "허용 가능한 사용 약관 위반"을 이유로 계정을 비활성화했고 2026-11-04에 검토 후 복구했습니다. 프로덕션은 이제 +1 555-701-1140을 사용하며, 이 계정 아래에는 템플릿이 아직 제출되지 않았습니다.
 - **실제 WhatsApp 이벤트나 전송 없음.** 플랫폼 표기, 연락처 ID 형식, Photon이 Meta의 오류 코드를 싣는 위치는 공급자 패키지와 Photon의 문서에서 가져왔으며, 이벤트 한 건의 캡처(작업 5.1)는 사용자 대기 중입니다.
 - **등록되지 않은 템플릿.** 설계 8의 템플릿 세 개가 WhatsApp Manager에 없으므로, 승인되기 전까지 프로덕션은 `template_unavailable`로 응답하게 됩니다.
 - **수락 이후 Meta가 보고하는 거부**(상태 이벤트의 131047)는 관찰되지 않았으며, 전송 시점의 창 확인이 안전장치입니다.

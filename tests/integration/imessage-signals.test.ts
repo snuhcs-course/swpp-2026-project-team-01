@@ -11,7 +11,7 @@ import { hostWithUser, imessageHarness } from "./support/imessage";
 // a read mark with typing while a turn's reply waits or the read mark alone
 // beside a command's reply; a message that only says thanks gets a tapback and
 // no turn; a signal that fails is final and hides nothing; the card waits
-// behind the welcome; WhatsApp gets no signal and no contact card.
+// behind the welcome; WhatsApp gets no contact card.
 
 const db = testDatabase();
 let photon: FakePhoton;
@@ -126,12 +126,10 @@ describe("the contact card after linking", () => {
     expect(sent.map((send) => send.content)).toEqual([{ kind: "signal", messageId: delivered.messageId, reaction: null, typing: false }]);
   });
 
-  it("sends neither a card nor signals on WhatsApp", async () => {
+  // WhatsApp signals (host-whatsapp-channel D15, D16) are covered in whatsapp-signals.test.ts.
+  it("sends no card on WhatsApp", async () => {
     const { hostAccountId } = await hostWithUser(db);
-    const { sender } = await im.link(hostAccountId, undefined, "whatsapp");
-
-    expect((await im.deliver({ channel: "whatsapp", sender, text: "Thanks!" })).outcome).not.toBe("replied");
+    await im.link(hostAccountId, undefined, "whatsapp");
     expect(await im.outbox({ hostAccountId, kind: "contact_card" })).toEqual([]);
-    expect(await signalsOf(hostAccountId)).toEqual([]);
   });
 });

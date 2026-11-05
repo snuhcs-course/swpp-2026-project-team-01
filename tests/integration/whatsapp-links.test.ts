@@ -15,7 +15,8 @@ import { testTokenKey } from "./support/requests";
 // and a code from the other channel voids it; confirming a sender of one channel
 // ends the binding on the other and suppresses what was queued for it; an
 // unlinked WhatsApp sender gets the WhatsApp refusal; WhatsApp has no contact
-// card; an exact retry replays its outcome.
+// card; an exact retry replays its outcome. A WhatsApp start registers the
+// number first and keeps no assigned number (guest-whatsapp-link task 3.1).
 
 const db = testDatabase();
 let photon: FakePhoton;
@@ -30,8 +31,8 @@ afterAll(async () => {
   await db.end();
 });
 
-async function pendingWhatsApp(hostAccountId: string) {
-  const created = await im.command(hostAccountId, "imessage.link.create", { channel: "whatsapp" });
+async function pendingWhatsApp(hostAccountId: string, number = `+${newWhatsAppSender()}`) {
+  const created = await im.command(hostAccountId, "imessage.link.create", { channel: "whatsapp", number });
   expect(created.ok).toBe(true);
   const status = await im.status(hostAccountId);
   if (status.state !== "pending") throw new Error(`Expected a pending code, got ${status.state}.`);
@@ -47,7 +48,7 @@ describe("linking WhatsApp", () => {
 
     expect((await im.deliver({ channel: "whatsapp", sender, text: pending.message })).outcome).toBe("link_received");
     const received = await im.status(hostAccountId);
-    expect(received).toMatchObject({ channel: "whatsapp", replaces: null, sender: `•••• ${sender.slice(-4)}`, state: "received" });
+    expect(received).toMatchObject({ channel: "whatsapp", replaces: null, sender: `+${sender}`, state: "received" });
     expect(await im.bindingOf(hostAccountId)).toBeNull();
 
     const [reply] = await im.outbox({ hostAccountId, kind: "link_received" });
@@ -136,8 +137,9 @@ describe("linking WhatsApp", () => {
     expect(card).toMatchObject({ error: { category: "invalid_input" }, ok: false });
 
     const other = await newHostAccount(db);
-    const first = await im.command(other, "imessage.link.create", { channel: "whatsapp" }, "same-key");
-    const again = await im.command(other, "imessage.link.create", { channel: "whatsapp" }, "same-key");
+    const number = `+${newWhatsAppSender()}`;
+    const first = await im.command(other, "imessage.link.create", { channel: "whatsapp", number }, "same-key");
+    const again = await im.command(other, "imessage.link.create", { channel: "whatsapp", number }, "same-key");
     expect(again).toMatchObject({ ok: true, replayed: true });
     expect(first.ok && again.ok && first.result).toEqual(again.ok && again.result);
   });
@@ -150,8 +152,40 @@ describe("linking WhatsApp", () => {
     const outcome = await runCommand(
       { authenticate: async () => ({ id: hostAccountId, kind: "host_account" }), db },
       commands["imessage.link.create"]!,
-      { input: { channel: "whatsapp" }, resourceId: hostAccountId, retryKey: crypto.randomUUID() },
+      { input: { channel: "whatsapp", number: "+15557654321" }, resourceId: hostAccountId, retryKey: crypto.randomUUID() },
     );
     expect(outcome).toMatchObject({ error: { category: "unavailable_configuration" }, ok: false });
+  });
+});
+
+describe("the number before a WhatsApp code", () => {
+  it("registers the host's number and keeps no assigned number", async () => {
+    const hostAccountId = await newHostAccount(db);
+    const number = `+${newWhatsAppSender()}`;
+    photon.nextRegistration({ lineNumber: "+15550009999" });
+    await pendingWhatsApp(hostAccountId, number);
+    expect(photon.registered.at(-1)).toBe(number);
+    const [attempt] = await db<{ channel: string; line_number: string | null }[]>`
+      select channel, line_number from app.imessage_links where host_account_id = ${hostAccountId} and state = 'pending'
+    `;
+    expect(attempt).toEqual({ channel: "whatsapp", line_number: null });
+    expect(await im.status(hostAccountId)).toMatchObject({ channel: "whatsapp", lineNumber: TEST_WHATSAPP_NUMBER, state: "pending" });
+  });
+
+  it("refuses a WhatsApp code without a number, a malformed one, or a refused registration", async () => {
+    const hostAccountId = await newHostAccount(db);
+    const before = photon.registered.length;
+    expect(await im.command(hostAccountId, "imessage.link.create", { channel: "whatsapp" })).toMatchObject({ error: { category: "invalid_input" }, ok: false });
+    expect(await im.command(hostAccountId, "imessage.link.create", { channel: "whatsapp", number: "12" })).toMatchObject({
+      error: { category: "invalid_input" },
+      ok: false,
+    });
+    expect(photon.registered.length).toBe(before);
+    photon.nextRegistration(422);
+    expect(await im.command(hostAccountId, "imessage.link.create", { channel: "whatsapp", number: "+15557654321" })).toMatchObject({
+      error: { category: "unavailable_configuration" },
+      ok: false,
+    });
+    expect(await im.status(hostAccountId)).toMatchObject({ state: "none" });
   });
 });

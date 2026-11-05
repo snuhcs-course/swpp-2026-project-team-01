@@ -1,0 +1,57 @@
+{
+  "branch": "docs/whatsapp-account-disabled",
+  "user": "dodo41142727@gmail.com",
+  "sessions": {
+    "claude:de8a0e74-86f2-42cb-9c0d-846228f88d03": {
+      "agent": "claude-code",
+      "client": "claude-desktop",
+      "agent_ms": 0,
+      "models": {
+        "claude-opus-5-5": {
+          "input": 204,
+          "cache_read": 23122214,
+          "cache_write_5m": 0,
+          "cache_write_1h": 95613,
+          "output": 35066,
+          "reasoning": 0
+        }
+      },
+      "first": "2026-11-04T04:41:27.636Z",
+      "last": "2026-11-04T07:57:25.936Z"
+    },
+    "claude:de8a0e74-86f2-42cb-9c0d-846228f88d03/agent-a239d875ba2ee6c90": {
+      "agent": "claude-code",
+      "client": "claude-desktop",
+      "agent_ms": 0,
+      "models": {
+        "claude-sonnet-5-5": {
+          "input": 10,
+          "cache_read": 347623,
+          "cache_write_5m": 92429,
+          "cache_write_1h": 0,
+          "output": 2053,
+          "reasoning": 0
+        }
+      },
+      "first": "2026-11-04T05:11:51.138Z",
+      "last": "2026-11-04T05:12:07.595Z"
+    },
+    "claude:de8a0e74-86f2-42cb-9c0d-846228f88d03/agent-ad0a8aa1276d6ff11": {
+      "agent": "claude-code",
+      "client": "claude-desktop",
+      "agent_ms": 0,
+      "models": {
+        "claude-sonnet-5-5": {
+          "input": 10,
+          "cache_read": 345890,
+          "cache_write_5m": 93480,
+          "cache_write_1h": 0,
+          "output": 3573,
+          "reasoning": 0
+        }
+      },
+      "first": "2026-11-04T04:42:07.974Z",
+      "last": "2026-11-04T04:42:31.264Z"
+    }
+  }
+}

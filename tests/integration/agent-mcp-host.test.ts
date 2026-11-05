@@ -5,14 +5,15 @@ import { agentDependencies, callTool, HOST_RESOURCE, issueToken, mcpRequest, ORI
 import { agreedRequest } from "./support/booking";
 import { testDatabase } from "./support/database";
 import { type FakeGoogle, startFakeGoogle } from "./support/fake-google";
-import { createTestRequest } from "./support/requests";
+import { createTestRequest, testNotices } from "./support/requests";
 import { fakeGoogleConfig } from "./support/calendar-host";
 import { calendarKey } from "./support/scheduling";
 
 // The host MCP endpoint (agent-access task 4.1; design 4 and 6): both protocol
 // eras on one stateless endpoint, the token and grant checks on every call,
 // the tool list per permission, the host projection of the host's own
-// requests, retries that replay, and decisions that only return the review.
+// requests, retries that replay, and decisions in the host's words
+// (agent-decisions-in-words).
 
 const db = testDatabase();
 let google: FakeGoogle;
@@ -32,6 +33,7 @@ function setup() {
   const deps: McpDependencies = {
     appOrigin: ORIGIN,
     db,
+    notices: () => testNotices,
     setup: { appOrigin: ORIGIN, calendar: { config: fakeGoogleConfig(google), db, tokenKeys: [calendarKey] }, db },
     signingKey: agent.signingKey,
     tokenKey: agent.tokenKey,
@@ -212,21 +214,93 @@ describe("host tools", () => {
     expect(invalid.structuredContent.error?.category).toBe("invalid_input");
   });
 
-  it("prepares a decision only for the current version and never approves", async () => {
+  it("approves the current version in the host's words, once, through the button's command", async () => {
     const { handler, request, token } = await hostWithRequest();
     const view = await callTool(handler, "/mcp", token, "get_request", { requestId: request.requestId });
+    const { revision } = view.structuredContent as { revision: number };
     const version = (view.structuredContent.proposal as { version: number }).version;
+    const args = { expectedRevision: revision, hostInstruction: "Yes, approve that one.", requestId: request.requestId, retryKey: "approve-0001", version };
 
-    const prepared = await callTool(handler, "/mcp", token, "request_host_decision", { decision: "approve", requestId: request.requestId, version });
-    expect(prepared.structuredContent).toMatchObject({ reviewUrl: `${ORIGIN}/app?request=${request.requestId}`, status: "confirmation_required", version });
+    const approved = await callTool(handler, "/mcp", token, "approve_proposal", args);
+    expect(approved.isError).toBe(false);
+    expect(approved.structuredContent).toMatchObject({ outcome: { repeated: false, state: "reserved" }, request: { state: "booking" } });
+
+    // The same call, and another key on the same version, observe the one booking.
+    const again = await callTool(handler, "/mcp", token, "approve_proposal", args);
+    expect(again.structuredContent.outcome).toEqual(approved.structuredContent.outcome);
+    const otherKey = await callTool(handler, "/mcp", token, "approve_proposal", { ...args, retryKey: "approve-0002" });
+    expect(otherKey.structuredContent.outcome).toMatchObject({ bookingId: (approved.structuredContent.outcome as { bookingId: string }).bookingId, repeated: true });
+
+    const [{ approvals, bookings }] = Array.from(await db<{ approvals: number; bookings: number }[]>`
+      select (select count(*)::int from app.approvals where request_id = ${request.requestId}) as approvals,
+             (select count(*)::int from app.bookings where request_id = ${request.requestId}) as bookings
+    `);
+    expect([approvals, bookings]).toEqual([1, 1]);
+  });
+
+  it("refuses an old version, a stale revision and a missing host instruction", async () => {
+    const { handler, request, token } = await hostWithRequest();
+    const view = await callTool(handler, "/mcp", token, "get_request", { requestId: request.requestId });
+    const { revision } = view.structuredContent as { revision: number };
+    const version = (view.structuredContent.proposal as { version: number }).version;
+    const base = { expectedRevision: revision, hostInstruction: "Approve it", requestId: request.requestId, version };
+
+    const old = await callTool(handler, "/mcp", token, "approve_proposal", { ...base, retryKey: "approve-old-1", version: version + 1 });
+    expect(old.structuredContent.error?.category).toBe("proposal_superseded");
+
+    const stale = await callTool(handler, "/mcp", token, "approve_proposal", { ...base, expectedRevision: revision - 1, retryKey: "approve-stale-1" });
+    expect(stale.structuredContent.error?.category).toBe("stale_revision");
+
+    const { hostInstruction: _words, ...unasked } = base;
+    const missing = await callTool(handler, "/mcp", token, "approve_proposal", { ...unasked, retryKey: "approve-none-1" });
+    expect(missing.structuredContent.error?.category).toBe("invalid_input");
+    const blank = await callTool(handler, "/mcp", token, "decline_request", { expectedRevision: revision, hostInstruction: "   ", requestId: request.requestId, retryKey: "decline-blank-1" });
+    expect(blank.structuredContent.error?.category).toBe("invalid_input");
 
     const [{ count }] = Array.from(await db<{ count: number }[]>`select count(*)::int as count from app.approvals where request_id = ${request.requestId}`);
     expect(count).toBe(0);
     const [state] = await db<{ state: string }[]>`select state from app.requests where id = ${request.requestId}`;
     expect(state!.state).toBe("awaiting_host_approval");
+  });
 
-    const stale = await callTool(handler, "/mcp", token, "request_host_decision", { decision: "approve", requestId: request.requestId, version: version + 1 });
-    expect(stale.structuredContent.error?.category).toBe("proposal_superseded");
+  it("declines in the host's words, replays the retry and refuses a closed request", async () => {
+    const { handler, request, token } = await hostWithRequest();
+    const view = await callTool(handler, "/mcp", token, "get_request", { requestId: request.requestId });
+    const { revision } = view.structuredContent as { revision: number };
+    const version = (view.structuredContent.proposal as { version: number }).version;
+    const args = { expectedRevision: revision, hostInstruction: "Decline this, I'm away that week.", requestId: request.requestId, retryKey: "decline-0001" };
+
+    const declined = await callTool(handler, "/mcp", token, "decline_request", args);
+    expect(declined.structuredContent.error).toBeUndefined();
+    expect(declined.structuredContent).toMatchObject({ outcome: { state: "declined" }, request: { state: "declined" } });
+    const again = await callTool(handler, "/mcp", token, "decline_request", args);
+    expect(again.structuredContent.outcome).toEqual(declined.structuredContent.outcome);
+
+    const closed = await callTool(handler, "/mcp", token, "decline_request", { ...args, expectedRevision: revision + 1, retryKey: "decline-0002" });
+    expect(closed.structuredContent.error?.category).toBe("request_closed");
+    const late = await callTool(handler, "/mcp", token, "approve_proposal", { ...args, retryKey: "approve-late-1", version });
+    expect(late.structuredContent.error?.category).toBe("request_closed");
+  });
+
+  it("keeps decisions to grants with host:decide and to the host's own requests", async () => {
+    const { handler, request, token } = await hostWithRequest(["host:read", "host:write"]);
+    const list = await rpc(handler, { method: "tools/list", token });
+    const names = (list.body!.result as { tools: { name: string }[] }).tools.map((tool) => tool.name);
+    expect(names).not.toContain("approve_proposal");
+    expect(names).not.toContain("decline_request");
+
+    const args = { expectedRevision: 0, hostInstruction: "Approve", requestId: request.requestId, retryKey: "approve-scope-1", version: 1 };
+    const refused = await rpc(handler, { method: "tools/call", params: { arguments: args, name: "approve_proposal" }, token });
+    expect(refused.response.status).toBe(403);
+    expect(refused.response.headers.get("www-authenticate")).toContain('scope="host:decide"');
+
+    const decider = await hostWithRequest();
+    const { version: _version, ...declineArgs } = args;
+    const theirs = await callTool(decider.handler, "/mcp", decider.token, "decline_request", { ...declineArgs, retryKey: "decline-foreign-1" });
+    expect(theirs.structuredContent.error?.category).toBe("request_unavailable");
+
+    const [state] = await db<{ state: string }[]>`select state from app.requests where id = ${request.requestId}`;
+    expect(state!.state).toBe("awaiting_host_approval");
   });
 
   it("replays an identical retry and refuses a reused key with other input", async () => {

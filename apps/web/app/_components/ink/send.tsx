@@ -1,7 +1,7 @@
 "use client";
 
 import { deepLinkFor, type MessagesPlatform, messagesPlatform, qrDeepLink } from "@lib/contracts/imessage";
-import { displayWhatsAppNumber, type MessagingChannel, whatsAppLinkFor } from "@lib/contracts/messaging-channel";
+import { displayWhatsAppNumber, type MessagingChannel, telegramLinkFor, whatsAppLinkFor } from "@lib/contracts/messaging-channel";
 import { type ReactNode, type RefObject, useEffect, useMemo, useRef, useState } from "react";
 import { renderSVG } from "uqr";
 import { CopyButton } from "./chrome";
@@ -15,6 +15,9 @@ import { AppGlyph, CloseIcon } from "./icons";
 // page; /app shows it in the page.
 // For a WhatsApp code (host-whatsapp-channel D6) the QR code carries the wa.me link, the middle way opens
 // WhatsApp Web or the desktop app on any computer, and the number shows with its plus.
+// For a Telegram code (host-telegram-channel D6) the code's lineNumber is the bot's username and its message
+// the bare code: the QR code and the middle way carry the t.me start link (Telegram Desktop or Telegram Web on
+// any computer), the preview shows the /start the Start button sends, and Copy offers the link and the code.
 
 export type SendCode = {
   readonly channel: MessagingChannel;
@@ -23,12 +26,20 @@ export type SendCode = {
   readonly expiresAt: string;
 };
 
-// The line's number as the screens show it.
-export const shownNumber = (code: SendCode) => (code.channel === "whatsapp" ? displayWhatsAppNumber(code.lineNumber) : code.lineNumber);
+// The line's number (or the bot) as the screens show it.
+export const shownNumber = (code: SendCode) =>
+  code.channel === "whatsapp" ? displayWhatsAppNumber(code.lineNumber) : code.channel === "telegram" ? `@${code.lineNumber}` : code.lineNumber;
 
-// The link a QR code carries: wa.me for WhatsApp, the iOS sms: link for iMessage.
-const qrLink = (code: SendCode) =>
-  code.channel === "whatsapp" ? (whatsAppLinkFor(code.lineNumber, code.message) ?? "") : qrDeepLink(code.lineNumber, code.message);
+// The link that opens the app from any computer: wa.me for WhatsApp, t.me for Telegram, a Mac's sms: link for iMessage.
+const computerLink = (code: SendCode) =>
+  code.channel === "whatsapp"
+    ? whatsAppLinkFor(code.lineNumber, code.message)
+    : code.channel === "telegram"
+      ? telegramLinkFor(code.lineNumber, code.message)
+      : deepLinkFor("mac", code.lineNumber, code.message);
+
+// The link a QR code carries: wa.me for WhatsApp, t.me for Telegram, the iOS sms: link for iMessage.
+const qrLink = (code: SendCode) => (code.channel === "imessage" ? qrDeepLink(code.lineNumber, code.message) : (computerLink(code) ?? ""));
 
 export function usePlatform(): MessagesPlatform {
   const [platform, setPlatform] = useState<MessagesPlatform>("other");
@@ -65,8 +76,8 @@ export function MessagePreview({ code, gone, t }: { readonly code: SendCode; rea
         <b>Thyme · {shownNumber(code)}</b>
       </div>
       <div className="preview-body">
-        <p className={code.channel === "whatsapp" ? "blue wa" : "blue"} data-testid="imessage-link-message">
-          {code.message}
+        <p className={code.channel === "whatsapp" ? "blue wa" : code.channel === "telegram" ? "blue tg" : "blue"} data-testid="imessage-link-message">
+          {code.channel === "telegram" ? `/start ${code.message}` : code.message}
         </p>
       </div>
     </div>
@@ -93,9 +104,9 @@ function Qr({ code, gone, label, mark }: { readonly code: SendCode; readonly gon
 function Ways({ code, gone, labels, here, t }: { readonly code: SendCode; readonly gone: boolean; readonly labels: Copy["copy"]; readonly here: boolean; readonly t: Copy["send"] }) {
   const numberRef = useRef<HTMLSpanElement>(null);
   const messageRef = useRef<HTMLSpanElement>(null);
-  const whatsapp = code.channel === "whatsapp";
-  const link = whatsapp ? whatsAppLinkFor(code.lineNumber, code.message) : deepLinkFor("mac", code.lineNumber, code.message);
-  const number = shownNumber(code);
+  const link = computerLink(code);
+  // Telegram's first copy row is the start link itself; the others copy the number.
+  const number = code.channel === "telegram" ? (link ?? "") : shownNumber(code);
   const way = gone ? "way gone" : "way";
   return (
     <div className={here ? "ways" : "ways two"}>
@@ -216,8 +227,8 @@ export function SendPanel({
         </button>
       ) : null}
       <MessagePreview code={code} gone={gone} t={t} />
-      {/* A Mac opens its Messages; any computer opens WhatsApp Web or the desktop app. */}
-      <Ways code={code} gone={gone} labels={labels} here={code.channel === "whatsapp" || platform === "mac"} t={t} />
+      {/* A Mac opens its Messages; any computer opens WhatsApp or Telegram, on the web or the desktop app. */}
+      <Ways code={code} gone={gone} labels={labels} here={code.channel !== "imessage" || platform === "mac"} t={t} />
       <div className="modal-foot">{foot}</div>
     </>
   );

@@ -117,6 +117,8 @@ Photon의 전달 가능성 안내에 따라 인바운드 우선이 기본값입�
 
 운영 프로젝트는 Photon의 Free 요금제이며, 이 요금제의 iMessage 회선은 공유 회선입니다. 공유 회선은 프로젝트에 등록된 사용자가 보낸 메시지만 전달하고, 등록된 사용자에게만 보냅니다([troubleshooting](https://photon.codes/docs/spectrum-ts/troubleshooting/imessage), 이슈 #94). 그래서 모든 iMessage 연결 시작은 먼저 상대의 번호를 묻고, 프로젝트 자격 증명으로 `POST https://spectrum.photon.codes/projects/{projectId}/users/`를 호출해 그 번호를 공유 사용자로 등록합니다. 코드는 Photon이 돌려준 `assignedPhoneNumber`로 보내도록 안내하며, 이 번호는 시도의 `imessage_links.line_number`에 보관됩니다([`imessage-number-registration`](../../openspec/changes/imessage-number-registration/proposal.md#decisions) D1, D2). `PHOTON_LINE_NUMBER`는 iMessage를 켜는 역할만 합니다. Free 요금제는 등록 사용자 10명, Pro는 100명까지이며([pricing](https://photon.codes/pricing)), 가득 찬 프로젝트는 새 번호를 거절합니다. 등록된 사용자는 `photon spectrum users ls --project <id>`로 확인합니다. 전용 회선(Business)에는 이런 목록이 없습니다.
 
+2026-11-04부터 모든 WhatsApp 연결 시작(호스트의 연결 단계와 Connect WhatsApp 카드, `/?flow=whatsapp`, 게스트의 **Get updates in WhatsApp**)은 입력한 번호를 같은 방식으로 등록하므로([`guest-whatsapp-link`](../../openspec/changes/guest-whatsapp-link/proposal.md#decisions) D3), WhatsApp 시작도 프로젝트 사용자를 하나씩 소비합니다. 답에 담긴 `assignedPhoneNumber`는 iMessage 풀 번호이며 버립니다. WhatsApp 시도는 `line_number`를 보관하지 않고(검사로 강제), 코드는 `PHOTON_WHATSAPP_NUMBER`로 보내도록 안내합니다. Free 요금제에서 WhatsApp Business 발신자에 대해 Photon이 이 등록을 요구하는지, 받아들이는지, 무시하는지는 확인하지 못했습니다.
+
 ### 표시 이름, 연락처 카드, 프로필 동기화
 
 Photon의 [전달 가능성 안내](https://photon.codes/docs/best-practices/imessage-deliverability.md)에 따라 **확인 및 연결(Confirm and link)** 직후 환영 메시지 뒤에 보류해 연락처 카드를 한 번 공유하고, 다시 공유할 수 있도록 호스트 동작으로서 선택적인 **연락처에 추가(Add to contacts)**를 제공합니다. 각각은 Spectrum SDK를 통해 네이티브 연락처 카드 공유 하나를 대기열에 넣습니다([`host-imessage-channel` 설계 11과 18](../../openspec/changes/host-imessage-channel/design.md#18-read-marks-typing-tapbacks-and-the-contact-card-after-linking-d20d22)). 읽음 표시, 입력 중 말풍선, 감사 탭백은 같은 SDK를 통해 최선 노력 방식의 발신함 신호(`space.read`, `space.startTyping`, `message.react`)로 전달됩니다. 실제로 선택된 경로를 고정하고, 공급자의 수락/불확실성을 사실대로 보고합니다. 저장 여부는 수신자가 선택하며, 제품은 표시되는 이름을 약속하거나 연락처 카드로부터 신원/동의를 추론할 수 없습니다. 지원한다고 주장하기 전에 실제 계정 프로필과 실제 디바이스에서의 표시를 각각 독립적으로 검증합니다.
@@ -140,6 +142,23 @@ Photon의 문서와 공급자 패키지에서 확인한 사실이며, 아직 실
 - 자유 형식 메시지는 사용자의 마지막 메시지로부터 24시간 이내에만 수락됩니다. 그 창 밖에서는 Meta가 오류 131047로 이를 거부하며, 승인된 템플릿만 수락됩니다. 템플릿은 Meta의 WhatsApp Manager에서 만들고 승인받습니다.
 - 공급자는 일대일 대화만 지원하며, 대화 ID는 연락처 ID입니다.
 
+Photon의 Beta 문서 [WhatsApp](https://photon.codes/docs/beta/messaging/whatsapp.md)과 [WhatsApp Business](https://photon.codes/docs/beta/messaging/whatsapp-business.md)(2026-11-04에 확인)에는 다음 내용이 추가로 있습니다:
+
+- **두 개의 별도 채널.** Photon의 `whatsapp` 채널은 개인 WhatsApp 계정용이며, 2026-10-22 기준 내부 테스트 중이고 출시되지 않았습니다. Photon은 프로덕션에서 이에 의존하지 말라고 합니다. 이 변경이 사용하는 것은 `whatsapp_business`입니다. 하나를 연결해도 다른 하나가 활성화되지는 않습니다.
+- **iMessage 번호는 개인 WhatsApp용으로 예약되어 있습니다.** Photon iMessage 번호는 Photon이나 다른 공급자를 통해 WhatsApp Business에 등록할 수 없으며, 이 예약이 개인 WhatsApp의 조기 이용을 보장하지는 않습니다. 또한 Photon은 개인 WhatsApp 회선의 일회용 코드를 걸러냅니다.
+- **Photon SMS 번호는 Photon에 묶여 있습니다.** Photon SMS 번호는 Photon을 통해서만, 프로젝트의 **WhatsApp Business** 페이지에서 **Use a Photon SMS number**로 WhatsApp Business에 등록할 수 있습니다. 새 WhatsApp Business 계정에는 Photon이 설정 패널에 Meta의 SMS 코드를 보여 주고, 이미 Photon에 연결된 계정에 번호를 추가하는 경우에는 Photon이 자동으로 인증하고 등록합니다. 이 코드는 SMS 기록, 기록 API, 수신 SMS 이벤트 어디에도 나타나지 않습니다. 비즈니스가 독자적으로 소유한 번호는 Photon으로 가져오거나 다른 공급자와 함께 쓸 수 있습니다.
+- **연결 해제.** 대시보드에서 **Disconnect**를 누르거나 프로젝트를 삭제하면 Photon이 그 번호로 보내고 받는 것은 멈추지만, 번호는 WhatsApp Business 계정에 남으며 WhatsApp Manager에서 포트폴리오 관리자만 삭제할 수 있습니다. 다른 공급자는 Photon SMS 번호를 쓸 수 없으므로 해당 번호는 WhatsApp Manager에서 삭제해야 합니다. 다른 공급자나 WhatsApp Manager가 Photon의 2단계 인증 PIN을 요구할 수 있습니다. 그 경우 **Account tools** > **Phone numbers** > 해당 번호 > **Two-step verification**에서 2단계 인증을 끈 뒤, Meta가 포트폴리오 주소로 보내는 이메일을 따르십시오. 유료 메시지를 보낸 번호는 마지막 전송 후 30일이 지나야 삭제할 수 있습니다.
+
+계정 상태: 2026-11-03 18:41 UTC에 Meta는 회선이 메시지를 하나도 보내기 전에 WhatsApp Business 계정 "ASTIA - Something Gr..."(`1070240012733983`)를 "허용 가능한 사용 약관 위반"을 이유로 비활성화했습니다. 비활성화된 계정은 메시지를 받거나, 답하거나, 대화를 시작할 수 없으며 번호도 추가할 수 없습니다. 2026-11-04에 `photon spectrum lines ls`는 이 회선(+1 711-454-9153, WABA `1666920005146243`)을 `BANNED`로 보고했고, 호스트가 연결 코드를 보냈을 때 웹훅에는 아무것도 도착하지 않았습니다. 포트폴리오 관리자는 WhatsApp Manager의 해당 번호 아래에서 Meta의 검토를 요청할 수 있습니다(보통 24시간). 계정이 복구될 때까지 프로덕션에서는 WhatsApp이 작동하지 않습니다. 같은 소유자의 새 비즈니스 포트폴리오, 계정, 번호로 이 차단을 우회하지 마십시오. 약관은 비즈니스가 이전에 정지된 적이 없을 것을 요구하며, Meta는 그런 계정들을 서로 연결해 봅니다. Photon이 자체 비즈니스 계정을 제공한다면 그 아래의 회선이 문의할 수 있는 유일한 대안입니다.
+
+2026-11-04에 복구되어 켜짐: Meta의 검토로 계정 `1070240012733983`이 04:47 UTC에 복구되었습니다. 이 계정에는 사용자가 Photon에서 다시 연결한 **+1 555-701-1140**(표시 이름 **FindMeATime**, 전화번호 ID `1391507790715888`)이 있습니다. Photon이 이를 `CONNECTED`로 보고한 뒤 사용자의 요청에 따라:
+- **+1 711-454-9153 회선을 `photon spectrum lines rm`으로 Photon 프로젝트에서 제거했습니다.** 이 회선도 다시 `CONNECTED`였지만 공급자는 Photon이 나열하는 첫 회선에서 보내므로, 프로젝트에는 회선을 하나만 둡니다.
+- **프로덕션을 새 번호로 전환했습니다.** Vercel Production의 `PHOTON_WHATSAPP_NUMBER`를 `15557011140`으로 설정하고 프로덕션을 다시 배포했습니다.
+
+세 템플릿은 다른 계정(`1666920005146243`) 아래에서 제출되었으므로, 24시간 창 밖으로 알림을 보내기 전에 `1070240012733983` 아래에서 다시 제출해야 합니다.
+
+게스트도 WhatsApp을 연결할 수 있습니다([`guest-whatsapp-link`](../../openspec/changes/guest-whatsapp-link/proposal.md#decisions), 이슈 #117). 같은 번호, 웹훅, 창을 쓰며 창의 시작은 게스트 바인딩의 `last_inbound_at`입니다. 게스트용 템플릿은 등록하지 않습니다. 창 밖에서는 게스트의 WhatsApp 알림이나 답장이 `window_closed`로 보류되고 예약 이메일이 업데이트를 담습니다. 위의 템플릿 한도는 호스트 템플릿만 집계합니다.
+
 운영자 단계이며, 구현하는 풀 리퀘스트가 반영될 때까지 모두 사용자에게 막혀 있습니다:
 
 1. 번호를 소유한 비즈니스 포트폴리오의 WhatsApp Manager에서 [설계 8](../../openspec/changes/host-whatsapp-channel/design.md#8-templates)의 유틸리티 템플릿 세 개를 정확한 이름과 본문 그대로 `en_US`로 제출하고 승인을 기다립니다. 각 템플릿의 상태와 카테고리를 기록합니다. 마케팅으로 재분류되면 팀에 돌려보냅니다. 2026-11-04에 제출되어 검토 중이며, Meta가 반복된 변수를 거부하므로 각 본문은 `{{1}}`을 한 번만 사용합니다.
@@ -148,6 +167,18 @@ Photon의 문서와 공급자 패키지에서 확인한 사실이며, 아직 실
 4. 통제된 Android 폰에서 번호로 메시지 하나를 보내 저장된 수신 기록의 채널이 `whatsapp`인지 확인합니다. 정확한 `platform` 철자와 발신자 형식을 변경과 여기에 기록합니다. 그다음 AC-29–AC-31을 실행합니다.
 
 사용자의 승인 없이는 에이전트 세션에서 Photon 프로젝트의 플랫폼, 회선, 웹훅을 바꾸거나, 템플릿을 등록하거나, WhatsApp 메시지를 보내서는 안 됩니다.
+
+## Telegram
+
+Telegram은 2026-11-04에 [`host-telegram-channel` 변경](../../openspec/changes/host-telegram-channel/proposal.md#decisions)에서 제안된 호스트 Telegram 채널의 전송 수단입니다. 웹훅, 레코드, Bot API 전송(레인 A)은 구현되었고 연결과 채널의 동작(레인 B와 C)은 아직 구현되지 않았으므로, Telegram 업데이트는 저장된 뒤 무시됩니다. Photon이 아니라 Telegram Bot API를 직접 사용합니다(D1). Photon의 Telegram 공급자인 `@spectrum-ts/telegram` 12.14.0은 봇의 웹훅을 Photon의 릴레이에 등록하고 지속적인 WebSocket(`wss://fusor-ws.spectrum.photon.codes/v1/subscribe`)으로 애플리케이션에 업데이트를 전달하는데, Vercel Function은 이를 유지할 수 없습니다.
+
+- **봇.** `@findmeatime_bot`, 사용자가 2026-11-04에 [@BotFather](https://t.me/BotFather)로 만들었습니다. 토큰이 봇의 유일한 자격 증명이며, @BotFather의 `/revoke`로 교체합니다.
+- **변수.** 메시징 게이트 아래 Vercel Production에만 `TELEGRAM_BOT_TOKEN`, `TELEGRAM_BOT_USERNAME`(`findmeatime_bot`), `TELEGRAM_WEBHOOK_SECRET`(무작위 URL 안전 문자 32자 이상)을 둡니다. 테스트는 `TELEGRAM_API_URL`을 루프백 대역으로 지정합니다. 사용자는 로컬 실행을 위해 토큰과 사용자 이름을 메인 체크아웃의 `.env`에 보관합니다.
+- **웹훅.** `https://findmeatime.com/telegram/webhook`, `npm run telegram:webhook`이 `setWebhook`(`secret_token`, `allowed_updates`는 `message`, `callback_query`, `my_chat_member`, `max_connections` 10)과 `setMyCommands`로 등록한 뒤 `getWebhookInfo`로 확인하며, 토큰은 출력하지 않습니다. 이 스크립트는 `TELEGRAM_BOT_TOKEN`과 `TELEGRAM_WEBHOOK_SECRET`을 환경 또는 루트 env 파일에서 읽고, `https://findmeatime.com` 이외의 출처와 루프백 대역이 아닌 `TELEGRAM_API_URL`을 거부합니다. Telegram은 `X-Telegram-Bot-Api-Secret-Token`으로 시크릿을 보내며 그 밖에는 아무것도 서명하지 않습니다. 응답하지 않은 업데이트는 최대 24시간 동안 다시 보냅니다.
+- **한도.** 한 대화에는 초당 약 1건, 전체적으로는 초당 30건; 메시지당 4,096자; `callback_data`는 64바이트; 메시지는 48시간 동안 편집할 수 있습니다. 봇은 사용자가 시작한 뒤에만 사용자에게 메시지를 보낼 수 있고, 사용자가 차단하면 `403`을 받습니다.
+- **프라이버시.** 봇 대화는 종단 간 암호화되지 않으며 Telegram의 서버에 남습니다. 카드와 개인정보 처리방침이 이를 안내합니다.
+
+사용자의 승인 없이는 에이전트 세션에서 봇의 토큰을 설정하거나, 웹훅을 등록하거나, Telegram 메시지를 보내서는 안 됩니다.
 
 ## 모델 접근과 런타임
 

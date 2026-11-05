@@ -53,7 +53,7 @@ for (const width of [390, 1280]) {
     await expect(page.getByRole("heading", { name: "Connect Browser Test Agent to your account?" })).toBeVisible();
     await expect(page.getByText("agent.example.test")).toBeVisible();
 
-    const decide = page.getByRole("checkbox", { name: /Prepare approvals and declines/ });
+    const decide = page.getByRole("checkbox", { name: /Approve and decline requests/ });
     await decide.focus();
     await page.keyboard.press("Space");
     await expect(decide).not.toBeChecked();

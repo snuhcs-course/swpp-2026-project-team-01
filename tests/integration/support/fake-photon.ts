@@ -1,6 +1,6 @@
 import { createServer, type ServerResponse } from "node:http";
 import type { AddressInfo } from "node:net";
-import type { PhotonContent, PhotonRecipient } from "../../../lib/server/photon";
+import type { PhotonRecipient, PhotonWireContent } from "../../../lib/server/photon";
 
 // A loopback stand-in for Photon's sending side (host-imessage-channel design
 // 15), so tests and the browser journey drive the real transport and outbox with
@@ -11,7 +11,10 @@ import type { PhotonContent, PhotonRecipient } from "../../../lib/server/photon"
 // WhatsApp sends (host-whatsapp-channel design 9) go to POST /whatsapp/messages:
 // free-form text to a contact whose window was closed is refused as Meta's
 // 131047 (422 window_closed); a template is accepted unless templates were made
-// unavailable (422 template_unavailable).
+// unavailable (422 template_unavailable). Read marks, typing and reactions
+// (content kind signal) and reply buttons (kind interactive, after the text when
+// a summary is split) are recorded like any send (design 11); interactive
+// messages can be refused to test a split whose buttons fail.
 // Registering a user (imessage-number-registration design 1) goes to POST
 // /users and answers the shared-pool number assigned, the line number given,
 // unless the next registration was told to answer a status.
@@ -20,7 +23,7 @@ export type FakeSend = {
   readonly channel: "imessage" | "whatsapp";
   readonly idempotencyKey: string;
   readonly recipient: PhotonRecipient;
-  readonly content: PhotonContent;
+  readonly content: PhotonWireContent;
   readonly messageId: string;
 };
 
@@ -34,6 +37,8 @@ export type FakePhoton = {
   closeWindow(address: string): void;
   // Meta refuses every template (132001).
   templatesUnavailable(value?: boolean): void;
+  // Meta refuses every interactive (button) message.
+  interactiveUnavailable(value?: boolean): void;
   // Numbers registered as users, in order.
   readonly registered: string[];
   // The next registration answers this status instead, or assigns this number.
@@ -54,6 +59,7 @@ export async function startFakePhoton(options: { readonly port?: number; readonl
   let counter = 0;
   const closed = new Set<string>();
   let templatesOff = false;
+  let interactiveOff = false;
 
   const server = createServer(async (request, response) => {
     let raw = "";
@@ -90,7 +96,7 @@ export async function startFakePhoton(options: { readonly port?: number; readonl
       return;
     }
 
-    const body = JSON.parse(raw) as { recipient: PhotonRecipient; content: PhotonContent };
+    const body = JSON.parse(raw) as { recipient: PhotonRecipient; content: PhotonWireContent };
     const behavior = behaviors.shift();
     counter += 1;
     const send: FakeSend = {
@@ -106,7 +112,11 @@ export async function startFakePhoton(options: { readonly port?: number; readonl
         json(response, 422, { category: "template_unavailable" });
         return;
       }
-      if (body.content.kind === "text" && closed.has(body.recipient.address)) {
+      if (body.content.kind === "interactive" && interactiveOff) {
+        json(response, 400, { category: "provider_rejected" });
+        return;
+      }
+      if ((body.content.kind === "text" || body.content.kind === "interactive") && closed.has(body.recipient.address)) {
         json(response, 422, { category: "window_closed" });
         return;
       }
@@ -138,6 +148,9 @@ export async function startFakePhoton(options: { readonly port?: number; readonl
     baseUrl: `http://127.0.0.1:${port}`,
     close: () => new Promise((resolve) => server.close(() => resolve())),
     closeWindow: (address) => closed.add(address),
+    interactiveUnavailable: (value = true) => {
+      interactiveOff = value;
+    },
     templatesUnavailable: (value = true) => {
       templatesOff = value;
     },

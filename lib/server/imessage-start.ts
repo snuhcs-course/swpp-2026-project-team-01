@@ -1,20 +1,22 @@
 import { randomBytes } from "node:crypto";
 import { parseCookieHeader } from "@supabase/ssr";
-import { type ImessageStartStatus, linkMessage, maskSender } from "../contracts/imessage";
-import type { MessagingChannel } from "../contracts/messaging-channel";
+import type { ImessageStartStatus } from "../contracts/imessage";
+import { configuredChannels, type MessagingChannel } from "../contracts/messaging-channel";
 import { CommandError } from "./commands";
 import type { Database, Queryable } from "./database";
 import { generateLinkCode, hashLinkCode } from "./email-links";
 import { readReceivedContinuation } from "./imessage-continuation";
 import {
+  attemptLineNumber,
+  attemptMessage,
   codeContext,
   endOpenAttempts,
   IMESSAGE_LINK_LIMITS,
   linkChannels,
   linkLockKey,
   lockHostLinking,
-  registeredLineNumber,
   senderContext,
+  shownSender,
 } from "./imessage-links";
 import type { PhotonRegistrar } from "./photon";
 import { imessageHash } from "./photon-receiver";
@@ -30,6 +32,8 @@ import { openToken, sealToken, type TokenKey } from "./token-encryption";
 // nothing is bound before an authenticated browser saw the masked sender.
 // The start also links WhatsApp (/?flow=whatsapp, host-whatsapp-channel D7): the
 // attempt records its channel, and the bounds count both channels together.
+// Telegram starts the same way (/?flow=telegram, host-telegram-channel D7): the
+// page opens the t.me start link, and the sender is shown by their Telegram name.
 
 export const START_COOKIE = "fmat_imessage_start";
 const START_COOKIE_SECONDS = 30 * 60;
@@ -45,6 +49,7 @@ export type StartOptions = {
   readonly tokenKeys: readonly TokenKey[];
   readonly lineNumber: string;
   readonly whatsappNumber?: string;
+  readonly telegramUsername?: string;
   readonly limits?: Partial<typeof IMESSAGE_START_LIMITS>;
   // Registers the entered number with Photon; the deployment's by default.
   readonly registrar?: PhotonRegistrar;
@@ -76,7 +81,8 @@ function starterHash(key: TokenKey, secret: string) {
 
 // Creates this browser's attempt, ending its earlier open one. The source and
 // service bounds count every start in the last hour, claimed or not. An
-// iMessage start registers the entered number first (imessage-number-registration D1).
+// iMessage or WhatsApp start registers the entered number first
+// (imessage-number-registration D1, guest-whatsapp-link D3).
 export async function startImessageLink(
   db: Database,
   options: StartOptions,
@@ -99,7 +105,7 @@ export async function startImessageLink(
     `;
     if (counts!.source >= limits.perSourceHour || counts!.service >= limits.serviceHour) throw new CommandError("rate_limited");
 
-    const lineNumber = channel === "imessage" ? await registeredLineNumber(options.registrar, number) : null;
+    const lineNumber = await attemptLineNumber(options.registrar, channel, number);
 
     await tx`
       update app.imessage_links
@@ -121,7 +127,7 @@ export async function startImessageLink(
 // What this browser's open attempt shows: the code to send, or the masked sender.
 export async function readStartStatus(db: Queryable, options: StartOptions, secret: string | null): Promise<ImessageStartStatus> {
   const channels = linkChannels(options);
-  if (!channels.imessage && !channels.whatsapp) return { state: "unavailable" };
+  if (configuredChannels(channels).length === 0) return { state: "unavailable" };
   const none = { channels, lineNumber: channels.imessage ?? "", state: "none" } as const;
   if (!secret) return none;
 
@@ -133,13 +139,15 @@ export async function readStartStatus(db: Queryable, options: StartOptions, secr
       code_ciphertext: string | null;
       sealed_key_id: string | null;
       sender_ciphertext: string | null;
+      sender_name_ciphertext: string | null;
       sender_key_id: string | null;
       expires_at: Date;
       confirm_by: Date | null;
       line_number: string | null;
     }[]
   >`
-    select id, channel, state, code_ciphertext, sealed_key_id, sender_ciphertext, sender_key_id, expires_at, confirm_by, line_number
+    select id, channel, state, code_ciphertext, sealed_key_id, sender_ciphertext, sender_name_ciphertext, sender_key_id, expires_at, confirm_by,
+           line_number
     from app.imessage_links
     where starter_hash = ${starterHash(options.tokenKey, secret)} and host_account_id is null
       and ((state = 'pending' and expires_at > now()) or (state = 'received' and confirm_by > now()))
@@ -150,10 +158,11 @@ export async function readStartStatus(db: Queryable, options: StartOptions, secr
   try {
     if (link.state === "received") {
       const sender = openToken(options.tokenKeys, { ciphertext: link.sender_ciphertext!, keyId: link.sender_key_id! }, senderContext(link.id));
-      return { ...shared, confirmBy: link.confirm_by!.toISOString(), sender: maskSender(sender), state: "received" };
+      const shown = shownSender(options.tokenKeys, { ...link, sealed_key_id: link.sender_key_id! }, senderContext(link.id), sender);
+      return { ...shared, confirmBy: link.confirm_by!.toISOString(), sender: shown, state: "received" };
     }
     const code = openToken(options.tokenKeys, { ciphertext: link.code_ciphertext!, keyId: link.sealed_key_id! }, codeContext(link.id));
-    return { ...shared, code, expiresAt: link.expires_at.toISOString(), message: linkMessage(code), state: "pending" };
+    return { ...shared, code, expiresAt: link.expires_at.toISOString(), message: attemptMessage(link.channel, code), state: "pending" };
   } catch {
     // Sealed under a key the service no longer holds: start again.
     return none;

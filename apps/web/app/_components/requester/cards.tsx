@@ -3,7 +3,8 @@
 import { MAX_CALENDAR_IMAGE_BYTES, type ScreenshotMark } from "@lib/contracts/calendar-screenshot";
 import { EMAIL_LINK_CREATE_OPERATION, EMAIL_LINK_UNLINK_OPERATION, type EmailLinkStatus } from "@lib/contracts/email-link";
 import { deepLinkFor, qrDeepLink } from "@lib/contracts/imessage";
-import { REQUESTER_IMESSAGE_OPERATIONS, type RequesterImessageStatus } from "@lib/contracts/requester-imessage";
+import { channelName, displayWhatsAppNumber, whatsAppLinkFor } from "@lib/contracts/messaging-channel";
+import { type GuestChannel, REQUESTER_IMESSAGE_OPERATIONS, type RequesterImessageStatus } from "@lib/contracts/requester-imessage";
 import type { HostProfileItem, OpenRequesterView } from "@lib/contracts/requester-view";
 import { displayTime } from "@lib/contracts/timezone";
 import { type ReactNode, useCallback, useEffect, useId, useMemo, useRef, useState } from "react";
@@ -11,14 +12,14 @@ import { renderSVG } from "uqr";
 import { GuestCard, GuestCardActions, guestCardHeadingId } from "@/app/_components/guest/guest-card";
 import { browserLanguage } from "@/app/_components/guest/timezone";
 import { ContactCardLine, CopyButton, useMessagesPlatform } from "@/app/_components/imessage/imessage-card";
-import { COPY } from "@/app/_components/ink/copy";
+import { channelCopy, COPY } from "@/app/_components/ink/copy";
 import { NumberForm } from "@/app/_components/ink/number-form";
 import { Button } from "@/components/ui/button";
 
 // The guest thread's request cards (design decision 12; DESIGN.md: conversation
 // card): the Calendar connection and selection, the status lines with the
 // creation email, **Use verified Google email** and **Continue by email**, and
-// the waiting card with **Get updates in iMessage**.
+// the waiting card with **Get updates in iMessage** and **Get updates in WhatsApp**.
 // **Withdraw request** and
 // **Edit details** are in the thread's menu beside the composer
 // (guest-workspace.tsx). The
@@ -198,7 +199,7 @@ export function ConnectCalendarCard({ context }: { readonly context: RequesterCa
         <label className="font-medium" htmlFor="calendar-screenshot">Upload calendar screenshot (optional)</label>
         <input accept="image/png,image/jpeg,image/webp" className="min-h-11 max-w-full text-sm file:mr-3 file:rounded-md file:border file:border-border file:bg-background file:px-3 file:py-2" id="calendar-screenshot" onChange={(event) => choose(event.target.files?.[0])} ref={inputRef} type="file" />
         <p className="text-muted-foreground">Use a day or week view with visible date and hour labels. PNG, JPEG or WebP, up to 10 MB. The image is sent to OpenAI for reading and is not saved here. Remove private event details before uploading. Review suggested free times before saving any availability.</p>
-        {preview ? <img alt="Selected calendar screenshot" className="max-h-48 max-w-full rounded-lg border border-border object-contain" src={preview} /> : null}
+        {preview ? <img alt="Selected calendar screenshot" className="max-h-48 max-w-full rounded-xl bg-secondary object-contain" src={preview} /> : null}
         {file ? <p className="break-all">Selected: {file.name}</p> : null}
         {file ? <GuestCardActions><Button disabled={reading} onClick={() => void readScreenshot()} type="button">{reading ? "Reading screenshot..." : "Read screenshot"}</Button><Button onClick={() => { setFile(null); setMarks(null); setError(null); if (inputRef.current) inputRef.current.value = ""; }} type="button" variant="outline">Remove image</Button></GuestCardActions> : null}
         {marks ? <ScreenshotReview context={context} marks={marks} onError={setError} /> : null}
@@ -226,10 +227,10 @@ function ScreenshotReview({ context, marks, onError }: { readonly context: Reque
     if (!settled.ok) onError(settled.error.message);
     setBusy(false);
   }
-  return <fieldset className="flex flex-col gap-2 rounded-lg border border-border p-3">
+  return <fieldset className="flex flex-col gap-2 rounded-xl bg-secondary p-3">
     <legend className="font-medium">Review the screenshot in {context.timezone}</legend>
     <p>Suggested free times are preselected. Check every date and time, remove any that are not free, then confirm. Nothing is applied automatically.</p>
-    {rows.map((row, index) => <div className="grid min-w-0 grid-cols-2 gap-2 rounded-md border border-border p-2" key={index}>
+    {rows.map((row, index) => <div className="grid min-w-0 grid-cols-2 gap-2 rounded-xl bg-card p-2" key={index}>
       <label className="col-span-2 flex flex-col gap-1">Interpretation
         <select className="min-h-11 rounded-md border border-input bg-background px-2" onChange={(event) => change(index, { free: event.target.value === "free" })} value={row.free ? "free" : "ignore"}>
           <option value="ignore">Ignore this mark ({row.interpretation})</option><option value="free">I am free at this time</option>
@@ -611,11 +612,17 @@ export function EmailLinkLine({ context }: { readonly context: RequesterCardCont
 // line. The button first asks for the guest's number (imessage-number-registration
 // D1, D3): the server registers it with Photon, whose shared lines read only
 // registered numbers, and the code is addressed to the number Photon assigned.
+// **Get updates in WhatsApp** sits beside it wherever WhatsApp is configured
+// (guest-whatsapp-link design 2): the same number first, then wa.me with the
+// same message, opened at once on a phone, and elsewhere a QR code of it with
+// **Open WhatsApp** (WhatsApp Web or the app). One link at a time: a code or
+// binding on one channel replaces the other's. WhatsApp has no contact card.
 export function ImessageUpdates({ context, onlyLinked = false }: { readonly context: Pick<RequesterCardContext, "bookingId" | "timezone" | "run">; readonly onlyLinked?: boolean }) {
   const [status, setStatus] = useState<RequesterImessageStatus | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [askNumber, setAskNumber] = useState(false);
+  // The channel whose number the card is asking for.
+  const [askNumber, setAskNumber] = useState<GuestChannel | null>(null);
   const platform = useMessagesPlatform();
   const { bookingId, run } = context;
 
@@ -652,24 +659,35 @@ export function ImessageUpdates({ context, onlyLinked = false }: { readonly cont
 
   const phone = platform === "ios" || platform === "android";
   const pending = status?.state === "pending" ? status : null;
-  const link = pending && phone ? deepLinkFor(platform, pending.lineNumber, pending.message) : null;
+  const whatsapp = pending?.channel === "whatsapp";
+  // wa.me opens WhatsApp on a phone and WhatsApp Web or the app on a computer.
+  const waLink = pending && whatsapp ? whatsAppLinkFor(pending.lineNumber, pending.message) : null;
+  const link = pending && phone ? (whatsapp ? waLink : deepLinkFor(platform, pending.lineNumber, pending.message)) : null;
   // A Mac has Messages too, offered beside the QR code and Copy as on the host's link screens (D17).
-  const macLink = pending && platform === "mac" ? deepLinkFor("mac", pending.lineNumber, pending.message) : null;
-  const qr = useMemo(() => (pending && !phone ? renderSVG(qrDeepLink(pending.lineNumber, pending.message), { border: 2 }) : null), [pending, phone]);
+  const macLink = pending && !whatsapp && platform === "mac" ? deepLinkFor("mac", pending.lineNumber, pending.message) : null;
+  const qr = useMemo(
+    () => (pending && !phone ? renderSVG(whatsapp ? (waLink ?? "") : qrDeepLink(pending.lineNumber, pending.message), { border: 2 }) : null),
+    [pending, phone, whatsapp, waLink],
+  );
 
   if (!status || status.state === "unavailable") return null;
   if (onlyLinked && status.state !== "linked") return null;
 
   if (status.state === "none" && askNumber) {
+    const channel = askNumber;
     return (
-      <InnerStep description="Find Me a Time reads messages only from numbers it knows. Enter the number your iMessage uses, then send one message from it." title="Get updates in iMessage">
+      <InnerStep
+        description={`Find Me a Time reads messages only from numbers it knows. Enter the number your ${channelName(channel)} uses, then send one message from it.`}
+        title={`Get updates in ${channelName(channel)}`}
+      >
         <NumberForm
           id="guest-number"
+          key={channel}
           look="card"
           onSubmit={async (number) => {
             setBusy(true);
             setError(null);
-            const outcome = await run(REQUESTER_IMESSAGE_OPERATIONS.create, { number });
+            const outcome = await run(REQUESTER_IMESSAGE_OPERATIONS.create, { channel, number });
             setBusy(false);
             if (!outcome.ok) {
               if (outcome.error.category === "invalid_input") return "invalid";
@@ -677,16 +695,21 @@ export function ImessageUpdates({ context, onlyLinked = false }: { readonly cont
               setError("Too many codes this hour. Try again later.");
               return null;
             }
-            setAskNumber(false);
+            setAskNumber(null);
             const next = await check();
-            const opened = next?.state === "pending" && phone ? deepLinkFor(platform, next.lineNumber, next.message) : null;
+            const opened =
+              next?.state === "pending" && phone
+                ? next.channel === "whatsapp"
+                  ? whatsAppLinkFor(next.lineNumber, next.message)
+                  : deepLinkFor(platform, next.lineNumber, next.message)
+                : null;
             if (opened) window.location.assign(opened);
             return null;
           }}
-          t={{ ...COPY.en.number, submit: "Next" }}
+          t={{ ...channelCopy(COPY.en, channel).number, submit: "Next" }}
         />
         <GuestCardActions>
-          <Button disabled={busy} onClick={() => setAskNumber(false)} type="button" variant="ghost">
+          <Button disabled={busy} onClick={() => setAskNumber(null)} type="button" variant="ghost">
             Cancel
           </Button>
         </GuestCardActions>
@@ -699,9 +722,16 @@ export function ImessageUpdates({ context, onlyLinked = false }: { readonly cont
     return (
       <div className="flex flex-col gap-1" data-imessage-link="none">
         <GuestCardActions>
-          <Button className="min-h-11" disabled={busy} onClick={() => setAskNumber(true)} type="button" variant="outline">
-            Get updates in iMessage
-          </Button>
+          {status.lineNumber ? (
+            <Button className="min-h-11" disabled={busy} onClick={() => setAskNumber("imessage")} type="button" variant="outline">
+              Get updates in iMessage
+            </Button>
+          ) : null}
+          {status.whatsappNumber ? (
+            <Button className="min-h-11" disabled={busy} onClick={() => setAskNumber("whatsapp")} type="button" variant="outline">
+              Get updates in WhatsApp
+            </Button>
+          ) : null}
         </GuestCardActions>
         <p className="text-muted-foreground">Optional: your email still gets every update.</p>
         <ErrorLine message={error} />
@@ -711,11 +741,16 @@ export function ImessageUpdates({ context, onlyLinked = false }: { readonly cont
 
   if (status.state === "linked") {
     return (
-      <div className="flex min-h-8 flex-col gap-2 text-sm" data-imessage-link="linked" role="note">
-        <span>iMessage linked: updates go to {status.sender}, and you can reply there</span>
-        <ContactCardLine busy={busy} onShare={() => void command(REQUESTER_IMESSAGE_OPERATIONS.shareContactCard)} onCheck={() => void check()} state={status.contactCard?.state ?? null} />
+      <div className="flex min-h-8 flex-col gap-2 text-sm" data-channel={status.channel} data-imessage-link="linked" role="note">
+        <span>
+          {channelName(status.channel)} linked: updates go to {status.sender}, and you can reply there
+          {status.channel === "whatsapp" ? ". If you haven't written for a day, they come by email only until you write again." : ""}
+        </span>
+        {status.channel === "imessage" ? (
+          <ContactCardLine busy={busy} onShare={() => void command(REQUESTER_IMESSAGE_OPERATIONS.shareContactCard)} onCheck={() => void check()} state={status.contactCard?.state ?? null} />
+        ) : null}
         <Button className={QUIET_ACTION} disabled={busy} onClick={() => void command(REQUESTER_IMESSAGE_OPERATIONS.unlink)} type="button" variant="link">
-          Unlink iMessage
+          Unlink {channelName(status.channel)}
         </Button>
         <ErrorLine message={error} />
       </div>
@@ -724,7 +759,7 @@ export function ImessageUpdates({ context, onlyLinked = false }: { readonly cont
 
   if (status.state === "received") {
     return (
-      <InnerStep description={`Your message arrived from ${status.sender}. Link it only if that is you.`} title="Is this your iMessage?">
+      <InnerStep description={`Your message arrived from ${status.sender}. Link it only if that is you.`} title={`Is this your ${channelName(status.channel)}?`}>
         <GuestCardActions>
           <Button
             disabled={busy}
@@ -745,17 +780,21 @@ export function ImessageUpdates({ context, onlyLinked = false }: { readonly cont
   return (
     <InnerStep
       description={
-        link
-          ? "Messages should open with the message written. Tap send there."
-          : macLink
-            ? "Open Messages on this Mac, or send this message from your iPhone's Messages."
-            : "Send this message from your iPhone's Messages."
+        whatsapp
+          ? link
+            ? "WhatsApp should open with the message written. Tap send there."
+            : "Open WhatsApp here, or scan the code with your phone, and send this message."
+          : link
+            ? "Messages should open with the message written. Tap send there."
+            : macLink
+              ? "Open Messages on this Mac, or send this message from your iPhone's Messages."
+              : "Send this message from your iPhone's Messages."
       }
-      title="Get updates in iMessage"
+      title={`Get updates in ${channelName(status.channel)}`}
     >
-      <div className="flex min-w-0 flex-col gap-1 rounded-lg border border-border px-3 py-2">
+      <div className="flex min-w-0 flex-col gap-1 rounded-xl bg-secondary px-3 py-2">
         <p className="text-xs font-medium text-muted-foreground">To</p>
-        <p className="font-mono text-sm tabular-nums">{status.lineNumber}</p>
+        <p className="font-mono text-sm tabular-nums">{whatsapp ? displayWhatsAppNumber(status.lineNumber) : status.lineNumber}</p>
         <p className="pt-1 text-xs font-medium text-muted-foreground">Message</p>
         <p className="font-mono text-sm break-all select-all" data-imessage-link-message="">
           {status.message}
@@ -764,7 +803,7 @@ export function ImessageUpdates({ context, onlyLinked = false }: { readonly cont
       </div>
       {qr ? (
         <div
-          aria-label="QR code that opens Messages with this message on your iPhone"
+          aria-label={whatsapp ? "QR code that opens WhatsApp with this message on your phone" : "QR code that opens Messages with this message on your iPhone"}
           className="size-40 rounded-lg bg-white p-1 [&_svg]:size-full"
           // The SVG is generated locally from the line number and the message.
           dangerouslySetInnerHTML={{ __html: qr }}
@@ -775,9 +814,11 @@ export function ImessageUpdates({ context, onlyLinked = false }: { readonly cont
         Waiting for your message. The code works until {displayTime(new Date(status.expiresAt), context.timezone)}.
       </p>
       <GuestCardActions>
-        {link ? (
+        {link ?? waLink ? (
           <Button asChild>
-            <a href={link}>Open Messages</a>
+            <a href={link ?? waLink ?? undefined} rel={whatsapp && !phone ? "noreferrer" : undefined} target={whatsapp && !phone ? "_blank" : undefined}>
+              {whatsapp ? "Open WhatsApp" : "Open Messages"}
+            </a>
           </Button>
         ) : null}
         {macLink ? (

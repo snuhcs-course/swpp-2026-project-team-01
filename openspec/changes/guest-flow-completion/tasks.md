@@ -16,7 +16,7 @@
 
 ## 3. Guest linking and bindings (design 1, 2)
 
-- [x] 3.1 Request-owned link codes in `lib/server/requester-imessage-links.ts` with the D1 limits, the existing code family and redaction; `receiveLinkCode` records the masked sender for a request-owned attempt.
+- [x] 3.1 Request-owned link codes in `lib/server/requester-imessage-links.ts` with the D1 limits, the existing code family and redaction; `receiveLinkCode` records the sender for a request-owned attempt.
 - [x] 3.2 `GET /api/requests/{bookingId}/imessage` (status) and the `request.imessage_link.*` commands (create code, confirm, unlink) on the requester commands route, as **Continue by email** does, authorized by the booking link, with retry keys through the command pipeline.
 - [x] 3.3 Bindings in `lib/server/requester-imessage-bindings.ts`: confirm, unlink (suppressing the guest's undispatched messages), end at withdrawn in `closeRequest`; ending at booked after the last notice is 4.2, moving to a revised request is 5.1.
 - [x] 3.4 Integration tests (`tests/integration/requester-imessage-links.test.ts`): link and confirm; an expired or unconfirmed code binds nothing; a forwarded code binds only the shown sender, for its own request; a host may also be a guest; unlink suppresses what had not left; withdrawal ends the binding. Unlink stopping routing is tested in 4.4.

@@ -85,7 +85,7 @@ describe("WhatsApp as a host channel", () => {
     const setup = await say(sender, "setup");
     expect(setup.delivered.outcome).toBe("command");
     expect(setup.sent[0]?.channel).toBe("whatsapp");
-    expect(setup.reply).toContain("Setup selected.");
+    expect(setup.reply).toContain("We're now talking about your setup.");
 
     const voice = await im.deliver({ channel: "whatsapp", content: { type: "voice" }, sender });
     expect(voice.outcome).toBe("replied");

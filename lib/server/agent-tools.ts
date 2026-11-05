@@ -2,6 +2,7 @@ import { z } from "zod";
 import type { AgentRole, AgentScope } from "../contracts/agent-access";
 import { COMMAND_ERROR_MESSAGES, type CommandErrorCategory, type CommandFailure } from "../contracts/command-errors";
 import type { GrantAccess } from "./agent-grants";
+import type { NoticeDependencies } from "./booking-notices";
 import { type Actor, type CommandDefinition, runCommand } from "./commands";
 import type { Database } from "./database";
 import type { SetupDependencies } from "./setup";
@@ -22,6 +23,8 @@ export type AgentToolDependencies = {
   readonly tokenKey: () => TokenKey;
   // How long find_times and evaluate_request wait for the evaluation.
   readonly evaluationWaitMs?: number;
+  // The decline notice's settings; the environment's when absent, as for /app.
+  readonly notices?: () => NoticeDependencies;
 };
 
 export type AgentToolContext = {

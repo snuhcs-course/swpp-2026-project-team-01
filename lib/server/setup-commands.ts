@@ -15,7 +15,7 @@ import { assertRevision, canonicalJson, type CommandDefinition, CommandError } f
 import type { Transaction } from "./database";
 import type { CalendarListEntry } from "./google-calendar";
 import { assignHandle, checkHandle, HandleError } from "./handles";
-import { acceptedEntry, computeSetupProposal, proposalValues, type SetupLinks, setupLinks } from "./setup";
+import { acceptedEntry, computeSetupProposal, draftedEntry, proposalValues, type SetupLinks, setupLinks } from "./setup";
 
 // The draft and confirmation commands of host setup (design decisions 10 to 12).
 // Each runs through runCommand: the actor comes from verified credentials, the
@@ -25,6 +25,22 @@ import { acceptedEntry, computeSetupProposal, proposalValues, type SetupLinks, s
 // command takes the browser's zone.
 
 const fieldName = z.enum(SETUP_FIELD_NAMES as [SetupFieldName, ...SetupFieldName[]]);
+
+// An image supplies a suggestion for the weekly-hours question. It does not
+// accept the hours or bypass the existing Google Calendar setup.
+export const suggestImageWindowsCommand: CommandDefinition<{ weeklyWindows: ConfirmedSettings["weeklyWindows"] }, { revision: number }> = {
+  input: z.object({ weeklyWindows: SETUP_FIELD_SCHEMAS.weeklyWindows }).strict(),
+  operation: "setup.suggest_image_windows",
+  async run(tx, context) {
+    await lockActiveHost(tx, context.actor.id);
+    const draft = await lockDraft(tx, context.actor.id);
+    assertRevision(draft.revision, context.expectedRevision);
+    const existing = draft.fields.weeklyWindows;
+    const suggested = { ...(draftedEntry(existing, context.input.weeklyWindows, "schedule_image") as DraftEntry<"weeklyWindows">), reason: "Free hours detected in your uploaded timetable. Review these before saving." };
+    const revision = await writeDraft(tx, context.actor.id, { ...draft.fields, weeklyWindows: suggested });
+    return { revision };
+  },
+};
 
 // A handle may be drafted only when the host could take it now.
 export async function assertHandleAvailable(tx: Transaction, hostAccountId: string, handle: string) {

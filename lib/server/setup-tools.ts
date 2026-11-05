@@ -16,6 +16,7 @@ import type { Queryable, Transaction } from "./database";
 import { encodeDisplayName } from "./entry-documents";
 import { HOST_SETUP_AUDIENCE } from "./eve-auth";
 import { checkHandle } from "./handles";
+import { settingsRef } from "./request-ref";
 import { draftedEntry, readSetupState, type SetupDependencies, type SetupLinks, type SetupStateView } from "./setup";
 
 // The setup assistant's two tools (design decision 10), behind the agent's
@@ -134,6 +135,9 @@ export type SetupModelProjection = {
   readonly ready: boolean;
   readonly links: SetupLinks | null;
   readonly pendingChanges: boolean;
+  // The settings review's reference, which confirm_settings takes
+  // (channel-actions-in-words D1).
+  readonly reviewRef: string;
 };
 
 export function modelProjection(state: SetupStateView): SetupModelProjection {
@@ -187,6 +191,7 @@ export function modelProjection(state: SetupStateView): SetupModelProjection {
     pendingChanges: state.pendingChanges,
     placeHint: state.placeHint ? { sampleSize: state.placeHint.sampleSize } : null,
     ready: state.readiness.ready,
+    reviewRef: settingsRef(state.proposalHash),
     roles: state.roles
       ? {
           bookingCalendar: encodeDisplayName(state.roles.bookingCalendar.summary),

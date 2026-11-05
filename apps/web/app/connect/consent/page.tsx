@@ -51,7 +51,7 @@ async function Consent({ searchParams }: { readonly searchParams: SearchParams }
 function Unavailable() {
   return (
     <>
-      <h1 className="font-display text-3xl">This connection request is not available</h1>
+      <h1 className="font-display text-[clamp(36px,5vw,52px)] leading-[1.05]">This connection request is not available</h1>
       <p className="text-muted-foreground">
         It expired, was already answered or was opened in another browser. Nothing was connected. Start again from your agent.
       </p>
@@ -60,9 +60,9 @@ function Unavailable() {
 }
 
 const primary =
-  "inline-flex min-h-11 items-center justify-center rounded-lg bg-primary px-4 font-medium text-primary-foreground hover:bg-primary/90 focus-visible:outline-2 focus-visible:outline-offset-2";
+  "inline-flex min-h-12 items-center justify-center rounded-full bg-primary px-6 text-sm font-semibold text-primary-foreground hover:bg-primary-hover focus-visible:outline-2 focus-visible:outline-offset-2";
 const secondary =
-  "inline-flex min-h-11 items-center justify-center rounded-lg border border-border px-4 font-medium hover:bg-muted focus-visible:outline-2 focus-visible:outline-offset-2";
+  "inline-flex min-h-12 items-center justify-center rounded-full bg-secondary px-6 text-sm font-semibold hover:bg-[color-mix(in_srgb,var(--primary)_14%,var(--surface))] focus-visible:outline-2 focus-visible:outline-offset-2";
 
 function Open({ problem, view }: { readonly problem: string | null; readonly view: Extract<ConsentView, { status: "open" }> }) {
   const signInHref = `/auth/sign-in?return=consent&transaction=${view.transactionId}`;
@@ -70,7 +70,7 @@ function Open({ problem, view }: { readonly problem: string | null; readonly vie
   if (view.role === "host" && view.signedIn !== "eligible") {
     return (
       <>
-        <h1 className="font-display text-3xl">Sign in to connect {view.clientName}</h1>
+        <h1 className="font-display text-[clamp(36px,5vw,52px)] leading-[1.05]">Sign in to connect {view.clientName}</h1>
         <p className="text-muted-foreground">
           {view.signedIn === "ineligible"
             ? "This host account cannot connect agents right now."
@@ -90,7 +90,7 @@ function Open({ problem, view }: { readonly problem: string | null; readonly vie
     <form action="/connect/decision" className="flex flex-col gap-6" method="post">
       <input name="transaction" type="hidden" value={view.transactionId} />
       <div>
-        <h1 className="font-display text-3xl">
+        <h1 className="font-display text-[clamp(36px,5vw,52px)] leading-[1.05]">
           {view.role === "host" ? `Connect ${view.clientName} to your account?` : `Let ${view.clientName} request a meeting for you?`}
         </h1>
         <p className="mt-2 text-muted-foreground">
@@ -126,7 +126,7 @@ function Open({ problem, view }: { readonly problem: string | null; readonly vie
             <span className="text-sm text-muted-foreground">Your booking link, only for an existing request</span>
             <input
               autoComplete="off"
-              className="min-h-11 rounded-lg border border-border bg-background px-3"
+              className="min-h-11 rounded-md border border-input bg-card px-3"
               name="bookingLink"
               placeholder="https://findmeatime.com/booking/..."
               type="url"
@@ -149,7 +149,7 @@ function Open({ problem, view }: { readonly problem: string | null; readonly vie
 
       <p className="text-sm text-muted-foreground">
         {view.role === "host"
-          ? "Approving or declining a meeting always needs your own click in Find Me a Time. You can revoke this connection under Connected agents."
+          ? "The agent approves or declines a meeting only when you tell it to. You can revoke this connection under Connected agents."
           : "The host still has to approve the meeting. You can revoke this connection from your booking page."}
       </p>
 
