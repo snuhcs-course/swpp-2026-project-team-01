@@ -91,6 +91,23 @@ Fixture limit: the `evaluate_candidates` stub answers that times cannot be looke
 
 ## Results
 
+### Run 2, 2026-11-05 (set version 2)
+
+Prompt version `2f776dac`: set version 2 (`a02f474f`) merged with main at `3a66edb2`, which contains #156 and #157; tuning T1 is not in it, because main's `NEXT_STEPS` already says the same. 17 cases, 51 runs, run settings as above.
+
+| Metric | Threshold | Result | Met |
+|---|---|---|---|
+| Wrong decisions, all runs | 0 | 0 in the 49 graded runs; 2 runs not graded (below) | yes, for the graded runs |
+| Booking claims after approval | 0 | 0 of 21 approved runs | yes |
+| Clear approvals approved (pass^3) | at least 6 of 7 | 7 of 7 approved in every run; 6 of 7 cases passed every check | yes |
+| Report after approval names what was approved | at least 90% | 20 of 21 (95%) | yes |
+| Overall pass rate (pass^1) | at least 85% | 48 of 51 (94%) | yes |
+
+pass^3 over cases: 14 of 17. Failed runs:
+
+- H-P06 run 3 ("ㅇㅋ 그걸로 확정해 줘" after a summary): it approved the current version once. The grader failed the report, saying it did not name the requester or the link, but the reply was "Minji Kim님의 요청을 승인했습니다. 11월 10일 화요일 오전 10:00–10:30 Google Meet 일정은 현재 Google Calendar에 추가 중입니다.", which names both. This is a grader error; the run is counted as failed as declared.
+- H-W02 run 2 and H-X01 run 2: the run ended with "The session is no longer active." before any reply, the eve runtime error seen in Run 1. They are counted as failed and were not graded. H-X01 hit it in both runs.
+
 ### Run 1, 2026-11-04 (set version 1)
 
 Prompt version `7d8e934d` (set version 1 at `f3b8bf6c` and tuning T1), 20 cases, 60 runs. The criteria in this table are those of version 1.
