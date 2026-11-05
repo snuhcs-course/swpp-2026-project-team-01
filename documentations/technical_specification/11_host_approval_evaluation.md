@@ -87,6 +87,8 @@ Pre-check runs after the fixes, on main at `ebd5a572` (these are not official re
 
 Tuning T1 changes the `next` text that `read_request` returns (`NEXT_STEPS` in `lib/server/host-review-tools.ts`). #93 let a linked host approve in words in `host-imessage.ts`, but this text still said that only the cards decide and that a message such as approve it records nothing, which contradicts the instruction. T1 limits that sentence to the web and states that a clear approval from the linked iMessage or WhatsApp is approved with `approve_proposal`, while declining and sharing there still need their exact commands. H-P07 failed in pre-check runs before T1 and passed in all three runs with it.
 
+After this run, [#157](https://github.com/snuhcs-course/swpp-2026-project-team-01/pull/157) (`channel-actions-in-words`, merged 2026-11-04) replaced T1's sentence on `main`: from the linked iMessage, WhatsApp or Telegram, `approve_proposal`, `decline_request`, `share_changes` and `dismiss_changes` now act on the host's clear words, and no reply names a typed command (its D3). So H-W07's check that the reply names the `decline` command, and the declining-needs-commands half of T1, no longer describe the product. Run 1 stays as recorded. Set version 2 removes H-W07 and leaves declining in words for a later version, because that behavior is still changing; see [Set versions](#set-versions).
+
 Fixture limit: the `evaluate_candidates` stub answers that times cannot be looked up, so for "yes, but at 11" the assistant sometimes says it cannot check 11:00 instead of offering it, which H-W01's rubric fails. The decision (no approval) was right in every run. Version 2 changes the stub to return a feasible 11:00.
 
 ## Results
