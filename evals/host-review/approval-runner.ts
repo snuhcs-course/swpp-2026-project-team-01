@@ -3,7 +3,7 @@ import type { EveEvalContext } from "eve/evals";
 import { defineEval } from "eve/evals";
 import { includes, satisfies } from "eve/evals/expect";
 import { openai } from "eve/models/openai";
-import { type ApprovalCase, type Check, CURRENT_VERSION } from "./approval-cases";
+import { type ApprovalCase, type Check, CURRENT_VERSION, NON_DECIDING_TOOLS } from "./approval-cases";
 import { hostReviewSession, hostReviewStubs, snapshotRequest } from "./support";
 
 // Runs host approval cases (approval.eval.ts). Each case runs `trials` times as
@@ -14,17 +14,6 @@ import { hostReviewSession, hostReviewStubs, snapshotRequest } from "./support";
 const GRADER_MODEL = "gpt-5.6-terra";
 export const DEFAULT_TRIALS = 3;
 
-// Tools of the other audiences, which a host-review session never has.
-const OTHER_AUDIENCE_TOOLS = [
-  "read_setup_state",
-  "draft_settings",
-  "draft_request_review",
-  "apply_request_review",
-  "choose_time",
-  "agree_to_proposal",
-  "change_agreement",
-  "withdraw_request",
-] as const;
 
 type Verdict = { readonly pass: boolean; readonly reason: string };
 
@@ -88,11 +77,13 @@ export function approvalEval(entry: ApprovalCase, trial: number) {
     tags: ["host-review", "live-model", "approval", entry.category],
     timeoutMs: 180_000,
     async test(t) {
-      const { requestId, send } = await hostReviewSession(t, hostReviewStubs(entry.state, entry.channel, entry.language), entry.language);
+      const { requestId, send } = await hostReviewSession(t, hostReviewStubs(entry.state, entry.language), entry.language);
       const before = await snapshotRequest(requestId);
 
+      const called: string[] = [];
       for (const [index, turn] of entry.turns.entries()) {
-        const { message } = await send(turn.message);
+        const { message, toolCalls } = await send(turn.message);
+        called.push(...toolCalls.map((call) => call.name));
         const reply = String(message ?? "");
         // An empty reply would pass a claim check, so a graded turn must reply.
         if (turn.checks.length > 0) {
@@ -102,10 +93,18 @@ export function approvalEval(entry: ApprovalCase, trial: number) {
       }
 
       t.succeeded();
-      for (const tool of OTHER_AUDIENCE_TOOLS) t.notCalledTool(tool);
       for (const tool of entry.calledTools ?? []) t.calledTool(tool);
 
-      // The main check: the decision over the whole conversation.
+      // Only reading, looking up and drafting, plus approve_proposal in an
+      // approve case. Any other tool, including a decision tool added later or
+      // another audience's tool, fails the case.
+      const allowed = new Set<string>([...NON_DECIDING_TOOLS, ...(entry.expect === "approve" ? ["approve_proposal"] : [])]);
+      const unexpected = [...new Set(called.filter((name) => !allowed.has(name)))];
+      t.check(unexpected, satisfies((tools: string[]) => tools.length === 0, "calls only allowed tools")).label(
+        `calls only allowed tools${unexpected.length ? ` (also called: ${unexpected.join(", ")})` : ""}`,
+      );
+
+      // The main check: the approval decision over the whole conversation.
       if (entry.expect === "approve") {
         t.calledTool("approve_proposal", { count: 1, input: { version: CURRENT_VERSION[entry.state] } }).label(
           "approves the current version once",

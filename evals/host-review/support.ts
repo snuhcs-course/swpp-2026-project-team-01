@@ -5,7 +5,7 @@ import { createDatabase } from "../../lib/server/database";
 import { EVAL_REQUEST_HEADER } from "../../lib/server/eve-auth";
 import { hostModelProjection } from "../../lib/server/host-review-tools";
 import { sessionIdHash } from "../../lib/server/model-limits";
-import { type Channel, CURRENT_VERSION, type HostReviewState } from "./approval-cases";
+import { CURRENT_VERSION, type HostReviewState } from "./approval-cases";
 
 // Host-review eval fixtures. Each eval seeds a host account, an open request
 // and the host's review discussion of it in the local database (never a hosted
@@ -71,41 +71,62 @@ function viewFor(state: HostReviewState, language: "en" | "ko"): HostRequestView
   };
 }
 
+// A finished lookup after which 10:00, 11:00 and 14:00 on Tue 10 Nov are all
+// feasible, so a change the host asks for, such as 11:00, can be offered.
+function evaluatedView(state: HostReviewState, language: "en" | "ko"): HostRequestView {
+  const slot = (id: string, start: string, end: string) => ({
+    basis: ["Inside your hours", "No conflict on your calendar"],
+    belowWeeklyLimit: true,
+    end,
+    hostLegs: [],
+    id,
+    start,
+    status: "offered" as const,
+  });
+  return {
+    ...viewFor(state, language),
+    evaluation: {
+      candidates: [
+        slot("c-1000", "2026-11-10T01:00:00.000Z", "2026-11-10T01:30:00.000Z"),
+        slot("c-1100", "2026-11-10T02:00:00.000Z", "2026-11-10T02:30:00.000Z"),
+        slot("c-1400", "2026-11-10T05:00:00.000Z", "2026-11-10T05:30:00.000Z"),
+      ],
+      exclusions: [],
+      failureCategory: null,
+      id: "evaluation-1",
+      state: "completed",
+      weeklyLimitHold: false,
+    },
+  };
+}
+
 export function hostProjection(state: HostReviewState, language: "en" | "ko") {
   return hostModelProjection(viewFor(state, language));
 }
 
 // The tool's own answers (lib/server/host-review-tools.ts): from a linked
-// channel the current version is approved; any other version, or any call
-// from the web, approves nothing.
+// channel the current version is approved; any other version approves nothing.
 const APPROVED = {
   approved: true,
   message:
     "Approved. The booking is being added to Google Calendar; tell the host it is approved, and do not call it booked until read_booking_status says it is confirmed.",
 };
-const FROM_WEB = {
-  approved: false,
-  problem: "Approval in words works only from the host's linked iMessage or WhatsApp. On the web, the host presses Approve this proposal.",
-};
 
-export function hostReviewStubs(state: HostReviewState, channel: Channel, language: "en" | "ko"): ToolStub[] {
+export function hostReviewStubs(state: HostReviewState, language: "en" | "ko"): ToolStub[] {
   const version = CURRENT_VERSION[state];
-  const approve: ToolStub[] =
-    channel === "web"
-      ? [{ id: "approve-web", outcome: { response: FROM_WEB as never }, tool: "approve_proposal" }]
-      : [
-          { id: "approve-current", match: { version: { const: version } }, outcome: { response: APPROVED as never }, tool: "approve_proposal" },
-          {
-            id: "approve-other",
-            outcome: {
-              response: {
-                approved: false,
-                problem: `That is not the current proposal; the current one is version ${version}. Read the request again and ask the host about it.`,
-              } as never,
-            },
-            tool: "approve_proposal",
-          },
-        ];
+  const approve: ToolStub[] = [
+    { id: "approve-current", match: { version: { const: version } }, outcome: { response: APPROVED as never }, tool: "approve_proposal" },
+    {
+      id: "approve-other",
+      outcome: {
+        response: {
+          approved: false,
+          problem: `That is not the current proposal; the current one is version ${version}. Read the request again and ask the host about it.`,
+        } as never,
+      },
+      tool: "approve_proposal",
+    },
+  ];
 
   return [
     ...approve,
@@ -127,7 +148,7 @@ export function hostReviewStubs(state: HostReviewState, channel: Channel, langua
     },
     {
       id: "evaluate",
-      outcome: { response: { evaluated: false, message: "Times cannot be looked up for this request now." } as never },
+      outcome: { response: { evaluated: true, evaluation: hostModelProjection(evaluatedView(state, language)).evaluation } as never },
       tool: "evaluate_candidates",
     },
     {
@@ -163,7 +184,7 @@ async function seedReview(language: "en" | "ko") {
 type EvalContext = {
   session(options: { headers: Record<string, string>; stubs: ToolStub[] }): Promise<{
     readonly sessionId: string;
-    send(message: string): Promise<{ readonly message: string | null | undefined }>;
+    send(message: string): Promise<{ readonly message: string | null | undefined; readonly toolCalls: readonly { readonly name: string }[] }>;
   }>;
 };
 
