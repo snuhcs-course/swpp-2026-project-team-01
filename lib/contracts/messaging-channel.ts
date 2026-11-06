@@ -15,6 +15,22 @@ export function isMessagingChannel(value: unknown): value is MessagingChannel {
   return (MESSAGING_CHANNELS as readonly unknown[]).includes(value);
 }
 
+// The marker a forwarded message is stored with in the host's discussion
+// (host-imessage-channel D11), which /app reads to show it on its own tab (D27).
+export const CHANNEL_MARKERS: Record<MessagingChannel, string> = { imessage: "[iMessage] ", telegram: "[Telegram] ", whatsapp: "[WhatsApp] " };
+
+// A requester's email reply is marked the same way (requester-email-channel).
+export const EMAIL_MARKER = "[Email] ";
+
+// Only the forwarding paths add a marker, so a message typed on the web loses
+// any it starts with, in any letter case: otherwise the assistant and /app would
+// take it for a forwarded message (host-imessage-channel D28).
+const LEADING_MARKERS = /^(?:\s*\[(?:iMessage|WhatsApp|Telegram|Email)\])+\s*/i;
+
+export function withoutForwardingMarkers(text: string) {
+  return text.replace(LEADING_MARKERS, "");
+}
+
 // The kind of device the screens run on (D7): Android has no iMessage; an
 // iPhone, iPad or Mac has Messages; any other computer asks which app the host
 // uses on their phone.
@@ -118,10 +134,10 @@ export function channelName(channel: MessagingChannel) {
 // Forwarded text is marked, so the shared transcript and the assistant know
 // where it came from (host-imessage-channel D11). A host's words approve a
 // proposal only in a message that carries one of these (D23).
-export const IMESSAGE_PREFIX = "[iMessage] ";
-export const WHATSAPP_PREFIX = "[WhatsApp] ";
+export const IMESSAGE_PREFIX = CHANNEL_MARKERS.imessage;
+export const WHATSAPP_PREFIX = CHANNEL_MARKERS.whatsapp;
 // A linked Telegram chat (host-telegram-channel D12).
-export const TELEGRAM_PREFIX = "[Telegram] ";
+export const TELEGRAM_PREFIX = CHANNEL_MARKERS.telegram;
 
 export function cameFromMessagingChannel(message: string) {
   return message.startsWith(IMESSAGE_PREFIX) || message.startsWith(WHATSAPP_PREFIX) || message.startsWith(TELEGRAM_PREFIX);

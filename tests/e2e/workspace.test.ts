@@ -180,3 +180,54 @@ test("the workspace runs under the security headers with no policy violation", a
   await expect(page.getByRole("log", { name: "Messages" }).getByText("Hello from Thyme.")).toBeVisible();
   expect(violations).toEqual([]);
 });
+
+// A linked iMessage shares the setup discussion, and /app shows its messages on
+// their own tab (host-imessage-channel D27). The web route drops a marker typed
+// in the composer (D28), so the history the browser reads is given the marker
+// that forwarding stores; tests/integration/imessage-forwarding.test.ts covers
+// the forwarding itself.
+test("messages from iMessage are on their own tab, apart from the web chat", async ({ baseURL, context, db, page }) => {
+  await signedInHost(db, context, baseURL!);
+  const marker = randomUUID();
+  const forwarded = `Thirty minutes, please. ${marker}`;
+  await page.route("**/api/chat/events**", async (route) => {
+    const response = await route.fetch();
+    // Both the received message and its text part carry the marker, as forwarded input does.
+    const body = (await response.text()).replaceAll(`"${forwarded}"`, `"[iMessage] ${forwarded}"`);
+    await route.fulfill({ body, response });
+  });
+  await page.goto("/app");
+  const log = page.getByRole("log", { name: "Messages" });
+
+  await sendMessage(page, "Hi from the web.");
+  await expect(log.getByText("Hello from Thyme.")).toBeVisible();
+  await expect(page.getByRole("tab")).toHaveCount(0);
+
+  await scriptModelReply(marker, { kind: "text", text: "Noted in iMessage." });
+  await sendMessage(page, forwarded);
+  await expect(page.getByRole("tab", { name: "iMessage" })).toBeVisible({ timeout: 30_000 });
+
+  await page.reload();
+  const web = page.getByRole("tab", { name: "Web chat" });
+  await expect(web).toHaveAttribute("aria-selected", "true");
+  await expect(log.getByText("Hi from the web.")).toBeVisible();
+  await expect(log.getByText("Thirty minutes, please.", { exact: false })).toHaveCount(0);
+  await expect(log.getByText("Noted in iMessage.")).toHaveCount(0);
+
+  await web.focus();
+  await page.keyboard.press("ArrowRight");
+  const imessage = page.getByRole("tab", { name: "iMessage" });
+  await expect(imessage).toHaveAttribute("aria-selected", "true");
+  await expect(imessage).toBeFocused();
+  const channel = page.getByRole("log", { name: "Messages in iMessage" });
+  await expect(channel.getByText(forwarded)).toBeVisible();
+  await expect(channel.getByText("[iMessage]", { exact: false })).toHaveCount(0);
+  await expect(channel.getByText("Noted in iMessage.")).toBeVisible();
+  await expect(channel.getByText("Hi from the web.")).toHaveCount(0);
+  await expect(page.getByRole("textbox", { name: "Message Thyme" })).toBeHidden();
+  await expect(page.getByRole("note")).toContainText("Reply to Thyme in iMessage");
+
+  await page.keyboard.press("ArrowLeft");
+  await expect(web).toBeFocused();
+  await expect(page.getByRole("textbox", { name: "Message Thyme" })).toBeVisible();
+});

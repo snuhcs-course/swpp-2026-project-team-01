@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { withoutForwardingMarkers } from "../contracts/messaging-channel";
 import {
   acceptHostMessage,
   agentUrlFromEnvironment,
@@ -107,7 +108,12 @@ export function createMessageHandler(load: () => ChatRouteDependencies = chatDep
 
     try {
       const { request: requestId, ...input } = body.data;
-      const outcome = await acceptHostMessage(deps, userId, input, requestId ?? null);
+      const outcome = await acceptHostMessage(
+        deps,
+        userId,
+        { ...input, message: withoutForwardingMarkers(input.message) },
+        requestId ?? null,
+      );
       return json(outcome, outcome.status === "recovery_required" ? 409 : 202);
     } catch (error) {
       return chatError(error);

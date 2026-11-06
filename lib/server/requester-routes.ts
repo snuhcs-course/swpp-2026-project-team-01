@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { withoutForwardingMarkers } from "../contracts/messaging-channel";
 import { isValidTimeZone, type LocationAnswer, type MeetingMode } from "../contracts/setup";
 import { revokeGrantCommand } from "./agent-grants";
 import { checkBookingCommand, readBookingStatus } from "./bookings";
@@ -313,7 +314,7 @@ export function createRequesterMessageHandler(load: () => RequesterRouteDependen
     if (!body.success) return requesterJson({ code: "invalid_message", error: "Send a message with its client input ID." }, 400);
 
     try {
-      const outcome = await acceptGuestMessage(deps, principal, body.data);
+      const outcome = await acceptGuestMessage(deps, principal, { ...body.data, message: withoutForwardingMarkers(body.data.message) });
       return requesterJson(outcome, outcome.status === "recovery_required" ? 409 : 202);
     } catch (error) {
       return guestError(error);

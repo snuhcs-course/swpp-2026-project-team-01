@@ -4,6 +4,7 @@ import { AlertCircleIcon, XIcon } from "lucide-react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { type ReactNode, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { HostRequests } from "@/app/_components/host/host-requests";
+import { MessagingDiscussion } from "@/app/_components/host/messaging-discussion";
 import { IMESSAGE_CARD_ID, ImessageCard, rememberedLater, rememberLater } from "@/app/_components/imessage/imessage-card";
 import { AuthoredMessages, useAuthoredReveal } from "@/app/_components/setup/authored-messages";
 import { focusCurrentCard, SetupCards } from "@/app/_components/setup/setup-cards";
@@ -17,7 +18,9 @@ import { HostSettingsDialog } from "@/app/_components/host-settings-dialog";
 import { ChatComposer } from "@/components/chat/composer";
 import { ChatConversation, ChatConversationContent, ChatItem, ChatScrollButton } from "@/components/chat/conversation";
 import { AgentMessage, AgentThinking } from "@/components/chat/message";
+import { ChatTabs } from "@/components/chat/tabs";
 import { Button } from "@/components/ui/button";
+import { messagingChannels, messagingLabel, splitByChannel } from "@/lib/chat/channels";
 import { useHostDiscussion } from "@/lib/chat/use-host-discussion";
 
 // The host workspace at /app: one centered conversation, a reachable composer
@@ -35,6 +38,10 @@ const ANALYSIS_POLL_MS = 4000;
 // The Connect iMessage card (H11) follows the share links once setup is ready,
 // until the host links or chooses Maybe later, which this browser remembers; the
 // menu's iMessage item opens it at any step.
+
+// Messages from a linked iMessage or WhatsApp, which shares this discussion,
+// have their own tab, shown once there are any (host-imessage-channel D27).
+type View = "web" | "messaging";
 
 export function HostWorkspace() {
   const params = useSearchParams();
@@ -58,7 +65,16 @@ function SetupWorkspace({ onOpenRequests }: { readonly onOpenRequests: () => voi
   const reveal = useAuthoredReveal(setup.state);
   const settled = useCallback(() => void reloadSetup(), [reloadSetup]);
   const chat = useHostDiscussion({ onSettled: settled });
-  const { draft, error, failed, lastMessage, messages, pendingText, phase, recover, send, setDraft, setError, thinking, times, turnFailed } = chat;
+  const { draft, error, failed, messages, pendingText, phase, recover, send, setDraft, setError, thinking, times, turnFailed } = chat;
+  const entries = useMemo(() => splitByChannel(messages), [messages]);
+  const webEntries = useMemo(() => entries.filter((entry) => entry.channel === "web"), [entries]);
+  const channels = messagingChannels(entries);
+  const channelLabel = messagingLabel(channels);
+  const [tab, setTab] = useState<View>("web");
+  const view: View = channels.length > 0 ? tab : "web";
+  // The open turn answers the channel of the latest host message.
+  const turnChannel = pendingText !== null ? "web" : (entries.at(-1)?.channel ?? "web");
+  const streamingIndex = phase === "streaming" ? messages.length - 1 : null;
 
   useEffect(() => {
     void reloadSetup();
@@ -76,6 +92,8 @@ function SetupWorkspace({ onOpenRequests }: { readonly onOpenRequests: () => voi
   const [imessageOpened, setImessageOpened] = useState(false);
   // Counts openings from the menu, so each one moves focus once the card is shown.
   const [imessageFocus, setImessageFocus] = useState(0);
+  // Counts the menu's Setup choices, so focus moves once the web tab is shown.
+  const [setupFocus, setSetupFocus] = useState(0);
   useEffect(() => setImessageLater(rememberedLater()), []);
   useEffect(() => {
     if (imessageFocus > 0) focusCard(IMESSAGE_CARD_ID);
@@ -87,6 +105,7 @@ function SetupWorkspace({ onOpenRequests }: { readonly onOpenRequests: () => voi
   const showSetup = setupValue !== null && reveal.done;
   const showImessage = imessageOpened || (showSetup && setupState?.nextAction === "ready" && !imessageLater);
   const openImessage = useCallback(() => {
+    setTab("web");
     setImessageOpened(true);
     setImessageFocus((count) => count + 1);
   }, []);
@@ -97,7 +116,7 @@ function SetupWorkspace({ onOpenRequests }: { readonly onOpenRequests: () => voi
   );
   const timeline = useMemo(() => {
     const entries = interleave(
-      messages.map((message, index) => ({ at: times.get(message.id) ?? null, message: { index, message } })),
+      webEntries.map(({ index, message }) => ({ at: times.get(message.id) ?? null, message: { index, message } })),
       receipts,
     );
     // Consecutive receipts share one quiet list between messages.
@@ -112,14 +131,23 @@ function SetupWorkspace({ onOpenRequests }: { readonly onOpenRequests: () => voi
       else grouped.push({ kind: "receipts", receipts: [entry.receipt] });
     }
     return grouped;
-  }, [messages, receipts, times]);
+  }, [receipts, times, webEntries]);
 
   // The menu's Setup item leads to the current step's card, or the composer
   // while setup has not loaded.
+  // Both are on the web tab, so it is shown first.
   const focusSetup = useCallback(() => {
-    if (setupState && reveal.done) focusCurrentCard();
+    setTab("web");
+    setSetupFocus((count) => count + 1);
+  }, []);
+  // Only a new choice moves focus, not setup finishing to load.
+  const setupReady = useRef(false);
+  setupReady.current = Boolean(setupState && reveal.done);
+  useEffect(() => {
+    if (setupFocus === 0) return;
+    if (setupReady.current) focusCurrentCard();
     else composerRef.current?.querySelector("textarea")?.focus();
-  }, [reveal.done, setupState]);
+  }, [setupFocus]);
 
   return (
     <div className="flex h-dvh min-h-0 flex-col bg-background text-foreground">
@@ -150,82 +178,121 @@ function SetupWorkspace({ onOpenRequests }: { readonly onOpenRequests: () => voi
           </div>
         ) : null}
 
-        <ChatConversation>
-          <ConversationSetup value={setupValue}>
-            <ChatConversationContent aria-busy={busy} aria-label="Messages">
-              <AuthoredMessages
-                messages={reveal.visible}
-                onTyped={reveal.onTyped}
-                thinking={reveal.thinking}
-                typingId={reveal.typingId}
-              />
-              {timeline.map((entry) =>
-                entry.kind === "receipts" ? (
-                  <ChatItem key={`receipts-${entry.receipts[0]!.id}`} messageId={`receipts-${entry.receipts[0]!.id}`}>
-                    <SetupReceipts receipts={entry.receipts} />
-                  </ChatItem>
-                ) : (
-                  <ChatItem
-                    key={entry.message.id}
-                    messageId={entry.message.id}
-                    scrollAnchor={entry.message.role === "user"}
-                  >
+        {channels.length > 0 ? (
+          <div className="mx-auto w-full max-w-2xl px-4 pt-2 sm:px-6">
+            <ChatTabs
+              label="Conversation"
+              onSelect={setTab}
+              selected={view}
+              tabs={[
+                { id: "web", label: "Web chat" },
+                { id: "messaging", label: channelLabel },
+              ]}
+            />
+          </div>
+        ) : null}
+
+        {view === "messaging" ? (
+          <div aria-labelledby="tab-messaging" className="flex min-h-0 flex-1 flex-col" id="panel-messaging" role="tabpanel">
+            <MessagingDiscussion
+              busy={busy}
+              entries={entries.filter((entry) => entry.channel !== "web")}
+              label={channelLabel}
+              note={`Reply to Thyme in ${channelLabel}, or write here on the Web chat tab. Both continue the same setup.`}
+              streamingIndex={streamingIndex}
+              thinking={thinking && turnChannel !== "web"}
+              turnFailed={turnFailed && !failed && phase === "ready" && turnChannel !== "web"}
+            />
+          </div>
+        ) : null}
+
+        <div
+          {...(channels.length > 0 ? { "aria-labelledby": "tab-web", id: "panel-web", role: "tabpanel" } : {})}
+          className="flex min-h-0 flex-1 flex-col"
+          hidden={view !== "web"}
+        >
+          <ChatConversation>
+            <ConversationSetup value={setupValue}>
+              <ChatConversationContent aria-busy={busy} aria-label="Messages">
+                <AuthoredMessages
+                  messages={reveal.visible}
+                  onTyped={reveal.onTyped}
+                  thinking={reveal.thinking}
+                  typingId={reveal.typingId}
+                />
+                {timeline.map((entry) =>
+                  entry.kind === "receipts" ? (
+                    <ChatItem key={`receipts-${entry.receipts[0]!.id}`} messageId={`receipts-${entry.receipts[0]!.id}`}>
+                      <SetupReceipts receipts={entry.receipts} />
+                    </ChatItem>
+                  ) : (
+                    <ChatItem
+                      key={entry.message.id}
+                      messageId={entry.message.id}
+                      scrollAnchor={entry.message.role === "user"}
+                    >
+                      <AgentMessage
+                        canRespond={false}
+                        describeTool={describeSetupTool}
+                        isStreaming={entry.index === streamingIndex}
+                        message={entry.message}
+                        onInputResponses={() => {}}
+                      />
+                    </ChatItem>
+                  ),
+                )}
+                {pendingText ? (
+                  <ChatItem messageId="pending" scrollAnchor>
                     <AgentMessage
                       canRespond={false}
-                      describeTool={describeSetupTool}
-                      isStreaming={phase === "streaming" && entry.index === messages.length - 1}
-                      message={entry.message}
+                      isStreaming={false}
+                      message={{ id: "pending", parts: [{ state: "done", text: pendingText, type: "text" }], role: "user" }}
                       onInputResponses={() => {}}
                     />
                   </ChatItem>
-                ),
-              )}
-              {pendingText ? (
-                <ChatItem messageId="pending" scrollAnchor>
-                  <AgentMessage
-                    canRespond={false}
-                    isStreaming={false}
-                    message={{ id: "pending", parts: [{ state: "done", text: pendingText, type: "text" }], role: "user" }}
-                    onInputResponses={() => {}}
-                  />
-                </ChatItem>
-              ) : null}
-              {turnFailed && !failed && phase === "ready" ? (
+                ) : null}
+                {turnFailed && !failed && phase === "ready" && turnChannel === "web" ? (
+                  <p className="px-3 text-sm text-muted-foreground" role="status">
+                    Thyme couldn&apos;t finish this reply. Your message is saved; try again in a little while.
+                  </p>
+                ) : null}
+                {thinking && turnChannel !== "web" ? (
                 <p className="px-3 text-sm text-muted-foreground" role="status">
-                  Thyme couldn&apos;t finish this reply. Your message is saved; try again in a little while.
+                  Thyme is replying in {channelLabel}.
                 </p>
               ) : null}
-              {thinking ? (
-                <ChatItem messageId="thinking">
-                  <AgentThinking withHeader={pendingText !== null || lastMessage?.role !== "assistant"} />
-                </ChatItem>
-              ) : null}
-              {showSetup ? (
-                <ChatItem messageId="setup">
-                  <div aria-label="Setup" className="flex min-w-0 flex-col" role="group">
-                    <SetupCards />
-                  </div>
-                </ChatItem>
-              ) : null}
-              {showImessage ? (
-                <ChatItem messageId="imessage">
-                  <ImessageCard
-                    onLater={() => {
-                      rememberLater();
-                      setImessageLater(true);
-                      setImessageOpened(false);
-                    }}
-                  />
-                </ChatItem>
-              ) : null}
-            </ChatConversationContent>
-          </ConversationSetup>
-          <ChatScrollButton />
-        </ChatConversation>
+              {thinking && turnChannel === "web" ? (
+                  <ChatItem messageId="thinking">
+                    <AgentThinking withHeader={pendingText !== null || webEntries.at(-1)?.message.role !== "assistant"} />
+                  </ChatItem>
+                ) : null}
+                {showSetup ? (
+                  <ChatItem messageId="setup">
+                    <div aria-label="Setup" className="flex min-w-0 flex-col" role="group">
+                      <SetupCards />
+                    </div>
+                  </ChatItem>
+                ) : null}
+                {showImessage ? (
+                  <ChatItem messageId="imessage">
+                    <ImessageCard
+                      onLater={() => {
+                        rememberLater();
+                        setImessageLater(true);
+                        setImessageOpened(false);
+                      }}
+                    />
+                  </ChatItem>
+                ) : null}
+              </ChatConversationContent>
+            </ConversationSetup>
+            <ChatScrollButton />
+          </ChatConversation>
+        </div>
         <ReceiptAnnouncer receipts={receipts} />
       </main>
 
-      <div className="shrink-0 pb-[max(1rem,env(safe-area-inset-bottom))] sm:pb-6" ref={composerRef}>
+      <div className="shrink-0 pb-[max(1rem,env(safe-area-inset-bottom))] sm:pb-6" hidden={view !== "web"} ref={composerRef}>
         <div className="mx-auto w-full max-w-2xl px-4 sm:px-6">
           <ChatComposer
             disabled={phase === "loading" || phase === "recovering"}

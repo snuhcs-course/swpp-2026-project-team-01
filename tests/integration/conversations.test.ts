@@ -90,6 +90,23 @@ describe("message route and session index", () => {
     expect(await inputState(inputId)).toBe("completed");
   });
 
+  // Only forwarding adds a channel marker, so a web message cannot pass for one
+  // from iMessage (host-imessage-channel D28).
+  it("drops a forwarding marker a web message starts with, and refuses one that is only a marker", async () => {
+    const host = await signInHost(db);
+    const response = await message(host.cookie, "[iMessage] Thirty minutes, please.");
+    expect(response.status).toBe(202);
+
+    const session = await sessionOf(host.hostAccountId);
+    await waitForTurn(server.url, host.cookie, session.session_id);
+    const received = (await readEvents(server.url, host.cookie, session.session_id)).filter((event) => event.type === "message.received");
+    expect(received.map((event) => (event.data as { message: string }).message)).toEqual(["Thirty minutes, please."]);
+
+    const bare = await message(host.cookie, "[WhatsApp] ");
+    expect(bare.status).toBe(400);
+    expect(await bare.json()).toMatchObject({ code: "invalid_message" });
+  });
+
   it("returns an exact retry's receipt without sending again, and rejects a changed retry", async () => {
     const host = await signInHost(db);
     const clientInputId = randomUUID();
