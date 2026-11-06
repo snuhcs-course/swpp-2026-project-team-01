@@ -44,6 +44,17 @@ flowchart TD
 
 이 다이어그램은 논리적 책임을 보여 줍니다. 최종 프로세스/워커 배치는 기반 단계의 종료 결정(foundation exit decision)이며, 지금 추가 서비스를 만들어야 할 이유가 아닙니다.
 
+### 배포 구성
+
+1·2단계와 채널 변경으로 구현된, 지금 이 책임들을 맡고 있는 서비스와 공급자입니다.
+
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="assets/architecture/system-architecture-dark.png">
+  <img src="assets/architecture/system-architecture.png" alt="Find Me a Time 배포 구성: 호스트, 요청자, MCP 클라이언트가 HTTPS로 Vercel의 Next.js에 접속하고, Next.js는 내부 bearer로 eve 에이전트를 호출하며, eve는 OpenAI gpt-5.6-terra를 호출합니다. Photon Spectrum을 거친 iMessage와 WhatsApp, 그리고 AgentMail은 webhook으로 eve에 들어옵니다. 두 서비스는 Supabase Auth와 Postgres를 쓰고, Postgres의 pg_net과 pg_cron이 작업 워커를 깨웁니다. 서버는 Google Calendar를 호출하고 Cloudflare로 이메일을 보냅니다. GitHub Actions는 Vercel에 배포하고 Supabase에 마이그레이션을 적용합니다.">
+</picture>
+
+Next.js와 eve 에이전트는 별도의 Vercel 서비스이며, private `app` 스키마의 Postgres가 도메인 상태와 지속 작업을 보관합니다. 호출 경로, 데이터 접근, 작업 배치는 [기반 설계](../openspec/changes/application-foundation/design.md)에 기록되어 있습니다. [`system-architecture.html`](assets/architecture/system-architecture.html)은 [stack-diagram](https://github.com/caru-ini/stack-diagram)으로 PNG를 렌더링한 독립 실행형 원본입니다. 서비스나 공급자가 바뀌면 이 파일을 고치고 두 테마를 다시 렌더링하세요.
+
 ## 사용자 화면과 신뢰 경계
 
 호스트는 접근, 설정, 요청 선택, 비공개 검토, 설정 관리를 위해 `/app`을 사용합니다. 요청자는 `/{handle}`에서 시작하여 `/booking/[bookingId]`의 요청 범위 접근을 통해 이어 갑니다. 공개 `/SKILL.md`와 `/{handle}/SKILL.md`는 접근 권한을 부여하지 않고 연결 절차만 설명합니다. 공급자 동의는 동일한 인가 맥락으로 돌아옵니다.
