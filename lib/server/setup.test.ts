@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import { STARTER_DEFAULTS, type ConfirmedSettings, type DraftFields } from "../contracts/setup";
 import {
   acceptedEntry,
+  withStatedAnswers,
   alignWindowsWithZone,
   buildFieldViews,
   buildSuggestions,
@@ -365,4 +366,14 @@ describe("destinationLost", () => {
     expect(destinationLost({ ...roles, destinationVerifiedAt: "2026-10-21T00:00:00.000Z" }, settings("2026-10-20T00:00:00.000Z"))).toBe(false);
     expect(destinationLost({ ...roles, bookingCalendar: { ...writable, id: "other" } }, settings("2026-10-20T00:00:00.000Z"))).toBe(false);
   });
+});
+
+it("hashes stated in-person answers before acceptance, including place edits", () => {
+  const proposed = proposal({ meetingMode: stated("in_person"), location: stated({ kind: "places", areas: ["강남역"], venue: null }), travelMode: stated("transit") });
+  const review = proposalHash(proposed, null);
+  expect(proposalHash(withStatedAnswers(proposed), null)).toBe(review);
+  expect(proposalHash({ ...proposed, location: { ...proposed.location!, value: { kind: "places", areas: ["역삼역"], venue: null } } }, null)).not.toBe(review);
+  expect(proposed.meetingMode?.accepted).toBe(false);
+  expect(missingFields(proposed, true)).toContain("meetingMode");
+  expect(missingFields(withStatedAnswers(proposed), true)).toEqual([]);
 });

@@ -1,4 +1,6 @@
 import { z } from "zod";
+import { readDefaultRoleCalendars } from "./calendar-roles";
+import { googleCalendarConfigFromEnvironment } from "./google-calendar";
 import { COMMAND_ERROR_MESSAGES, type CommandErrorCategory } from "../contracts/command-errors";
 import { IMESSAGE_OPERATIONS } from "../contracts/imessage";
 import { json } from "./chat-routes";
@@ -117,7 +119,11 @@ export function createImessageCommandHandler(load: () => ImessageRouteDependenci
     if (!host.hostAccountId) return host.refusal!;
 
     const hostAccountId = host.hostAccountId;
+    const liveCalendars = body.data.operation === "imessage.link.confirm" || body.data.operation === "imessage.link.verify_code"
+      ? await readDefaultRoleCalendars(deps.db, hostAccountId, { config: googleCalendarConfigFromEnvironment(), tokenKeys: deps.tokenKeys })
+      : null;
     const commands = imessageCommands({
+      liveCalendars,
       lineDayLimit: deps.lineDayLimit,
       lineNumber: deps.lineNumber,
       origin: deps.appOrigin,

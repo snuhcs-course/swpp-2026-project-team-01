@@ -1,0 +1,142 @@
+{
+  "branch": "feat/host-onboarding-in-chat",
+  "user": "enu3379@gmail.com",
+  "sessions": {
+    "claude:3f14f2b2-00bf-42ef-897a-100fa8e6c5eb": {
+      "agent": "claude-code",
+      "client": "cli",
+      "agent_ms": 3924053,
+      "models": {
+        "claude-opus-5-5": {
+          "input": 370,
+          "cache_read": 57143954,
+          "cache_write_5m": 0,
+          "cache_write_1h": 673376,
+          "output": 127955,
+          "reasoning": 0
+        }
+      },
+      "first": "2026-11-09T14:35:06.478Z",
+      "last": "2026-11-10T12:23:59.826Z"
+    },
+    "claude:3f14f2b2-00bf-42ef-897a-100fa8e6c5eb/agent-a0614b604b0313735": {
+      "agent": "claude-code",
+      "client": "cli",
+      "agent_ms": 0,
+      "models": {
+        "claude-opus-5-5": {
+          "input": 266,
+          "cache_read": 28218140,
+          "cache_write_5m": 1077815,
+          "cache_write_1h": 0,
+          "output": 117230,
+          "reasoning": 0
+        }
+      },
+      "first": "2026-11-09T14:45:40.882Z",
+      "last": "2026-11-10T12:16:57.363Z"
+    },
+    "codex:01a1c0c5-2438-7ea2-9f09-15c373848c8f": {
+      "agent": "codex",
+      "client": "codex_exec",
+      "agent_ms": 1281328,
+      "models": {
+        "gpt-6.1-sol": {
+          "input": 185332,
+          "cache_read": 9537792,
+          "cache_write_5m": 0,
+          "cache_write_1h": 0,
+          "output": 46397,
+          "reasoning": 16596
+        }
+      },
+      "first": "2026-11-09T14:45:17.901Z",
+      "last": "2026-11-09T15:06:34.537Z"
+    },
+    "codex:01a1c0de-cf60-7812-a6a5-5a133101a682": {
+      "agent": "codex",
+      "client": "codex_exec",
+      "agent_ms": 216204,
+      "models": {
+        "gpt-6.1-sol": {
+          "input": 91805,
+          "cache_read": 1209600,
+          "cache_write_5m": 0,
+          "cache_write_1h": 0,
+          "output": 7752,
+          "reasoning": 1209
+        }
+      },
+      "first": "2026-11-09T15:13:18.559Z",
+      "last": "2026-11-09T15:16:47.114Z"
+    },
+    "codex:01a1c0de-d2ed-7420-88f4-9533fccc2299": {
+      "agent": "codex",
+      "client": "codex_exec",
+      "agent_ms": 0,
+      "models": {
+        "codex-auto-review": {
+          "input": 19551,
+          "cache_read": 6016,
+          "cache_write_5m": 0,
+          "cache_write_1h": 0,
+          "output": 144,
+          "reasoning": 82
+        }
+      },
+      "first": "2026-11-09T15:16:14.038Z",
+      "last": "2026-11-09T15:16:14.038Z"
+    },
+    "codex:01a1c0ea-a12b-7392-9a45-1022b4e5eaf2": {
+      "agent": "codex",
+      "client": "codex_exec",
+      "agent_ms": 623932,
+      "models": {
+        "gpt-6.1-sol": {
+          "input": 113273,
+          "cache_read": 4250880,
+          "cache_write_5m": 0,
+          "cache_write_1h": 0,
+          "output": 12115,
+          "reasoning": 3354
+        }
+      },
+      "first": "2026-11-09T15:26:11.209Z",
+      "last": "2026-11-09T15:36:28.942Z"
+    },
+    "codex:01a1c0ea-a2e4-7f50-9721-4d5d063e1d99": {
+      "agent": "codex",
+      "client": "codex_exec",
+      "agent_ms": 0,
+      "models": {
+        "codex-auto-review": {
+          "input": 49656,
+          "cache_read": 167168,
+          "cache_write_5m": 0,
+          "cache_write_1h": 0,
+          "output": 742,
+          "reasoning": 385
+        }
+      },
+      "first": "2026-11-09T15:27:13.179Z",
+      "last": "2026-11-09T15:35:57.546Z"
+    },
+    "codex:01a1c556-b315-7890-bd33-eb7c252ad941": {
+      "agent": "codex",
+      "client": "codex_exec",
+      "agent_ms": 84648,
+      "models": {
+        "gpt-6.1-sol": {
+          "input": 58410,
+          "cache_read": 358912,
+          "cache_write_5m": 0,
+          "cache_write_1h": 0,
+          "output": 2851,
+          "reasoning": 208
+        }
+      },
+      "first": "2026-11-10T12:02:48.524Z",
+      "last": "2026-11-10T12:04:03.147Z"
+    }
+  }
+}

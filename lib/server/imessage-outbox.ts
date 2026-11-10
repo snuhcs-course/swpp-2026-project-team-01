@@ -1,3 +1,6 @@
+import type { SlotPreview } from "../contracts/slot-preview";
+import { type ChannelLanguage } from "./channel-language";
+import { channelReplies } from "./channel-texts";
 import type { MessageStreamEvent } from "eve/client";
 import type { StoredChannel } from "../contracts/messaging-channel";
 import { agentUrlFromEnvironment, type ConversationRuntime, eveRuntime } from "./conversations";
@@ -106,6 +109,7 @@ export function templateDailyLimit(env: Readonly<Record<string, string | undefin
 }
 
 export type OutboxKind =
+  | "image"
   | "link_received"
   | "link_refused"
   | "linked"
@@ -124,7 +128,6 @@ export type OutboxKind =
 export type OutboxState = "waiting" | "queued" | "dispatching" | "accepted" | "failed" | "uncertain" | "suppressed";
 
 export type RecordOutbound = {
-  readonly kind: OutboxKind;
   // The platform; by default the binding's or the link attempt's, else iMessage.
   readonly channel?: StoredChannel;
   // A template row's template (WhatsApp only).
@@ -157,7 +160,10 @@ export type RecordOutbound = {
   // Holds the send this long. Rows of one transaction have no order of their
   // own, so a message that must follow another waits (the card after linking).
   readonly delaySeconds?: number;
-};
+} & (
+  | { readonly kind: "image"; readonly image: { readonly preview: SlotPreview; readonly language: ChannelLanguage }; readonly reviewHash: string }
+  | { readonly kind: Exclude<OutboxKind, "image">; readonly image?: never; readonly reviewHash?: never }
+);
 
 export function outboxSealContext(outboxId: string) {
   return `imessage_outbox:${outboxId}`;
@@ -177,18 +183,19 @@ export async function recordOutbound(tx: Transaction, message: RecordOutbound): 
   const turn = message.kind === "turn";
   const channel = message.channel ?? (await ownerChannel(tx, message));
   const buttons = channel === "whatsapp" && BUTTON_KINDS.has(message.kind) && message.buttons?.items.length ? message.buttons : null;
+  const payload = message.kind === "image" ? JSON.stringify(message.image) : message.text;
   const text =
-    suppressed || message.text === undefined ? null : sealToken(message.tokenKey, buttons ? sealedWithButtons(message.text, buttons) : message.text, context);
+    suppressed || payload === undefined ? null : sealToken(message.tokenKey, buttons ? sealedWithButtons(payload, buttons) : payload, context);
   // Telegram keeps its keyboard on the row (design 7, D9), where button retirement finds it.
   const keyboard = channel === "telegram" && message.buttons ? telegramButtonsOf(message.buttons) : null;
   const keyboardJson = keyboard ? tx.json(keyboard as unknown as Parameters<typeof tx.json>[0]) : null;
 
   const [created] = await tx<{ id: string }[]>`
     insert into app.imessage_outbox
-      (id, channel, kind, template_name, buttons, dedupe_key, host_account_id, binding_id, requester_binding_id, link_id, request_id, input_id,
+      (id, channel, kind, review_hash, template_name, buttons, dedupe_key, host_account_id, binding_id, requester_binding_id, link_id, request_id, input_id,
        recipient_hash, recipient_ciphertext, text_ciphertext, sealed_key_id, state, failure_category, completed_at)
     values
-      (${id}, ${channel}, ${message.kind}, ${message.templateName ?? null}, ${keyboardJson}, ${message.dedupeKey}, ${message.hostAccountId ?? null},
+      (${id}, ${channel}, ${message.kind}, ${message.reviewHash ?? null}, ${message.templateName ?? null}, ${keyboardJson}, ${message.dedupeKey}, ${message.hostAccountId ?? null},
        ${message.bindingId ?? null}, ${message.requesterBindingId ?? null}, ${message.linkId ?? null}, ${message.requestId ?? null},
        ${message.inputId ?? null}, ${message.recipientHash},
        ${recipient?.ciphertext ?? null}, ${text?.ciphertext ?? null}, ${message.tokenKey.id},
@@ -761,6 +768,12 @@ function contentOf(
   text: string | null,
   buttonsOn: boolean,
 ): PhotonContent {
+  if (row.kind === "image") {
+    const image = JSON.parse(text!) as { preview: SlotPreview; language: ChannelLanguage };
+    return row.channel === "telegram"
+      ? { kind: "text", text: channelReplies(image.language).onboarding.slotCaption(image.preview) }
+      : { kind: "image", ...image };
+  }
   if (row.kind === "edit_markup") return { kind: "edit_markup", messageId: text ?? "" };
   if (row.kind === "callback_answer") {
     const answer = JSON.parse(text ?? "{}") as Partial<CallbackAnswer>;

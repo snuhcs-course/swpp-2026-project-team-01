@@ -12,7 +12,7 @@ The product is two-sided. Every meeting has one **host**, who owns the calendar 
 
 ### Hosts
 
-VC investors, founders, and professors who schedule frequent external one-to-one meetings across locations and time zones. The MVP targets hosts who use an iPhone and iMessage. Hosts can start setup in web or iMessage, use browser handoffs for sign-in and Google consent, and continue everyday scheduling in their linked private conversation. Web remains available throughout.
+VC investors, founders, and professors who schedule frequent external one-to-one meetings across locations and time zones. The MVP targets hosts who use an iPhone and iMessage. Hosts can start setup in web, or link iMessage or WhatsApp and finish setup there by answering two questions, hours and places, and agreeing to an image of next week's open times ([`host-onboarding-in-chat`](../openspec/changes/host-onboarding-in-chat/proposal.md#decisions), #166). They use browser handoffs for sign-in and Google consent and continue everyday scheduling in their linked private conversation. Web remains available throughout.
 
 ### Requesters
 

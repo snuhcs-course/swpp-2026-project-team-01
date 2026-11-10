@@ -1,6 +1,6 @@
 import { randomBytes, randomUUID } from "node:crypto";
 import { GOOGLE_CALENDAR_SCOPES } from "../../../lib/contracts/google-scopes";
-import { saveCalendarRolesCommand } from "../../../lib/server/calendar-roles";
+import { readCalendarRoles, saveCalendarRolesCommand } from "../../../lib/server/calendar-roles";
 import { runCommand } from "../../../lib/server/commands";
 import type { Database } from "../../../lib/server/database";
 import { setUpManuallyCommand } from "../../../lib/server/analysis";
@@ -106,7 +106,7 @@ export async function prepareReviewableHost(db: Database, host: SeededHost) {
   const live = host.calendars.map((calendar) => ({ ...calendar, timeZone: calendar.timeZone ?? null }));
   const deps = hostCommandDeps(db, host.hostAccountId);
   const roles = await runCommand(deps, saveCalendarRolesCommand(live), {
-    expectedRevision: 0,
+    expectedRevision: (await readCalendarRoles(db, host.hostAccountId))?.revision ?? 0,
     input: { bookingCalendarId: host.primaryId, conflictCalendarIds: [host.primaryId] },
     resourceId: host.hostAccountId,
     retryKey: randomUUID(),

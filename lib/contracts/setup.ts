@@ -156,7 +156,7 @@ export const STARTER_DEFAULTS = {
   weeklyWindows: (["monday", "tuesday", "wednesday", "thursday", "friday"] as const).map((weekday) => ({
     weekday,
     start: "10:00",
-    end: "17:00",
+    end: "20:00",
   })),
   weeklyLimit: null,
   weeklyLimitCounts: "bookings",

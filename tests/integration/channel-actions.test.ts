@@ -4,7 +4,7 @@ import { declineRequestForTool, resolveChangesForTool } from "../../lib/server/h
 import { requestRef } from "../../lib/server/imessage-commands";
 import { sessionIdHash } from "../../lib/server/model-limits";
 import { readSetupState } from "../../lib/server/setup";
-import { confirmSettingsForTool, listHostRequestsForSetupTool } from "../../lib/server/setup-channel-tools";
+import { confirmSettingsForTool, previewNextWeekForTool, listHostRequestsForSetupTool } from "../../lib/server/setup-channel-tools";
 import { settingsRef } from "../../lib/server/request-ref";
 import { suggestChangesCommand } from "../../lib/server/shared-changes";
 import { agreedRequest, asHost } from "./support/booking";
@@ -12,7 +12,7 @@ import { testDatabase } from "./support/database";
 import { type FakeGoogle, startFakeGoogle } from "./support/fake-google";
 import { type FakePhoton, startFakePhoton } from "./support/fake-photon";
 import { imessageHarness } from "./support/imessage";
-import { createTestRequest, testNotices } from "./support/requests";
+import { createTestRequest, testNotices, testTokenKey } from "./support/requests";
 import { prepareReviewableHost, seedHost, setupDependencies } from "./support/setup-host";
 
 // The host's actions in their own words from the linked conversation
@@ -33,7 +33,8 @@ const notices = () => testNotices;
 beforeAll(async () => {
   photon = await startFakePhoton();
   google = await startFakeGoogle();
-  setupDeps = setupDependencies(db, google);
+  const setup = setupDependencies(db, google);
+  setupDeps = { ...setup, calendar: { ...setup.calendar, tokenKeys: [testTokenKey, setup.tokenKey] } };
 });
 
 afterAll(async () => {
@@ -224,6 +225,9 @@ describe("setup in words", () => {
   it("saves the current settings review for a message from iMessage, once", async () => {
     const { call, host, reviewRef } = await setupHostWrote("Looks right, save it");
 
+    expect(await previewNextWeekForTool(setupDeps, { ...call, callId: randomUUID() })).toMatchObject({ queued: true });
+    const [image] = await im.outbox({ hostAccountId: host.hostAccountId, kind: "image" });
+    await im.send(image!.id);
     const confirmed = await confirmSettingsForTool(setupDeps, call, { reviewRef });
     expect(confirmed).toMatchObject({ saved: true, links: { booking: expect.stringMatching(/^https:\/\/findmeatime\.test\//) } });
     expect(await saved(host.hostAccountId)).toBe(1);

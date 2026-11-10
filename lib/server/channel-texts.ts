@@ -1,6 +1,7 @@
 import type { StoredChannel } from "../contracts/messaging-channel";
 import type { RequestState } from "../contracts/request";
-import type { SetupFieldName } from "../contracts/setup";
+import type { MeetingMode, SetupFieldName, TravelMode, Weekday } from "../contracts/setup";
+import type { HoursSuggestion, LocalRange, SlotPreview, SlotPreviewDay } from "../contracts/slot-preview";
 import type { ChannelLanguage } from "./channel-language";
 
 // The fixed replies of a linked conversation, in English and Korean
@@ -89,6 +90,168 @@ export function weekdayShort(weekday: string, language: ChannelLanguage) {
   return language === "ko" ? (WEEKDAYS_KO[weekday] ?? weekday) : weekday.slice(0, 3);
 }
 
+// ---------------------------------------------------------------------------
+// The chat onboarding's times, days and meeting details (host-onboarding-in-chat
+// design 3 and 5), shared by the onboarding texts below and the slot image.
+
+function clockMinutes(clock: string) {
+  const [hour, minute] = clock.split(":").map(Number);
+  return hour * 60 + minute;
+}
+
+// A clock as a chat reads it: "9시", "9시 반", "22시"; "9am", "9:30am", "noon".
+export function clockText(clock: string, language: ChannelLanguage) {
+  const [hour, minute] = clock.split(":").map(Number);
+  if (language === "ko") return `${hour}시${minute === 0 ? "" : minute === 30 ? " 반" : ` ${minute}분`}`;
+  if (minute === 0 && hour % 12 === 0) return hour === 12 ? "noon" : "midnight";
+  return `${hour % 12 || 12}${minute === 0 ? "" : `:${String(minute).padStart(2, "0")}`}${hour % 24 < 12 ? "am" : "pm"}`;
+}
+
+// "9시~22시" or "9am–10pm"; an end at or before the start is on the next day.
+export function rangeText(range: LocalRange, language: ChannelLanguage) {
+  const nextDay = range.end !== "24:00" && clockMinutes(range.end) <= clockMinutes(range.start);
+  return language === "ko"
+    ? `${clockText(range.start, "ko")}~${nextDay ? "다음 날 " : ""}${clockText(range.end, "ko")}`
+    : `${clockText(range.start, "en")}–${clockText(range.end, "en")}`;
+}
+
+// A Korean clock as it is said aloud, with the part of the day: "9시", "오후 5시", "저녁 10시".
+function spokenKo(clock: string) {
+  const [hour, minute] = clock.split(":").map(Number);
+  const rest = minute === 0 ? "" : minute === 30 ? " 반" : ` ${minute}분`;
+  if (hour % 24 === 0) return minute === 0 ? "자정" : `밤 12시${rest}`;
+  if (hour < 6) return `새벽 ${hour}시${rest}`;
+  if (hour < 12) return `${hour}시${rest}`;
+  if (hour === 12) return `낮 12시${rest}`;
+  if (hour < 18) return `오후 ${hour - 12}시${rest}`;
+  if (hour < 23) return `저녁 ${hour - 12}시${rest}`;
+  return `밤 ${hour - 12}시${rest}`;
+}
+
+// The Korean particle after a word: 으로 or 로, 을 or 를, by its last syllable.
+function finalConsonant(word: string) {
+  const code = word.charCodeAt(word.length - 1) - 0xac00;
+  return code >= 0 && code < 11172 ? code % 28 : 0;
+}
+const ro = (word: string) => `${word}${[0, 8].includes(finalConsonant(word)) ? "로" : "으로"}`;
+const eul = (word: string) => `${word}${finalConsonant(word) === 0 ? "를" : "을"}`;
+
+function listEn(items: readonly string[]) {
+  return items.length < 2 ? items.join("") : `${items.slice(0, -1).join(", ")} and ${items.at(-1)}`;
+}
+
+// The hours of a suggestion by day group; a weekend whose two days match reads as one.
+function hourGroups(hours: HoursSuggestion, language: ChannelLanguage) {
+  const [first, second] = hours.weekend;
+  const sameWeekend = second !== undefined && first.start === second.start && first.end === second.end;
+  const weekendLabel = { en: { saturday: "Saturdays", sunday: "Sundays" }, ko: { saturday: "토요일", sunday: "일요일" } }[language];
+  return [
+    { label: language === "ko" ? "평일" : "weekdays", range: hours.weekdays },
+    ...(sameWeekend
+      ? [{ label: language === "ko" ? "주말" : "weekends", range: first }]
+      : hours.weekend.map((day) => ({ label: weekendLabel[day.weekday], range: day }))),
+  ];
+}
+
+const MONTHS_EN = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+
+// The dates of the week starting on a YYYY-MM-DD Monday: "11월 16일~22일", "Nov 16–22".
+export function weekText(weekStart: string, language: ChannelLanguage) {
+  const start = new Date(`${weekStart}T00:00:00Z`);
+  const end = new Date(start.getTime() + 6 * 86_400_000);
+  const sameMonth = start.getUTCMonth() === end.getUTCMonth();
+  if (language === "ko") {
+    return `${start.getUTCMonth() + 1}월 ${start.getUTCDate()}일~${sameMonth ? "" : `${end.getUTCMonth() + 1}월 `}${end.getUTCDate()}일`;
+  }
+  return `${MONTHS_EN[start.getUTCMonth()]} ${start.getUTCDate()}–${sameMonth ? "" : `${MONTHS_EN[end.getUTCMonth()]} `}${end.getUTCDate()}`;
+}
+
+// "월" or "Mon".
+export function dayShort(weekday: Weekday, language: ChannelLanguage) {
+  return language === "ko" ? weekdayShort(weekday, "ko") : `${weekday[0].toUpperCase()}${weekday.slice(1, 3)}`;
+}
+
+export function durationText(minutes: number, language: ChannelLanguage) {
+  if (language === "en") return `${minutes} min`;
+  const hours = Math.floor(minutes / 60);
+  return hours === 0 ? `${minutes}분` : `${hours}시간${minutes % 60 === 0 ? "" : ` ${minutes % 60}분`}`;
+}
+
+export const MEETING_MODE_TEXTS: Texts<Readonly<Record<MeetingMode, string>>> = {
+  en: { either: "In person or online", in_person: "In person", online: "Online" },
+  ko: { either: "대면·온라인", in_person: "대면", online: "온라인" },
+};
+
+export const TRAVEL_MODE_TEXTS: Texts<Readonly<Record<TravelMode, string>>> = {
+  en: { depends: "Travel varies", driving: "By car", transit: "By transit", walking: "On foot" },
+  ko: { depends: "이동 수단은 그때그때", driving: "자동차", transit: "대중교통", walking: "도보" },
+};
+
+// "월~금", "월·화", "Mon–Fri", "Mon & Tue" for consecutive days.
+function runLabel(run: readonly SlotPreviewDay[], language: ChannelLanguage) {
+  const first = dayShort(run[0].weekday, language);
+  const last = dayShort(run[run.length - 1].weekday, language);
+  if (run.length === 1) return first;
+  if (run.length === 2) return language === "ko" ? `${first}·${last}` : `${first} & ${last}`;
+  return language === "ko" ? `${first}~${last}` : `${first}–${last}`;
+}
+
+// Consecutive days split wherever `same` says two neighbours differ; closed days split runs and are left out.
+function dayRuns(days: readonly SlotPreviewDay[], same: (a: SlotPreviewDay, b: SlotPreviewDay) => boolean) {
+  const runs: SlotPreviewDay[][] = [];
+  let previous: SlotPreviewDay | null = null;
+  for (const day of days) {
+    if (day.open.length === 0) {
+      previous = null;
+      continue;
+    }
+    const run = runs.at(-1);
+    if (previous && run && same(previous, day)) run.push(day);
+    else runs.push([day]);
+    previous = day;
+  }
+  return runs;
+}
+
+const SUMMARY_LIMIT = 80;
+
+// The open ranges in one line, days with the same ranges together; when that runs
+// long, the open days and their total hours instead.
+function openSummary(preview: SlotPreview, language: ChannelLanguage) {
+  const sameRanges = (a: SlotPreviewDay, b: SlotPreviewDay) =>
+    a.open.length === b.open.length && a.open.every((range, i) => range.start === b.open[i].start && range.end === b.open[i].end);
+  const ranges = (day: SlotPreviewDay) => day.open.map((range) => rangeText(range, language)).join(", ");
+  const full = dayRuns(preview.days, sameRanges)
+    .map((run) => `${runLabel(run, language)} ${ranges(run[0])}`)
+    .join(" / ");
+  if (full.length <= SUMMARY_LIMIT) return full;
+
+  const days = dayRuns(preview.days, () => true)
+    .map((run) => runLabel(run, language))
+    .join(language === "ko" ? "·" : ", ");
+  const minutes = preview.days
+    .flatMap((day) => day.open)
+    .reduce((sum, range) => {
+      const length = (range.end === "24:00" ? 1440 : clockMinutes(range.end)) - clockMinutes(range.start);
+      return sum + (length > 0 ? length : length + 1440);
+    }, 0);
+  const hours = Math.round(minutes / 60);
+  return language === "ko" ? `${days}에 모두 약 ${hours}시간` : `${days}, about ${hours} hours in all`;
+}
+
+// The meeting the slots are for: "대면 30분, 역삼동 근처, 대중교통", "30 min, in person, …, by transit".
+function meetingDetails(preview: SlotPreview, language: ChannelLanguage) {
+  const mode = MEETING_MODE_TEXTS[language][preview.meetingMode];
+  const travel = preview.travelMode ? TRAVEL_MODE_TEXTS[language][preview.travelMode] : null;
+  const parts =
+    language === "ko"
+      ? [`${mode} ${durationText(preview.durationMinutes, "ko")}`, preview.place, travel]
+      : [durationText(preview.durationMinutes, "en"), mode.toLowerCase(), preview.place, travel?.toLowerCase()];
+  return parts.filter(Boolean).join(", ");
+}
+
+const hasOpenTime = (preview: SlotPreview) => preview.days.some((day) => day.open.length > 0);
+
 export const CHANNEL_REPLIES = {
   en: {
     help: (origin: string) =>
@@ -119,6 +282,24 @@ export const CHANNEL_REPLIES = {
     savePrompt: "Save these settings?",
     selectedRequest: "We're now talking about this request.",
     selectedSetup: "We're now talking about your setup.",
+    onboarding: {
+      rolesDefault: (calendar: string) =>
+        `I'll check your primary calendar (${calendar}) for busy times and put bookings there. If another calendar should count too, just tell me. I'm looking over your recent and upcoming calendar now and will suggest meeting hours next.`,
+      rolesNeeded: "Which calendars should I check for busy times, and which one should bookings go into? Just tell me their names.",
+      hoursQuestion: (hours: HoursSuggestion) => {
+        const groups = hourGroups(hours, "en");
+        const proposed = listEn(groups.map((group) => `${group.label} ${rangeText(group.range, "en")}`));
+        if (hours.source === "starter_default") {
+          return `Your recent and upcoming calendar is fairly quiet, so I started from ${proposed}. Shall I keep that as your meeting hours, or do you have other times in mind?`;
+        }
+        const seen = listEn(groups.map((group) => `from ${clockText(group.range.start, "en")} to ${clockText(group.range.end, "en")} on ${group.label}`));
+        return `Looking at your recent and upcoming calendar, your appointments usually run ${seen}. Shall I set your meeting hours to ${proposed}?`;
+      },
+      slotCaption: (preview: SlotPreview) =>
+        hasOpenTime(preview)
+          ? `Next week's open times (${weekText(preview.weekStart, "en")}): ${openSummary(preview, "en")} (${meetingDetails(preview, "en")}). Shall I open these for booking?`
+          : `Next week (${weekText(preview.weekStart, "en")}) has no open time with these settings (${meetingDetails(preview, "en")}). Want to change your meeting hours?`,
+    },
     nextStep: {
       analyzing: "I'm looking at your calendars; I'll have suggestions shortly.",
       choose_calendars: "Choose which calendars to check and where bookings go. Tell me here, or open the link below.",
@@ -242,6 +423,24 @@ export const CHANNEL_REPLIES = {
     savePrompt: "이 설정을 저장할까요?",
     selectedRequest: "이제 이 요청에 대해 이야기해요.",
     selectedSetup: "이제 설정에 대해 이야기해요.",
+    onboarding: {
+      rolesDefault: (calendar: string) =>
+        `기본 캘린더(${calendar})로 일정을 확인하고 예약도 여기에 넣을게요. 다른 캘린더도 같이 봐야 하면 말씀해 주세요. 지금 최근 일정과 예정된 일정을 살펴보고 있으니 곧 미팅 시간을 제안드릴게요.`,
+      rolesNeeded: "어떤 캘린더로 일정을 확인하고, 예약은 어느 캘린더에 넣을까요? 캘린더 이름으로 말씀해 주세요.",
+      hoursQuestion: (hours: HoursSuggestion) => {
+        const groups = hourGroups(hours, "ko");
+        const proposed = groups.map((group) => `${group.label} ${rangeText(group.range, "ko")}`).join(", ");
+        if (hours.source === "starter_default") {
+          return `캘린더에 일정이 많지 않아서 기본 시간인 ${eul(proposed)} 넣어봤어요. 미팅 가능 시간을 이대로 잡아둘까요, 아니면 원하시는 시간이 있으세요?`;
+        }
+        const seen = groups.map((group) => `${group.label}엔 ${spokenKo(group.range.start)}부터 ${spokenKo(group.range.end)}까지`).join(", ");
+        return `캘린더를 보니 ${seen} 보통 약속이 있으시네요. 미팅 가능 시간을 ${ro(proposed)} 잡아둘까요?`;
+      },
+      slotCaption: (preview: SlotPreview) =>
+        hasOpenTime(preview)
+          ? `다음 주(${weekText(preview.weekStart, "ko")}) 비어 있는 시간이에요: ${openSummary(preview, "ko")} (${meetingDetails(preview, "ko")}). 이 시간들로 예약을 열어둘까요?`
+          : `다음 주(${weekText(preview.weekStart, "ko")})에는 이 설정으로 비어 있는 시간이 없어요 (${meetingDetails(preview, "ko")}). 미팅 가능 시간을 바꿔볼까요?`,
+    },
     nextStep: {
       analyzing: "캘린더를 살펴보고 있어요. 곧 제안을 드릴게요.",
       choose_calendars: "확인할 캘린더와 예약을 넣을 캘린더를 골라 주세요. 여기서 말씀하시거나 아래 링크를 열어 주세요.",

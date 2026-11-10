@@ -24,6 +24,7 @@ export type AnalysisEvidence = {
   readonly scannedCalendars: readonly { readonly id: string; readonly summary: string; readonly ok: boolean }[];
   readonly preferredTimes: {
     readonly sampleSize: number;
+    readonly samples?: readonly { readonly weekday: Weekday; readonly startMinute: number; readonly endMinute: number }[];
     readonly cells: readonly { readonly weekday: Weekday; readonly hour: number; readonly count: number }[];
     // Per weekday, the earliest start and latest end of counted meetings in
     // minutes from that day's local midnight (an end past midnight exceeds 1440).
@@ -49,6 +50,7 @@ export type AnalysisEvidence = {
     }[];
   };
   readonly places: {
+    readonly candidates?: readonly { readonly name: string; readonly count: number }[];
     readonly sampleSize: number;
     readonly area: { readonly name: string; readonly count: number } | null;
     readonly venue: { readonly name: string; readonly count: number } | null;

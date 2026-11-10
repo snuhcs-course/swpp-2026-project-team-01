@@ -76,6 +76,8 @@ Never make the user think too much. Each moment asks for one decision, and the n
 
 Added 2026-10-20 after the first hosted onboarding test, where several large cards at once made setup hard to follow.
 
+Exception: in the linked iMessage or WhatsApp setup, one message asks for the place, the meeting mode and the travel mode together, so that the chat asks the minimum and the host answers naturally ([`host-onboarding-in-chat` D2](../openspec/changes/host-onboarding-in-chat/proposal.md#decisions), #166).
+
 ## Applying the principles
 
 For each feature, review:

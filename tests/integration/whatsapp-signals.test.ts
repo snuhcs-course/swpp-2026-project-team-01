@@ -1,3 +1,4 @@
+import { randomUUID } from "node:crypto";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { BUTTON_TITLES, requestRef, reviewRef, settingsRef } from "../../lib/server/imessage-commands";
 import { createImessageNoticeHandler } from "../../lib/server/imessage-notice-job";
@@ -6,6 +7,7 @@ import { recordOutbound } from "../../lib/server/imessage-outbox";
 import { THANKS_TAPBACK } from "../../lib/server/imessage-receipts";
 import { MAX_INTERACTIVE_BODY } from "../../lib/server/photon";
 import { computeSetupProposal } from "../../lib/server/setup";
+import { previewNextWeekForTool } from "../../lib/server/setup-channel-tools";
 import { agreedRequest } from "./support/booking";
 import { testDatabase } from "./support/database";
 import { type FakeGoogle, startFakeGoogle } from "./support/fake-google";
@@ -34,7 +36,8 @@ const buttonsOn = () => ({ ...im.sendDeps(), env: { WHATSAPP_BUTTONS: "1" } });
 beforeAll(async () => {
   photon = await startFakePhoton();
   google = await startFakeGoogle();
-  setupDeps = setupDependencies(db, google);
+  const setup = setupDependencies(db, google);
+  setupDeps = { ...setup, calendar: { ...setup.calendar, tokenKeys: [testTokenKey, setup.tokenKey] } };
 });
 
 afterAll(async () => {
@@ -227,6 +230,19 @@ describe("WhatsApp decision buttons", () => {
     const review = await im.deliver({ channel: "whatsapp", sender, text: "review" });
     const { sent } = await im.send(await replyTo(review.receiptId), buttonsOn());
     expect(sent.at(-1)!.content).toMatchObject({ buttons: [{ id: `c:${ref}`, title: BUTTON_TITLES.confirm }], kind: "interactive" });
+
+    expect((await tap(sender, `c:${ref}`)).outcome).toBe("command");
+    expect(await db`select 1 from app.host_settings where host_account_id = ${host.hostAccountId}`).toHaveLength(0);
+
+    expect((await im.deliver({ channel: "whatsapp", sender, text: "Show next week" })).outcome).toBe("forwarded");
+    const [input] = await db<{ id: string }[]>`select id from app.conversation_inputs where discussion_id = ${host.discussionId} order by accepted_at desc limit 1`;
+    await db`update app.agent_sessions set current_input_id = ${input!.id} where session_id = ${host.sessionId}`;
+    expect(await previewNextWeekForTool(setupDeps, {
+      auth: { principalId: host.hostAccountId, principalType: "user", attributes: { audience: "host_setup" } },
+      sessionId: host.sessionId, callId: randomUUID(),
+    })).toMatchObject({ queued: true });
+    const [image] = await im.outbox({ hostAccountId: host.hostAccountId, kind: "image" });
+    await im.send(image!.id, buttonsOn());
 
     expect((await tap(sender, `c:${ref}`)).outcome).toBe("command");
     expect(await db`select 1 from app.host_settings where host_account_id = ${host.hostAccountId}`).toHaveLength(1);
