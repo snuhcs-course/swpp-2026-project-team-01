@@ -38,6 +38,9 @@ test("a new host signs in, lands on /app with an empty setup session and gets Th
   await page.goto("/");
   await page.getByRole("link", { name: "Continue with Google" }).click();
   await page.waitForURL((url) => url.pathname === "/app" && url.search === "");
+  const reloaded = await page.reload();
+  expect(reloaded?.headers()["cache-control"]).toContain("no-store");
+  await expect(page.getByRole("button", { name: "Set up here in web chat" })).toBeVisible();
   // A new host first sees the iMessage link step (D16) and sets up on the web instead.
   await page.getByRole("button", { name: "Set up here in web chat" }).click();
   const composer = page.getByRole("textbox", { name: "Message Thyme" });
