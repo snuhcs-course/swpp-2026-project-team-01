@@ -40,20 +40,17 @@ describe("renderSlotPreviewPng", () => {
       return Promise.reject(new Error("no network in the slot image"));
     });
 
-    for (const language of ["ko", "en"] as const) {
-      const png = await renderSlotPreviewPng(preview, language);
+    const png = await renderSlotPreviewPng(preview);
 
-      expect(png.subarray(0, 8)).toEqual(PNG_SIGNATURE);
-      // The IHDR chunk's width and height.
-      expect([png.readUInt32BE(16), png.readUInt32BE(20)]).toEqual([1080, 1350]);
-    }
+    expect(png.subarray(0, 8)).toEqual(PNG_SIGNATURE);
+    // The IHDR chunk's width and height.
+    expect([png.readUInt32BE(16), png.readUInt32BE(20)]).toEqual([1080, 1350]);
     expect(network).toEqual([]);
   });
 
   it("renders an online-only week with no open time", { timeout: 30_000 }, async () => {
     const png = await renderSlotPreviewPng(
       { ...preview, days: preview.days.map((day) => ({ ...day, open: [] })), meetingMode: "online", place: null, travelMode: null },
-      "en",
     );
 
     expect(png.subarray(0, 8)).toEqual(PNG_SIGNATURE);

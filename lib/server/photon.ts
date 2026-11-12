@@ -298,7 +298,7 @@ export function spectrumTransport(config: Pick<PhotonConfig, "projectId" | "proj
           if (request.content.kind === "image") {
             const caption = channelReplies(request.content.language).onboarding.slotCaption(request.content.preview);
             await withTimeout(space.send(caption), SEND_TIMEOUT_MS);
-            const png = await renderSlotPreviewPng(request.content.preview, request.content.language);
+            const png = await renderSlotPreviewPng(request.content.preview);
             const { attachment } = await import("@spectrum-ts/core");
             const sent = await withTimeout(space.send(attachment(png, { mimeType: "image/png", name: `slots-${request.content.preview.weekStart}.png` })), SEND_TIMEOUT_MS);
             return { messageId: sent?.id ?? null, spaceId: space.id, status: "accepted" };
@@ -367,7 +367,7 @@ async function sendWhatsApp(config: Pick<PhotonConfig, "projectId" | "projectSec
         const caption = channelReplies(content.language).onboarding.slotCaption(content.preview);
         let png: Buffer;
         try {
-          png = await renderSlotPreviewPng(content.preview, content.language);
+          png = await renderSlotPreviewPng(content.preview);
         } catch {
           await withTimeout(space.send(caption), SEND_TIMEOUT_MS);
           return { status: "uncertain" };

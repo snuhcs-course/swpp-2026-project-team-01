@@ -36,3 +36,19 @@ The remainder of that `NOTICE` covers the code-mode runtime bundled inside the `
 - Source: <https://github.com/google/fonts>, file `ofl/notosanskr/NotoSansKR[wght].ttf`, last changed in commit `4efc2774c63917927efe769ca845def6bd6debae` (2022-12-09, "Noto Sans KR hotfix2")
 - Copyright 2014-2021 Adobe (http://www.adobe.com/), with Reserved Font Name 'Source'
 - License: SIL Open Font License, Version 1.1, <https://openfontlicense.org>
+
+## Geist
+
+`lib/server/fonts/Geist-Regular.ttf` and `Geist-SemiBold.ttf` are Geist 1.800 at weights 400 and 600, bundled so the slot image (`lib/server/slot-preview-image.ts`) renders without fetching fonts at runtime. They are the static TTF instances Google Fonts' CSS API (`fonts.googleapis.com/css2?family=Geist:wght@400` and `@600`) served on 2026-11-12, unmodified. The license is copied beside them as `lib/server/fonts/OFL.txt`.
+
+- Source: <https://github.com/vercel/geist-font>, through Google Fonts
+- Copyright 2024 The Geist Project Authors (https://github.com/vercel/geist-font)
+- License: SIL Open Font License, Version 1.1, <https://openfontlicense.org>
+
+## Instrument Serif
+
+`lib/server/fonts/InstrumentSerif-Regular.ttf` and `InstrumentSerif-Italic.ttf` are Instrument Serif 1.000, bundled for the slot image's headline. They are the TTF files Google Fonts' CSS API (`fonts.googleapis.com/css2?family=Instrument+Serif` and `:ital@1`) served on 2026-11-12, unmodified. The license is copied beside them as `lib/server/fonts/OFL.txt`.
+
+- Source: <https://github.com/Instrument/instrument-serif>, through Google Fonts
+- Copyright 2022 The Instrument Serif Project Authors (https://github.com/Instrument/instrument-serif)
+- License: SIL Open Font License, Version 1.1, <https://openfontlicense.org>
