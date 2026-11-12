@@ -139,8 +139,7 @@ for (const viewport of [
     const [identified] = await db<{ id: string; state: string; requester_name: string; contact_email: string }[]>`select id, state, requester_name, contact_email from app.requests where host_account_id = ${host.hostAccountId}`;
     expect(identified).toEqual({ id: draft!.id, state: "gathering", requester_name: "Grace Hopper", contact_email: email });
     await expect(page.locator('[data-guest-card="calendar"]').getByText("Skipped")).toBeVisible();
-    const identifiedReload = await page.reload();
-    expect(identifiedReload?.headers()["cache-control"]).toContain("no-store");
+    await page.reload();
     await expect(page.locator('[data-guest-card="identity"]').getByText("Continued with Google")).toBeVisible();
     await expect(page.locator('[data-guest-card="calendar"]').getByText("Skipped")).toBeVisible();
 

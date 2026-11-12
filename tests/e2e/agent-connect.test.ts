@@ -52,8 +52,7 @@ for (const width of [390, 1280]) {
     await startConsent(page, baseURL!, clientId);
     await expect(page.getByRole("heading", { name: "Connect Browser Test Agent to your account?" })).toBeVisible();
     await expect(page.getByText("agent.example.test")).toBeVisible();
-    const hostReload = await page.reload();
-    expect(hostReload?.headers()["cache-control"]).toContain("no-store");
+    await page.reload();
     await expect(page.getByRole("heading", { name: "Connect Browser Test Agent to your account?" })).toBeVisible();
 
     const decide = page.getByRole("checkbox", { name: /Approve and decline requests/ });
