@@ -1,3 +1,4 @@
+import { randomBytes } from "node:crypto";
 import { test as base, type BrowserContext } from "@playwright/test";
 import { signInHost } from "../../integration/support/auth";
 import { testDatabase } from "../../integration/support/database";
@@ -11,6 +12,17 @@ type Database = ReturnType<typeof testDatabase>;
 
 // Each worker gets one database pool, ended when the worker finishes.
 export const test = base.extend<object, { db: Database }>({
+  page: async ({ page }, use) => {
+    // The local stack has one network address for every browser. Give each
+    // journey its own forwarded source for request.start, as separate guests
+    // have in production, while leaving the production rate limit intact.
+    const source = randomBytes(4).toString("hex");
+    const address = `2001:db8:${source.slice(0, 4)}:${source.slice(4)}::1`;
+    await page.route("**/api/requests/start", (route) =>
+      route.continue({ headers: { ...route.request().headers(), "x-forwarded-for": address } }),
+    );
+    await use(page);
+  },
   db: [
     // oxlint-disable-next-line no-empty-pattern -- Playwright requires a destructuring pattern.
     async ({}, use) => {
