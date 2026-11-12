@@ -52,6 +52,9 @@ for (const width of [390, 1280]) {
     await startConsent(page, baseURL!, clientId);
     await expect(page.getByRole("heading", { name: "Connect Browser Test Agent to your account?" })).toBeVisible();
     await expect(page.getByText("agent.example.test")).toBeVisible();
+    const hostReload = await page.reload();
+    expect(hostReload?.headers()["cache-control"]).toContain("no-store");
+    await expect(page.getByRole("heading", { name: "Connect Browser Test Agent to your account?" })).toBeVisible();
 
     const decide = page.getByRole("checkbox", { name: /Approve and decline requests/ });
     await decide.focus();
@@ -110,6 +113,8 @@ test("a requester allows one new request without an account, by keyboard at 390p
   });
 
   await startConsent(page, baseURL!, clientId, `${baseURL}/${handle}/mcp`, "request:read request:write request:decide");
+  await expect(page.getByRole("heading", { name: "Let Browser Test Agent request a meeting for you?" })).toBeVisible();
+  await page.reload();
   await expect(page.getByRole("heading", { name: "Let Browser Test Agent request a meeting for you?" })).toBeVisible();
   await expect(page.getByText("Dodo Host", { exact: false }).first()).toBeVisible();
   await expect(page.getByRole("radio", { name: /Start a new request with Dodo Host/ })).toBeChecked();

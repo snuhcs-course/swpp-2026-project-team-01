@@ -77,6 +77,8 @@ const nextConfig: NextConfig = {
       { headers: credentialPath, source: "/imessage/continue" },
       { headers: [{ key: "Cache-Control", value: "private, no-store" }], source: "/app" },
       { headers: [{ key: "Content-Security-Policy", value: consentContentSecurityPolicy }], source: "/connect/consent" },
+      { headers: [{ key: "Cache-Control", value: "private, no-store" }], source: "/connect/consent" },
+      { headers: [{ key: "Cache-Control", value: "private, no-store" }], source: "/connect/code" },
       { headers: [{ key: "Content-Security-Policy", value: requesterContentSecurityPolicy }], source: "/:handle([^/.]+)" },
       { headers: [{ key: "Content-Security-Policy", value: requesterContentSecurityPolicy }], source: "/booking/:path*" },
       // The booking page posts Connect Google Calendar as a form, which Chrome

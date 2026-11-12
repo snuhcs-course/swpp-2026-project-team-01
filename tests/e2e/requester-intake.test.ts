@@ -129,6 +129,10 @@ for (const viewport of [
     await expect(page.locator('[data-guest-card="identity"]').getByText(`Grace Hopper · ${email}`)).toBeVisible();
     await expect(page.locator('[data-guest-card="calendar"]').getByText("Skipped")).toBeVisible();
     await expect(page.getByText("Hi, I'm Thyme, Ada Lovelace's scheduling assistant.", { exact: false })).toBeVisible();
+    const identifiedReload = await page.reload();
+    expect(identifiedReload?.headers()["cache-control"]).toContain("no-store");
+    await expect(page.locator('[data-guest-card="identity"]').getByText(`Grace Hopper · ${email}`)).toBeVisible();
+    await expect(page.locator('[data-guest-card="calendar"]').getByText("Skipped")).toBeVisible();
 
     // U13: the fixed question with what the host offers, and the composer opens.
     await expect(page.getByText("What would you like to meet Ada Lovelace about? Ada Lovelace offers 30-minute meetings", { exact: false })).toBeVisible();
