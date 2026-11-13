@@ -295,6 +295,10 @@ export const CHANNEL_REPLIES = {
         const seen = listEn(groups.map((group) => `from ${clockText(group.range.start, "en")} to ${clockText(group.range.end, "en")} on ${group.label}`));
         return `Looking at your recent and upcoming calendar, your appointments usually run ${seen}. Shall I set your meeting hours to ${proposed}?`;
       },
+      // The note review link (calendar-note-review design 8), between the place
+      // answer and the slot image.
+      noteReviewLink: (count: number, url: string) =>
+        `${count === 1 ? "One entry looks" : `${count} entries look`} like just a note. Check the ones that can be free, and I'll send your open times after that: ${url}`,
       slotCaption: (preview: SlotPreview) =>
         hasOpenTime(preview)
           ? `Next week's open times (${weekText(preview.weekStart, "en")}): ${openSummary(preview, "en")} (${meetingDetails(preview, "en")}). Shall I open these for booking?`
@@ -436,6 +440,8 @@ export const CHANNEL_REPLIES = {
         const seen = groups.map((group) => `${group.label}엔 ${spokenKo(group.range.start)}부터 ${spokenKo(group.range.end)}까지`).join(", ");
         return `캘린더를 보니 ${seen} 보통 약속이 있으시네요. 미팅 가능 시간을 ${ro(proposed)} 잡아둘까요?`;
       },
+      noteReviewLink: (count: number, url: string) =>
+        `메모처럼 보이는 일정이 ${count}개 있어요. 비워도 되는 일정을 골라주세요. 고르시면 가능한 시간을 보내드릴게요: ${url}`,
       slotCaption: (preview: SlotPreview) =>
         hasOpenTime(preview)
           ? `다음 주(${weekText(preview.weekStart, "ko")}) 비어 있는 시간이에요: ${openSummary(preview, "ko")} (${meetingDetails(preview, "ko")}). 이 시간들로 예약을 열어둘까요?`

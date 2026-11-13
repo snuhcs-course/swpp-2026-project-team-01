@@ -123,6 +123,20 @@ export async function withNoteDecisionExclusions(db: Queryable, hostAccountId: s
   return rows.reduce<NoteExclusion[]>((list, row) => withNoteExclusion(list, exclusionOf(row), now), [...exclusions]);
 }
 
+// The host's confirmed notes as exclusions for the slot image the chat
+// onboarding sends after the review (design 8): a free decision whose writeback
+// is pending or done, or that is kept in Find Me a Time only. The image shows the
+// proposal; the published availability still waits for Google. A failed
+// writeback stays busy.
+export async function slotPreviewNoteExclusions(db: Queryable, hostAccountId: string): Promise<NoteExclusion[]> {
+  const rows = await db<DecisionRow[]>`
+    select calendar_id, event_id, scope, fingerprint, event_end from app.calendar_note_decisions
+    where host_account_id = ${hostAccountId} and decision = 'free' and writeback_state in ('pending', 'done', 'not_writable')
+    order by updated_at, id
+  `;
+  return rows.map(exclusionOf);
+}
+
 // Applies one change to the confirmed settings' note exclusions, when the host
 // has confirmed settings; before that, Confirm and save adds them.
 async function updateSettingsExclusions(tx: Transaction, hostAccountId: string, change: (list: NoteExclusion[]) => NoteExclusion[]) {

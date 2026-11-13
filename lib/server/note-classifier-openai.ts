@@ -1,6 +1,7 @@
 import { NOTE_CLASSIFIER_BATCH, type NoteClassifierModel } from "./note-classifier";
 
 const ENDPOINT = "https://api.openai.com/v1/responses";
+const MODEL = "gpt-5.6-terra";
 
 // endpoint points local runs at a stand-in; production always calls OpenAI.
 type Options = { readonly apiKey: string; readonly request?: typeof fetch; readonly endpoint?: string };
@@ -21,12 +22,12 @@ export const NOTE_CLASSIFIER_INSTRUCTIONS = [
 const REASON_LANGUAGE = { en: "Write each reason in English.", ko: "Write each reason in Korean." } as const;
 
 export function createOpenAiNoteClassifier({ apiKey, request = fetch, endpoint = ENDPOINT }: Options): NoteClassifierModel {
-  return async (items, { language }) => {
+  return async (items, { language, onUsage }) => {
     const response = await request(endpoint, {
       method: "POST",
       headers: { authorization: `Bearer ${apiKey}`, "content-type": "application/json" },
       body: JSON.stringify({
-        model: "gpt-5.6-terra",
+        model: MODEL,
         reasoning: { effort: "none" },
         store: false,
         max_output_tokens: 4000,
@@ -47,7 +48,19 @@ export function createOpenAiNoteClassifier({ apiKey, request = fetch, endpoint =
       cache: "no-store",
     });
     if (!response.ok) throw new Error("Note classifier provider unavailable");
-    const body = await response.json() as { status?: string; output?: { type?: string; content?: { type?: string; text?: string }[] }[] };
+    const body = await response.json() as {
+      status?: string;
+      output?: { type?: string; content?: { type?: string; text?: string }[] }[];
+      usage?: { input_tokens?: number; output_tokens?: number; input_tokens_details?: { cached_tokens?: number } };
+    };
+    if (typeof body.usage?.input_tokens === "number" && typeof body.usage.output_tokens === "number") {
+      onUsage?.({
+        cachedInputTokens: body.usage.input_tokens_details?.cached_tokens ?? 0,
+        inputTokens: body.usage.input_tokens,
+        modelId: MODEL,
+        outputTokens: body.usage.output_tokens,
+      });
+    }
     if (body.status !== "completed") throw new Error("Note classification did not complete");
     // A refusal arrives as a "refusal" content part, with no output text.
     const output = body.output?.flatMap((item) => item.type === "message" ? item.content ?? [] : []).find((item) => item.type === "output_text")?.text;

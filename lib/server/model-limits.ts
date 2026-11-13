@@ -1,6 +1,7 @@
 import { createHash } from "node:crypto";
 import { type LanguageModel, type LanguageModelMiddleware, wrapLanguageModel } from "ai";
 import { database, type Database } from "./database";
+import type { NoteClassifierModel, NoteClassifierUsage } from "./note-classifier";
 
 // The model limit middleware (design decision 6). Wrapping the agent's model with
 // limitModel puts agent provider requests through it, including eve's retries
@@ -28,7 +29,11 @@ import { database, type Database } from "./database";
 // A denial throws ModelLimitError before any provider request. Only reported
 // usage settles a reservation, so a failed, aborted or usage-less attempt stays
 // charged at the full upper bound. Calendar OCR is limited to five attempts per
-// request; other model work is limited by the USD windows.
+// request; other model work is limited by the USD windows. The note classifier
+// (calendar-note-review design 2) reserves through limitNoteClassifier before
+// each batch call: at most ten calls per host in 24 hours, reserved at USD 0.10
+// (its 4,000 output tokens and a 50-entry batch stay below that) and settled to
+// the usage OpenAI reports; a denied call leaves its batch unsure.
 
 // USD per million tokens on the standard tier, which every call selects. One home
 // for the models in use: `gpt-5.6-terra` serves the agent (agent/agent.ts) and
@@ -46,6 +51,8 @@ export const MODEL_PRICES: Readonly<Record<string, { readonly cachedInputUsd: st
 export const MODEL_LIMITS = {
   attemptReservationUsd: "0.60",
   calendarOcrAttempts: 5,
+  noteClassifierAttempts: 10,
+  noteClassifierReservationUsd: "0.10",
   conversationOutputTokens: 4096,
   // A non-streamed call has no chunks to be idle between, so it gets one total
   // deadline instead, long enough for a full reasoning response.
@@ -110,10 +117,14 @@ type Middleware = LanguageModelMiddleware;
 type CallOptions = Parameters<NonNullable<Middleware["wrapGenerate"]>>[0]["params"];
 type InnerModel = Parameters<NonNullable<Middleware["wrapGenerate"]>>[0]["model"];
 
+type WorkKind = "conversation_input" | "ranking_check" | "calendar_ocr" | "note_classification";
+
 type Attribution = {
   readonly principal: Principal;
   readonly sessionId: string | null;
-  readonly work: { readonly kind: "conversation_input" | "ranking_check" | "calendar_ocr"; readonly id: string };
+  readonly work: { readonly kind: WorkKind; readonly id: string };
+  // The upper bound to reserve, when it is not the attempt's default.
+  readonly reservationUsd?: string;
 };
 
 // Lock keys, taken in this order: work item, principal, anonymous (requests,
@@ -247,17 +258,19 @@ async function reserve(db: Database, attribution: Attribution, limits: ModelLimi
       }
     }
 
-    if (work.kind === "calendar_ocr") {
+    if (work.kind === "calendar_ocr" || work.kind === "note_classification") {
       const [attempts] = await tx<{ count: number }[]>`
         select count(*)::int as count from app.model_reservations
-        where work_kind = 'calendar_ocr' and work_id = ${work.id}
+        where work_kind = ${work.kind} and work_id = ${work.id}
           and (${principal.type} <> 'host_account' or created_at >= now() - interval '24 hours')
       `;
 
-      if (attempts!.count >= limits.calendarOcrAttempts) {
+      if (attempts!.count >= (work.kind === "calendar_ocr" ? limits.calendarOcrAttempts : limits.noteClassifierAttempts)) {
         throw new ModelLimitError("attempts_exhausted");
       }
     }
+
+    const amount = attribution.reservationUsd ?? limits.attemptReservationUsd;
 
     const principalCap = anonymous ? limits.anonymousPrincipalWindowUsd : limits.principalWindowUsd;
     const [usage] = await tx<
@@ -268,12 +281,12 @@ async function reserve(db: Database, attribution: Attribution, limits: ModelLimi
         w.start as window_start,
         (select coalesce(sum(amount_usd), 0) from app.model_reservations
           where principal_type = ${principal.type} and principal_id = ${principal.id} and window_start = w.start)
-          + ${limits.attemptReservationUsd}::numeric > ${principalCap}::numeric as principal_over,
+          + ${amount}::numeric > ${principalCap}::numeric as principal_over,
         ${anonymous}::boolean and (select coalesce(sum(amount_usd), 0) from app.model_reservations
           where (anonymous or principal_type = 'public_intake') and window_start = w.start)
-          + ${limits.attemptReservationUsd}::numeric > ${limits.anonymousWindowUsd}::numeric as anonymous_over,
+          + ${amount}::numeric > ${limits.anonymousWindowUsd}::numeric as anonymous_over,
         (select coalesce(sum(amount_usd), 0) from app.model_reservations where window_start = w.start)
-          + ${limits.attemptReservationUsd}::numeric > ${limits.serviceWindowUsd}::numeric as service_over
+          + ${amount}::numeric > ${limits.serviceWindowUsd}::numeric as service_over
       from w
     `;
 
@@ -294,7 +307,7 @@ async function reserve(db: Database, attribution: Attribution, limits: ModelLimi
         (work_kind, work_id, principal_type, principal_id, session_id, amount_usd, window_start, anonymous)
       values
         (${work.kind}, ${work.id}, ${principal.type}, ${principal.id}, ${sessionId},
-         ${limits.attemptReservationUsd}::numeric, ${usage!.window_start}, ${anonymous})
+         ${amount}::numeric, ${usage!.window_start}, ${anonymous})
       returning id
     `;
 
@@ -321,6 +334,36 @@ export async function reserveHostCalendarOcr(db: Database, hostAccountId: string
   }, MODEL_LIMITS);
 }
 
+// Reserves before each classifier batch call and settles it to the usage the
+// provider reports. The host's allowance and the service window apply as to any
+// model work; a denial throws ModelLimitError before the call, so the batch
+// stays unsure and nothing is freed.
+export function limitNoteClassifier(
+  model: NoteClassifierModel,
+  hostAccountId: string,
+  load: () => Database = database,
+  limits: ModelLimits = MODEL_LIMITS,
+): NoteClassifierModel {
+  return async (items, options) => {
+    const db = load();
+    const reservationId = await reserve(db, {
+      principal: { type: "host_account", id: hostAccountId },
+      reservationUsd: limits.noteClassifierReservationUsd,
+      sessionId: null,
+      work: { kind: "note_classification", id: hostAccountId },
+    }, limits);
+    let reported: NoteClassifierUsage | null = null;
+    try {
+      return await model(items, { ...options, onUsage: (usage) => { reported = usage; } });
+    } finally {
+      const usage = reported as NoteClassifierUsage | null;
+      if (usage) {
+        await settleTokens(db, reservationId, usage.modelId, { cached: usage.cachedInputTokens, input: usage.inputTokens, output: usage.outputTokens });
+      }
+    }
+  };
+}
+
 type Usage = Awaited<ReturnType<InnerModel["doGenerate"]>>["usage"];
 type StreamPart = Awaited<ReturnType<InnerModel["doStream"]>>["stream"] extends ReadableStream<infer Part> ? Part : never;
 
@@ -330,13 +373,20 @@ type StreamPart = Awaited<ReturnType<InnerModel["doStream"]>>["stream"] extends 
 // without a listed price, leaves the reservation at its upper bound, and so does
 // a failed update: an uncounted call is never cheaper than a charged one.
 async function settle(db: Database, reservationId: string, modelId: string, usage: Usage | undefined) {
-  const price = MODEL_PRICES[modelId];
   const input = usage?.inputTokens.total;
   const output = usage?.outputTokens.total;
 
-  if (!price || input === undefined || output === undefined) return;
+  if (input === undefined || output === undefined) return;
+  await settleTokens(db, reservationId, modelId, { cached: usage?.inputTokens.cacheRead ?? 0, input, output });
+}
 
-  const cached = Math.min(usage?.inputTokens.cacheRead ?? 0, input);
+async function settleTokens(db: Database, reservationId: string, modelId: string, tokens: { input: number; cached: number; output: number }) {
+  const price = MODEL_PRICES[modelId];
+  const { input, output } = tokens;
+
+  if (!price || !Number.isFinite(input) || !Number.isFinite(output) || input < 0 || output < 0) return;
+
+  const cached = Math.min(Math.max(tokens.cached, 0), input);
 
   try {
     // Tokens times USD per million tokens is millionths of a dollar.

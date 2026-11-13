@@ -88,6 +88,9 @@ export type NoteReview = {
   readonly decisions: readonly NoteReviewDecision[];
   // The week the page asked for, when the review is ready.
   readonly week: NoteWeek | null;
+  // The host's chat onboarding sent this page's link and waits for 확인 to send
+  // the slot image (calendar-note-review design 8).
+  readonly slotImageWaits: boolean;
 };
 
 export type NoteReviewChoice = {

@@ -12,8 +12,10 @@ import { createImessageReceiptHandler } from "./imessage-receipts";
 import type { JobHandler } from "./jobs";
 import { createLinkResendHandler, LINK_RESEND_JOB } from "./link-resend";
 import { createNoteWritebackHandler, NOTE_WRITEBACK_JOB } from "./note-decisions";
+import { ONBOARDING_SLOT_IMAGE_JOB } from "./onboarding-note-step";
 import { IMESSAGE_RECEIPT_JOB } from "./photon-receiver";
 import { createRequestExpiryHandler, REQUEST_EXPIRY_JOB } from "./request-lifecycle";
+import { createOnboardingSlotImageHandler } from "./setup-channel-tools";
 import { createTelegramButtonsHandler, createTelegramTypingHandler, TELEGRAM_TYPING_JOB } from "./telegram-jobs";
 
 // Handlers by job kind. The worker claims only kinds registered here, so a job
@@ -31,6 +33,7 @@ export const JOB_HANDLERS: Readonly<Record<string, JobHandler>> = {
   [IMESSAGE_SEND_JOB]: createImessageSendHandler(),
   [LINK_RESEND_JOB]: createLinkResendHandler(),
   [NOTE_WRITEBACK_JOB]: createNoteWritebackHandler(),
+  [ONBOARDING_SLOT_IMAGE_JOB]: createOnboardingSlotImageHandler(),
   [REQUEST_EXPIRY_JOB]: createRequestExpiryHandler(),
   [TELEGRAM_BUTTONS_JOB]: createTelegramButtonsHandler(),
   [TELEGRAM_TYPING_JOB]: createTelegramTypingHandler(),
@@ -46,7 +49,8 @@ export const JOB_HANDLERS: Readonly<Record<string, JobHandler>> = {
 // receipt may deliver into a conversation (25 seconds at most), so four of those
 // do; a send can wait on three 20-second steps (client, conversation, send), so
 // two do. A note writeback exchanges the token and patches one event, each
-// with a 10-second timeout, so five do.
+// with a 10-second timeout, so five do. An onboarding slot image reads the
+// conflict calendars for next week, each read with its own timeout, so two do.
 export const JOB_BATCH_LIMITS: Readonly<Record<string, number>> = {
   [BOOKING_JOB]: 3,
   [CALENDAR_ANALYSIS_JOB]: 1,
@@ -55,4 +59,5 @@ export const JOB_BATCH_LIMITS: Readonly<Record<string, number>> = {
   [IMESSAGE_RECEIPT_JOB]: 4,
   [IMESSAGE_SEND_JOB]: 2,
   [NOTE_WRITEBACK_JOB]: 5,
+  [ONBOARDING_SLOT_IMAGE_JOB]: 2,
 };

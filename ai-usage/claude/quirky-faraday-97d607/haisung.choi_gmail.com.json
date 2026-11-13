@@ -1,0 +1,40 @@
+{
+  "branch": "claude/quirky-faraday-97d607",
+  "user": "haisung.choi@gmail.com",
+  "sessions": {
+    "claude:1eafcc2f-ef27-4c8b-a878-ffac5369feeb": {
+      "agent": "claude-code",
+      "client": "claude-desktop",
+      "agent_ms": 0,
+      "models": {
+        "claude-opus-5-5": {
+          "input": 36,
+          "cache_read": 2222538,
+          "cache_write_5m": 0,
+          "cache_write_1h": 24083,
+          "output": 6740,
+          "reasoning": 0
+        }
+      },
+      "first": "2026-11-13T12:15:39.872Z",
+      "last": "2026-11-13T12:50:40.322Z"
+    },
+    "claude:45b92b5d-a79e-41f6-8993-0138fb8f6df2": {
+      "agent": "claude-code",
+      "client": "claude-desktop",
+      "agent_ms": 0,
+      "models": {
+        "claude-opus-5-5": {
+          "input": 220,
+          "cache_read": 24474754,
+          "cache_write_5m": 0,
+          "cache_write_1h": 752837,
+          "output": 89125,
+          "reasoning": 0
+        }
+      },
+      "first": "2026-11-13T11:00:12.668Z",
+      "last": "2026-11-13T16:21:16.421Z"
+    }
+  }
+}

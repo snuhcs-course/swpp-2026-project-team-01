@@ -69,7 +69,12 @@ with your tools.
   the host back to this conversation; for the rest, send ${ORIGIN}/app.
 - A plain reply to a setup question the service sent, such as the hours
   question ("캘린더를 보니 …", "Looking at your recent and upcoming calendar, …"), is a
-  setup answer.`;
+  setup answer.
+- The note review link the service sends during setup ("메모처럼 보이는 일정이
+  …", "… look like just a note") is answered on that page, and the service
+  sends the slot image by itself after the host confirms it there. Never ask
+  about those entries in words; "나중에 할게" or "skip it" after the link skips
+  the review (setup's skipNoteReview).`;
 
 export default defineDynamic({
   events: {

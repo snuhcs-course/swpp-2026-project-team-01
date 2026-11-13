@@ -22,8 +22,12 @@ async function post(operation: string, input: unknown) {
     headers: { "content-type": "application/json" },
     method: "POST",
   });
-  const body = (await response.json().catch(() => null)) as { ok?: boolean; error?: { category?: string } } | null;
-  return { ok: response.ok && body?.ok === true, stale: body?.error?.category === "stale_revision" };
+  const body = (await response.json().catch(() => null)) as { ok?: boolean; error?: { category?: string }; result?: { slotImage?: boolean } } | null;
+  return {
+    ok: response.ok && body?.ok === true,
+    slotImage: body?.result?.slotImage === true,
+    stale: body?.error?.category === "stale_revision",
+  };
 }
 
 export function NoteReviewPanel({
@@ -51,6 +55,8 @@ export function NoteReviewPanel({
   const [polls, setPolls] = useState(0);
   // After Confirm the page shows what is now free, with Back to change it.
   const [done, setDone] = useState(false);
+  // The chat onboarding sends the open times once this 확인 is saved.
+  const [slotImageFollows, setSlotImageFollows] = useState(false);
   // Where Done leads: the host's linked chat, read once the review is done.
   const platform = useMessagesPlatform();
   const [exit, setExit] = useState<NoteReviewExit>({ channel: null, href: "/app" });
@@ -100,9 +106,14 @@ export function NoteReviewPanel({
     setBusy(true);
     setNotice(null);
     try {
-      // Nothing changed: there is nothing to save.
-      const result = choices.length === 0 ? { ok: true, stale: false } : await post("notes.confirm_review", { analysisId: review.analysisId, choices });
+      // Nothing changed: there is nothing to save, unless the chat onboarding
+      // waits for this 확인 to send the open times.
+      const result =
+        choices.length === 0 && !review.slotImageWaits
+          ? { ok: true, slotImage: false, stale: false }
+          : await post("notes.confirm_review", { analysisId: review.analysisId, choices });
       if (!result.ok) setNotice(result.stale ? t.stale : t.failedSave);
+      if (result.ok) setSlotImageFollows(result.slotImage);
       setPolls(0);
       await load(true);
       if (result.ok && !onConfirmed) setDone(true);
@@ -145,7 +156,15 @@ export function NoteReviewPanel({
         </p>
       ) : null}
       {review && done ? (
-        <NoteReviewDone busy={busy} exit={exit} locale={locale} onBack={() => void back()} onRetry={(id) => void retry(id)} review={review} />
+        <NoteReviewDone
+          busy={busy}
+          exit={exit}
+          locale={locale}
+          onBack={() => void back()}
+          onRetry={(id) => void retry(id)}
+          review={review}
+          slotImageFollows={slotImageFollows}
+        />
       ) : review ? (
         <NoteReviewWeek
           busy={busy}

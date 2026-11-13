@@ -47,7 +47,7 @@ const items: NoteReviewItem[] = [
   item({ allDay: true, end: "2026-11-21", start: "2026-11-20", title: "과제 마감", verdict: "note" }),
 ];
 
-const review: NoteReview = { analysisId: "00000000-0000-4000-8000-000000000001", decisions: [], items, state: "ready", week };
+const review: NoteReview = { analysisId: "00000000-0000-4000-8000-000000000001", decisions: [], items, slotImageWaits: false, state: "ready", week };
 
 function render(value: NoteReview, locale: "en" | "ko" = "ko") {
   return renderToStaticMarkup(<NoteReviewWeek locale={locale} onConfirm={() => {}} review={value} />);
@@ -193,5 +193,21 @@ describe("NoteReviewDone", () => {
     ]);
     expect(text(html)).toContain("Back");
     expect(html).toMatch(/<a[^>]*href="https:\/\/wa\.me\/15550002222"[^>]*>Back to WhatsApp<\/a>/);
+    expect(html).not.toContain("data-note-slot-image");
+  });
+
+  it("says the open times follow by message only when the chat onboarding waits for them", () => {
+    const done = (slotImageFollows: boolean) =>
+      renderToStaticMarkup(
+        <NoteReviewDone
+          exit={{ channel: "imessage", href: "sms:+15550002222" }}
+          locale="ko"
+          onBack={() => {}}
+          review={{ ...review, decisions: [], items: [] }}
+          slotImageFollows={slotImageFollows}
+        />,
+      );
+    expect(text(done(true))).toContain("가능한 시간을 메시지로 보내드릴게요.");
+    expect(done(false)).not.toContain("data-note-slot-image");
   });
 });

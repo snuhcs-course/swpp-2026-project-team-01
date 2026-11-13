@@ -17,6 +17,7 @@ import {
   type RecordedNoteDecision,
   retryNoteWritebackCommand,
 } from "./note-decisions";
+import { queueSlotImageAfterReview, slotImageWaits } from "./onboarding-note-step";
 import { crossSiteRefusal } from "./same-origin";
 import { COMMAND_STATUS, eligibleHost, setupRouteDependenciesFromEnvironment, type SetupRouteDependencies } from "./setup-routes";
 
@@ -156,7 +157,7 @@ export function buildNoteReview(input: {
   });
 
   const state = !analysis || analysis.state === "failed" ? "unavailable" : analysis.state === "pending" ? "pending" : "ready";
-  return { review: { analysisId: analysis?.id ?? null, decisions: decided, items, state, week: null }, sources };
+  return { review: { analysisId: analysis?.id ?? null, decisions: decided, items, slotImageWaits: false, state, week: null }, sources };
 }
 
 // ---------------------------------------------------------------------------
@@ -282,7 +283,10 @@ type ConfirmInput = { readonly analysisId: string; readonly choices: readonly No
 // Pressing 확인 on the review: ticked items free, the others shown kept busy. A
 // review of an older scan, or a key the current review does not show, changes
 // nothing.
-export const confirmNoteReviewCommand: CommandDefinition<ConfirmInput, { decisions: RecordedNoteDecision[] }> = {
+// When the host's chat onboarding is waiting for the slot image (design 8), the
+// same transaction publishes the job that sends it, with the confirmed notes no
+// longer busy, even when no answer changed; slotImage says it follows.
+export const confirmNoteReviewCommand: CommandDefinition<ConfirmInput, { decisions: RecordedNoteDecision[]; slotImage: boolean }> = {
   input: z.object({ analysisId: z.string().uuid(), choices: z.array(choiceSchema).max(100) }).strict() as z.ZodType<ConfirmInput>,
   operation: "notes.confirm_review",
   async run(tx, context) {
@@ -313,7 +317,8 @@ export const confirmNoteReviewCommand: CommandDefinition<ConfirmInput, { decisio
       }];
     });
 
-    return { decisions: await recordNoteDecisions(tx, context.actor.id, items) };
+    const decisions = await recordNoteDecisions(tx, context.actor.id, items);
+    return { decisions, slotImage: await queueSlotImageAfterReview(tx, context.actor.id) };
   },
 };
 
@@ -329,7 +334,9 @@ export function createNoteReviewHandler(load: () => SetupRouteDependencies = set
     if (actor instanceof Response) return actor;
     const inputs = await reviewInputs(deps.db, actor.id);
     const now = new Date();
-    const { review, sources } = buildNoteReview({ ...inputs, now });
+    const built = buildNoteReview({ ...inputs, now });
+    const sources = built.sources;
+    const review = { ...built.review, slotImageWaits: await slotImageWaits(deps.db, actor.id) };
     if (review.state !== "ready" || !inputs.analysis) return json(review);
     const week = await readNoteWeek(deps.calendar, actor.id, {
       analysis: inputs.analysis,

@@ -1,6 +1,7 @@
 import { randomUUID } from "node:crypto";
 import type { BrowserContext } from "@playwright/test";
 import { GOOGLE_CALENDAR_SCOPES } from "../../../lib/contracts/google-scopes";
+import { limitNoteClassifier } from "../../../lib/server/model-limits";
 import { createCalendarAnalysisHandler } from "../../../lib/server/analysis";
 import { saveCalendarRolesCommand } from "../../../lib/server/calendar-roles";
 import { runCommand } from "../../../lib/server/commands";
@@ -114,7 +115,13 @@ export async function noteReviewHost(db: Database, context: BrowserContext, base
   });
   if (!saved.ok) throw new Error(`Saving roles failed: ${saved.error.category}`);
 
-  const handler = createCalendarAnalysisHandler(() => ({ classify: standInNoteClassifier, config, tokenKeys: [tokenKey] }));
+  // The classifier reserves its usage limit in this test database.
+  const handler = createCalendarAnalysisHandler(() => ({
+    classify: standInNoteClassifier,
+    config,
+    limitClassifier: (model, hostAccountId) => limitNoteClassifier(model, hostAccountId, () => db),
+    tokenKeys: [tokenKey],
+  }));
   for (const job of (await analysisJobs(db, host.hostAccountId)).filter((entry) => entry.state === "pending")) {
     await runJob(db, job.id, handler);
   }

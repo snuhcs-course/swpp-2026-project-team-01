@@ -33,6 +33,7 @@ import { readReadiness } from "./readiness";
 import { HostIneligibleError } from "./host-eligibility";
 import { type ClaimedJob, type JobHandler, publishJob } from "./jobs";
 import { type NoteAnswer, noteAnswerMatcher, readNoteAnswers } from "./note-answers";
+import { limitNoteClassifier } from "./model-limits";
 import { classifyNoteCandidates, type NoteClassifierModel } from "./note-classifier";
 import { noteClassifierFromEnvironment } from "./note-classifier-stand-in";
 import type { RequestLanguage } from "../contracts/request";
@@ -668,6 +669,9 @@ export type CalendarAnalysisDependencies = {
   // The note classifier (calendar-note-review design 2); without one, candidates
   // are listed without a recommendation.
   readonly classify?: NoteClassifierModel;
+  // Puts each classifier call under the host's usage limit; limitNoteClassifier
+  // by default.
+  readonly limitClassifier?: (model: NoteClassifierModel, hostAccountId: string) => NoteClassifierModel;
 };
 
 function analysisDependenciesFromEnvironment(): CalendarAnalysisDependencies {
@@ -848,7 +852,12 @@ export function createCalendarAnalysisHandler(
       now: new Date(),
       timezone: countingZone(zones, primaryTimeZone),
     });
-    const evidence = await withNoteRecommendations(counted, load().classify, await hostConversationLanguage(tx, hostAccountId));
+    const { classify, limitClassifier = limitNoteClassifier } = load();
+    const evidence = await withNoteRecommendations(
+      counted,
+      classify && limitClassifier(classify, hostAccountId),
+      await hostConversationLanguage(tx, hostAccountId),
+    );
 
     await tx`
       update app.calendar_analyses

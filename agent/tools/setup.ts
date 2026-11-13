@@ -3,7 +3,7 @@ import { z } from "zod";
 import { switchConversationForTool, switchConversationToolInput } from "../../lib/server/channel-selection";
 import { database } from "../../lib/server/database";
 import { setupDependenciesFromEnvironment } from "../../lib/server/setup";
-import { confirmSettingsForTool, confirmSettingsToolInput, listHostRequestsForSetupTool, setCalendarRolesForTool, setCalendarRolesToolInput, previewNextWeekForTool } from "../../lib/server/setup-channel-tools";
+import { confirmSettingsForTool, confirmSettingsToolInput, listHostRequestsForSetupTool, setCalendarRolesForTool, setCalendarRolesToolInput, previewNextWeekForTool, previewNextWeekToolInput } from "../../lib/server/setup-channel-tools";
 import {
   draftSettingsForTool,
   draftSettingsToolInput,
@@ -61,9 +61,9 @@ export default defineDynamic({
               execute: (input, ctx) => setCalendarRolesForTool(setupDependenciesFromEnvironment(), { auth: ctx.session.auth.current, callId: ctx.callId, sessionId: ctx.session.id }, input),
             }),
             preview_next_week: defineTool({
-              description: "Send next week's open times as a slot image to the linked conversation, using the current draft. Record the host's hours, meeting mode, place and travel answers first. Returns the review reference and open ranges. Ask whether to open them; confirm only after the host agrees.",
-              inputSchema: z.object({}).strict(),
-              execute: (_input, ctx) => previewNextWeekForTool(setupDependenciesFromEnvironment(), { auth: ctx.session.auth.current, callId: ctx.callId, sessionId: ctx.session.id }),
+              description: "Send next week's open times as a slot image to the linked conversation, using the current draft. Record the host's hours, meeting mode, place and travel answers first. Returns the review reference and open ranges. When the scan found entries that may be notes, it sends the note review link instead (noteReviewSent), and the image follows by itself after the host confirms that page; pass skipNoteReview true only when the host says to skip that review. Ask whether to open the times; confirm only after the host agrees.",
+              inputSchema: previewNextWeekToolInput,
+              execute: (input, ctx) => previewNextWeekForTool(setupDependenciesFromEnvironment(), { auth: ctx.session.auth.current, callId: ctx.callId, sessionId: ctx.session.id }, input),
             }),
             confirm_settings: defineTool({
               description:

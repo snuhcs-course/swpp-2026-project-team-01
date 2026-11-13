@@ -359,6 +359,7 @@ export function NoteReviewDone({
   onBack,
   onRetry,
   review,
+  slotImageFollows = false,
 }: {
   readonly review: NoteReview;
   readonly locale: Locale;
@@ -366,6 +367,8 @@ export function NoteReviewDone({
   readonly exit: NoteReviewExit;
   readonly onBack: () => void;
   readonly onRetry?: (decisionId: string) => void;
+  // The host's chat onboarding sends the open times after this 확인 (design 8).
+  readonly slotImageFollows?: boolean;
 }) {
   const t = NOTE_REVIEW_COPY[locale];
   const timeZone = review.week?.timezone ?? "UTC";
@@ -408,6 +411,11 @@ export function NoteReviewDone({
             })}
           </ul>
         </section>
+      ) : null}
+      {slotImageFollows ? (
+        <p className="text-xs text-muted-foreground" data-note-slot-image>
+          {t.slotImageFollows}
+        </p>
       ) : null}
       <div className="flex flex-wrap items-center gap-2">
         <Button asChild className="min-h-11">

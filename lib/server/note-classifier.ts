@@ -42,8 +42,20 @@ export type NoteClassifierItem = {
 // classifyNoteCandidates validates, or throws when the call failed or was refused.
 export type NoteClassifierModel = (
   items: readonly NoteClassifierItem[],
-  options: { readonly language: RequestLanguage },
+  options: {
+    readonly language: RequestLanguage;
+    // Told the tokens the provider reports, so the usage limit can settle the
+    // call's reservation (model-limits.ts).
+    readonly onUsage?: (usage: NoteClassifierUsage) => void;
+  },
 ) => Promise<unknown>;
+
+export type NoteClassifierUsage = {
+  readonly modelId: string;
+  readonly inputTokens: number;
+  readonly cachedInputTokens: number;
+  readonly outputTokens: number;
+};
 
 export const NOTE_CLASSIFIER_BATCH = 50;
 export const NOTE_REASON_MAX = 120;

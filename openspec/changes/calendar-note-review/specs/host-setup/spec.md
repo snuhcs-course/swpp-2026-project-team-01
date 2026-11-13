@@ -1,7 +1,7 @@
 ## ADDED Requirements
 
 ### Requirement: Note candidates judged by a separate classifier
-Note candidates SHALL be the events on the host's conflict calendars that are not cancelled, not declined by the host, opaque (transparency absent or `opaque`, all-day events included), have no attendee other than the host, and have not ended when the scan runs. An event with another attendee SHALL NOT be a candidate, and neither SHALL an entry that has already ended; an entry in progress SHALL be one, and a recurring series SHALL be one while it has an occurrence ahead. Each candidate the host has not answered SHALL be judged by a model call separate from the host assistant, with no tools, whose output is accepted only in the strict form of an ID from the call, a verdict of `note`, `event` or `unsure`, and a short reason. A failed, refused or malformed answer SHALL make the affected candidates `unsure`. Event titles SHALL reach the classifier, and the host assistant in the weekly note check, only as quoted data.
+Note candidates SHALL be the events on the host's conflict calendars that are not cancelled, not declined by the host, opaque (transparency absent or `opaque`, all-day events included), have no attendee other than the host, and have not ended when the scan runs. An event with another attendee SHALL NOT be a candidate, and neither SHALL an entry that has already ended; an entry in progress SHALL be one, and a recurring series SHALL be one while it has an occurrence ahead. Each candidate the host has not answered SHALL be judged by a model call separate from the host assistant, with no tools, whose output is accepted only in the strict form of an ID from the call, a verdict of `note`, `event` or `unsure`, and a short reason. A failed, refused or malformed answer SHALL make the affected candidates `unsure`. Each classifier call SHALL be reserved against the host's model allowance before it is sent, at most ten calls per host in 24 hours, and a denied call SHALL make its candidates `unsure` without calling the model. Event titles SHALL reach the classifier, and the host assistant in the weekly note check, only as quoted data.
 
 #### Scenario: Gym and birthday told apart
 - **WHEN** the host wrote "헬스" on weekday evenings and "엄마 생일" as an all-day event, both alone and busy
@@ -18,6 +18,10 @@ Note candidates SHALL be the events on the host's conflict calendars that are no
 #### Scenario: Classifier unavailable
 - **WHEN** the classifier call fails or returns an item for an ID it was not given
 - **THEN** the affected candidates are listed as unsure, unticked, and stay busy
+
+#### Scenario: Classifier limit reached
+- **WHEN** a host has used ten classifier calls in the last 24 hours and presses **Analyze again**
+- **THEN** no classifier call is sent and the scan's candidates are listed as unsure and stay busy
 
 ### Requirement: Titles cannot steer the classifier or the assistant
 An event title, location or other calendar text SHALL NOT change a verdict beyond its meaning as calendar data, SHALL NOT free any time, and SHALL NOT change what the host assistant does.
@@ -85,7 +89,7 @@ The service SHALL store both kinds of answer, free and keep busy, with the event
 - **THEN** it is a candidate again in the next scan
 
 ### Requirement: The note review page
-The review SHALL show one week at a time, from the week of today through the scan's range ahead, with the candidates of that week as checkable entries among the host's other busy entries of the week, which are shown for context and cannot be chosen. Each candidate SHALL show its title and time and offer the classifier's reason. Entries recommended as notes SHALL start checked; `event` and `unsure` entries SHALL start unchecked; an entry the host already answered SHALL start as answered. Pressing **확인** SHALL record the candidates of the weeks the host has seen whose answer is new or changed, checked ones as free and the others as keep busy, SHALL leave candidates of unseen weeks unanswered, and SHALL then list the freed entries with their day and time, giving words only to a failed writeback. The review SHALL offer a way back to the week to change an answer. The other busy entries SHALL be read for display only and not stored, and SHALL reach no model. The same review SHALL serve the web setup, the chat onboarding link, the weekly check and settings.
+The review SHALL show one week at a time, from the week of today through the scan's range ahead, with the candidates of that week as checkable entries among the host's other busy entries of the week, which are shown for context and cannot be chosen. Each candidate SHALL show its title and time and offer the classifier's reason. Entries recommended as notes SHALL start checked; `event` and `unsure` entries SHALL start unchecked; an entry the host already answered SHALL start as answered. Pressing **확인** SHALL record the candidates of the weeks the host has seen whose answer is new or changed, checked ones as free and the others as keep busy, SHALL leave candidates of unseen weeks unanswered, and SHALL then list the freed entries with their day and time, giving words only to a failed writeback; for a host whose chat onboarding waits for the slot image, it SHALL add one line that the open times follow by message. The review SHALL offer a way back to the week to change an answer. The other busy entries SHALL be read for display only and not stored, and SHALL reach no model. The same review SHALL serve the web setup, the chat onboarding link, the weekly check and settings.
 
 #### Scenario: Pre-checked recommendations in their week
 - **WHEN** the classifier recommends two of five entries in one week as notes, and that week also has two meetings with guests

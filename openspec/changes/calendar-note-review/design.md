@@ -30,6 +30,14 @@ The classifier's output reaches the review page, the weekly list (design 10) and
 
 The model is the one the image reader uses, `gpt-5.6-terra`. No evaluation set is declared for it: a recommendation frees nothing until the host confirms it, so a wrong recommendation costs the host a glance, not booked time.
 
+**Usage limit.** The classifier runs only where `NOTE_CLASSIFIER` is set, and each batch call goes through the model allowance every other model call uses (`lib/server/model-limits.ts`, `app.model_reservations`, work kind `note_classification`) before the request leaves:
+
+- at most **10 calls per host in 24 hours**. A scan has at most 100 candidates, so two calls; ten allow five scans a day (the first scan, a calendar change and a few **Analyze again**), and later the weekly check;
+- each call reserves **USD 0.10**, above its upper bound (a 50-entry batch of short JSON and at most 4,000 output tokens, about USD 0.07 at the published prices), and is settled to the usage OpenAI reports; an answer without usage stays at USD 0.10;
+- the reservation counts toward the host's USD 30 and the service's USD 300 windows of 24 hours, like the image reader and the conversation.
+
+A denied call sends nothing and leaves its batch `unsure`: the candidates are listed without a recommendation and stay busy, the same as a failed call. Rejected: no limit (Analyze again could call the model without end); a limit per scan only (a host could rescan without end); reusing the image reader's five-attempt count (one scan of 100 candidates would spend two of them).
+
 ## 3. Recommendations and decisions
 
 A verdict is a recommendation and changes no busy time. Only the host's confirmation does, on the review page or by a confirmed chat answer (design 11).
@@ -48,7 +56,7 @@ When the host confirms `free` for an event on a calendar whose access role is `w
 
 Until the job is `done`, the time stays busy. A transient failure (rate limit, 5xx, timeout) is retried by the job runner; Google's rate limits that arrive as 403 (`rateLimitExceeded`, `userRateLimitExceeded`) count as transient. A permanent failure (any other 403, 400, 404, 410, a revoked grant) or an exhausted retry marks the row `failed`, keeps the time busy, and the review page and settings show "Google 캘린더에 반영하지 못했어요" with a retry. A response lost after the request left counts as uncertain; the retry patches again, which is harmless because the patch only sets one field.
 
-The page says, before confirmation, "Google 캘린더에 한가함으로 표시합니다" and that colleagues who see the host's free/busy will also see the time as free. For an event the host was invited to, the patch changes only the host's copy.
+The page gives no Google notice before **확인** (user, 2026-11-13); after it, the freed entries are listed under "Google 캘린더에 기록합니다" (design 7). For an event the host was invited to, the patch changes only the host's copy.
 
 Undoing (the host later says an entry is busy) patches `transparency: "opaque"` back, through the same job.
 
@@ -77,9 +85,15 @@ A host with no candidates sees the empty week and nothing to confirm.
 
 The #175 flow becomes: welcome and roles, hours question, place question, **note review**, slot image, booking link.
 
-After the place answer, the service (not Thyme) runs the classifier on the onboarding scan. With at least one candidate, it sends one fixed message with the review page link on every channel ("메모처럼 보이는 일정이 N개 있어요. 비워도 되는 일정을 골라주세요"), in the conversation's language. The host has just replied, so the WhatsApp window is open. When the host presses **확인**, the service queues the slot image for the current review, computed as `preview_next_week` does, with the confirmed notes no longer busy (the writeback may still be pending: the preview skips confirmed `free` items whose writeback is `pending` or `done`, since the image only shows the proposal; the published availability waits for Google). With no candidates, the image follows the place answer as today.
+The classifier has already run inside the onboarding scan (design 2), which settles before the hours question. After the place answer, Thyme calls `preview_next_week` as before; the service, not Thyme, decides what it sends:
 
-If the host writes in the chat instead of opening the page ("나중에 할게"), Thyme sends the image without the review; the candidates stay busy and come back in the weekly check. Thyme's instructions name the step, so it does not ask about notes in words.
+- **Candidates.** When the latest scan is complete, the host has not confirmed settings yet, and at least one candidate is unanswered, the tool sends one fixed message with the review page link (`/app/notes`) on every channel instead of the image ("메모처럼 보이는 일정이 N개 있어요. 비워도 되는 일정을 골라주세요. 고르시면 가능한 시간을 보내드릴게요: …"), in the conversation's language, with N counting a series once. The host has just replied, so the WhatsApp window is open. The link's outbox row (dedupe key `onboarding-notes:{binding}`) is the step's record: one per linked chat, and the chat waits for the image while no slot image was recorded for that binding since the link. No table is added for it. The tool tells Thyme the link went out (`noteReviewSent`), and a second call while the chat waits is refused with the same words.
+- **확인 wakes the chat.** Pressing **확인** on the review (`notes.confirm_review`) publishes, in the same transaction as the decisions, one durable job `onboarding_slot_image` when the host's linked chat waits. It does so even when no answer changed, so the page always sends that 확인 while the chat waits. A replayed or repeated 확인 publishes the same job once (its dedupe key names the link's row). The job reads next week from Google, computes the image as `preview_next_week` does with the confirmed notes no longer busy, and records it for the current settings review. A draft that changed meanwhile or Google being unavailable retries the job; a revoked grant or an unlinked chat sends nothing. The preview skips confirmed `free` items whose writeback is `pending` or `done` and those kept in Find Me a Time only (`not_writable`), since the image only shows the proposal; the published availability waits for Google. The host then answers the image as today.
+- **No candidates** (none found, all answered, a scan that failed or is still running, or settings already confirmed): the image follows the place answer at once, with no link, as today.
+- **Skip.** If the host writes in the chat instead of opening the page ("나중에 할게"), Thyme calls `preview_next_week` with `skipNoteReview`, and the image is sent with the candidates still busy; they come back in the weekly check. A later 확인 on the page still records its answers but sends no second image, because the chat no longer waits.
+- **Never opened.** If the host neither opens the link nor writes, nothing more is sent: the chat waits, the candidates stay busy, and the weekly check (design 9) asks about them again. Outbox rows are kept 30 days, so a link opened after that only records answers. A host who changes a setting while the chat waits gets the image for the settings as they stand at 확인.
+
+Thyme's instructions name the step, so it does not ask about notes in words. On the review's done view, a host whose chat waits for the image sees one quiet line under the freed entries, "가능한 시간을 메시지로 보내드릴게요" ("I'll send your open times by message."), shown after a 확인 that queued the image.
 
 The image's open time therefore matches what guests will see once the writeback finishes. A writeback that fails leaves that time busy and the page shows it.
 
@@ -117,7 +131,7 @@ The review component is reachable from the web settings at any time after onboar
 
 - **The classifier frees nothing by itself,** but a wrong `note` that the host confirms without reading frees real time. The page pre-ticks only `note` rows and shows the reason; there is no separate evaluation of the classifier, so wrong recommendations are noticed only by hosts (and in the release check, task 8.2).
 - **Titles reach the model provider.** They already reach Google; they now also reach OpenAI under the same processing terms as the image reader. Only the title and the time shape are sent.
-- **Free/busy sharing.** A transparent note shows as free to everyone who sees the host's free/busy. The page says so before confirmation.
+- **Free/busy sharing.** A transparent note shows as free to everyone who sees the host's free/busy. The page does not say so (user, 2026-11-13: no notice before 확인); the host chose the entry as a note, which is free time to anyone.
 - **Recurring exceptions** may keep their own transparency (design 5); the next check lists them again.
 - **WhatsApp without a template** leaves candidates busy until the next check (D7).
 - **Titles reach Thyme** in the weekly list. They are quoted as data, Thyme can free time only through the read-back and the host's yes, and task 6.3 tests a title written as an instruction.
