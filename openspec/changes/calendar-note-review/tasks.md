@@ -14,11 +14,12 @@
 
 ## 3. The review page
 
-- [ ] 3.1 Build the review as a standalone component (yellow mark and pre-tick for `note`, reason, series choice, Google notice, writeback state per row) and use it in `NotesStep` and an authenticated `/app` route. Apply the design mock-ups from Slack. Verify component tests and a Playwright test from scan to confirmed note.
+- [ ] 3.1 Build the review as a standalone week view like Google Calendar (design 7: a checkbox on each yellow candidate, pre-checked for `note`, the reason as its tooltip, grey context from the week's other busy entries read live, all-day row, week navigation; after 확인, the freed entries with their times under the Google line and a way back to change them) and use it in `NotesStep` and an authenticated `/app` route. Apply the design mock-ups from Slack. Verify component tests and a Playwright test from scan to confirmed note.
+- [ ] 3.2 *(Follow-up, outside this iteration.)* On a phone-width screen, show three days at a time instead of scrolling the week sideways.
 
 ## 4. The chat onboarding step
 
-- [ ] 4.1 After the place answer, run the classifier on the onboarding scan and send the review link on every channel; after **확인**, queue the slot image for the current review with the confirmed notes not blocking it; send the image directly when there are no candidates or the host skips. Update `agent/instructions/host-imessage.ts` and `lib/server/channel-texts.ts` in English and Korean. Verify integration tests through the Photon stand-in for review then image, no candidates, a skip and a replayed confirmation.
+- [ ] 4.1 After the place answer, run the classifier on the onboarding scan and send the review link on every channel; after **확인**, queue the slot image for the current review with the confirmed notes not blocking it; send the image directly when there are no candidates or the host skips. Update `agent/instructions/host-imessage.ts` and `lib/server/channel-texts.ts` in English and Korean. Verify integration tests through the Photon stand-in for review then image, no candidates, a skip and a replayed confirmation. On the review's done view, add one quiet line under the freed entries that the open times will follow in the chat ("가능한 시간을 메시지로 보내드릴게요"), shown only for a host whose onboarding is waiting for that image.
 
 ## 5. Settings
 

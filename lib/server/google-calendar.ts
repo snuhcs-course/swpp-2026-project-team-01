@@ -110,7 +110,26 @@ export type HostCalendar = {
   insertEvent(calendarId: string, event: Record<string, unknown>, options?: { readonly signal?: AbortSignal }): Promise<EventWriteOutcome>;
   // events.get by ID, for reconciliation.
   getEvent(calendarId: string, eventId: string, options?: { readonly signal?: AbortSignal }): Promise<EventReadOutcome>;
+  // events.patch of the event's transparency only (calendar-note-review design 4),
+  // with sendUpdates=none: the calendar.events scope allows it, and for an event
+  // the host was invited to only the host's copy changes. The outcome is
+  // classified, never thrown, except a revoked grant (calendar_access_revoked).
+  patchTransparency(
+    calendarId: string,
+    eventId: string,
+    transparency: "transparent" | "opaque",
+    options?: { readonly signal?: AbortSignal },
+  ): Promise<EventPatchOutcome>;
 };
+
+export type EventPatchOutcome =
+  // Google's updated time after the change, the decision's new fingerprint.
+  | { readonly outcome: "patched"; readonly updated: string | null }
+  // 400, 403, 404, 410: Google refused the change, or the event is gone.
+  | { readonly outcome: "rejected"; readonly httpStatus: number }
+  // A network failure, a timeout, a rate limit or a 5xx: the change may or may
+  // not have landed. Setting one field again is harmless, so it is retried.
+  | { readonly outcome: "uncertain"; readonly httpStatus: number | null };
 
 // What Google returned for a created or read event: the evidence a receipt and
 // the confirmation are built from.
@@ -419,6 +438,31 @@ export function createGoogleCalendarClient(
       const read = await body<RawWrittenEvent>(response);
       if (!read) return { httpStatus: response.status, outcome: "uncertain" };
       return { event: toCreatedEvent(read, eventId), outcome: "found" };
+    },
+
+    async patchTransparency(calendarId, eventId, transparency, options) {
+      const url = `${config.apiBaseUrl}/calendars/${encodeURIComponent(calendarId)}/events/${encodeURIComponent(eventId)}?${new URLSearchParams({
+        fields: "id,updated,transparency",
+        sendUpdates: "none",
+      })}`;
+      const response = await exchange(
+        url,
+        { body: JSON.stringify({ transparency }), headers: { "content-type": "application/json" }, method: "PATCH" },
+        options?.signal,
+      );
+
+      if (!response) return { httpStatus: null, outcome: "uncertain" };
+      if (response.status === 403) {
+        // Google reports its rate limits as 403 too; those pass and are retried.
+        const refusal = await body<{ error?: { errors?: { reason?: string }[] } }>(response);
+        const reason = refusal?.error?.errors?.[0]?.reason ?? "";
+        return /rateLimitExceeded/i.test(reason) ? { httpStatus: 403, outcome: "uncertain" } : { httpStatus: 403, outcome: "rejected" };
+      }
+      if ([400, 404, 410].includes(response.status)) return { httpStatus: response.status, outcome: "rejected" };
+      if (!response.ok) return { httpStatus: response.status, outcome: "uncertain" };
+
+      const patched = await body<{ updated?: string }>(response);
+      return { outcome: "patched", updated: typeof patched?.updated === "string" ? patched.updated : null };
     },
 
     async listCalendars(options) {

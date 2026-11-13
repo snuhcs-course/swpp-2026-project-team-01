@@ -1,0 +1,40 @@
+{
+  "branch": "claude/calendar-note-review-impl-1d52c4",
+  "user": "haisung.choi@gmail.com",
+  "sessions": {
+    "claude:1eafcc2f-ef27-4c8b-a878-ffac5369feeb": {
+      "agent": "claude-code",
+      "client": "claude-desktop",
+      "agent_ms": 0,
+      "models": {
+        "claude-opus-5-5": {
+          "input": 176,
+          "cache_read": 24677922,
+          "cache_write_5m": 0,
+          "cache_write_1h": 320711,
+          "output": 31890,
+          "reasoning": 0
+        }
+      },
+      "first": "2026-11-13T03:47:22.073Z",
+      "last": "2026-11-13T07:56:48.626Z"
+    },
+    "claude:567701c6-3100-4855-a034-6fdf97c3eb69": {
+      "agent": "claude-code",
+      "client": "claude-desktop",
+      "agent_ms": 0,
+      "models": {
+        "claude-opus-5-5": {
+          "input": 670,
+          "cache_read": 142987344,
+          "cache_write_5m": 0,
+          "cache_write_1h": 1094892,
+          "output": 345676,
+          "reasoning": 0
+        }
+      },
+      "first": "2026-11-13T03:40:12.227Z",
+      "last": "2026-11-13T09:36:03.985Z"
+    }
+  }
+}

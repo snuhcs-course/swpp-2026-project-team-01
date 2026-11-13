@@ -162,14 +162,16 @@ test("a new host completes setup one card at a time, from the authored messages 
   await expectOnlyCard(page, "How long are meetings, with what buffers?");
   await card(page, "How long are meetings, with what buffers?").getByRole("button", { name: "Use this" }).click();
 
-  // Note-like entries stay busy until the host frees one.
-  await expectOnlyCard(page, "Should any of these entries leave you free?");
-  const notes = card(page, "Should any of these entries leave you free?");
-  const exclude = notes.getByRole("checkbox", { name: /Exclude from busy time: Focus time/ });
-  await expect(exclude).not.toBeChecked();
-  await exclude.click();
-  await expect(exclude).toBeChecked();
-  await notes.getByRole("button", { name: "Free 1 entry" }).click();
+  // Note candidates stay busy until the host frees one in the week of the note
+  // review; the fixture's two candidates are next weekend.
+  await expectOnlyCard(page, "Check the entries that are just notes");
+  const notes = card(page, "Check the entries that are just notes");
+  await notes.getByRole("button", { name: "Next week" }).click();
+  const focus = notes.getByRole("checkbox", { name: /^Focus time/ });
+  await expect(focus).not.toBeChecked();
+  await focus.check();
+  await expect(focus).toBeChecked();
+  await notes.getByRole("button", { name: "Confirm" }).click();
 
   const modeName = "Do you prefer online meetings, in-person meetings, or either?";
   await expectOnlyCard(page, modeName);
@@ -194,7 +196,7 @@ test("a new host completes setup one card at a time, from the authored messages 
   await expectOnlyCard(page, "Review your booking settings");
   const review = card(page, "Review your booking settings");
   await expect(review.getByRole("heading", { name: "Review your booking settings" })).toBeFocused();
-  await expect(review.getByText("1 excluded from busy time")).toBeVisible();
+  await expect(review.getByText("Checked in the note review")).toBeVisible();
   await expect(review.getByText(`/${handle}`)).toBeVisible();
   await expect(review.getByText("Proposed, not reviewed")).toHaveCount(1);
   // Receipts accumulated in the order the steps were answered.

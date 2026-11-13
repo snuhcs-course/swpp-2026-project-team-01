@@ -11,6 +11,7 @@ import { IMESSAGE_NOTICE_JOB, TELEGRAM_BUTTONS_JOB } from "./imessage-notices";
 import { createImessageReceiptHandler } from "./imessage-receipts";
 import type { JobHandler } from "./jobs";
 import { createLinkResendHandler, LINK_RESEND_JOB } from "./link-resend";
+import { createNoteWritebackHandler, NOTE_WRITEBACK_JOB } from "./note-decisions";
 import { IMESSAGE_RECEIPT_JOB } from "./photon-receiver";
 import { createRequestExpiryHandler, REQUEST_EXPIRY_JOB } from "./request-lifecycle";
 import { createTelegramButtonsHandler, createTelegramTypingHandler, TELEGRAM_TYPING_JOB } from "./telegram-jobs";
@@ -29,25 +30,29 @@ export const JOB_HANDLERS: Readonly<Record<string, JobHandler>> = {
   [IMESSAGE_RECEIPT_JOB]: createImessageReceiptHandler(),
   [IMESSAGE_SEND_JOB]: createImessageSendHandler(),
   [LINK_RESEND_JOB]: createLinkResendHandler(),
+  [NOTE_WRITEBACK_JOB]: createNoteWritebackHandler(),
   [REQUEST_EXPIRY_JOB]: createRequestExpiryHandler(),
   [TELEGRAM_BUTTONS_JOB]: createTelegramButtonsHandler(),
   [TELEGRAM_TYPING_JOB]: createTelegramTypingHandler(),
 };
 
 // The most jobs of a kind one worker batch claims; kinds not listed share the
-// default batch. A Calendar analysis may read Google for up to 30 seconds, so two
-// fit within the 120-second lease; an evaluation stops at its 18-second deadline,
+// default batch. A Calendar analysis may read Google for up to 30 seconds and then
+// ask the note classifier (two 30-second calls at most), so one fits
+// within the 120-second lease; an evaluation stops at its 18-second deadline,
 // so four do; a booking revalidates under that deadline and then writes with a
 // 10-second timeout, so three do. An email receipt may read AgentMail and then
 // deliver into a conversation (25 seconds at most), so four do. An iMessage
 // receipt may deliver into a conversation (25 seconds at most), so four of those
 // do; a send can wait on three 20-second steps (client, conversation, send), so
-// two do.
+// two do. A note writeback exchanges the token and patches one event, each
+// with a 10-second timeout, so five do.
 export const JOB_BATCH_LIMITS: Readonly<Record<string, number>> = {
   [BOOKING_JOB]: 3,
-  [CALENDAR_ANALYSIS_JOB]: 2,
+  [CALENDAR_ANALYSIS_JOB]: 1,
   [EMAIL_RECEIPT_JOB]: 4,
   [EVALUATION_JOB]: 4,
   [IMESSAGE_RECEIPT_JOB]: 4,
   [IMESSAGE_SEND_JOB]: 2,
+  [NOTE_WRITEBACK_JOB]: 5,
 };
