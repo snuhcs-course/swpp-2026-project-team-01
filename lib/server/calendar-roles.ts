@@ -1,8 +1,9 @@
+import { randomUUID } from "node:crypto";
 import { z } from "zod";
 import type { CalendarRef } from "../contracts/setup";
 import { ensureDraftForAnalysis, lockActiveHost, lockCalendarRoles, publishAnalysis } from "./analysis";
 import { assertRevision, type CommandDefinition, CommandError } from "./commands";
-import type { Queryable } from "./database";
+import type { Queryable, Transaction } from "./database";
 import {
   CalendarAccessError,
   type CalendarListEntry,
@@ -250,4 +251,31 @@ export async function recheckConfirmedDestination(
   `;
 
   return writable ? "verified" : "unwritable";
+}
+
+// Read before linking/Google-return takes any transaction locks. Calendar access
+// is optional here: an unreadable grant or provider failure must not block linking.
+export async function readDefaultRoleCalendars(db: Queryable, hostAccountId: string, calendar: Omit<GoogleCalendarDependencies, "db">) {
+  try {
+    return (await (await openHostCalendar({ ...calendar, db }, hostAccountId)).listCalendars()).calendars;
+  } catch {
+    return null;
+  }
+}
+
+// The same role command validates the live primary and publishes the analysis.
+export async function defaultCalendarRoles(tx: Transaction, hostAccountId: string, live: readonly CalendarListEntry[] | null) {
+  await lockActiveHost(tx, hostAccountId);
+  await lockCalendarRoles(tx, hostAccountId);
+  const existing = await readCalendarRoles(tx, hostAccountId);
+  if (existing) return existing.bookingCalendar.summary;
+  if (!live) return null;
+  const primary = live.find(entry => entry.primary);
+  if (!primary || !isWritable(primary)) return null;
+  await saveCalendarRolesCommand(live).run(tx, {
+    actor: { kind: "host_account", id: hostAccountId }, correlationId: randomUUID(),
+    expectedRevision: 0, input: { bookingCalendarId: primary.id, conflictCalendarIds: [primary.id] },
+    resourceId: hostAccountId, retryKey: `default-roles:${hostAccountId}`,
+  });
+  return primary.summary;
 }

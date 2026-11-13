@@ -421,9 +421,8 @@ export type FeasibilityResult = {
 
 type Window = { readonly start: number; readonly end: number; readonly date: string; readonly rule: WeeklyWindow };
 
-function hostWindows(input: FeasibilityInput, unresolved: UnresolvedWindow[]): Window[] {
-  const { timezone, weeklyWindows } = input.host;
-  const requested = input.request.windows;
+function hostWindows(host: Pick<HostRules, "timezone" | "weeklyWindows">, requested: readonly { start: Date; end: Date }[], unresolved: UnresolvedWindow[]): Window[] {
+  const { timezone, weeklyWindows } = host;
   if (requested.length === 0) return [];
 
   const first = Math.min(...requested.map((window) => window.start.getTime()));
@@ -455,6 +454,33 @@ function hostWindows(input: FeasibilityInput, unresolved: UnresolvedWindow[]): W
   }
 
   return windows;
+}
+
+// All host-only preview intervals, without requester travel or the ranked candidate cap.
+export function hostPreviewIntervals(
+  host: Pick<HostRules, "timezone" | "weeklyWindows" | "bufferBeforeMinutes" | "bufferAfterMinutes">,
+  busy: readonly BusyInterval[], range: { start: Date; end: Date }, durationMinutes: number,
+) {
+  const grid = GRID_MINUTES * MINUTE;
+  const duration = durationMinutes * MINUTE;
+  const intervals: { start: number; end: number }[] = [];
+  for (const window of hostWindows(host, [range], [])) {
+    const from = Math.max(window.start, range.start.getTime());
+    const until = Math.min(window.end, range.end.getTime());
+    for (let start = Math.ceil(from / grid) * grid; start + duration <= until; start += grid) {
+      if (!overlaps(busy, start - host.bufferBeforeMinutes * MINUTE, start + duration + host.bufferAfterMinutes * MINUTE)) {
+        intervals.push({ start, end: start + duration });
+      }
+    }
+  }
+  intervals.sort((a, b) => a.start - b.start);
+  const merged: { start: number; end: number }[] = [];
+  for (const interval of intervals) {
+    const last = merged.at(-1);
+    if (last && interval.start <= last.end) last.end = Math.max(last.end, interval.end);
+    else merged.push({ ...interval });
+  }
+  return merged;
 }
 
 export function resolveMeetingMode(host: MeetingMode, requested: MeetingMode | null, hasLocation: boolean) {
@@ -714,7 +740,7 @@ function plan(input: FeasibilityInput): Plan {
 
   // Every zone in use today has an offset that is a whole number of quarter
   // hours, so a start on the UTC quarter-hour grid is on the local one too.
-  for (const window of hostWindows(input, unresolvedWindows)) {
+  for (const window of hostWindows(input.host, input.request.windows, unresolvedWindows)) {
     for (const requested of request.windows) {
       const from = Math.max(window.start, requested.start.getTime(), now);
       const until = Math.min(window.end, requested.end.getTime());

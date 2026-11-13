@@ -439,7 +439,7 @@ async function confirmSettings(deps: CommandDependencies, message: BoundMessage,
     throw error;
   }
 
-  const outcome = await run(deps, message, confirmSettingsCommand(live, deps.setup.appOrigin), message.hostAccountId, { proposalHash: proposal.proposalHash }, proposal.records.draftRevision);
+  const outcome = await run(deps, message, confirmSettingsCommand(live, deps.setup.appOrigin, { bindingId: message.bindingId }), message.hostAccountId, { proposalHash: proposal.proposalHash }, proposal.records.draftRevision);
   if (outcome.ok) return { saved: true, text: texts.saved(outcome.result.links.booking) };
   if (outcome.error.reason === "destination_not_writable") {
     await recordDestinationAccess(deps.db, message.hostAccountId, live);

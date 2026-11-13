@@ -11,6 +11,7 @@ import { type FakePhoton, startFakePhoton } from "./support/fake-photon";
 import { type FakeTelegram, startFakeTelegram } from "./support/fake-telegram";
 import { imessageHarness } from "./support/imessage";
 import { testTokenKey } from "./support/requests";
+import { previewNextWeekForTool } from "../../lib/server/setup-channel-tools";
 import { prepareReviewableHost, seedHost, setupDependencies } from "./support/setup-host";
 import { newTelegramUpdateId, newTelegramUser, telegramBlocked, telegramCallback, telegramMessage } from "./support/telegram";
 import { sentTexts, telegramHarness } from "./support/telegram-host";
@@ -35,7 +36,8 @@ beforeAll(async () => {
   photon = await startFakePhoton();
   telegram = await startFakeTelegram();
   google = await startFakeGoogle();
-  setupDeps = setupDependencies(db, google);
+  const setup = setupDependencies(db, google);
+  setupDeps = { ...setup, calendar: { ...setup.calendar, tokenKeys: [testTokenKey, setup.tokenKey] } };
 });
 
 afterAll(async () => {
@@ -194,6 +196,12 @@ describe("setup over Telegram", () => {
     await prepareReviewableHost(db, host.host);
     const ref = settingsRef((await computeSetupProposal(db, host.hostAccountId))!.proposalHash);
 
+    await tg.deliver(telegramMessage({ text: "Show next week", userId: host.userId }));
+    const [input] = await db<{ id: string }[]>`select id from app.conversation_inputs where discussion_id = ${host.host.discussionId} order by accepted_at desc limit 1`;
+    await db`update app.agent_sessions set current_input_id = ${input!.id} where session_id = ${host.host.sessionId}`;
+    expect(await previewNextWeekForTool(setupDeps, { auth: { principalId: host.hostAccountId, principalType: "user", attributes: { audience: "host_setup" } }, sessionId: host.host.sessionId, callId: crypto.randomUUID() })).toMatchObject({ queued: true });
+    const previewCalls = await tg.flush(host.userId);
+    expect(sentTexts(previewCalls).some(text => text.startsWith("Next week's open times"))).toBe(true);
     await tg.deliver(telegramMessage({ text: "/review", userId: host.userId }));
     const [review] = (await tg.flush(host.userId)).filter((call) => call.method === "sendMessage");
     expect(review!.params.text).toContain("If these look right, tell me to save them.");

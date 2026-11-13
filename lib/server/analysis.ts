@@ -1,3 +1,4 @@
+import type { HoursSuggestion } from "../contracts/slot-preview";
 import { randomUUID } from "node:crypto";
 import { z } from "zod";
 import type { AnalysisCard, AnalysisEvidence, AnalysisForModel, AnalysisState, PlaceHint, ScannedCalendar } from "../contracts/analysis";
@@ -24,13 +25,18 @@ import {
 } from "./google-calendar";
 import { encodeDisplayName } from "./entry-documents";
 import { meetingGuests } from "./feasibility";
+import { activeBindingOfHost, bindingRecipient } from "./imessage-links";
+import { recordOutbound } from "./imessage-outbox";
+import { hostConversationLanguage } from "./channel-language";
+import { channelReplies } from "./channel-texts";
+import { readReadiness } from "./readiness";
 import { HostIneligibleError } from "./host-eligibility";
 import { type ClaimedJob, type JobHandler, publishJob } from "./jobs";
 import { type TokenKey, tokenKeyFromEnvironment } from "./token-encryption";
 
 // Calendar analysis (design decision 8). Saving roles, or Analyze again, publishes
 // a calendar_analysis job beside a pending app.calendar_analyses row. The job
-// reads the saved conflict calendars over the four weeks before and after the
+// reads the saved conflict calendars over the four weeks before the
 // scan and stores evidence under iteration 1's F02 rules, or records which
 // calendar failed. Evidence only ever feeds labeled suggestions; it expires after
 // 24 hours (app.cleanup_calendar_analyses).
@@ -164,8 +170,8 @@ function median(values: readonly number[]) {
 
 // The evidence dimensions over the scanned events (design decision 8):
 // - a counted meeting is busy, timed, and has at least one other attendee who did
-//   not decline (meetingGuests, which evaluation counts toward the weekly limit
-//   too); all-day events are never meetings;
+//   not decline, or a location without a conference link; all-day events are never
+//   counted. Weekly load still counts only meetings with guests, as feasibility does;
 // - it is internal when every such attendee shares the host's email domain;
 // - note-like entries (timed or all-day) have no other attendee, no location and
 //   no link, and stay busy;
@@ -187,6 +193,8 @@ export function computeEvidence(events: readonly CalendarEvent[], ctx: EvidenceC
 
   const seen = new Set<string>();
   const cells = new Map<string, { weekday: Weekday; hour: number; count: number }>();
+  const samples: { weekday: Weekday; startMinute: number; endMinute: number }[] = [];
+  const locations = new Map<string, { name: string; count: number }>();
   const spans = new Map<Weekday, { startMinute: number; endMinute: number }>();
   const weeks = new Map<string, { internal: number; external: number }>();
   const durations: number[] = [];
@@ -227,6 +235,9 @@ export function computeEvidence(events: readonly CalendarEvent[], ctx: EvidenceC
     if (Number.isNaN(start.getTime()) || Number.isNaN(end.getTime()) || end <= start) continue;
 
     if (event.location && !event.hasConferenceLink) {
+      const location = locations.get(event.location);
+      if (location) location.count += 1;
+      else locations.set(event.location, { name: event.location, count: 1 });
       const [venue, area] = event.location.split(",").map((part) => part.trim());
       placeSample += 1;
       if (venue) tally(venues, venue);
@@ -234,9 +245,8 @@ export function computeEvidence(events: readonly CalendarEvent[], ctx: EvidenceC
     }
 
     const present = meetingGuests(event, hostEmail);
-    if (present.length === 0) continue;
+    if (present.length === 0 && !(event.location && !event.hasConferenceLink)) continue;
 
-    meetings += 1;
     const local = localTime(formatter, start);
     const minutes = Math.max(0, Math.round((end.getTime() - start.getTime()) / 60_000));
     const hour = Math.floor(local.minute / 60);
@@ -247,7 +257,10 @@ export function computeEvidence(events: readonly CalendarEvent[], ctx: EvidenceC
     else cells.set(cellKey, { count: 1, hour, weekday: local.weekday });
 
     const span = spans.get(local.weekday);
-    const endMinute = local.minute + minutes;
+    const endLocal = localTime(formatter, end);
+    const dayOffset = Math.round((Date.parse(endLocal.date) - Date.parse(local.date)) / 86_400_000);
+    const endMinute = dayOffset * 1440 + endLocal.minute;
+    samples.push({ weekday: local.weekday, startMinute: local.minute, endMinute });
 
     if (span) {
       span.startMinute = Math.min(span.startMinute, local.minute);
@@ -256,6 +269,9 @@ export function computeEvidence(events: readonly CalendarEvent[], ctx: EvidenceC
       spans.set(local.weekday, { endMinute, startMinute: local.minute });
     }
 
+    durations.push(minutes);
+    if (present.length === 0) continue;
+    meetings += 1;
     const week = weekStart(local.date, local.weekday);
     const load = weeks.get(week) ?? { external: 0, internal: 0 };
     const internal = present.every((attendee) => emailDomain(attendee.email) === hostDomain);
@@ -263,7 +279,6 @@ export function computeEvidence(events: readonly CalendarEvent[], ctx: EvidenceC
     if (internal) load.internal += 1;
     else load.external += 1;
     weeks.set(week, load);
-    durations.push(minutes);
   }
 
   const weekList = [...weeks]
@@ -281,12 +296,13 @@ export function computeEvidence(events: readonly CalendarEvent[], ctx: EvidenceC
       weeks: weekList,
     },
     noteLike: { entries: notes },
-    places: { area: top(areas), sampleSize: placeSample, venue: top(venues) },
+    places: { area: top(areas), sampleSize: placeSample, venue: top(venues), candidates: [...locations.values()].sort((a, b) => b.count - a.count).slice(0, 5) },
     preferredTimes: {
+      samples,
       cells: [...cells.values()].sort(
         (a, b) => WEEKDAYS.indexOf(a.weekday) - WEEKDAYS.indexOf(b.weekday) || a.hour - b.hour,
       ),
-      sampleSize: meetings,
+      sampleSize: samples.length,
       spans: WEEKDAYS.flatMap((weekday) => {
         const span = spans.get(weekday);
         return span ? [{ endMinute: span.endMinute, startMinute: span.startMinute, weekday }] : [];
@@ -339,6 +355,42 @@ function windowsFromSpans(spans: AnalysisEvidence["preferredTimes"]["spans"]): W
   });
 }
 
+function suggestedWindows(evidence: AnalysisEvidence): WeeklyWindow[] {
+  const samples = evidence.preferredTimes.samples;
+  // Older retained scans did not store individual times; analyze again for the new rule.
+  if (!samples) return windowsFromSpans(evidence.preferredTimes.spans);
+  const repeated = (entries: typeof samples) => {
+    const index = entries.length === 2 ? 0 : 1;
+    return {
+      startMinute: entries.map(entry => entry.startMinute).sort((a, b) => a - b)[index]!,
+      endMinute: entries.map(entry => entry.endMinute).sort((a, b) => b - a)[index]!,
+    };
+  };
+  const weekdays = samples.filter(entry => !["saturday", "sunday"].includes(entry.weekday));
+  const spans = weekdays.length >= 2
+    ? WEEKDAYS.slice(0, 5).map(weekday => ({ weekday, ...repeated(weekdays) })) : [];
+  for (const weekday of ["saturday", "sunday"] as const) {
+    const entries = samples.filter(entry => entry.weekday === weekday);
+    if (entries.length >= 2) spans.push({ weekday, ...repeated(entries) });
+  }
+  const windows = windowsFromSpans(spans);
+  return weekdays.length < 2 && windows.length > 0 ? [...STARTER_DEFAULTS.weeklyWindows, ...windows] : windows;
+}
+
+export function hoursSuggestion(evidence: AnalysisEvidence | null): HoursSuggestion {
+  const sampleSize = evidence?.preferredTimes.sampleSize ?? 0;
+  const windows = evidence !== null && sampleSize >= MIN_INFERENCE_SAMPLE ? suggestedWindows(evidence) : [];
+  const inferred = windows.length > 0;
+  const weekdays = windows.find(window => window.weekday === "monday") ?? STARTER_DEFAULTS.weeklyWindows[0]!;
+  return {
+    weekdays: { start: weekdays.start, end: weekdays.end },
+    weekend: windows.flatMap(window => window.weekday === "saturday" || window.weekday === "sunday"
+      ? [{ weekday: window.weekday, start: window.start, end: window.end }] : []),
+    source: inferred ? "inferred" : "starter_default",
+    sampleSize,
+  };
+}
+
 // The weekly windows suggestion when the scan counted hours in another zone than
 // the one now proposed: its hours would be shifted, so the starter default stands
 // in, saying why.
@@ -370,31 +422,23 @@ export function suggestFromEvidence(evidence: AnalysisEvidence, primaryTimeZone:
     };
   }
 
+  const windows = enough ? suggestedWindows(evidence) : [];
   suggestions.weeklyWindows =
-    enough && evidence.preferredTimes.spans.length > 0
+    windows.length > 0
       ? {
-          reason: `From ${meetings} meetings: one window per weekday, spanning the hours you met.`,
+          reason: `From ${meetings} meetings: one weekday range from repeated starts and ends.`,
           sampleSize: meetings,
           source: "inferred",
-          value: windowsFromSpans(evidence.preferredTimes.spans),
+          value: windows,
         }
       : { reason: tooFew(meetings), sampleSize: meetings, source: "starter_default", value: STARTER_DEFAULTS.weeklyWindows };
 
-  const load = evidence.meetingLoad;
-  suggestions.weeklyLimit =
-    load.sampleSize >= MIN_INFERENCE_SAMPLE && load.weeks.length >= 2
-      ? {
-          reason: `Your busiest week in the scan had ${load.max} meetings.`,
-          sampleSize: load.sampleSize,
-          source: "inferred",
-          value: Math.min(50, Math.max(1, load.max)),
-        }
-      : {
-          reason: "Too few meetings or weeks in the scan to infer a limit, so there is no limit unless you set one.",
-          sampleSize: load.sampleSize,
-          source: "starter_default",
-          value: STARTER_DEFAULTS.weeklyLimit,
-        };
+  suggestions.weeklyLimit = {
+    reason: "No limit unless you set one.",
+    sampleSize: null,
+    source: "starter_default",
+    value: STARTER_DEFAULTS.weeklyLimit,
+  };
 
   const durations = evidence.durations;
   suggestions.durationMinutes =
@@ -634,6 +678,23 @@ export function countingZone(
   return zones.chosen ?? zones.settings ?? primaryTimeZone ?? zones.starter ?? "UTC";
 }
 
+export async function queueHoursQuestion(tx: Transaction, hostAccountId: string, tokenKeys: readonly TokenKey[], evidence: AnalysisEvidence | null, analysisId: string) {
+  if ((await readLatestAnalysis(tx, hostAccountId))?.id !== analysisId) return;
+  const binding = await activeBindingOfHost(tx, hostAccountId);
+  if (!binding || (await readReadiness(tx, hostAccountId)).ready) return;
+  const [marked] = await tx<{ id: string }[]>`
+    update app.imessage_bindings set hours_question_sent_at = now()
+    where id = ${binding.id} and state = 'active' and hours_question_sent_at is null returning id
+  `;
+  if (!marked) return;
+  const language = await hostConversationLanguage(tx, hostAccountId);
+  await recordOutbound(tx, {
+    kind: "notice", dedupeKey: `onboarding-hours:${binding.id}`, bindingId: binding.id, hostAccountId,
+    recipient: bindingRecipient(tokenKeys, binding), recipientHash: binding.sender_hash, tokenKey: tokenKeys[0]!,
+    text: channelReplies(language).onboarding.hoursQuestion(hoursSuggestion(evidence)),
+  });
+}
+
 // Runs one scan. Provider failures are caught and recorded as a failed analysis
 // (with any grant invalidation), and the handler returns normally, so the failure
 // commits with the job instead of rolling back with a retried attempt. A failed
@@ -720,6 +781,7 @@ export function createCalendarAnalysisHandler(
             failure_category = ${failure}, completed_at = now()
         where id = ${analysisId}
       `;
+      await queueHoursQuestion(tx, hostAccountId, load().tokenKeys, null, analysisId!);
       return { failureCategory: failure, state: "failed" };
     }
 
@@ -741,6 +803,7 @@ export function createCalendarAnalysisHandler(
           failure_category = null, completed_at = now()
       where id = ${analysisId}
     `;
+    await queueHoursQuestion(tx, hostAccountId, load().tokenKeys, evidence, analysisId!);
     return { state: "completed" };
   };
 
@@ -750,11 +813,13 @@ export function createCalendarAnalysisHandler(
     const analysisId = typeof job.payload.analysisId === "string" ? job.payload.analysisId : null;
     if (!analysisId) return;
 
-    await tx`
+    const failed = await tx<{ host_account_id: string }[]>`
       update app.calendar_analyses
       set state = 'failed', failure_category = ${ANALYSIS_FAILED}, evidence = null, completed_at = now()
       where id = ${analysisId} and state = 'pending'
+      returning host_account_id
     `;
+    if (failed[0]) await queueHoursQuestion(tx, failed[0].host_account_id, load().tokenKeys, null, analysisId);
   };
 
   return handler;

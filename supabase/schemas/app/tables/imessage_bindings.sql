@@ -24,6 +24,7 @@ CREATE TABLE "app"."imessage_bindings" (
   "sealed_key_id" text,
   "selected_request_id" uuid REFERENCES "app"."requests" ("id") ON DELETE SET NULL,
   "state" text NOT NULL DEFAULT 'active' CHECK ("state" IN ('active', 'unlinked')),
+  "hours_question_sent_at" timestamptz,
   "linked_at" timestamptz NOT NULL DEFAULT now(),
   "last_inbound_at" timestamptz,
   "ended_at" timestamptz,

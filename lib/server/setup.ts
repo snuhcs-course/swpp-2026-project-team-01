@@ -207,11 +207,20 @@ export function missingFields(proposed: ProposedFields, handleAvailable: boolean
   });
 }
 
+// A preview can show stated answers before the host accepts them. Only the
+// confirmation command persists that acceptance, after checking delivery.
+export function withStatedAnswers(proposed: ProposedFields): ProposedFields {
+  return Object.fromEntries(Object.entries(proposed).map(([field, entry]) => [field,
+    entry && HOST_ANSWER_FIELDS.includes(field as SetupFieldName) && entry.source === "stated"
+      ? { ...entry, accepted: true } : entry,
+  ])) as ProposedFields;
+}
+
 // The values and sources confirmation would save: the required fields for the
 // answered mode plus the optional ones, so an online-only host saves no location
 // or transport.
 export function proposalValues(proposed: ProposedFields) {
-  const fields = [...requiredFields(answeredMode(proposed)), ...OPTIONAL_FIELDS];
+  const fields = [...requiredFields(answeredMode(withStatedAnswers(proposed))), ...OPTIONAL_FIELDS];
   const values: Partial<Record<SetupFieldName, { value: unknown; source: ValueSource }>> = {};
 
   for (const field of fields) {
@@ -328,7 +337,7 @@ export function buildSuggestions(input: SuggestionInput): { [F in SetupFieldName
       "Only meetings booked here count unless you choose all meetings.",
     ),
     weeklyWindows:
-      evidence.weeklyWindows ?? starter<"weeklyWindows">(STARTER_DEFAULTS.weeklyWindows, "A starter default: weekdays 10:00–17:00."),
+      evidence.weeklyWindows ?? starter<"weeklyWindows">(STARTER_DEFAULTS.weeklyWindows, "A starter default: weekdays 10:00–20:00."),
   };
 }
 

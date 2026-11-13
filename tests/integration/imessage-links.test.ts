@@ -1,8 +1,11 @@
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { linkMessage } from "../../lib/contracts/imessage";
+import { GOOGLE_CALENDAR_SCOPES } from "../../lib/contracts/google-scopes";
 import { generateLinkCode } from "../../lib/server/email-links";
+import { channelReplies } from "../../lib/server/channel-texts";
 import { calendarConnectUrl, LINK_TEXTS, lockActiveBindingOfSender } from "../../lib/server/imessage-links";
 import { imessageHash } from "../../lib/server/photon-receiver";
+import { recordGoogleGrant } from "../../lib/server/provider-grants";
 import { testDatabase } from "./support/database";
 import { type FakePhoton, startFakePhoton } from "./support/fake-photon";
 import { imessageHarness, textOf } from "./support/imessage";
@@ -135,9 +138,10 @@ describe("linking by a host-sent code", () => {
     expect(await welcomeOf(await newHostAccount(db))).toEqual([LINK_TEXTS.welcomeCalendar(calendarConnectUrl("http://localhost:3000"))]);
 
     const calendarOnly = await newHostAccount(db);
-    await makeHostReady(db, calendarOnly);
-    await db`delete from app.host_settings where host_account_id = ${calendarOnly}`;
-    expect(await welcomeOf(calendarOnly)).toEqual([LINK_TEXTS.welcomeSetup]);
+    await recordGoogleGrant(db, testTokenKey, {
+      hostAccountId: calendarOnly, grantedScopes: [...GOOGLE_CALENDAR_SCOPES], refreshToken: "calendar-only",
+    });
+    expect(await welcomeOf(calendarOnly)).toEqual([channelReplies("en").onboarding.rolesNeeded]);
 
     const ready = await newHostAccount(db);
     await makeHostReady(db, ready);
