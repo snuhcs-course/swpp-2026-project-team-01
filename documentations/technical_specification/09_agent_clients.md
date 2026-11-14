@@ -1,7 +1,7 @@
 # Find Me a Time — Personal-Agent Clients
 
 Status: connection paths written; no named client has been run yet\
-Date: 2026-10-22\
+Date: 2026-11-14\
 Companions: [`agent-access` design](../../openspec/changes/agent-access/design.md#11-per-client-acceptance), [CLI direction](05_cli.md), [acceptance record](07_acceptance_record.md)
 
 This document records, for each named client of PRD FR-24, how it finds the Find Me a Time instructions, how it connects, and the result of its last run in each role. It is the per-client acceptance plan of AC-14, AC-15 and AC-19 to AC-25. A row says "not yet run" until a team member runs it and records the evidence in the acceptance record; nothing here claims that a client works before then.
@@ -14,6 +14,10 @@ This document records, for each named client of PRD FR-24, how it finds the Find
 | Requester | `https://findmeatime.com/{handle}/SKILL.md`, linked from `https://findmeatime.com/{handle}` | `https://findmeatime.com/{handle}/mcp` | `request:read`, `request:write`, `request:decide` |
 
 Both endpoints speak MCP `2026-07-28` and the handshake revisions `2025-11-25`, `2025-06-18` and `2025-03-26`, over Streamable HTTP with OAuth. A client registers through a client ID metadata document or dynamic client registration, opens the consent page in the person's browser, and receives tokens bound to that one endpoint. A client that cannot use a remote MCP server can still read the instructions and send the person to the web page; the CLI `fmat` is the path for agents that only have a shell.
+
+The entry documents (instruction version 5) tell the agent to ask before adding a server and never to handle a token. After connecting, the host's agent starts with `get_host_status`, follows `get_setup.nextStep` through Calendar connection, calendar choice and analysis, and proposes settings only with the host's agreement. `update_setup_field` and `confirm_setup` require the host's own words as `hostWords`; these words are not stored. After setup, it shares the booking link and tells the host to ask it to check requests: agents are not notified.
+
+For chat linking, the host's agent calls `start_chat_link` (iMessage, WhatsApp or Telegram); the requester's agent calls `start_updates_link` (iMessage or WhatsApp) after its request exists. The tool returns a short-lived `/connect/link/{token}` browser link for one attempt. The person sends the code from their own phone, checks the masked sender and presses **Confirm and link** there. Host links require that host's sign-in; requester links authorize only that attempt without showing the booking link or request details. `get_host_status.chat` and `get_request.updates` report `none`, `pending` or `linked`. The agent never confirms a link. After a requester agrees to a time, the service's next step says that the host must still approve, nothing is booked yet, and the outcome arrives by email; the person can ask the agent to check again.
 
 ## Test environment
 
@@ -30,10 +34,10 @@ Each connection path below is what the client's own documentation offers for a r
 
 | Client | Connection path to try | Host role | Requester role |
 |---|---|---|---|
-| Claude Code | `claude mcp add --transport http findmeatime https://findmeatime.com/mcp`, then `/mcp` to authenticate; the requester endpoint the same way | Not yet run | Not yet run |
+| Claude Code | `claude mcp add --transport http findmeatime https://findmeatime.com/mcp`, then `/mcp`, choose the server and authenticate in the browser; requester: `claude mcp add --transport http findmeatime-{handle} https://findmeatime.com/{handle}/mcp`. If the server is absent from `/mcp`, restart Claude Code and continue | Not yet run | Not yet run |
 | Claude | A custom connector with the MCP endpoint URL | Not yet run | Not yet run |
 | ChatGPT | A connector (developer mode) with the MCP endpoint URL | Not yet run | Not yet run |
-| Codex | A Streamable HTTP MCP server in its configuration with the endpoint URL; otherwise the CLI through its shell | Not yet run | Not yet run |
+| Codex | `codex mcp add findmeatime --url <endpoint>`, which opens the browser to authorize (CLI 0.169.0); `codex mcp login findmeatime --scopes <the role's scopes>` if that did not finish; otherwise the CLI through its shell | Not yet run | Not yet run |
 | Dots | To be confirmed at the first run: remote MCP if offered, otherwise the instructions and web continuation | Not yet run | Not yet run |
 | Muse | To be confirmed at the first run: remote MCP if offered, otherwise the instructions and web continuation | Not yet run | Not yet run |
 | Instinct | To be confirmed at the first run: remote MCP if offered, otherwise the instructions and web continuation | Not yet run | Not yet run |
