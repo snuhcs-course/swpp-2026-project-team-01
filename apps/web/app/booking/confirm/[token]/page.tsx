@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { connection } from "next/server";
 import { Suspense } from "react";
 import { ConfirmAddressForm } from "./confirm-address-form";
 
@@ -16,7 +17,10 @@ export const metadata: Metadata = {
   title: "Confirm your address",
 };
 
-export default function Page({ params }: { readonly params: Params }) {
+export const instant = false;
+
+export default async function Page({ params }: { readonly params: Params }) {
+  await connection();
   return (
     <main className="mx-auto flex min-h-dvh w-full max-w-xl flex-col justify-center gap-4 px-4 py-16">
       <Suspense fallback={<p role="status">Loading...</p>}>

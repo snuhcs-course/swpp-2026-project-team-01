@@ -1,14 +1,12 @@
 name: Deploy shared Supabase
 
-# Only this workflow changes the shared project. It runs after a merge to main and
+# Only this workflow changes the shared project. Deploy production calls it on every
+# push to main, before the Vercel deployment, and it can be started by hand. It
 # applies the reviewed migration chain, the worker's Vault entries and the hosted
-# configuration declared in supabase/config.toml.
+# configuration declared in supabase/config.toml; each step is a no-op when nothing
+# is pending.
 on:
-  push:
-    branches: [main]
-    paths:
-      - supabase/**
-      - .github/workflows/deploy-shared.yml
+  workflow_call:
   workflow_dispatch:
 
 concurrency:

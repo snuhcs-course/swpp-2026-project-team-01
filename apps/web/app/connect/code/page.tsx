@@ -8,12 +8,14 @@ import { Suspense } from "react";
 // by a dot. The code is useless without the CLI's PKCE verifier.
 
 export const metadata: Metadata = { referrer: "no-referrer", robots: { follow: false, index: false }, title: "Finish signing in to the CLI" };
+export const instant = false;
 
 type SearchParams = Promise<{ code?: string; state?: string; error?: string }>;
 
 const VALUE = /^[A-Za-z0-9_.~-]{1,1000}$/;
 
-export default function Page({ searchParams }: { readonly searchParams: SearchParams }) {
+export default async function Page({ searchParams }: { readonly searchParams: SearchParams }) {
+  await connection();
   return (
     <Suspense fallback={<p className="sr-only" role="status">Loading...</p>}>
       <Code searchParams={searchParams} />
@@ -22,7 +24,6 @@ export default function Page({ searchParams }: { readonly searchParams: SearchPa
 }
 
 async function Code({ searchParams }: { readonly searchParams: SearchParams }) {
-  await connection();
   const { code, error, state } = await searchParams;
   const valid = code && state && VALUE.test(code) && VALUE.test(state);
 
