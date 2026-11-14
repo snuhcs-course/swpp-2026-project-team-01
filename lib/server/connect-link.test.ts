@@ -64,11 +64,13 @@ describe("link tools", () => {
 });
 
 it("gives each role version 5 and client-specific connection steps", () => {
-  for (const [document, name, endpoint] of [[hostEntryDocument(origin), "findmeatime", `${origin}/mcp`], [requesterEntryDocument(origin, { handle: "dodo", displayName: "Dodo" }), "findmeatime-dodo", `${origin}/dodo/mcp`]]) {
+  for (const [document, name, endpoint, role] of [[hostEntryDocument(origin), "findmeatime", `${origin}/mcp`, "host"], [requesterEntryDocument(origin, { handle: "dodo", displayName: "Dodo" }), "findmeatime-dodo", `${origin}/dodo/mcp`, "request"]]) {
     expect(document).toContain("Instruction version: 5");
     expect(document).toContain(`claude mcp add --transport http ${name} ${endpoint}`);
     expect(document).toContain("`/mcp`");
     expect(document).toContain("restart Claude Code");
+    expect(document).toContain(`codex mcp add ${name} --url ${endpoint}`);
+    expect(document).toContain(`codex mcp login ${name} --scopes ${role}:read,${role}:write,${role}:decide`);
     for (const client of ["Claude", "ChatGPT", "Codex", "Dots", "Muse", "Instinct", "Other clients"]) expect(document).toContain(client);
     expect(document).toContain("Ask before adding a server. Never handle a token");
   }

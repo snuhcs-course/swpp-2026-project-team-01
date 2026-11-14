@@ -58,7 +58,7 @@ If you cannot connect to a remote MCP server, send the person to the web continu
 - **Claude Code:** Ask the person before running \`claude mcp add --transport http findmeatime ${origin}/mcp\`. Then ask them to run \`/mcp\`, choose findmeatime and authenticate in the browser. If the server does not appear in \`/mcp\`, ask them to restart Claude Code and continue the conversation.
 - **Claude:** Add the endpoint as a custom connector in settings (remote MCP, Streamable HTTP, OAuth).
 - **ChatGPT:** Add the endpoint as a connector in developer mode settings (remote MCP, Streamable HTTP, OAuth).
-- **Codex:** Add the endpoint as a Streamable HTTP MCP server in its configuration and authenticate through the client.
+- **Codex:** Ask the person before running \`codex mcp add findmeatime --url ${origin}/mcp\`, which opens the browser to sign in and allow. If that did not finish, run \`codex mcp login findmeatime --scopes host:read,host:write,host:decide\`. If the tools do not appear, ask them to restart Codex and continue the conversation.
 - **Dots, Muse and Instinct:** Use a remote MCP server in the client's settings if offered; otherwise continue on the web.
 - **Other clients:** Add ${origin}/mcp as a remote MCP server (Streamable HTTP, OAuth) in the client's settings. If the client cannot, continue at ${origin}/app.
 
@@ -119,7 +119,7 @@ Connecting opens a browser page that names this host; the person allows one new 
 - **Claude Code:** Ask the person before running \`claude mcp add --transport http findmeatime-${host.handle} ${origin}/${host.handle}/mcp\`. Then ask them to run \`/mcp\`, choose findmeatime-${host.handle} and authenticate in the browser. If the server does not appear in \`/mcp\`, ask them to restart Claude Code and continue the conversation.
 - **Claude:** Add the endpoint as a custom connector in settings (remote MCP, Streamable HTTP, OAuth).
 - **ChatGPT:** Add the endpoint as a connector in developer mode settings (remote MCP, Streamable HTTP, OAuth).
-- **Codex:** Add the endpoint as a Streamable HTTP MCP server in its configuration and authenticate through the client.
+- **Codex:** Ask the person before running \`codex mcp add findmeatime-${host.handle} --url ${origin}/${host.handle}/mcp\`, which opens the browser to allow. If that did not finish, run \`codex mcp login findmeatime-${host.handle} --scopes request:read,request:write,request:decide\`. If the tools do not appear, ask them to restart Codex and continue the conversation.
 - **Dots, Muse and Instinct:** Use a remote MCP server in settings if offered; otherwise continue on the web.
 - **Other clients:** Add ${origin}/${host.handle}/mcp as a remote MCP server (Streamable HTTP, OAuth) in settings. If the client cannot, continue at ${origin}/${host.handle}.
 
