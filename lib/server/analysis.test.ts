@@ -555,3 +555,49 @@ it("does not widen the end for a lone 22:00 event when the next latest end is 18
   const events = [510, 510, 480, 480, 720].map(minutes => event({ minutes }));
   expect(hoursSuggestion(computeEvidence(events, ctx)).weekdays).toEqual({ start: "10:00", end: "19:00" });
 });
+
+describe("trips that could share a day", () => {
+  // An in-person event at a place on a Seoul local day (09:00 KST at 00:00Z).
+  const at = (location: string, day: string, extra: Parameters<typeof event>[0] = {}) =>
+    event({ hasConferenceLink: false, location, startUtc: `${day}T01:00:00Z`, ...extra });
+
+  it("counts days away at a place that recurs on another day, never naming it", () => {
+    const evidence = computeEvidence(
+      [
+        at("Cafe A, Yeoksam", "2026-10-13"),
+        at("Office, Yeoksam", "2026-10-14"),
+        at("Bakery, Yeoksam", "2026-10-15"),
+        // Pangyo on two separate days: those trips could have shared one.
+        at("Client HQ, Pangyo", "2026-10-13", { startUtc: "2026-10-13T06:00:00Z" }),
+        at("Lab, Pangyo", "2026-10-16"),
+        // Once only: nothing to share.
+        at("Studio, Hongdae", "2026-10-17"),
+        // A link decides nothing.
+        at("Room, Pangyo", "2026-10-19", { hasConferenceLink: true }),
+      ],
+      ctx,
+    );
+
+    expect(evidence.trips).toEqual({ inPersonDays: 5, repeatedAwayDays: 2 });
+    expect(JSON.stringify(analysisForModel({
+      calendars: [], completedAt: null, createdAt: "", evidence, failureCategory: null, id: "a",
+      range: { end: "", start: "" }, state: "completed",
+    }).evidence?.trips)).not.toMatch(/Pangyo|Yeoksam/);
+  });
+
+  it("suggests grouping trips only when such days exist, and otherwise the starter default off", () => {
+    const repeated = suggestFromEvidence(
+      evidenceWith([at("A, Yeoksam", "2026-10-13"), at("B, Yeoksam", "2026-10-14"), at("C, Pangyo", "2026-10-15"), at("D, Pangyo", "2026-10-20")]),
+      "Asia/Seoul",
+    );
+    expect(repeated.groupTrips).toMatchObject({ sampleSize: 4, source: "inferred", value: true });
+    expect(repeated.groupTrips!.reason).not.toMatch(/Pangyo|Yeoksam/);
+
+    const local = suggestFromEvidence(evidenceWith([at("A, Yeoksam", "2026-10-13"), at("B, Yeoksam", "2026-10-14")]), "Asia/Seoul");
+    expect(local.groupTrips).toMatchObject({ source: "starter_default", value: false });
+
+    // A scan stored before the dimension existed.
+    const { trips: _trips, ...older } = evidenceWith(busyWeeks(8));
+    expect(suggestFromEvidence(older, "Asia/Seoul").groupTrips).toMatchObject({ source: "starter_default", value: false });
+  });
+});

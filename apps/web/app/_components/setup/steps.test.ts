@@ -9,11 +9,17 @@ type Fields = Parameters<typeof setupSteps>[0]["fields"];
 
 function stateWith(
   accepted: readonly SetupFieldName[],
-  options: { mode?: "online" | "in_person" | "either"; notes?: number; missing?: SetupFieldName[] } = {},
+  options: {
+    mode?: "online" | "in_person" | "either";
+    notes?: number;
+    missing?: SetupFieldName[];
+    location?: { kind: "places"; areas: string[]; venue: null } | { kind: "decide_per_meeting" };
+  } = {},
 ) {
   const fields = new Proxy({} as Record<string, unknown>, {
     get(_, field: string) {
       if (field === "meetingMode" && options.mode) return { proposed: { accepted: true, value: options.mode } };
+      if (field === "location" && options.location) return { proposed: { accepted: true, value: options.location } };
       return { proposed: { accepted: accepted.includes(field as SetupFieldName), value: null } };
     },
   }) as unknown as Fields;
@@ -41,9 +47,18 @@ describe("setup steps", () => {
       "location",
       "transport",
       "travelBuffer",
+      "trips",
       "identity",
     ]);
     expect(setupSteps(stateWith([], { notes: 0 }))).not.toContain("notes");
+  });
+
+  it("asks about grouping trips only for in-person places, not a place decided per meeting", () => {
+    const places = { areas: ["Yeoksam"], kind: "places" as const, venue: null };
+    expect(setupSteps(stateWith([], { location: places, mode: "in_person" }))).toContain("trips");
+    expect(setupSteps(stateWith([], { location: { kind: "decide_per_meeting" }, mode: "either" }))).not.toContain("trips");
+    expect(setupSteps(stateWith([], { location: places, mode: "online" }))).not.toContain("trips");
+    expect(stepForField("groupTrips")).toBe("trips");
   });
 
   it("starts at the first unaccepted step and ends at the review", () => {

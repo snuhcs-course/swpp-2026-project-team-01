@@ -34,3 +34,17 @@ The ordering is weekly limit, then trip rank, then the guest's preference score,
 ### 5. Explanations
 
 The host's basis gains one sentence when the rank applies, naming minutes only, never an event or a place. Requester projections carry no basis, so nothing reaches the requester.
+
+### 6. The setup field
+
+`groupTrips` is a setup field like `weeklyLimitCounts`: a boolean in `SETUP_FIELD_SCHEMAS`, starter default `false`, drafted by `draft_settings`, accepted on its card and saved on confirmation. It is part of the proposal only for an in-person or either mode (`IN_PERSON_OPTIONAL_FIELDS`), and a confirmed online-only policy reads as having none, so an online host never sees a pending change from it. A policy confirmed before the field existed reads as off, labeled starter default. The web shows it as its own step, **Group trips by day**, after the travel buffer and only when the location is not decided per meeting, since without a preferred area the policy does nothing. The review card shows it under the same condition and the linked-chat settings review whenever the mode is in person or either. The chat setup does not ask about it: like the other settings it keeps its suggestion unless the host brings it up.
+
+Rejected: an `IN_PERSON_FIELDS` member | those are required answers, and this one is optional. Rejected: saving it only when the location has places | a host who later names places would find it silently off.
+
+### 7. The suggestion
+
+Calendar analysis adds a `trips` dimension with counts only: the local days with a busy, timed in-person event (a location and no conference link), and the days with such an event at a place other than the most frequent one where that place also holds an in-person event on another day. A place is the event's area (the text after the first comma), or its venue when there is none, compared without case. With at least two such days the suggestion is on, labeled inferred, with the in-person days as its sample size and a reason that names no place; otherwise it is the starter default off. It is policy only once the host accepts it and confirms.
+
+Place text stands in for distance because the scan asks no route estimates and the preferred area is a host answer the scan does not know yet; with the policy on, feasibility decides far and near from route estimates (decision 2). The most frequent place stands in for the preferred area for the same reason.
+
+Rejected: route estimates during the scan | Routes calls for every scanned trip, before the host has named a preferred area. Rejected: comparing with the host's answered location | the suggestion is computed from the scan alone, like every other one, and would change when the location answer changes.

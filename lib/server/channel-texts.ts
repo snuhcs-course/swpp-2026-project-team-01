@@ -56,6 +56,7 @@ export const FIELD_LABELS: Texts<Readonly<Record<SetupFieldName, string>>> = {
     travelMode: "How you travel",
     weeklyLimit: "Weekly meeting limit",
     weeklyLimitCounts: "Counted toward the limit",
+    groupTrips: "Group trips by day",
     weeklyWindows: "Meeting hours",
   },
   ko: {
@@ -72,6 +73,7 @@ export const FIELD_LABELS: Texts<Readonly<Record<SetupFieldName, string>>> = {
     travelMode: "이동 수단",
     weeklyLimit: "주간 미팅 한도",
     weeklyLimitCounts: "한도에 세는 미팅",
+    groupTrips: "이동 같은 날로 묶기",
     weeklyWindows: "미팅 가능 시간",
   },
 };
@@ -467,6 +469,7 @@ export const CHANNEL_REPLIES = {
     perWeek: (n: number) => `${n} a week`,
     none: "none",
     decidePerMeeting: "decide per meeting",
+    groupTrips: (on: boolean) => (on ? "on: far meetings go first on days you're already out that way" : "off"),
     tooLong: "That message is too long for Thyme. Please send a shorter one.",
     requestGone: "That request isn't available any more, so this went to your setup conversation. Tell me which request you'd like to talk about.",
     unlinked: {
@@ -625,6 +628,7 @@ export const CHANNEL_REPLIES = {
     perWeek: (n: number) => `주 ${n}회`,
     none: "없음",
     decidePerMeeting: "미팅마다 정하기",
+    groupTrips: (on: boolean) => (on ? "켜짐: 먼 미팅은 이미 그쪽에 가는 날을 먼저 제안" : "꺼짐"),
     tooLong: "메시지가 너무 길어서 Thyme에게 보낼 수 없어요. 더 짧게 보내 주세요.",
     requestGone: "그 요청은 더 이상 볼 수 없어서 이 메시지는 설정 대화로 보냈어요. 어떤 요청에 대해 이야기할지 말씀해 주세요.",
     unlinked: {

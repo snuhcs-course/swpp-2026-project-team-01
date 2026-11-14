@@ -234,6 +234,7 @@ export const draftSettingsToolInput = z.object({
       weeklyWindows: draftValue(TOOL_VALUE_SCHEMAS.weeklyWindows),
       weeklyLimit: draftValue(TOOL_VALUE_SCHEMAS.weeklyLimit),
       weeklyLimitCounts: draftValue(TOOL_VALUE_SCHEMAS.weeklyLimitCounts),
+      groupTrips: draftValue(TOOL_VALUE_SCHEMAS.groupTrips),
       noteExclusions: draftValue(TOOL_VALUE_SCHEMAS.noteExclusions),
       durationMinutes: draftValue(TOOL_VALUE_SCHEMAS.durationMinutes),
       bufferBeforeMinutes: draftValue(TOOL_VALUE_SCHEMAS.bufferBeforeMinutes),

@@ -743,3 +743,15 @@
 | D2 | 필수인 `hostInstruction`(다듬은 뒤 1–500자, 저장하지 않음)이 호스트의 말을 전달하며, 두 도구 모두 `expectedRevision`이 필수입니다. 설명, 서버 지침, `/SKILL.md`는 호스트가 분명히 말할 때만, 에이전트의 판단이나 요청자의 말로는 결코, 조건을 붙여서도 결코 하지 말라고 안내합니다 | MCP 엘리싯테이션; 말을 저장; 불리언 `confirmed` | 제안; 설계 2 | `agent-host-tools.ts`의 `hostInstructionSchema`; `lib/server/agent-mcp.ts`의 `INSTRUCTIONS`; `lib/server/entry-documents.ts`의 `hostEntryDocument` |
 | D3 | `host:decide`가 두 도구를 허용하며, 동의 문구는 "에이전트에게 말할 때 요청을 승인하고 거절합니다"가 됩니다. 이 권한이 있는 기존 부여도 두 도구를 얻습니다 | 새 권한; 변경 이후에 만든 부여만 | 제안; 설계 3; `agent-client-authorization` 델타 "Role-bound permission scopes" | `lib/contracts/agent-access.ts`의 `SCOPE_DESCRIPTIONS`, 동의 페이지, `connected-agents.tsx` |
 | D4 | CLI는 `fmat call approve_proposal`과 `fmat call decline_request`로 이들에 닿으며, 새 하위 명령은 없습니다 | `fmat approve`와 `fmat decline` | 제안; 설계 4 | `cli/src/app.ts` |
+
+## `same-day-trips`
+
+[설계](../../openspec/changes/same-day-trips/design.md)는 이슈 #103에 대한 이 선택들을 기록합니다. 엔진 결정(1–5)은 PR #106에서 출시되었고, 설정 결정(6–7)은 이를 구현한 세션에서 2026-11-14에 정했으며 아직 팀원의 검토를 받지 않았습니다.
+
+| # | 선택 | 대안 | 기록 위치 | 바꾸려면 |
+|---|---|---|---|---|
+| D1 | **하루에 묶기(Group trips by day)**는 호스트의 선호 조건이며, 기본적으로 꺼져 있고 이 기능이 생기기 전에 확정된 모든 정책에서도 꺼져 있습니다. 대면 후보의 순서만 정하고 후보를 제거하지 않습니다 | 먼 날을 걸러 내는 필터; 기본으로 켜 두기 | 제안; 설계 1; `meeting-feasibility` 델타 "Same-day trip preference" | `lib/contracts/setup.ts`의 `groupTripsOf` |
+| D2 | 먼 곳은 선호 지역에서 30분을 넘는 곳, 가까운 곳은 15분 이내로 하며, 이동 확인이 쓰는 Routes 추정과 캐시를 호스트의 이동 수단으로 사용합니다. 추정이 없으면 그날은 순서를 정하지 않습니다 | 직선 거리: 이동 확인과 어긋나고 좌표가 필요함; 모델의 순위 신호: 장소를 전혀 보지 못함 | 설계 2 | `lib/server/feasibility.ts`의 `TRIP_FAR_MINUTES`, `TRIP_NEAR_MINUTES` |
+| D3 | 이동 순위는 주당 상한 다음, 요청자의 선호와 요일 분산 앞에 옵니다 | 주당 상한 앞; 요청자의 선호 뒤 | 설계 3 | `plan()`의 가중 정렬 |
+| D4 | `groupTrips`는 선택적 설정 필드로, 대면 또는 둘 다 방식일 때만 저장하고, 장소를 미팅마다 정하는 경우가 아니면 이동 버퍼 다음의 별도 단계로 웹에서 묻습니다. 웹 검토와 연결된 채팅의 설정 검토에 표시되며, 채팅 설정에서는 묻지 않습니다 | 대면 답변에서 필수로 받기; 장소에 후보가 있을 때만 저장 | 설계 6; `host-setup` 델타 "Same-day trip setting" | `lib/contracts/setup.ts`의 `IN_PERSON_OPTIONAL_FIELDS`; `apps/web/app/_components/setup/steps.ts`의 `setupSteps` |
+| D5 | 스캔은 가장 자주 가는 곳이 아닌 장소에서 대면 일정이 있었고 그 장소가 다른 날에도 나타난 날이 이틀 이상이면 켜는 것으로 제안합니다. 장소 텍스트로 판단하고 횟수만 저장하며, 호스트가 확인한 뒤에야 정책이 됩니다 | 선호 지역이 아직 없는 스캔 중의 경로 추정; 호스트의 장소 답변과 비교 | 설계 7; `host-setup` 델타 "Same-day trip suggestion" | `lib/server/analysis.ts`의 `tripEvidence`, `suggestFromEvidence` |
