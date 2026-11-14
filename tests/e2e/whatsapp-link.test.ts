@@ -98,10 +98,11 @@ async function openCard(page: Page) {
 test.describe("on Android", () => {
   test.use({ userAgent: AGENTS.android, viewport: { height: 915, width: 412 } });
 
-  test("the link step offers WhatsApp only, and the host's WhatsApp message links it on Confirm and link", async ({ baseURL, context, db, page }) => {
+  test("the host chooses WhatsApp, sends its proof and confirms the sender", async ({ baseURL, context, db, page }) => {
     const host = await signedInHost(db, context, baseURL!, { imessageStep: true });
     await page.goto("/app");
 
+    await page.getByRole("button", { exact: true, name: "WhatsApp" }).click();
     // The number first (guest-whatsapp-link D3), registered with the stand-in.
     await expect(page.getByRole("heading", { level: 1, name: "Which number do you use for WhatsApp?" })).toBeVisible({ timeout: 45_000 });
     await enterNumber(page);
@@ -126,14 +127,9 @@ test.describe("on Android", () => {
     await expect(page.getByRole("heading", { name: "Your WhatsApp is connected." })).toBeVisible();
     expect(await activeChannel(db, host.hostAccountId)).toEqual([{ channel: "whatsapp" }]);
 
-    // The in-chat card names the channel and offers no Add to contacts.
-    await page.getByRole("button", { name: "Go to Home" }).click();
-    const card = await openCard(page);
-    await card.getByRole("button", { name: `WhatsApp linked +${sender}` }).click();
-    await expect(card.getByRole("heading", { name: "WhatsApp is linked" })).toBeVisible();
-    await expect(card).toContainText(`Linked on WhatsApp +${sender}`);
-    await expect(card.getByRole("button", { name: "Add to contacts" })).toHaveCount(0);
-    await expect(card.getByRole("button", { name: "Unlink WhatsApp" })).toBeVisible();
+    await expect(page.getByRole("link", { name: "Open WhatsApp" })).toHaveAttribute("href", `https://wa.me/${WHATSAPP}`);
+    await page.getByRole("link", { name: "Go to Home" }).click();
+    await expect(page).toHaveURL("/");
   });
 
   test("the card's Connect WhatsApp makes the code, then opens wa.me with the message", async ({ baseURL, context, db, page }) => {
@@ -162,6 +158,7 @@ test.describe("on an iPhone", () => {
     await signedInHost(db, context, baseURL!, { imessageStep: true });
     await page.goto("/app");
 
+    await page.getByRole("button", { exact: true, name: "iMessage" }).click();
     // Both ask for the number first (imessage-number-registration D1, guest-whatsapp-link D3).
     await expect(page.getByRole("heading", { level: 1, name: "Which number do you use for iMessage?" })).toBeVisible({ timeout: 45_000 });
 
@@ -183,7 +180,7 @@ test.describe("on a Windows computer", () => {
     await signedInHost(db, context, baseURL!, { imessageStep: true });
     await page.goto("/app");
 
-    await expect(page.getByRole("heading", { level: 1, name: "Which app do you use on your phone?" })).toBeVisible({ timeout: 45_000 });
+    await expect(page.getByRole("heading", { level: 1, name: "You're signed in. Continue in your messages." })).toBeVisible({ timeout: 45_000 });
     await expect(page.getByTestId("imessage-link-message")).toHaveCount(0);
     await page.getByRole("button", { exact: true, name: "WhatsApp" }).click();
 
