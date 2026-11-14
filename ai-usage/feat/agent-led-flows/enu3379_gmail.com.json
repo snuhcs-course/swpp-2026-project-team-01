@@ -5,19 +5,19 @@
     "claude:cc70b365-d4d2-4c12-bc56-4883e8222433": {
       "agent": "claude-code",
       "client": "cli",
-      "agent_ms": 662327,
+      "agent_ms": 767264,
       "models": {
         "claude-opus-5-5": {
-          "input": 150,
-          "cache_read": 19128935,
+          "input": 178,
+          "cache_read": 23658376,
           "cache_write_5m": 0,
-          "cache_write_1h": 120489,
-          "output": 59307,
+          "cache_write_1h": 143806,
+          "output": 66019,
           "reasoning": 0
         }
       },
       "first": "2026-11-14T14:04:09.826Z",
-      "last": "2026-11-14T15:15:17.742Z"
+      "last": "2026-11-14T15:36:25.503Z"
     },
     "codex:01a1da64-ce4d-7642-b546-fd02c90d2f10": {
       "agent": "codex",

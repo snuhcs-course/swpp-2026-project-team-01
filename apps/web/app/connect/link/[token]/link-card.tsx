@@ -1,5 +1,6 @@
 "use client";
 import { useEffect, useState } from "react";
+import { deepLinkFor } from "@lib/contracts/imessage";
 import type { ConnectLinkView } from "@lib/server/connect-link-routes";
 import { PendingCode, TELEGRAM_PRIVACY, WHATSAPP_OPT_IN, useMessagesPlatform } from "@/app/_components/imessage/imessage-card";
 import { Button } from "@/components/ui/button";
@@ -46,6 +47,16 @@ export function LinkCard({ initial, token }: { readonly initial: ConnectLinkView
   if (view.state === "linked") return <p role="status">Linked. You can go back to your agent.</p>;
   if (view.state === "sign_in") return <><h1>Sign in to link your chat</h1><Button asChild><a href={`/auth/sign-in?return=link&token=${encodeURIComponent(token)}`}>Sign in with Google</a></Button></>;
   const notice = error ? <p role="alert">{error}</p> : null;
-  if (view.status.state === "pending") return !mounted ? <p role="status">Loading the link…</p> : <PendingCode busy={busy} notice={notice} onCancel={() => void act("cancel")} platform={platform} status={{ ...view.status, channels: { imessage: null, whatsapp: null, telegram: null } }} switchers={null} />;
+  if (view.status.state === "pending") {
+    if (!mounted) return <p role="status">Loading the link…</p>;
+    // The /app card leaves this out; this page offers it on a Mac, as the requester card does (host-imessage-channel D17).
+    const macLink = view.status.channel === "imessage" && platform === "mac" ? deepLinkFor("mac", view.status.lineNumber, view.status.message) : null;
+    return (
+      <>
+        <PendingCode busy={busy} notice={notice} onCancel={() => void act("cancel")} platform={platform} status={{ ...view.status, channels: { imessage: null, whatsapp: null, telegram: null } }} switchers={null} />
+        {macLink ? <Button asChild variant="outline"><a href={macLink}>Open Messages on this Mac</a></Button> : null}
+      </>
+    );
+  }
   return <section className="flex flex-col gap-4"><h1>Is this you?</h1>{notice}<p>Sent from <strong>{view.status.sender}</strong></p>{"replaces" in view.status && view.status.replaces ? <p>This replaces your {view.status.replaces} link.</p> : null}{view.status.channel === "whatsapp" ? <p>{WHATSAPP_OPT_IN}</p> : null}{view.status.channel === "telegram" ? <p>{TELEGRAM_PRIVACY}</p> : null}<Button disabled={busy} onClick={() => void act("confirm")}>Confirm and link</Button><Button disabled={busy} variant="outline" onClick={() => void act("cancel")}>Cancel</Button></section>;
 }

@@ -655,7 +655,6 @@ export function PendingCode({
           </figcaption>
         </figure>
       ) : null}
-      {!whatsapp && platform === "mac" ? <Button asChild variant="outline"><a href={deepLinkFor("mac", status.lineNumber, status.message) ?? undefined}>Open Messages on this Mac</a></Button> : null}
       <p className="text-sm text-muted-foreground" role="status">
         Waiting for your message. The code works until {when(status.expiresAt)}.
       </p>
