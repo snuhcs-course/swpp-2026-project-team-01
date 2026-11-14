@@ -250,6 +250,85 @@ function meetingDetails(preview: SlotPreview, language: ChannelLanguage) {
   return parts.filter(Boolean).join(", ");
 }
 
+// ---------------------------------------------------------------------------
+// The weekly note check's list (calendar-note-review design 10 and 11). Titles
+// are calendar text the host or someone else wrote, so each is one line in
+// quotes, read as data.
+
+export type WeeklyNoteVerdict = "note" | "event" | "unsure";
+
+export type WeeklyListEntry = {
+  readonly number: number;
+  readonly title: string;
+  readonly start: string;
+  readonly allDay: boolean;
+  readonly verdict: WeeklyNoteVerdict | null;
+};
+
+const TITLE_LIMIT = 60;
+
+// Control characters and line or paragraph separators become spaces.
+function oneLine(text: string) {
+  return Array.from(text, (character) => {
+    const code = character.codePointAt(0)!;
+    return code < 0x20 || code === 0x7f || code === 0x2028 || code === 0x2029 ? " " : character;
+  }).join("");
+}
+
+export function quotedTitle(title: string) {
+  const line = oneLine(title)
+    .replace(/["\u201c\u201d]/g, "'")
+    .replace(/\s+/g, " ")
+    .trim();
+  return `"${(line.length > TITLE_LIMIT ? `${line.slice(0, TITLE_LIMIT - 1)}…` : line) || "?"}"`;
+}
+
+const WEEKDAY_OF_SHORT: Readonly<Record<string, Weekday>> = {
+  Fri: "friday", Mon: "monday", Sat: "saturday", Sun: "sunday", Thu: "thursday", Tue: "tuesday", Wed: "wednesday",
+};
+
+// "11월 18일(수) 종일", "11월 17일(화) 19:00", "Wed Nov 18, all day".
+export function noteWhenText(start: string, allDay: boolean, timeZone: string, language: ChannelLanguage) {
+  const at = allDay ? new Date(`${start.slice(0, 10)}T00:00:00Z`) : new Date(start);
+  if (Number.isNaN(at.getTime())) return start;
+  const parts = Object.fromEntries(
+    new Intl.DateTimeFormat("en-US", {
+      day: "numeric", hour: "2-digit", hourCycle: "h23", minute: "2-digit", month: "numeric", timeZone: allDay ? "UTC" : timeZone, weekday: "short",
+    }).formatToParts(at).map((part) => [part.type, part.value]),
+  );
+  const weekday = WEEKDAY_OF_SHORT[parts.weekday ?? ""] ?? "monday";
+  const month = Number(parts.month);
+  const time = `${parts.hour}:${parts.minute}`;
+  return language === "ko"
+    ? `${month}월 ${parts.day}일(${dayShort(weekday, "ko")}) ${allDay ? "종일" : time}`
+    : `${dayShort(weekday, "en")} ${MONTHS_EN[month - 1]} ${parts.day}, ${allDay ? "all day" : time}`;
+}
+
+function numbersText(numbers: readonly number[], language: ChannelLanguage) {
+  return language === "ko" ? numbers.map((number) => `${number}번`).join(", ") : listEn(numbers.map(String));
+}
+
+const VERDICT_TEXTS: Texts<Readonly<Record<WeeklyNoteVerdict, string>>> = {
+  en: { event: "looks like an event", note: "looks like a note", unsure: "not sure" },
+  ko: { event: "일정으로 보여요", note: "메모로 보여요", unsure: "판단이 어려워요" },
+};
+
+function weeklyLines(entries: readonly WeeklyListEntry[], timeZone: string, language: ChannelLanguage) {
+  return entries.map((entry) =>
+    [`${entry.number}. ${quotedTitle(entry.title)}`, noteWhenText(entry.start, entry.allDay, timeZone, language), entry.verdict ? VERDICT_TEXTS[language][entry.verdict] : null]
+      .filter(Boolean)
+      .join(" · "),
+  );
+}
+
+// The read-back before freeing by number (D8): "1번 "엄마 생일", 3번 "과제 마감"을 비울까요?".
+export function noteReadBack(entries: readonly { readonly number: number; readonly title: string }[], language: ChannelLanguage) {
+  if (language === "en") return `Free ${listEn(entries.map((entry) => `${entry.number} ${quotedTitle(entry.title)}`))}?`;
+  const named = entries.map((entry) => `${entry.number}번 ${quotedTitle(entry.title)}`).join(", ");
+  const last = entries.at(-1)?.title.trim() ?? "";
+  return `${named}${finalConsonant(last) === 0 ? "를" : "을"} 비울까요?`;
+}
+
 const hasOpenTime = (preview: SlotPreview) => preview.days.some((day) => day.open.length > 0);
 
 export const CHANNEL_REPLIES = {
@@ -299,10 +378,28 @@ export const CHANNEL_REPLIES = {
       // answer and the slot image.
       noteReviewLink: (count: number, url: string) =>
         `${count === 1 ? "One entry looks" : `${count} entries look`} like just a note. Check the ones that can be free, and I'll send your open times after that: ${url}`,
+      // Under the image sent after a day without the review (design 8).
+      noteReviewLater: (url: string) => `I kept the entries that look like notes busy for now. You can still choose which ones can be free here: ${url}`,
       slotCaption: (preview: SlotPreview) =>
         hasOpenTime(preview)
           ? `Next week's open times (${weekText(preview.weekStart, "en")}): ${openSummary(preview, "en")} (${meetingDetails(preview, "en")}). Shall I open these for booking?`
           : `Next week (${weekText(preview.weekStart, "en")}) has no open time with these settings (${meetingDetails(preview, "en")}). Want to change your meeting hours?`,
+    },
+    notes: {
+      weeklyList: (entries: readonly WeeklyListEntry[], total: number, timeZone: string, url: string) =>
+        [
+          `${total === 1 ? "One calendar entry" : `${total} calendar entries`} to check this week. If any is just a note that can be free, tell me its number (for example "free 1 and 3"); if one is a real event, say so ("2 is a real event").`,
+          ...weeklyLines(entries, timeZone, "en"),
+          total > entries.length ? `${total - entries.length} more on the page: ${url}` : `See them on a week: ${url}`,
+        ].join("\n"),
+      noList: (url: string) => `There is no list to answer right now. You can check your entries here: ${url}`,
+      staleList: (url: string) => `That list is no longer the current one, so nothing changed. Answer with the numbers of the latest list, or check them here: ${url}`,
+      outsideList: (numbers: readonly number[], count: number) =>
+        `${listEn(numbers.map(String))} ${numbers.length === 1 ? "is" : "are"} not on the list, so nothing changed. Choose from 1 to ${count}.`,
+      changed: (numbers: readonly number[], url: string) =>
+        `${listEn(numbers.map(String))} changed after the list was sent, so nothing changed. Check ${numbers.length === 1 ? "it" : "them"} here: ${url}`,
+      alreadyAnswered: (numbers: readonly number[]) => `You already answered ${listEn(numbers.map(String))}.`,
+      calendarUnavailable: (url: string) => `I couldn't read Google Calendar just now, so nothing changed. Tell me again in a moment, or check here: ${url}`,
     },
     nextStep: {
       analyzing: "I'm looking at your calendars; I'll have suggestions shortly.",
@@ -442,10 +539,25 @@ export const CHANNEL_REPLIES = {
       },
       noteReviewLink: (count: number, url: string) =>
         `메모처럼 보이는 일정이 ${count}개 있어요. 비워도 되는 일정을 골라주세요. 고르시면 가능한 시간을 보내드릴게요: ${url}`,
+      noteReviewLater: (url: string) => `메모처럼 보이는 일정은 일단 바쁨으로 두었어요. 비워도 되는 일정은 나중에 여기서 고를 수 있어요: ${url}`,
       slotCaption: (preview: SlotPreview) =>
         hasOpenTime(preview)
           ? `다음 주(${weekText(preview.weekStart, "ko")}) 비어 있는 시간이에요: ${openSummary(preview, "ko")} (${meetingDetails(preview, "ko")}). 이 시간들로 예약을 열어둘까요?`
           : `다음 주(${weekText(preview.weekStart, "ko")})에는 이 설정으로 비어 있는 시간이 없어요 (${meetingDetails(preview, "ko")}). 미팅 가능 시간을 바꿔볼까요?`,
+    },
+    notes: {
+      weeklyList: (entries: readonly WeeklyListEntry[], total: number, timeZone: string, url: string) =>
+        [
+          `이번 주 확인할 일정이 ${total}개 있어요. 메모라서 비워도 되는 일정은 번호로 알려주세요(예: "1, 3번 비워줘"). 진짜 일정이면 그렇다고 말씀해 주세요(예: "2번은 일정이야").`,
+          ...weeklyLines(entries, timeZone, "ko"),
+          total > entries.length ? `외 ${total - entries.length}개는 링크에서 확인해주세요: ${url}` : `한 주로 펼쳐 보려면: ${url}`,
+        ].join("\n"),
+      noList: (url: string) => `지금 답하실 목록이 없어요. 일정은 여기서 확인할 수 있어요: ${url}`,
+      staleList: (url: string) => `그 목록은 지난 목록이라 바꾼 건 없어요. 최신 목록의 번호로 알려주시거나 여기서 확인해주세요: ${url}`,
+      outsideList: (numbers: readonly number[], count: number) => `${numbersText(numbers, "ko")}은 목록에 없어서 바꾼 건 없어요. 1번부터 ${count}번 중에서 알려주세요.`,
+      changed: (numbers: readonly number[], url: string) => `${numbersText(numbers, "ko")}은 목록을 보낸 뒤 바뀌어서 바꾸지 않았어요. 여기서 다시 확인해주세요: ${url}`,
+      alreadyAnswered: (numbers: readonly number[]) => `${numbersText(numbers, "ko")}은 이미 답하셨어요.`,
+      calendarUnavailable: (url: string) => `지금 Google 캘린더를 읽지 못해서 바꾼 건 없어요. 잠시 후 다시 말씀하시거나 여기서 확인해주세요: ${url}`,
     },
     nextStep: {
       analyzing: "캘린더를 살펴보고 있어요. 곧 제안을 드릴게요.",

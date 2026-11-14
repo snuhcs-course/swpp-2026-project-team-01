@@ -12,6 +12,8 @@ import { createImessageReceiptHandler } from "./imessage-receipts";
 import type { JobHandler } from "./jobs";
 import { createLinkResendHandler, LINK_RESEND_JOB } from "./link-resend";
 import { createNoteWritebackHandler, NOTE_WRITEBACK_JOB } from "./note-decisions";
+import { createWeeklyNoteCheckHandler, createWeeklyNoteListHandler, createWeeklyNoteReviewHandler } from "./note-weekly-check";
+import { WEEKLY_NOTE_CHECK_JOB, WEEKLY_NOTE_LIST_JOB, WEEKLY_NOTE_REVIEW_JOB } from "./note-weekly-store";
 import { ONBOARDING_SLOT_IMAGE_JOB } from "./onboarding-note-step";
 import { IMESSAGE_RECEIPT_JOB } from "./photon-receiver";
 import { createRequestExpiryHandler, REQUEST_EXPIRY_JOB } from "./request-lifecycle";
@@ -37,6 +39,9 @@ export const JOB_HANDLERS: Readonly<Record<string, JobHandler>> = {
   [REQUEST_EXPIRY_JOB]: createRequestExpiryHandler(),
   [TELEGRAM_BUTTONS_JOB]: createTelegramButtonsHandler(),
   [TELEGRAM_TYPING_JOB]: createTelegramTypingHandler(),
+  [WEEKLY_NOTE_CHECK_JOB]: createWeeklyNoteCheckHandler(),
+  [WEEKLY_NOTE_LIST_JOB]: createWeeklyNoteListHandler(),
+  [WEEKLY_NOTE_REVIEW_JOB]: createWeeklyNoteReviewHandler(),
 };
 
 // The most jobs of a kind one worker batch claims; kinds not listed share the
@@ -51,7 +56,10 @@ export const JOB_HANDLERS: Readonly<Record<string, JobHandler>> = {
 // two do. A note writeback exchanges the token and patches one event, each
 // with a 10-second timeout, so five do. An onboarding slot image reads the
 // conflict calendars for next week, each read with its own timeout, so two do.
+// A weekly note list re-sent on WhatsApp may read the listed calendars, so two
+// do; the weekly check and its review only read the database.
 export const JOB_BATCH_LIMITS: Readonly<Record<string, number>> = {
+  [WEEKLY_NOTE_LIST_JOB]: 2,
   [BOOKING_JOB]: 3,
   [CALENDAR_ANALYSIS_JOB]: 1,
   [EMAIL_RECEIPT_JOB]: 4,

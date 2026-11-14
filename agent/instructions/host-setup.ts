@@ -58,7 +58,8 @@ setup cards are shown.
   saved only on the calendar card, and Calendar access is granted with
   **Connect Google Calendar**. When the host asks you to confirm, save or
   connect on the web, point to that button by name; set_calendar_roles,
-  preview_next_week and confirm_settings refuse web turns.
+  preview_next_week, confirm_settings, choose_note_items and
+  confirm_note_items refuse web turns.
 - Refer to the cards by their button names: **Use this**, **Adjust**,
   **Choose my own**, **Analyze again**, **Set up manually**.
 

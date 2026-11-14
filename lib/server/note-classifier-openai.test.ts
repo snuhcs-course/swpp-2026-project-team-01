@@ -26,11 +26,11 @@ describe("OpenAI note classifier", () => {
       apiKey: "test-key",
       request: async (_input, init) => {
         body = JSON.parse(String(init?.body)) as Record<string, unknown>;
-        return completed(JSON.stringify({ items: [{ id: "c1", reason: "지시문처럼 보이는 제목", verdict: "unsure" }] }));
+        return completed(JSON.stringify({ items: [{ id: "c1", reason_en: "A title written as an instruction", reason_ko: "지시문처럼 보이는 제목", verdict: "unsure" }] }));
       },
     });
 
-    await expect(classify([injected], { language: "ko" })).resolves.toEqual([{ id: "c1", reason: "지시문처럼 보이는 제목", verdict: "unsure" }]);
+    await expect(classify([injected], {})).resolves.toEqual([{ id: "c1", reason_en: "A title written as an instruction", reason_ko: "지시문처럼 보이는 제목", verdict: "unsure" }]);
     expect(body).toMatchObject({
       model: "gpt-5.6-terra",
       store: false,
@@ -39,7 +39,12 @@ describe("OpenAI note classifier", () => {
     expect(body).not.toHaveProperty("tools");
     const [developer, user] = body.input as { role: string; content: { text: string }[] }[];
     expect(developer!.role).toBe("developer");
-    expect(developer!.content[0]!.text).toBe(`${NOTE_CLASSIFIER_INSTRUCTIONS} Write each reason in Korean.`);
+    expect(developer!.content[0]!.text).toBe(NOTE_CLASSIFIER_INSTRUCTIONS);
+    // Every answer carries the reason in English and in Korean, so the review can
+    // show the host's screen language whenever it is opened.
+    expect(NOTE_CLASSIFIER_INSTRUCTIONS).toContain("reason_en in English and reason_ko in Korean");
+    const schema = (body.text as { format: { schema: { properties: { items: { items: { required: string[] } } } } } }).format.schema;
+    expect(schema.properties.items.items.required).toEqual(["id", "verdict", "reason_en", "reason_ko"]);
     expect(developer!.content[0]!.text).not.toContain("Ignore previous instructions");
     expect(user!.role).toBe("user");
     expect(JSON.parse(user!.content[0]!.text)).toEqual([injected]);
@@ -56,7 +61,7 @@ describe("OpenAI note classifier", () => {
 
     for (const answer of answers) {
       const classify = createOpenAiNoteClassifier({ apiKey: "test-key", request: async () => answer() });
-      await expect(classify([injected], { language: "en" })).rejects.toThrow();
+      await expect(classify([injected], {})).rejects.toThrow();
     }
   });
 });

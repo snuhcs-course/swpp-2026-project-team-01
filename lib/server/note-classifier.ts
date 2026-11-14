@@ -1,6 +1,5 @@
 import { z } from "zod";
 import type { AnalysisEvidence } from "../contracts/analysis";
-import type { RequestLanguage } from "../contracts/request";
 import type { Weekday } from "../contracts/setup";
 
 // The note classifier (calendar-note-review design 2). A model call apart from
@@ -15,12 +14,17 @@ export type NoteVerdict = "note" | "event" | "unsure";
 
 export type NoteCandidate = AnalysisEvidence["noteLike"]["entries"][number];
 
+// The model's short reason in both languages the product ships, so the review
+// shows it in the host's screen language whenever the host opens it, whatever
+// language the host wrote in when the scan ran (user, 2026-11-14).
+export type NoteReasons = { readonly en: string; readonly ko: string };
+
 export type NoteRecommendation = {
   readonly candidate: NoteCandidate;
   readonly verdict: NoteVerdict;
   // The model's short reason, shown to the host; null when there is no
   // recommendation (a failed call, or an ID the answer left out).
-  readonly reason: string | null;
+  readonly reasons: NoteReasons | null;
 };
 
 // What the model sees of one candidate.
@@ -43,7 +47,6 @@ export type NoteClassifierItem = {
 export type NoteClassifierModel = (
   items: readonly NoteClassifierItem[],
   options: {
-    readonly language: RequestLanguage;
     // Told the tokens the provider reports, so the usage limit can settle the
     // call's reservation (model-limits.ts).
     readonly onUsage?: (usage: NoteClassifierUsage) => void;
@@ -74,9 +77,19 @@ const WEEKDAY_NAMES: Readonly<Record<string, Weekday>> = {
 
 const answerItemSchema = z.object({
   id: z.string(),
-  reason: z.string(),
+  reason_en: z.string(),
+  reason_ko: z.string(),
   verdict: z.enum(["note", "event", "unsure"]),
 });
+
+// Both reasons cut to the limit; one language's reason stands in for a blank
+// other, and two blank reasons are none.
+function reasonsOf(en: string, ko: string): NoteReasons | null {
+  const english = en.trim().slice(0, NOTE_REASON_MAX);
+  const korean = ko.trim().slice(0, NOTE_REASON_MAX);
+  if (!english && !korean) return null;
+  return { en: english || korean, ko: korean || english };
+}
 
 function seriesKey(candidate: NoteCandidate) {
   return candidate.seriesId ? `${candidate.calendarId}\u0000series\u0000${candidate.seriesId}` : null;
@@ -133,7 +146,7 @@ export function classifierItem(id: string, candidate: NoteCandidate, timezone: s
 // Reads the model's raw items for the IDs of one batch: one verdict per known ID,
 // with every missing, repeated, unknown or malformed answer left as no verdict.
 function readAnswer(raw: unknown, ids: ReadonlySet<string>) {
-  const verdicts = new Map<string, { verdict: NoteVerdict; reason: string }>();
+  const verdicts = new Map<string, { verdict: NoteVerdict; reasons: NoteReasons | null }>();
   const repeated = new Set<string>();
 
   if (!Array.isArray(raw)) return verdicts;
@@ -142,7 +155,7 @@ function readAnswer(raw: unknown, ids: ReadonlySet<string>) {
     const parsed = answerItemSchema.safeParse(entry);
     if (!parsed.success || !ids.has(parsed.data.id)) continue;
     if (verdicts.has(parsed.data.id)) repeated.add(parsed.data.id);
-    verdicts.set(parsed.data.id, { reason: parsed.data.reason.trim().slice(0, NOTE_REASON_MAX), verdict: parsed.data.verdict });
+    verdicts.set(parsed.data.id, { reasons: reasonsOf(parsed.data.reason_en, parsed.data.reason_ko), verdict: parsed.data.verdict });
   }
 
   for (const id of repeated) verdicts.delete(id);
@@ -156,7 +169,7 @@ function readAnswer(raw: unknown, ids: ReadonlySet<string>) {
 export async function classifyNoteCandidates(
   candidates: readonly NoteCandidate[],
   model: NoteClassifierModel,
-  options: { readonly timezone: string; readonly language: RequestLanguage },
+  options: { readonly timezone: string },
 ): Promise<NoteRecommendation[]> {
   // One representative per series, or the candidate itself.
   const groups = new Map<string, number>();
@@ -170,7 +183,7 @@ export async function classifyNoteCandidates(
     return representatives.length - 1;
   });
 
-  const judged: { verdict: NoteVerdict; reason: string | null }[] = representatives.map(() => ({ reason: null, verdict: "unsure" }));
+  const judged: { verdict: NoteVerdict; reasons: NoteReasons | null }[] = representatives.map(() => ({ reasons: null, verdict: "unsure" }));
 
   for (let offset = 0; offset < representatives.length; offset += NOTE_CLASSIFIER_BATCH) {
     const batch = representatives.slice(offset, offset + NOTE_CLASSIFIER_BATCH);
@@ -179,7 +192,7 @@ export async function classifyNoteCandidates(
     let raw: unknown;
 
     try {
-      raw = await model(items, { language: options.language });
+      raw = await model(items, {});
     } catch {
       continue;
     }

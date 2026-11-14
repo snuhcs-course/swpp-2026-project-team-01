@@ -34,9 +34,9 @@ import { HostIneligibleError } from "./host-eligibility";
 import { type ClaimedJob, type JobHandler, publishJob } from "./jobs";
 import { type NoteAnswer, noteAnswerMatcher, readNoteAnswers } from "./note-answers";
 import { limitNoteClassifier } from "./model-limits";
-import { classifyNoteCandidates, type NoteClassifierModel } from "./note-classifier";
+import { classifyNoteCandidates, type NoteCandidate, type NoteClassifierModel, type NoteVerdict } from "./note-classifier";
+import { knownWeeklyVerdicts, publishWeeklyNoteReview } from "./note-weekly-store";
 import { noteClassifierFromEnvironment } from "./note-classifier-stand-in";
-import type { RequestLanguage } from "../contracts/request";
 import { type TokenKey, tokenKeyFromEnvironment } from "./token-encryption";
 
 // Calendar analysis (design decision 8). Saving roles, or Analyze again, publishes
@@ -573,13 +573,21 @@ export async function writeDraft(tx: Transaction, hostAccountId: string, fields:
 
 // Inserts a pending scan of the saved conflict calendars and publishes its job in
 // the caller's transaction. One scan per (host, key): publishing the same key again
-// returns the scan already published.
-export async function publishAnalysis(tx: Transaction, hostAccountId: string, rolesRevision: number, key: string) {
+// returns the scan already published. A weekly note check (calendar-note-review
+// design 9) names its week, so the finished scan records that week's review.
+export async function publishAnalysis(
+  tx: Transaction,
+  hostAccountId: string,
+  rolesRevision: number,
+  key: string,
+  options: { readonly weeklyCheck?: string; readonly rangeDays?: number } = {},
+) {
   const analysisId = randomUUID();
+  const rangeDays = options.rangeDays ?? RANGE_DAYS;
   const jobId = await publishJob(tx, {
     dedupeKey: `${CALENDAR_ANALYSIS_JOB}:${hostAccountId}:${key}`,
     kind: CALENDAR_ANALYSIS_JOB,
-    payload: { analysisId },
+    payload: { analysisId, ...(options.weeklyCheck ? { weeklyCheck: options.weeklyCheck } : {}) },
   });
 
   if (!jobId) {
@@ -594,7 +602,7 @@ export async function publishAnalysis(tx: Transaction, hostAccountId: string, ro
   await tx`
     insert into app.calendar_analyses (id, host_account_id, roles_revision, range_start, range_end, calendars)
     select ${analysisId}, r.host_account_id, ${rolesRevision},
-           now() - make_interval(days => ${RANGE_DAYS}), now() + make_interval(days => ${RANGE_DAYS}),
+           now() - make_interval(days => ${rangeDays}), now() + make_interval(days => ${rangeDays}),
            coalesce(
              (select jsonb_agg(jsonb_build_object('id', c ->> 'id', 'summary', c ->> 'summary', 'ok', null))
               from jsonb_array_elements(r.conflict_calendars) c),
@@ -685,17 +693,29 @@ function analysisDependenciesFromEnvironment(): CalendarAnalysisDependencies {
 // The scan's note candidates with the classifier's recommendations. The call is
 // apart from the host assistant and sees titles only as data; whatever it
 // answers, a candidate stays busy until the host confirms it.
+// A weekly check passes the verdicts its earlier list already gave (known), so
+// only new or changed candidates go to the model again (proposal D10).
 export async function withNoteRecommendations(
   evidence: AnalysisEvidence,
   classify: NoteClassifierModel | undefined,
-  language: RequestLanguage,
+  known: (entry: NoteCandidate) => NoteVerdict | null = () => null,
 ): Promise<AnalysisEvidence> {
   const entries = evidence.noteLike.entries;
   if (!classify || entries.length === 0) return evidence;
-  const recommended = await classifyNoteCandidates(entries, classify, { language, timezone: evidence.timezone });
+  const kept = entries.map((entry) => known(entry));
+  const fresh = entries.filter((_, index) => kept[index] === null);
+  const recommended = fresh.length ? await classifyNoteCandidates(fresh, classify, { timezone: evidence.timezone }) : [];
+  let next = 0;
   return {
     ...evidence,
-    noteLike: { entries: recommended.map(({ candidate, reason, verdict }) => ({ ...candidate, reason: reason || null, verdict })) },
+    noteLike: {
+      entries: entries.map((entry, index) => {
+        const verdict = kept[index];
+        if (verdict) return { ...entry, reasons: null, verdict };
+        const judged = recommended[next++]!;
+        return { ...judged.candidate, reasons: judged.reasons, verdict: judged.verdict };
+      }),
+    },
   };
 }
 
@@ -853,10 +873,11 @@ export function createCalendarAnalysisHandler(
       timezone: countingZone(zones, primaryTimeZone),
     });
     const { classify, limitClassifier = limitNoteClassifier } = load();
+    const weeklyCheck = typeof job.payload.weeklyCheck === "string" ? job.payload.weeklyCheck : null;
     const evidence = await withNoteRecommendations(
       counted,
       classify && limitClassifier(classify, hostAccountId),
-      await hostConversationLanguage(tx, hostAccountId),
+      weeklyCheck ? await knownWeeklyVerdicts(tx, hostAccountId) : undefined,
     );
 
     await tx`
@@ -867,6 +888,7 @@ export function createCalendarAnalysisHandler(
       where id = ${analysisId}
     `;
     await queueHoursQuestion(tx, hostAccountId, load().tokenKeys, evidence, analysisId!);
+    if (weeklyCheck) await publishWeeklyNoteReview(tx, { analysisId: analysisId!, hostAccountId, week: weeklyCheck });
     return { state: "completed" };
   };
 

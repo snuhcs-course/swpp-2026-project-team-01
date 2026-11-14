@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { classifierItem, classifyNoteCandidates, NOTE_CLASSIFIER_BATCH, type NoteCandidate, type NoteClassifierItem, type NoteClassifierModel } from "./note-classifier";
 
-const options = { language: "ko", timezone: "Asia/Seoul" } as const;
+const options = { timezone: "Asia/Seoul" } as const;
 
 let sequence = 0;
 
@@ -27,7 +27,7 @@ function candidate(overrides: Partial<NoteCandidate> = {}): NoteCandidate {
 function answering(pick: (item: NoteClassifierItem) => string, calls: NoteClassifierItem[][] = []): NoteClassifierModel {
   return async (items) => {
     calls.push([...items]);
-    return items.map((item) => ({ id: item.id, reason: `reason for ${item.title}`, verdict: pick(item) }));
+    return items.map((item) => ({ id: item.id, reason_en: `reason for ${item.title}`, reason_ko: `${item.title}의 이유`, verdict: pick(item) }));
   };
 }
 
@@ -58,7 +58,7 @@ describe("classifierItem", () => {
 });
 
 describe("classifyNoteCandidates", () => {
-  it("keeps one verdict per candidate with the model's reason", async () => {
+  it("keeps one verdict per candidate with the model's reason in English and Korean", async () => {
     const birthday = candidate({ allDay: true, end: "2026-10-15", start: "2026-10-14", title: "엄마 생일" });
     const gym = candidate({ title: "헬스" });
     const result = await classifyNoteCandidates(
@@ -68,26 +68,26 @@ describe("classifyNoteCandidates", () => {
     );
 
     expect(result).toEqual([
-      { candidate: birthday, reason: "reason for 엄마 생일", verdict: "note" },
-      { candidate: gym, reason: "reason for 헬스", verdict: "event" },
+      { candidate: birthday, reasons: { en: "reason for 엄마 생일", ko: "엄마 생일의 이유" }, verdict: "note" },
+      { candidate: gym, reasons: { en: "reason for 헬스", ko: "헬스의 이유" }, verdict: "event" },
     ]);
   });
 
   it("makes a missing, repeated or unknown ID unsure", async () => {
     const [first, second, third] = [candidate(), candidate(), candidate()];
     const model: NoteClassifierModel = async () => [
-      { id: "c1", reason: "first", verdict: "note" },
+      { id: "c1", reason_en: "first", reason_ko: "처음", verdict: "note" },
       // c2 answered twice: neither answer is kept.
-      { id: "c2", reason: "a", verdict: "note" },
-      { id: "c2", reason: "b", verdict: "event" },
+      { id: "c2", reason_en: "a", reason_ko: "가", verdict: "note" },
+      { id: "c2", reason_en: "b", reason_ko: "나", verdict: "event" },
       // c3 missing; an ID that was never sent.
-      { id: "c9", reason: "unknown", verdict: "note" },
-      { id: "host@example.test", reason: "unknown", verdict: "note" },
+      { id: "c9", reason_en: "unknown", reason_ko: "모름", verdict: "note" },
+      { id: "host@example.test", reason_en: "unknown", reason_ko: "모름", verdict: "note" },
     ];
 
     const result = await classifyNoteCandidates([first!, second!, third!], model, options);
 
-    expect(result.map((entry) => [entry.verdict, entry.reason])).toEqual([["note", "first"], ["unsure", null], ["unsure", null]]);
+    expect(result.map((entry) => [entry.verdict, entry.reasons])).toEqual([["note", { en: "first", ko: "처음" }], ["unsure", null], ["unsure", null]]);
   });
 
   it("makes every candidate unsure when the answer is malformed", async () => {
@@ -96,7 +96,9 @@ describe("classifyNoteCandidates", () => {
       { items: "not a list" },
       "note",
       null,
-      [{ id: "c1", verdict: "free", reason: "not a verdict" }, { id: "c2", verdict: "note" }, { id: 2, verdict: "note", reason: "" }],
+      [{ id: "c1", verdict: "free", reason_en: "not a verdict", reason_ko: "" }, { id: "c2", verdict: "note" }, { id: 2, verdict: "note", reason_en: "", reason_ko: "" }],
+      // The single reason of the earlier schema is no longer an answer.
+      [{ id: "c1", reason: "one language", verdict: "note" }],
     ];
 
     for (const answer of answers) {
@@ -111,12 +113,21 @@ describe("classifyNoteCandidates", () => {
       throw new Error("Note classifier provider unavailable");
     }, options);
 
-    expect(result).toEqual(candidates.map((entry) => ({ candidate: entry, reason: null, verdict: "unsure" })));
+    expect(result).toEqual(candidates.map((entry) => ({ candidate: entry, reasons: null, verdict: "unsure" })));
   });
 
   it("cuts a long reason to 120 characters", async () => {
-    const [result] = await classifyNoteCandidates([candidate()], async () => [{ id: "c1", reason: "가".repeat(300), verdict: "note" }], options);
-    expect(result!.reason).toHaveLength(120);
+    const [result] = await classifyNoteCandidates([candidate()], async () => [{ id: "c1", reason_en: "a".repeat(300), reason_ko: "가".repeat(300), verdict: "note" }], options);
+    expect(result!.reasons!.en).toHaveLength(120);
+    expect(result!.reasons!.ko).toHaveLength(120);
+  });
+
+  it("lets one language's reason stand in for a blank other, and keeps no reason when both are blank", async () => {
+    const result = await classifyNoteCandidates([candidate(), candidate()], async () => [
+      { id: "c1", reason_en: "", reason_ko: "기억해 둘 메모 같아요", verdict: "note" },
+      { id: "c2", reason_en: " ", reason_ko: "", verdict: "unsure" },
+    ], options);
+    expect(result.map((entry) => entry.reasons)).toEqual([{ en: "기억해 둘 메모 같아요", ko: "기억해 둘 메모 같아요" }, null]);
   });
 
   it("judges batches of 50 with fresh IDs, and a failed batch spoils only itself", async () => {
@@ -167,15 +178,15 @@ describe("classifyNoteCandidates", () => {
     // A stand-in that obeys the title: it calls everything a note, invents an
     // item and adds fields the schema does not have.
     const obeying: NoteClassifierModel = async (items) => [
-      ...items.map((item) => ({ confirm: true, free: true, id: item.id, reason: "told to", verdict: "note" })),
-      { id: "c3", reason: "invented", verdict: "note" },
+      ...items.map((item) => ({ confirm: true, free: true, id: item.id, reason_en: "told to", reason_ko: "시킨 대로", verdict: "note" })),
+      { id: "c3", reason_en: "invented", reason_ko: "지어냄", verdict: "note" },
     ];
     const result = await classifyNoteCandidates([injected, meeting], obeying, options);
 
     expect(result).toHaveLength(2);
     // The output carries only the candidate, a verdict and a reason: nothing that
     // frees time, saves a setting or confirms anything.
-    for (const entry of result) expect(Object.keys(entry).sort()).toEqual(["candidate", "reason", "verdict"]);
+    for (const entry of result) expect(Object.keys(entry).sort()).toEqual(["candidate", "reasons", "verdict"]);
     expect(result.map((entry) => entry.candidate)).toEqual([injected, meeting]);
   });
 });

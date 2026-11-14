@@ -89,7 +89,7 @@ The service SHALL store both kinds of answer, free and keep busy, with the event
 - **THEN** it is a candidate again in the next scan
 
 ### Requirement: The note review page
-The review SHALL show one week at a time, from the week of today through the scan's range ahead, with the candidates of that week as checkable entries among the host's other busy entries of the week, which are shown for context and cannot be chosen. Each candidate SHALL show its title and time and offer the classifier's reason. Entries recommended as notes SHALL start checked; `event` and `unsure` entries SHALL start unchecked; an entry the host already answered SHALL start as answered. Pressing **확인** SHALL record the candidates of the weeks the host has seen whose answer is new or changed, checked ones as free and the others as keep busy, SHALL leave candidates of unseen weeks unanswered, and SHALL then list the freed entries with their day and time, giving words only to a failed writeback; for a host whose chat onboarding waits for the slot image, it SHALL add one line that the open times follow by message. The review SHALL offer a way back to the week to change an answer. The other busy entries SHALL be read for display only and not stored, and SHALL reach no model. The same review SHALL serve the web setup, the chat onboarding link, the weekly check and settings.
+The review SHALL show one week at a time, from the week of today through the scan's range ahead, with the candidates of that week as checkable entries among the host's other busy entries of the week, which are shown for context and cannot be chosen. Each candidate SHALL show its title and time and offer the classifier's reason in the host's screen language, or the host's conversation language when the screen's is not known. Entries recommended as notes SHALL start checked; `event` and `unsure` entries SHALL start unchecked; an entry the host already answered SHALL start as answered. Pressing **확인** SHALL record the candidates of the weeks the host has seen whose answer is new or changed, checked ones as free and the others as keep busy, SHALL leave candidates of unseen weeks unanswered, and SHALL then list the freed entries with their day and time, giving words only to a failed writeback; for a host whose chat onboarding waits for the slot image, it SHALL add one line that the open times follow by message. The review SHALL offer a way back to the week to change an answer. The other busy entries SHALL be read for display only and not stored, and SHALL reach no model. The same review SHALL serve the web setup, the chat onboarding link, the weekly check and settings.
 
 #### Scenario: Pre-checked recommendations in their week
 - **WHEN** the classifier recommends two of five entries in one week as notes, and that week also has two meetings with guests
@@ -104,7 +104,7 @@ The review SHALL show one week at a time, from the week of today through the sca
 - **THEN** that note is not recorded and stays busy until the host sees it
 
 ### Requirement: Weekly note check
-Once a week a scheduled durable job SHALL scan each ready host's conflict calendars afresh, select candidates that are new or changed since the host last answered or was last asked, judge them, and record a review of them without their titles. A week with no such candidate SHALL send nothing. New candidates SHALL stay busy until the host answers. A replayed job SHALL record one review.
+Once a week a scheduled durable job SHALL scan each ready host's conflict calendars afresh, select the candidates the host has not answered with an unchanged entry (new entries, entries changed since the answer, and entries left unanswered in an earlier list), judge only those that are new or changed since the previous list, and record a review of them without their titles, replacing the previous one. A week with no such candidate SHALL record and send nothing. New candidates SHALL stay busy until the host answers. A replayed job SHALL record one review.
 
 #### Scenario: Only new entries asked
 - **WHEN** last week's check offered three entries, the host answered two, and one new note was written since
@@ -113,6 +113,10 @@ Once a week a scheduled durable job SHALL scan each ready host's conflict calend
 #### Scenario: Nothing new
 - **WHEN** no candidate is new, changed or unanswered
 - **THEN** no review is recorded and nothing is sent
+
+#### Scenario: Replayed check
+- **WHEN** the week's check job runs again after it recorded the review
+- **THEN** the same review stands and no second list is sent
 
 ### Requirement: Reviewing notes again from settings
 After setup the host SHALL be able to open the note review from the web settings at any time. It SHALL scan afresh, show current candidates and earlier decisions with their writeback state, and let the host change a decision, a busy entry becoming free under the same confirmation and writeback rules and a freed entry becoming busy again in Google Calendar.

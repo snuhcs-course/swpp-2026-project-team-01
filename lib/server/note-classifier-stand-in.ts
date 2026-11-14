@@ -21,10 +21,15 @@ const REASONS = {
 
 // Fixed answers by title words, for local runs and tests only. It reads the
 // title as data like the real classifier: an instruction in it is just text.
-export const standInNoteClassifier: NoteClassifierModel = async (items, { language }) =>
+export const standInNoteClassifier: NoteClassifierModel = async (items) =>
   items.map((item) => {
     const verdict = NOTE_WORDS.test(item.title) ? "note" : EVENT_WORDS.test(item.title) ? "event" : "unsure";
-    return { id: item.id, reason: verdict === "unsure" ? "" : REASONS[language][verdict], verdict };
+    return {
+      id: item.id,
+      reason_en: verdict === "unsure" ? "" : REASONS.en[verdict],
+      reason_ko: verdict === "unsure" ? "" : REASONS.ko[verdict],
+      verdict,
+    };
   });
 
 export function noteClassifierFromEnvironment(env: Environment = process.env): NoteClassifierModel | undefined {

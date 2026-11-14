@@ -32,7 +32,7 @@ type MatchedEvent = {
   readonly updated: string | null;
 };
 
-function notLater(updated: string, fingerprint: string) {
+export function notLater(updated: string, fingerprint: string) {
   const at = Date.parse(updated);
   const answered = Date.parse(fingerprint);
   return Number.isNaN(at) || Number.isNaN(answered) ? updated === fingerprint : at <= answered;

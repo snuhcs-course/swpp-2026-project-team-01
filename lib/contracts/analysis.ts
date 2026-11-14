@@ -59,6 +59,10 @@ export type AnalysisEvidence = {
       // The note classifier's recommendation and its short reason; absent when no
       // classifier ran. A recommendation frees nothing.
       readonly verdict?: "note" | "event" | "unsure";
+      // The reason in English and Korean, so the review shows the host's screen
+      // language; scans stored before that carry one reason, in the
+      // conversation's language at scan time.
+      readonly reasons?: { readonly en: string; readonly ko: string } | null;
       readonly reason?: string | null;
     }[];
   };

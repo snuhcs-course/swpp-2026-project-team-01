@@ -1,9 +1,11 @@
 import { z } from "zod";
 import type { AnalysisCard } from "../contracts/analysis";
 import type { NoteReview, NoteReviewChoice, NoteReviewDecision, NoteReviewItem, NoteWeek, NoteWeekEvent } from "../contracts/note-review";
+import type { RequestLanguage } from "../contracts/request";
 import type { CalendarRef } from "../contracts/setup";
 import { lockActiveHost, readLatestAnalysis } from "./analysis";
 import { isWritable } from "./calendar-roles";
+import { hostConversationLanguage } from "./channel-language";
 import { json } from "./chat-routes";
 import { type CommandDefinition, CommandError, type CommandOutcome, runCommand } from "./commands";
 import type { Queryable } from "./database";
@@ -72,8 +74,11 @@ export function buildNoteReview(input: {
   readonly calendars: readonly CalendarRef[];
   readonly decisions: readonly DecisionView[];
   readonly now: Date;
+  // The language the reason is shown in; English by default.
+  readonly language?: RequestLanguage;
 }): { review: NoteReview; sources: ReadonlyMap<string, Source> } {
   const { analysis, calendars, decisions, now } = input;
+  const language = input.language ?? "en";
   const named = new Map(calendars.map((calendar) => [calendar.id, calendar]));
   const entries = analysis?.state === "completed" ? (analysis.evidence?.noteLike.entries ?? []) : [];
   const groups = new Map<string, Entry[]>();
@@ -120,7 +125,7 @@ export function buildNoteReview(input: {
       end: shown.end ?? null,
       key,
       occurrences: ordered.map((entry) => ({ allDay: entry.allDay, end: entry.end ?? null, id: entry.eventId, start: entry.start })),
-      reason: shown.reason || null,
+      reason: (shown.reasons ? shown.reasons[language] : shown.reason) || null,
       repeats: Boolean(shown.seriesId),
       start: shown.start,
       title: shown.title,
@@ -265,8 +270,16 @@ async function reviewInputs(db: Queryable, hostAccountId: string) {
   };
 }
 
-export async function readNoteReview(db: Queryable, hostAccountId: string, now = new Date()): Promise<NoteReview> {
-  return buildNoteReview({ ...(await reviewInputs(db, hostAccountId)), now }).review;
+export async function readNoteReview(db: Queryable, hostAccountId: string, now = new Date(), language?: RequestLanguage): Promise<NoteReview> {
+  return buildNoteReview({ ...(await reviewInputs(db, hostAccountId)), language, now }).review;
+}
+
+// The language the review shows the reasons in: the screen's, from the
+// language cookie the web app sets, else the host's conversation, by the rule
+// the linked conversation's fixed replies follow.
+export async function reviewLanguage(request: Request, db: Queryable, hostAccountId: string): Promise<RequestLanguage> {
+  const cookie = /(?:^|;\s*)lang=(en|ko)(?:;|$)/.exec(request.headers.get("cookie") ?? "");
+  return (cookie?.[1] as RequestLanguage | undefined) ?? (await hostConversationLanguage(db, hostAccountId));
 }
 
 const choiceSchema = z
@@ -334,7 +347,7 @@ export function createNoteReviewHandler(load: () => SetupRouteDependencies = set
     if (actor instanceof Response) return actor;
     const inputs = await reviewInputs(deps.db, actor.id);
     const now = new Date();
-    const built = buildNoteReview({ ...inputs, now });
+    const built = buildNoteReview({ ...inputs, language: await reviewLanguage(request, deps.db, actor.id), now });
     const sources = built.sources;
     const review = { ...built.review, slotImageWaits: await slotImageWaits(deps.db, actor.id) };
     if (review.state !== "ready" || !inputs.analysis) return json(review);

@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { AnalysisCard, AnalysisEvidence } from "../contracts/analysis";
-import { buildNoteReview, weekBounds } from "./note-review";
+import { buildNoteReview, reviewLanguage, weekBounds } from "./note-review";
 
 type Entry = AnalysisEvidence["noteLike"]["entries"][number];
 
@@ -159,5 +159,30 @@ describe("weekBounds", () => {
     expect(weekBounds("2027-01-01", "Asia/Seoul", now, rangeEnd)).toMatchObject({ next: null, start: "2026-12-07" });
     expect(weekBounds("2026-10-01", "Asia/Seoul", now, rangeEnd)).toMatchObject({ previous: null, start: "2026-11-09" });
     expect(weekBounds("not-a-date", "Asia/Seoul", now, rangeEnd)).toMatchObject({ start: "2026-11-09" });
+  });
+});
+
+describe("the reason's language", () => {
+  const reasons = { en: "Reads like a reminder.", ko: "기억해 둘 메모처럼 보여요." };
+
+  it("shows the reason in the language asked for, English by default", () => {
+    const input = { analysis: analysis([entry({ eventId: "birthday", reasons, verdict: "note" })]), calendars, decisions: [], now };
+    expect(buildNoteReview({ ...input, language: "ko" }).review.items[0]!.reason).toBe(reasons.ko);
+    expect(buildNoteReview({ ...input, language: "en" }).review.items[0]!.reason).toBe(reasons.en);
+    expect(buildNoteReview(input).review.items[0]!.reason).toBe(reasons.en);
+  });
+
+  it("keeps the one reason of a scan stored before both were asked for", () => {
+    const { review } = buildNoteReview({ analysis: analysis([entry({ eventId: "gym", reason: "직접 시간을 쓰는 일정처럼 보여요.", verdict: "event" })]), calendars, decisions: [], language: "en", now });
+    expect(review.items[0]!.reason).toBe("직접 시간을 쓰는 일정처럼 보여요.");
+  });
+
+  it("takes the screen language from the language cookie, else the host's conversation", async () => {
+    const conversation = (message: string | null) => (async () => (message === null ? [] : [{ message }])) as unknown as Parameters<typeof reviewLanguage>[1];
+    const request = (cookie: string | null) => new Request("https://findmeatime.test/api/notes/review", cookie ? { headers: { cookie } } : {});
+    expect(await reviewLanguage(request("theme=dark; lang=ko"), conversation("Hello"), "host")).toBe("ko");
+    expect(await reviewLanguage(request("lang=en"), conversation("안녕하세요"), "host")).toBe("en");
+    expect(await reviewLanguage(request("lang=fr"), conversation("안녕하세요"), "host")).toBe("ko");
+    expect(await reviewLanguage(request(null), conversation(null), "host")).toBe("en");
   });
 });

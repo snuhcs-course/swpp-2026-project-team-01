@@ -2,19 +2,19 @@
 
 ## 1. Classifier
 
-- [ ] 1.1 Select note candidates (opaque, no other attendee, all-day included) in `lib/server/analysis.ts`, skipping entries answered with a matching fingerprint. Verify unit tests for an event with a guest, a transparent event, an all-day event and an answered entry.
-- [ ] 1.2 Add the classifier module beside `lib/server/host-schedule-image-openai.ts`: no tools, strict schema `{id, verdict, reason}`, batches of 50, titles as data, unknown or missing IDs as `unsure`. Verify unit tests for a malformed answer, an unknown ID, a failed call, and a title written as an instruction (OWASP LLM01) that frees nothing. No evaluation set is declared: the host confirms every recommendation.
+- [x] 1.1 Select note candidates (opaque, no other attendee, all-day included) in `lib/server/analysis.ts`, skipping entries answered with a matching fingerprint. Verify unit tests for an event with a guest, a transparent event, an all-day event and an answered entry.
+- [x] 1.2 Add the classifier module beside `lib/server/host-schedule-image-openai.ts`: no tools, strict schema `{id, verdict, reason}`, batches of 50, titles as data, unknown or missing IDs as `unsure`. Verify unit tests for a malformed answer, an unknown ID, a failed call, and a title written as an instruction (OWASP LLM01) that frees nothing. No evaluation set is declared: the host confirms every recommendation.
 
 ## 2. Writing free back to Google
 
-- [ ] 2.1 Add `app.calendar_note_decisions` (decision, scope, fingerprint, writeback state; no title) in `supabase/schemas/` with its generated migration, kept by analysis cleanup. Verify database tests for RLS and cleanup.
-- [ ] 2.2 Add `events.patch` for transparency to `lib/server/google-calendar.ts` and a writeback job kind: retry transient failures, mark permanent failures `failed`, store the returned `updated`. Verify integration tests through the Google stand-in for success, a 403, a timeout then success, and a replay.
-- [ ] 2.3 Patch the series by default and one occurrence on request; undo by patching `opaque`. Verify integration tests for both scopes and an undo.
-- [ ] 2.4 Record free decisions on calendars the host cannot write as `noteExclusions` (`lib/contracts/setup.ts`, `normalizeBusy`), with the 200-entry limit. Verify unit tests for a subscribed calendar and the limit.
+- [x] 2.1 Add `app.calendar_note_decisions` (decision, scope, fingerprint, writeback state; no title) in `supabase/schemas/` with its generated migration, kept by analysis cleanup. Verify database tests for RLS and cleanup.
+- [x] 2.2 Add `events.patch` for transparency to `lib/server/google-calendar.ts` and a writeback job kind: retry transient failures, mark permanent failures `failed`, store the returned `updated`. Verify integration tests through the Google stand-in for success, a 403, a timeout then success, and a replay.
+- [x] 2.3 Patch the series by default and one occurrence on request; undo by patching `opaque`. Verify integration tests for both scopes and an undo.
+- [x] 2.4 Record free decisions on calendars the host cannot write as `noteExclusions` (`lib/contracts/setup.ts`, `normalizeBusy`), with the 200-entry limit. Verify unit tests for a subscribed calendar and the limit.
 
 ## 3. The review page
 
-- [ ] 3.1 Build the review as a standalone week view like Google Calendar (design 7: a checkbox on each yellow candidate, pre-checked for `note`, the reason as its tooltip, grey context from the week's other busy entries read live, all-day row, week navigation; after 확인, the freed entries with their times under the Google line and a way back to change them) and use it in `NotesStep` and an authenticated `/app` route. Apply the design mock-ups from Slack. Verify component tests and a Playwright test from scan to confirmed note.
+- [x] 3.1 Build the review as a standalone week view like Google Calendar (design 7: a checkbox on each yellow candidate, pre-checked for `note`, the reason as its tooltip, grey context from the week's other busy entries read live, all-day row, week navigation; after 확인, the freed entries with their times under the Google line and a way back to change them) and use it in `NotesStep` and an authenticated `/app` route. Apply the design mock-ups from Slack. Verify component tests and a Playwright test from scan to confirmed note.
 - [ ] 3.2 *(Follow-up, outside this iteration.)* On a phone-width screen, show three days at a time instead of scrolling the week sideways.
 
 ## 4. The chat onboarding step
@@ -29,9 +29,9 @@
 
 This group may move to the next iteration if the schedule slips; tasks 1–5 stand without it.
 
-- [ ] 6.1 Add the weekly pg_cron schedule (hand-written migration, mirrored in `supabase/schemas/app/cron/`) that publishes one durable job per ready host; each job scans afresh, selects new, changed or unanswered candidates, classifies them and records a review without titles. Verify integration tests for only-new entries, nothing new and a replayed job.
-- [ ] 6.2 Send the numbered list on iMessage and Telegram, and on WhatsApp inside the window, or the template with the link outside it, with titles quoted as data. Verify integration tests through the stand-ins for each channel, a closed window and a refused template.
-- [ ] 6.3 Add `choose_note_items` and `confirm_note_items` for linked-conversation turns with the read-back before freeing. Verify integration tests for read-back then yes, an unclear answer, keep busy by number, a stale list, the same words on the web, and a listed title written as an instruction.
+- [x] 6.1 Add the weekly pg_cron schedule (hand-written migration, mirrored in `supabase/schemas/app/cron/`) that publishes one durable job per ready host; each job scans afresh, selects new, changed or unanswered candidates, classifies them and records a review without titles. Verify integration tests for only-new entries, nothing new and a replayed job.
+- [x] 6.2 Send the numbered list on iMessage and Telegram, and on WhatsApp inside the window, or the template with the link outside it, with titles quoted as data. Verify integration tests through the stand-ins for each channel, a closed window and a refused template.
+- [x] 6.3 Add `choose_note_items` and `confirm_note_items` for linked-conversation turns with the read-back before freeing. Verify integration tests for read-back then yes, an unclear answer, keep busy by number, a stale list, the same words on the web, and a listed title written as an instruction.
 
 ## 7. Documents
 

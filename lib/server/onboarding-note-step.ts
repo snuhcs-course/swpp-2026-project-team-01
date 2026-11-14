@@ -42,6 +42,30 @@ export async function slotImageWaits(q: Queryable, hostAccountId: string) {
   return binding ? ((await noteStepOf(q, binding.id))?.waiting ?? false) : false;
 }
 
+// How long the chat waits for the review before the image goes out anyway,
+// with the candidates still busy (user, 2026-11-14). On WhatsApp the image must
+// leave inside Meta's 24-hour window, which opened with the host's place answer
+// right before the link, so it goes an hour before that window closes.
+export const NOTE_REVIEW_WAIT_HOURS = 24;
+export const NOTE_REVIEW_WAIT_HOURS_WHATSAPP = 23;
+
+// Called in the transaction that records the review link: publishes the one
+// job that sends the image if the host neither confirms nor skips in time. The
+// job finds the step no longer waiting, and sends nothing, once 확인 or a skip
+// sent the image; they share the image's dedupe key, so one image goes out.
+export async function queueSlotImageAfterWait(
+  tx: Transaction,
+  input: { readonly hostAccountId: string; readonly bindingId: string; readonly channel: string; readonly linkId: string },
+) {
+  const hours = input.channel === "whatsapp" ? NOTE_REVIEW_WAIT_HOURS_WHATSAPP : NOTE_REVIEW_WAIT_HOURS;
+  await publishJob(tx, {
+    dedupeKey: `${ONBOARDING_SLOT_IMAGE_JOB}:${input.linkId}:wait`,
+    kind: ONBOARDING_SLOT_IMAGE_JOB,
+    payload: { bindingId: input.bindingId, hostAccountId: input.hostAccountId, linkId: input.linkId, waited: true },
+    runAfter: new Date(Date.now() + hours * 3_600_000),
+  });
+}
+
 // Called in the transaction of the review's 확인: when the host's linked chat is
 // waiting for the slot image, publishes the job that sends it. A replayed or
 // repeated 확인 publishes the same job once. Returns whether the image follows.

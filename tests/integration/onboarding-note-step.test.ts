@@ -61,8 +61,8 @@ function events(withNotes: boolean): FakeEvent[] {
   return [...notes, meeting];
 }
 
-async function turn(host: SeededHost, sender: string, text: string): Promise<SetupToolCall> {
-  expect((await im.deliver({ sender, text })).outcome).toBe("forwarded");
+async function turn(host: SeededHost, sender: string, text: string, channel: "imessage" | "whatsapp" = "imessage"): Promise<SetupToolCall> {
+  expect((await im.deliver({ channel, sender, text })).outcome).toBe("forwarded");
   const [input] = await db<{ id: string }[]>`select id from app.conversation_inputs where discussion_id = ${host.discussionId} order by accepted_at desc, id desc limit 1`;
   await db`update app.agent_sessions set current_input_id = ${input!.id} where session_id = ${host.sessionId}`;
   return { auth: { principalId: host.hostAccountId, principalType: "user", attributes: { audience: "host_setup" } }, sessionId: host.sessionId, callId: randomUUID() };
@@ -80,12 +80,12 @@ async function analysisJob(hostAccountId: string) {
 }
 
 // A linked host whose scan finished and who answered hours and place (online).
-async function placeAnswered(options: { notes?: boolean } = {}) {
+async function placeAnswered(options: { notes?: boolean; channel?: "imessage" | "whatsapp" } = {}) {
   const host = await seedHost(db, deps, google, { displayName: "Host" });
   google.setFixture(host.refreshToken, { calendars: host.calendars, events: { [host.primaryId]: events(options.notes ?? true) } });
-  const { sender } = await im.link(host.hostAccountId);
+  const { sender } = await im.link(host.hostAccountId, undefined, options.channel ?? "imessage");
   await runJob(db, await analysisJob(host.hostAccountId), analysis());
-  const call = await turn(host, sender, "Weekdays 9 to 6 are fine, and online only please");
+  const call = await turn(host, sender, "Weekdays 9 to 6 are fine, and online only please", options.channel ?? "imessage");
   const state = await readSetupStateForTool(deps, call);
   expect(await draftSettingsForTool(deps, { ...call, callId: randomUUID() }, {
     expectedRevision: state.draftRevision,
@@ -106,7 +106,7 @@ async function images(hostAccountId: string) {
 }
 
 async function imageJobs(hostAccountId: string) {
-  return db<{ id: string }[]>`select id from app.jobs where kind = ${ONBOARDING_SLOT_IMAGE_JOB} and payload ->> 'hostAccountId' = ${hostAccountId}`;
+  return db<{ id: string }[]>`select id from app.jobs where kind = ${ONBOARDING_SLOT_IMAGE_JOB} and payload ->> 'hostAccountId' = ${hostAccountId} and payload ->> 'waited' is null`;
 }
 
 async function sentImage(outboxId: string) {
@@ -218,6 +218,75 @@ describe("the note step after the place answer", () => {
   });
 });
 
+describe("a review left unanswered (design 8)", () => {
+  async function waitJob(hostAccountId: string) {
+    const [job] = await db<{ id: string; hours: number }[]>`
+      select id, round(extract(epoch from (run_after - created_at)) / 3600)::int as hours from app.jobs
+      where kind = ${ONBOARDING_SLOT_IMAGE_JOB} and payload ->> 'hostAccountId' = ${hostAccountId} and payload ->> 'waited' = 'true'
+    `;
+    return job!;
+  }
+
+  async function laterNotes(hostAccountId: string) {
+    return db<{ id: string }[]>`select id from app.imessage_outbox where host_account_id = ${hostAccountId} and dedupe_key like 'onboarding-notes-later:%'`;
+  }
+
+  it("sends the image with the notes busy after a day without 확인 or a skip, once, with one line on choosing later", async () => {
+    const { call, host } = await placeAnswered();
+    expect(await previewNextWeekForTool(deps, { ...call, callId: randomUUID() })).toMatchObject({ noteReviewSent: true });
+    const job = await waitJob(host.hostAccountId);
+    expect(job.hours).toBe(24);
+    // The day has passed: the worker runs the job.
+    expect(await runJob(db, job.id, createOnboardingSlotImageHandler(() => deps))).toBe("completed");
+    const [image] = await images(host.hostAccountId);
+    expect(openOn(await sentImage(image!.id), BIRTHDAY_DAY)).toEqual([]);
+    expect(await slotImageWaits(db, host.hostAccountId)).toBe(false);
+
+    const [later] = await laterNotes(host.hostAccountId);
+    const { sent } = await im.send(later!.id, { ...im.sendDeps(), tokenKeys: deps.calendar.tokenKeys });
+    expect(sent[0]?.content).toMatchObject({ kind: "text", text: channelReplies("en").onboarding.noteReviewLater(`${deps.appOrigin}/app/notes`) });
+
+    // A 확인 after that records the answer and sends no second image.
+    const review = await readNoteReview(db, host.hostAccountId);
+    const birthday = review.items.find(item => item.title === "엄마 생일")!;
+    expect(await confirm(host.hostAccountId, { analysisId: review.analysisId!, choices: [{ key: birthday.key, decision: "free" }] })).toMatchObject({ ok: true, result: { slotImage: false } });
+    expect(await images(host.hostAccountId)).toHaveLength(1);
+  });
+
+  it("sends nothing after the wait once 확인 sent the image", async () => {
+    const { call, host } = await placeAnswered();
+    await previewNextWeekForTool(deps, { ...call, callId: randomUUID() });
+    const review = await readNoteReview(db, host.hostAccountId);
+    expect(await confirm(host.hostAccountId, { analysisId: review.analysisId!, choices: [] })).toMatchObject({ result: { slotImage: true } });
+    const [confirmed] = await imageJobs(host.hostAccountId);
+    expect(await runJob(db, confirmed!.id, createOnboardingSlotImageHandler(() => deps))).toBe("completed");
+
+    expect(await runJob(db, (await waitJob(host.hostAccountId)).id, createOnboardingSlotImageHandler(() => deps))).toBe("completed");
+    expect(await images(host.hostAccountId)).toHaveLength(1);
+    expect(await laterNotes(host.hostAccountId)).toHaveLength(0);
+  });
+
+  it("sends nothing after the wait once a skip in words sent the image", async () => {
+    const { call, host } = await placeAnswered();
+    await previewNextWeekForTool(deps, { ...call, callId: randomUUID() });
+    expect(await previewNextWeekForTool(deps, { ...call, callId: randomUUID() }, { skipNoteReview: true })).toMatchObject({ queued: true });
+    expect(await runJob(db, (await waitJob(host.hostAccountId)).id, createOnboardingSlotImageHandler(() => deps))).toBe("completed");
+    expect(await images(host.hostAccountId)).toHaveLength(1);
+    expect(await laterNotes(host.hostAccountId)).toHaveLength(0);
+  });
+
+  it("waits 23 hours on WhatsApp, so the image leaves inside the window", async () => {
+    const { call, host } = await placeAnswered({ channel: "whatsapp" });
+    expect(await previewNextWeekForTool(deps, { ...call, callId: randomUUID() })).toMatchObject({ noteReviewSent: true });
+    const job = await waitJob(host.hostAccountId);
+    expect(job.hours).toBe(23);
+    expect(await runJob(db, job.id, createOnboardingSlotImageHandler(() => deps))).toBe("completed");
+    const [image] = await images(host.hostAccountId);
+    const { sent } = await im.send(image!.id, { ...im.sendDeps(), tokenKeys: deps.calendar.tokenKeys });
+    expect(sent[0]).toMatchObject({ channel: "whatsapp", content: { kind: "image" } });
+  });
+});
+
 describe("the classifier's usage limit", () => {
   it("reserves each call, settles reported usage and refuses after ten calls a day", async () => {
     const host = await seedHost(db, deps, google);
@@ -225,12 +294,12 @@ describe("the classifier's usage limit", () => {
     const model: NoteClassifierModel = async (items, options) => {
       calls += 1;
       options.onUsage?.({ cachedInputTokens: 0, inputTokens: 1000, modelId: "gpt-5.6-terra", outputTokens: 500 });
-      return items.map(item => ({ id: item.id, reason: "", verdict: "unsure" }));
+      return items.map(item => ({ id: item.id, reason_en: "", reason_ko: "", verdict: "unsure" }));
     };
     const limited = limitNoteClassifier(model, host.hostAccountId, () => db);
     const item = { id: "c1", title: "x", allDay: true, weekday: null, startTime: null, durationMinutes: null, durationDays: 1, repeats: false, hasLocation: false, hasConferenceLink: false };
-    for (let index = 0; index < MODEL_LIMITS.noteClassifierAttempts; index += 1) await limited([item], { language: "en" });
-    await expect(limited([item], { language: "en" })).rejects.toBeInstanceOf(ModelLimitError);
+    for (let index = 0; index < MODEL_LIMITS.noteClassifierAttempts; index += 1) await limited([item], {});
+    await expect(limited([item], {})).rejects.toBeInstanceOf(ModelLimitError);
     expect(calls).toBe(MODEL_LIMITS.noteClassifierAttempts);
     const rows = await db<{ amount_usd: string }[]>`
       select amount_usd::text from app.model_reservations where work_kind = 'note_classification' and work_id = ${host.hostAccountId}

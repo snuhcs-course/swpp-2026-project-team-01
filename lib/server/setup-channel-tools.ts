@@ -22,7 +22,7 @@ import type { Queryable, Transaction } from "./database";
 import type { ClaimedJob, JobHandler } from "./jobs";
 import { slotPreviewNoteExclusions } from "./note-decisions";
 import { readNoteReview } from "./note-review";
-import { noteReviewLinkKey, noteStepOf } from "./onboarding-note-step";
+import { noteReviewLinkKey, noteStepOf, queueSlotImageAfterWait } from "./onboarding-note-step";
 import { SETUP_FIELD_SCHEMAS } from "../contracts/setup";
 import { enqueueSettingsButtonRetirement } from "./telegram-jobs";
 
@@ -252,11 +252,13 @@ export async function previewNextWeekForTool(deps: SetupDependencies, call: Setu
         if (await channelOfTurn(tx, call.sessionId, actor.id) !== channel) throw new CommandError("forbidden");
         const active = await activeBindingOfHost(tx, actor.id);
         if (active?.id !== binding.id) throw new CommandError("stale_revision");
-        await recordOutbound(tx, {
+        const link = await recordOutbound(tx, {
           kind: "notice", dedupeKey: noteReviewLinkKey(binding.id), hostAccountId: actor.id, bindingId: binding.id,
           recipient: bindingRecipient(deps.calendar.tokenKeys, binding), recipientHash: binding.sender_hash, tokenKey: deps.calendar.tokenKeys[0]!,
           text: channelReplies(language).onboarding.noteReviewLink(candidates, `${deps.appOrigin}/app/notes`),
         });
+        // Without 확인 or a skip in time, the image still follows (design 8).
+        if (link.created) await queueSlotImageAfterWait(tx, { bindingId: binding.id, channel: binding.channel, hostAccountId: actor.id, linkId: link.id });
         return { proposalHash: context.input.proposalHash };
       },
     }, { input: { proposalHash: proposal.proposalHash }, resourceId: actor.id, retryKey: `tool:${call.callId}` });
@@ -335,11 +337,22 @@ export function createOnboardingSlotImageHandler(load: () => SetupDependencies =
     const current = await computeSetupProposal(tx, hostAccountId);
     if (current?.proposalHash !== proposal.proposalHash) throw new SlotImageRetry("The draft changed while the preview was computed");
     const language = await hostConversationLanguage(tx, hostAccountId);
-    await recordOutbound(tx, {
+    const recipient = bindingRecipient(deps.calendar.tokenKeys, binding);
+    // 확인 and the wait share this key, so one image goes out whichever comes first.
+    const image = await recordOutbound(tx, {
       kind: "image", image: { preview: composed.preview, language }, reviewHash: proposal.proposalHash,
       dedupeKey: `slot-preview:${binding.id}:notes:${linkId}`, hostAccountId, bindingId: binding.id,
-      recipient: bindingRecipient(deps.calendar.tokenKeys, binding), recipientHash: binding.sender_hash, tokenKey: deps.calendar.tokenKeys[0]!,
+      recipient, recipientHash: binding.sender_hash, tokenKey: deps.calendar.tokenKeys[0]!,
     });
-    return { queued: true, reviewRef: composed.preview.reviewRef };
+    // After the wait, one line under the image says the notes can still be
+    // chosen later; it waits a little so it arrives after the image.
+    if (job.payload.waited === true && image.created) {
+      await recordOutbound(tx, {
+        kind: "notice", dedupeKey: `onboarding-notes-later:${linkId}`, hostAccountId, bindingId: binding.id, delaySeconds: 5,
+        recipient, recipientHash: binding.sender_hash, tokenKey: deps.calendar.tokenKeys[0]!,
+        text: channelReplies(language).onboarding.noteReviewLater(`${deps.appOrigin}/app/notes`),
+      });
+    }
+    return { queued: true, reviewRef: composed.preview.reviewRef, waited: job.payload.waited === true };
   };
 }

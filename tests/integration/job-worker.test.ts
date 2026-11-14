@@ -149,10 +149,12 @@ describe("per-kind batch limits", () => {
     expect(second).toEqual({ claimed: 1, results: { completed: 1 } });
   });
 
-  it("limits Calendar analysis to two jobs per batch", async () => {
+  // A scan may ask the note classifier twice, each call up to 30 seconds, so
+  // one fits within the lease (calendar-note-review).
+  it("limits Calendar analysis to one job per batch", async () => {
     const { JOB_BATCH_LIMITS } = await import("../../lib/server/job-handlers");
 
-    expect(JOB_BATCH_LIMITS.calendar_analysis).toBe(2);
+    expect(JOB_BATCH_LIMITS.calendar_analysis).toBe(1);
   });
 });
 
