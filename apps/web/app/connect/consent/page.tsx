@@ -14,6 +14,7 @@ import { Suspense } from "react";
 // same-origin, not no-referrer: with no-referrer Chrome sends `Origin: null` on
 // the form post, which the decision's same-origin check refuses.
 export const metadata: Metadata = { referrer: "same-origin", robots: { follow: false, index: false }, title: "Connect an agent" };
+export const instant = false;
 
 type SearchParams = Promise<{ transaction?: string; problem?: string }>;
 
@@ -24,7 +25,8 @@ const PROBLEMS: Readonly<Record<string, string>> = {
   sign_in: "Sign in as the host to allow this connection.",
 };
 
-export default function Page({ searchParams }: { readonly searchParams: SearchParams }) {
+export default async function Page({ searchParams }: { readonly searchParams: SearchParams }) {
+  await connection();
   return (
     <Suspense fallback={<p className="sr-only" role="status">Loading the connection request...</p>}>
       <Consent searchParams={searchParams} />
@@ -33,7 +35,6 @@ export default function Page({ searchParams }: { readonly searchParams: SearchPa
 }
 
 async function Consent({ searchParams }: { readonly searchParams: SearchParams }) {
-  await connection();
   const { transaction = "", problem } = await searchParams;
   const cookie = (await cookies())
     .getAll()

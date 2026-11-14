@@ -11,6 +11,7 @@ import {
 } from "../contracts/setup";
 import type { z } from "zod";
 import type { CalendarEvent } from "./google-calendar";
+import { exclusionAnswer, noteAnswerMatcher } from "./note-answers";
 
 // The deterministic feasibility engine (design decisions 8 to 10). It is pure:
 // the evaluation job reads calendars, routes and allowances, and passes them in
@@ -224,9 +225,7 @@ function endpointOf(event: CalendarEvent, endpointKey: (text: string) => string)
 // decline, other than the host's bookings, marked as meetings.
 export function normalizeBusy(events: readonly CalendarEvent[], options: NormalizeOptions): BusyInterval[] {
   const self = options.selfEmail?.trim().toLowerCase() ?? null;
-  const excluded = new Set(
-    (options.noteExclusions ?? []).map((entry) => `${entry.calendarId}\u0000${entry.eventId}\u0000${entry.fingerprint}`),
-  );
+  const excluded = noteAnswerMatcher((options.noteExclusions ?? []).map(exclusionAnswer));
   const seen = new Set<string>();
   const busy: BusyInterval[] = [];
 
@@ -239,7 +238,7 @@ export function normalizeBusy(events: readonly CalendarEvent[], options: Normali
     ) {
       continue;
     }
-    if (excluded.has(`${event.calendarId}\u0000${event.id}\u0000${event.updated ?? ""}`)) continue;
+    if (excluded(event)) continue;
 
     const key = identity(event);
     if (seen.has(key)) continue;

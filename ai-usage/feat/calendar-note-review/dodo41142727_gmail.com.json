@@ -1,0 +1,23 @@
+{
+  "branch": "feat/calendar-note-review",
+  "user": "dodo41142727@gmail.com",
+  "sessions": {
+    "claude:b6140197-1c05-46f2-91a0-d0d103c42b96": {
+      "agent": "claude-code",
+      "client": "claude-desktop",
+      "agent_ms": 0,
+      "models": {
+        "claude-opus-5-5": {
+          "input": 16,
+          "cache_read": 1035934,
+          "cache_write_5m": 0,
+          "cache_write_1h": 13009,
+          "output": 4626,
+          "reasoning": 0
+        }
+      },
+      "first": "2026-11-14T11:10:31.020Z",
+      "last": "2026-11-14T11:11:56.842Z"
+    }
+  }
+}

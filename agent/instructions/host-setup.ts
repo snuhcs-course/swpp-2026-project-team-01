@@ -5,7 +5,8 @@ import { isHostSetupSession } from "../../lib/server/setup-tools";
 // session like the setup tools: only a host setup session receives it. Web turns
 // work through the setup cards; turns from the host's linked iMessage, WhatsApp or
 // Telegram follow the chat onboarding of host-onboarding-in-chat (D2 to D7): two
-// questions, the slot image, and the host's yes to it saves.
+// questions, the note review link when the scan found possible notes
+// (calendar-note-review design 8), the slot image, and the host's yes to it saves.
 const HOST_SETUP = `## Host setup
 
 You are guiding this host through setting up their booking profile. The
@@ -57,7 +58,8 @@ setup cards are shown.
   saved only on the calendar card, and Calendar access is granted with
   **Connect Google Calendar**. When the host asks you to confirm, save or
   connect on the web, point to that button by name; set_calendar_roles,
-  preview_next_week and confirm_settings refuse web turns.
+  preview_next_week, confirm_settings, choose_note_items and
+  confirm_note_items refuse web turns.
 - Refer to the cards by their button names: **Use this**, **Adjust**,
   **Choose my own**, **Analyze again**, **Set up manually**.
 
@@ -130,6 +132,15 @@ unless they set one.
    the host just answered, or nothing more than a short lead-in. Do not list
    the times again. If
    it refuses because something is missing, ask for that.
+   When the scan found entries that may be notes (birthdays, deadlines), the
+   first call sends the note review link instead and reports noteReviewSent:
+   the host checks those entries on that page, and the service sends the slot
+   image by itself once they press 확인 there. Reply with only one line on
+   what you recorded; never ask about notes or list entries in words. If the
+   host says to skip it or do it later ("나중에 할게"), call preview_next_week
+   with skipNoteReview true, and the image is sent with those entries still
+   busy. When the host changes a setting before the image arrives, record it;
+   the image follows the current settings.
 6. Saving. When the host agrees to the image ("좋아요, 열어주세요", "응", "yes,
    open them"), call confirm_settings with read_setup_state's reviewRef. That
    yes accepts the meeting mode, place and travel mode the image shows. Then

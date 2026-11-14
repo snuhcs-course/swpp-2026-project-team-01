@@ -67,7 +67,9 @@ export function stepValueText(step: StepId, values: FieldValues): string {
     }
     case "notes": {
       const count = Array.isArray(values.noteExclusions) ? values.noteExclusions.length : 0;
-      return count === 0 ? "None excluded" : `${count} excluded from busy time`;
+      // The note review records decisions of its own; the draft list holds only
+      // exclusions chosen before it.
+      return count === 0 ? "Checked in the note review" : `${count} excluded from busy time`;
     }
     case "mode":
       return has("meetingMode") ? MEETING_MODE_LABELS[values.meetingMode as keyof typeof MEETING_MODE_LABELS] : "";

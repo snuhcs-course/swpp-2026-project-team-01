@@ -129,6 +129,9 @@ for (const viewport of [
     await expect(page.locator('[data-guest-card="identity"]').getByText(`Grace Hopper · ${email}`)).toBeVisible();
     await expect(page.locator('[data-guest-card="calendar"]').getByText("Skipped")).toBeVisible();
     await expect(page.getByText("Hi, I'm Thyme, Ada Lovelace's scheduling assistant.", { exact: false })).toBeVisible();
+    await page.reload();
+    await expect(page.locator('[data-guest-card="identity"]').getByText(`Grace Hopper · ${email}`)).toBeVisible();
+    await expect(page.locator('[data-guest-card="calendar"]').getByText("Skipped")).toBeVisible();
 
     // U13: the fixed question with what the host offers, and the composer opens.
     await expect(page.getByText("What would you like to meet Ada Lovelace about? Ada Lovelace offers 30-minute meetings", { exact: false })).toBeVisible();
@@ -178,7 +181,12 @@ for (const viewport of [
     `;
     expect(agreed).toEqual({ state: "awaiting_host_approval", version: 1 });
 
-    // Withdraw request is in the thread's menu beside the composer, by keyboard.
+    // Request actions sit inside the composer, immediately before Send.
+    const composerButtons = page.locator('[data-chat-composer] [data-slot="input-group-addon"] > button');
+    await expect(composerButtons).toHaveCount(2);
+    await expect(composerButtons.first()).toHaveAttribute("aria-label", "Request actions");
+    await expect(composerButtons.last()).toHaveAttribute("aria-label", "Send message");
+    // Withdraw request remains available by keyboard.
     await press(page, /^Request actions$/);
     await expect(page.getByRole("menuitem", { name: "Withdraw request" })).toBeVisible();
     await page.keyboard.press("Escape");

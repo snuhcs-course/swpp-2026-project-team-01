@@ -32,7 +32,11 @@ export const metadata: Metadata = {
   title: "Your meeting request",
 };
 
-export default function Page({ params }: { readonly params: Params }) {
+// The booking link is the guest's credential; resolve it for every request.
+export const instant = false;
+
+export default async function Page({ params }: { readonly params: Params }) {
+  await connection();
   return (
     <Suspense fallback={<p className="sr-only" role="status">Loading your request...</p>}>
       <Booking params={params} />
@@ -41,7 +45,6 @@ export default function Page({ params }: { readonly params: Params }) {
 }
 
 async function Booking({ params }: { readonly params: Params }) {
-  await connection();
   const { bookingId } = await params;
   const db = database();
   const link = await findRequestByBookingId(db, bookingId);

@@ -1,0 +1,40 @@
+{
+  "branch": "claude/great-hypatia-8bd492",
+  "user": "haisung.choi@gmail.com",
+  "sessions": {
+    "claude:1eafcc2f-ef27-4c8b-a878-ffac5369feeb": {
+      "agent": "claude-code",
+      "client": "claude-desktop",
+      "agent_ms": 0,
+      "models": {
+        "claude-opus-5-5": {
+          "input": 80,
+          "cache_read": 7006736,
+          "cache_write_5m": 0,
+          "cache_write_1h": 272218,
+          "output": 22237,
+          "reasoning": 0
+        }
+      },
+      "first": "2026-11-13T16:58:38.060Z",
+      "last": "2026-11-14T06:32:19.903Z"
+    },
+    "claude:ee5d9112-6f2c-444f-87b7-6f9284b89b0b": {
+      "agent": "claude-code",
+      "client": "claude-desktop",
+      "agent_ms": 0,
+      "models": {
+        "claude-opus-5-5": {
+          "input": 438,
+          "cache_read": 77559043,
+          "cache_write_5m": 0,
+          "cache_write_1h": 842188,
+          "output": 168697,
+          "reasoning": 0
+        }
+      },
+      "first": "2026-11-13T16:22:32.362Z",
+      "last": "2026-11-14T06:11:31.865Z"
+    }
+  }
+}

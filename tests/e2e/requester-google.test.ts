@@ -47,6 +47,8 @@ test("a Google guest can reuse their host calendar and basic details", async ({ 
   await expect(page.getByRole("checkbox", { name: /Basic details/ })).toBeChecked();
   await press(page, /^Use these settings$/);
   await expect(page.locator('[data-guest-card="host_profile"]')).toContainText("Using your calendars, your basic details");
+  await page.reload();
+  await expect(page.locator('[data-guest-card="host_profile"]')).toContainText("Using your calendars, your basic details");
 
   const profile = async () => (await db<{ items: string[]; decided: boolean; settled: boolean; timezone: string }[]>`
     select p.items, p.decided_at is not null as decided, r.calendar_settled_at is not null as settled,
@@ -137,6 +139,9 @@ for (const viewport of [
     const [identified] = await db<{ id: string; state: string; requester_name: string; contact_email: string }[]>`select id, state, requester_name, contact_email from app.requests where host_account_id = ${host.hostAccountId}`;
     expect(identified).toEqual({ id: draft!.id, state: "gathering", requester_name: "Grace Hopper", contact_email: email });
     await expect(page.locator('[data-guest-card="calendar"]').getByText("Skipped")).toBeVisible();
+    await page.reload();
+    await expect(page.locator('[data-guest-card="identity"]').getByText("Continued with Google")).toBeVisible();
+    await expect(page.locator('[data-guest-card="calendar"]').getByText("Skipped")).toBeVisible();
 
     // U13: the fixed question opens the composer; the assistant's drafted review
     // (recorded as its tool would, the model being the local stand-in) is
@@ -178,6 +183,9 @@ for (const viewport of [
 
     await expect(page).toHaveURL(/\/booking\/[0-9a-f-]{36}$/);
     await expect(page.getByText("Google is connected for this request.")).toBeVisible();
+    await expect(page.getByRole("heading", { name: "Which calendars should count?" })).toBeVisible();
+    await expect(page.getByText("Grace's calendar")).toBeVisible();
+    await page.reload();
     await expect(page.getByRole("heading", { name: "Which calendars should count?" })).toBeVisible();
     await expect(page.getByText("Grace's calendar")).toBeVisible();
   });

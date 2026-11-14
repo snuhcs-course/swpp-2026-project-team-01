@@ -42,6 +42,17 @@ flowchart TD
 
 The diagram shows logical responsibilities. Final process/worker placement is a foundation exit decision, not a reason to create extra services now.
 
+### Deployment view
+
+The services and providers that carry those responsibilities today, as built in Phases 1 and 2 and the channel changes:
+
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="assets/architecture/system-architecture-dark.png">
+  <img src="assets/architecture/system-architecture.png" alt="Find Me a Time deployment view: Host, Requester and MCP clients reach Next.js on Vercel over HTTPS; Next.js calls the eve agent with an internal bearer, and eve calls OpenAI gpt-5.6-terra. iMessage and WhatsApp through Photon Spectrum and AgentMail reach eve by webhook. Both services use Supabase Auth and Postgres, whose pg_net and pg_cron wake the job worker. The server calls Google Calendar and sends email through Cloudflare. GitHub Actions deploys to Vercel and applies migrations to Supabase.">
+</picture>
+
+Next.js and the eve agent are separate Vercel services; Postgres in the private `app` schema holds domain state and durable jobs. The [foundation design](../openspec/changes/application-foundation/design.md) records the call path, data access and job placement. [`system-architecture.html`](assets/architecture/system-architecture.html) is the self-contained source the PNGs were rendered from with [stack-diagram](https://github.com/caru-ini/stack-diagram); update it and re-render both themes when a service or provider changes.
+
 ## User surfaces and trust boundaries
 
 Hosts use `/app` for access, setup, request selection, private review and settings. Requesters start at `/{handle}` and continue through request-scoped access at `/booking/[bookingId]`. Public `/SKILL.md` and `/{handle}/SKILL.md` describe connection steps without granting access. Provider consent returns to the same authorized context.

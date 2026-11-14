@@ -19,6 +19,8 @@ import { assignHandle, checkHandle, HandleError } from "./handles";
 import { authorizeSetupTool, type SetupToolCall } from "./setup-tools";
 import { channelOfTurn } from "./channel-selection";
 import { acceptedEntry, computeSetupProposal, draftedEntry, proposalValues, type SetupLinks, setupLinks } from "./setup";
+import type { NoteExclusion } from "./feasibility";
+import { lockNoteDecisions, withNoteDecisionExclusions } from "./note-decisions";
 
 // The draft and confirmation commands of host setup (design decisions 10 to 12).
 // Each runs through runCommand: the actor comes from verified credentials, the
@@ -216,6 +218,10 @@ export function confirmSettingsCommand(
       }
 
       const verifiedAt = new Date().toISOString();
+      // Free note decisions on calendars the host cannot change stay excluded
+      // (calendar-note-review design 6): they are host actions, not reviewed fields.
+      await lockNoteDecisions(tx, hostAccountId);
+      const noteExclusions = await withNoteDecisionExclusions(tx, hostAccountId, (parsed.noteExclusions ?? []) as NoteExclusion[]);
       const settings = {
         bookingCalendar: { ...toRef(destination), verifiedAt },
         bufferAfterMinutes: parsed.bufferAfterMinutes,
@@ -227,7 +233,7 @@ export function confirmSettingsCommand(
         // An online-only policy saves no location or transport.
         location: parsed.location ?? null,
         meetingMode: parsed.meetingMode,
-        noteExclusions: parsed.noteExclusions ?? [],
+        noteExclusions,
         provenance,
         timezone: parsed.timezone,
         travelBufferMinutes: parsed.travelBufferMinutes ?? null,

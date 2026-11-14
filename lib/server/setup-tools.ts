@@ -16,6 +16,7 @@ import type { Queryable, Transaction } from "./database";
 import { encodeDisplayName } from "./entry-documents";
 import { HOST_SETUP_AUDIENCE } from "./eve-auth";
 import { checkHandle } from "./handles";
+import { weeklyNoteListForModel } from "./note-weekly-store";
 import { settingsRef } from "./request-ref";
 import { draftedEntry, readSetupState, type SetupDependencies, type SetupLinks, type SetupStateView } from "./setup";
 
@@ -364,7 +365,9 @@ export async function readSetupStateForTool(deps: SetupDependencies, call: Setup
 
   if (!state) throw new SetupToolDeniedError();
 
-  return modelProjection(state);
+  // The weekly note list the service sent (calendar-note-review design 11), by
+  // reference and size; its titles come only from choose_note_items.
+  return { ...modelProjection(state), weeklyNoteList: await weeklyNoteListForModel(deps.db, actor.id) };
 }
 
 export type DraftSettingsToolResult =

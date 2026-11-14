@@ -41,7 +41,13 @@ export type FakeGoogleFixture = {
   readonly insertBehavior?: Readonly<Record<string, "created" | "lost_after_create" | "lost_before_create" | { readonly status: number }>>;
   // How events.get answers, per calendar, before falling back to the store.
   readonly getBehavior?: Readonly<Record<string, { readonly status: number }>>;
+  // How successive events.patch calls answer, per calendar, one entry per call
+  // (the last entry repeats): applied (default); lost before anything changes;
+  // applied, then the response is lost; or an HTTP error, changing nothing.
+  readonly patchBehavior?: Readonly<Record<string, readonly PatchBehavior[]>>;
 };
+
+export type PatchBehavior = "applied" | "lost_before_patch" | "lost_after_patch" | { readonly status: number; readonly reason?: string };
 
 // The consent screen's answer for the next requester round trip: approve with
 // this identity and these granted scopes (all requested ones by default), or
@@ -73,6 +79,8 @@ export type FakeGoogle = {
   createdEvents(calendarId: string): FakeEvent[];
   // Marks a created event cancelled, as a host deleting it does.
   cancelEvent(calendarId: string, eventId: string): void;
+  // The transparency an events.patch set on an event or a series, if any.
+  patched(calendarId: string, eventId: string): { readonly transparency: string; readonly updated: string } | null;
   close(): Promise<void>;
 };
 
@@ -113,6 +121,18 @@ export async function startFakeGoogle(
     return created.get(calendarId)!;
   };
   let issued = 0;
+  // events.patch changes by calendar and event (or series) ID, applied when events
+  // are listed: an occurrence takes its own change, else its series' change.
+  const patches = new Map<string, { transparency: string; updated: string }>();
+  const patchCalls = new Map<string, number>();
+  let clock = 0;
+  const patchKey = (calendarId: string, eventId: string) => `${calendarId}\u0000${eventId}`;
+  const withPatch = (calendarId: string, event: FakeEvent): FakeEvent => {
+    const own = patches.get(patchKey(calendarId, event.id));
+    const series = typeof event.recurringEventId === "string" ? patches.get(patchKey(calendarId, event.recurringEventId)) : undefined;
+    const change = own ?? series;
+    return change ? { ...event, transparency: change.transparency, updated: change.updated } : event;
+  };
 
   const server = createServer(async (request, response) => {
     let raw = "";
@@ -290,6 +310,42 @@ export async function startFakeGoogle(
       return;
     }
 
+    const patch = url.pathname.match(/^\/calendar\/v3\/calendars\/([^/]+)\/events\/([^/]+)$/);
+    if (request.method === "PATCH" && patch) {
+      const calendarId = decodeURIComponent(patch[1]!);
+      const eventId = decodeURIComponent(patch[2]!);
+      const behaviors = fixture.patchBehavior?.[calendarId] ?? [];
+      const call = patchCalls.get(calendarId) ?? 0;
+      patchCalls.set(calendarId, call + 1);
+      const behavior: PatchBehavior = behaviors[Math.min(call, behaviors.length - 1)] ?? "applied";
+      const known = [...(fixture.events[calendarId] ?? []), ...(created.get(calendarId) ?? [])]
+        .some((event) => event.id === eventId || event.recurringEventId === eventId);
+
+      if (!known) {
+        json(response, 404, { error: { code: 404, message: "Not Found" } });
+        return;
+      }
+      if (typeof behavior === "object") {
+        json(response, behavior.status, { error: { code: behavior.status, errors: [{ reason: behavior.reason ?? "forbidden" }], message: "Refused" } });
+        return;
+      }
+      if (behavior === "lost_before_patch") {
+        request.socket.destroy();
+        return;
+      }
+
+      const body = JSON.parse(raw) as { transparency?: string };
+      clock += 1;
+      const change = { transparency: body.transparency ?? "opaque", updated: new Date(Date.now() + clock).toISOString() };
+      patches.set(patchKey(calendarId, eventId), change);
+      if (behavior === "lost_after_patch") {
+        request.socket.destroy();
+        return;
+      }
+      json(response, 200, { id: eventId, ...change });
+      return;
+    }
+
     const single = url.pathname.match(/^\/calendar\/v3\/calendars\/([^/]+)\/events\/([^/]+)$/);
     if (request.method === "GET" && single) {
       const calendarId = decodeURIComponent(single[1]!);
@@ -330,6 +386,7 @@ export async function startFakeGoogle(
       const timeMin = Date.parse(url.searchParams.get("timeMin") ?? "");
       const timeMax = Date.parse(url.searchParams.get("timeMax") ?? "");
       const inRange = [...(fixture.events[calendarId] ?? []), ...(created.get(calendarId) ?? [])]
+        .map((event) => withPatch(calendarId, event))
         .filter((event) => eventInstant(event.end) > timeMin && eventInstant(event.start) < timeMax)
         .sort((a, b) => eventInstant(a.start) - eventInstant(b.start));
       json(response, 200, page(inRange, url.searchParams));
@@ -353,6 +410,7 @@ export async function startFakeGoogle(
       if (index >= 0) store[index] = { ...store[index]!, status: "cancelled" };
     },
     createdEvents: (calendarId) => [...(created.get(calendarId) ?? [])],
+    patched: (calendarId, eventId) => patches.get(patchKey(calendarId, eventId)) ?? null,
     revocations,
     revokeUrl: `${origin}/revoke`,
     setConsent: (next) => {
@@ -386,7 +444,7 @@ function at(base: number, days: number, hourUtc: number, minutes = 0) {
 // in Asia/Seoul: 12
 // counted meetings (three a week on Tuesday 10:00, Wednesday 14:00 and Thursday
 // 16:00 local, internal and external), the Wednesday one each week except the last
-// at one in-person venue, two note-like entries, a Team reader calendar, two
+// at one in-person venue, two note candidates next weekend, a Team reader calendar, two
 // calendars named "Shared" (one writer, one reader) and a holiday calendar.
 export function defaultGoogleFixture(now = new Date(), hostEmail = "host@example.test"): FakeGoogleFixture {
   const base = mondayUtc(now);
@@ -438,19 +496,22 @@ export function defaultGoogleFixture(now = new Date(), hostEmail = "host@example
 
   primary.push(
     {
-      end: { dateTime: at(base, -6, 0) },
+      // Next week's Sunday 07:00-09:00 KST: note candidates are only entries
+      // still ahead, and a weekend keeps them clear of the booking windows.
+      end: { dateTime: at(base, 13, 0) },
       iCalUID: "focus@google.com",
       id: "focus",
-      start: { dateTime: at(base, -6, -2) },
+      start: { dateTime: at(base, 13, -2) },
       status: "confirmed",
       summary: "Focus time",
       updated: "2026-10-02T00:00:00.000Z",
     },
     {
-      end: { date: new Date(base - 2 * 86_400_000).toISOString().slice(0, 10) },
+      // All day on next week's Saturday.
+      end: { date: new Date(base + 13 * 86_400_000).toISOString().slice(0, 10) },
       iCalUID: "report@google.com",
       id: "report",
-      start: { date: new Date(base - 3 * 86_400_000).toISOString().slice(0, 10) },
+      start: { date: new Date(base + 12 * 86_400_000).toISOString().slice(0, 10) },
       status: "confirmed",
       summary: "Write quarterly report",
       transparency: "opaque",

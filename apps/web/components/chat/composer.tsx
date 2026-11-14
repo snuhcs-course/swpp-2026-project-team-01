@@ -20,6 +20,7 @@ export function ChatComposer({
   className,
   disabled = false,
   disabledReason,
+  footerEnd,
   footerStart,
   isBusy = false,
   isPreparing = false,
@@ -33,6 +34,7 @@ export function ChatComposer({
   readonly className?: string;
   readonly disabled?: boolean;
   readonly disabledReason?: string;
+  readonly footerEnd?: ReactNode;
   readonly footerStart?: ReactNode;
   readonly isBusy?: boolean;
   readonly isPreparing?: boolean;
@@ -120,6 +122,7 @@ export function ChatComposer({
           <div className="-ml-2 flex min-w-0 flex-1 items-center gap-1.5 overflow-hidden">
             {footerStart ?? <span className="block h-8" />}
           </div>
+          {footerEnd}
           {isBusy ? (
             <InputGroupButton
               aria-label="Response in progress"

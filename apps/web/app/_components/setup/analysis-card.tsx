@@ -1,15 +1,16 @@
 "use client";
 
 import type { AnalysisCard as AnalysisView } from "@lib/contracts/analysis";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Button } from "@/components/ui/button";
-import { QuestionnaireChoice, QuestionnaireChoices } from "@/components/ui/questionnaire";
 import { CardActions, QuietButton, SetupCard } from "./card";
 import { calendarErrorText, formatDay } from "./format";
-import { Provenance } from "./suggestion-cards";
 import { useSetup, useStepper } from "./setup-context";
 import { StepCard } from "./step-card";
-import { noteEntries, STEP_CARD_IDS } from "./steps";
+import { STEP_CARD_IDS } from "./steps";
+import { LOCALE_COOKIE, type Locale, localeOf } from "../ink/copy";
+import { NOTE_REVIEW_COPY } from "../notes/note-review-copy";
+import { NoteReviewPanel } from "../notes/note-review-panel";
 
 // The scan (H5): while it runs, one compact card names the calendars and range
 // with a spinner; a failed or partial scan is one compact card with **Analyze
@@ -88,26 +89,22 @@ export function AnalysisCard() {
   );
 }
 
-// The note-like entries a scan found. They stay busy unless the host ticks one;
-// Save writes the whole exclusion list as the host's own choice.
+// The note candidates a scan found, in the standalone note review
+// (calendar-note-review design 7): rows the classifier recommends as notes start
+// ticked, and 확인 records the host's decisions, which free time only once Google
+// Calendar is updated. The step is then answered as the host's own choice; the
+// decisions, not the draft's exclusion list, carry the effect.
 export function NotesStep() {
-  const { busy, run, state } = useSetup();
+  const { run, state } = useSetup();
   const stepper = useStepper();
-  const id = STEP_CARD_IDS.notes;
-  const entries = noteEntries(state);
+  const locale = useLocaleCookie();
   const proposed = state.fields.noteExclusions.proposed;
-  const key = (entry: { calendarId: string; eventId: string }) => `${entry.calendarId}/${entry.eventId}`;
-  const [ticked, setTicked] = useState<ReadonlySet<string>>(() => new Set((proposed?.value ?? []).map(key)));
-  const disabled = busy !== null;
 
-  const save = async () => {
-    const value = entries
-      .filter((entry) => ticked.has(key(entry)))
-      .map((entry) => ({ calendarId: entry.calendarId, eventId: entry.eventId, fingerprint: entry.fingerprint }));
-    const saved = await run(id, [
+  const answered = async () => {
+    const saved = await run(STEP_CARD_IDS.notes, [
       {
         expectedRevision: state.draft.revision,
-        input: { action: "choose_own", field: "noteExclusions", value },
+        input: { action: "choose_own", field: "noteExclusions", value: proposed?.value ?? [] },
         operation: "setup.update_draft",
       },
     ]);
@@ -115,55 +112,20 @@ export function NotesStep() {
   };
 
   return (
-    <StepCard
-      description="No other attendee, place or link. They stay busy unless you tick them."
-      multiple
-      step="notes"
-      title="Should any of these entries leave you free?"
-    >
-      <QuestionnaireChoices className="max-h-52 gap-1.5 overflow-y-auto">
-        {entries.map((entry) => {
-          const entryKey = key(entry);
-          const title = entry.title || "Untitled entry";
-          return (
-            <QuestionnaireChoice
-              checked={ticked.has(entryKey)}
-              className="min-h-11 items-center rounded-lg px-3 py-2"
-              disabled={disabled}
-              key={entryKey}
-              onChange={(event) =>
-                setTicked((current) => {
-                  const next = new Set(current);
-                  if (event.target.checked) next.add(entryKey);
-                  else next.delete(entryKey);
-                  return next;
-                })
-              }
-              value={entryKey}
-            >
-              <span className="flex min-w-0 items-baseline gap-2">
-                <span className="sr-only">Exclude from busy time: </span>
-                <span className="min-w-0 flex-1 truncate font-medium">{title}</span>
-                <span className="shrink-0 text-xs text-muted-foreground tabular-nums">
-                  {formatDay(entry.start)}
-                  {entry.allDay ? " · all day" : null}
-                </span>
-              </span>
-            </QuestionnaireChoice>
-          );
-        })}
-      </QuestionnaireChoices>
-      <Provenance field="noteExclusions" />
-      <CardActions>
-        <Button data-trigger="use" disabled={disabled} onClick={() => void save()} type="button">
-          {busy === id ? "Saving..." : ticked.size === 0 ? "Keep all busy" : `Free ${ticked.size} entr${ticked.size === 1 ? "y" : "ies"}`}
-        </Button>
-        {proposed?.accepted ? null : (
-          <QuietButton className="ml-auto" disabled={disabled} onClick={stepper.skip}>
-            Skip for now
-          </QuietButton>
-        )}
-      </CardActions>
+    <StepCard multiple step="notes" title={NOTE_REVIEW_COPY[locale].title}>
+      <div className="max-h-[min(60dvh,32rem)] overflow-y-auto">
+        <NoteReviewPanel locale={locale} onConfirmed={answered} />
+      </div>
     </StepCard>
   );
+}
+
+// The page language from the `lang` cookie, read after hydration so the server
+// and the first client render agree.
+function useLocaleCookie(): Locale {
+  const [locale, setLocale] = useState<Locale>("en");
+  useEffect(() => {
+    setLocale(localeOf(document.cookie.split("; ").find((pair) => pair.startsWith(`${LOCALE_COOKIE}=`))?.slice(LOCALE_COOKIE.length + 1)));
+  }, []);
+  return locale;
 }

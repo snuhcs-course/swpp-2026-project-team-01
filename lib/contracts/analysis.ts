@@ -47,6 +47,23 @@ export type AnalysisEvidence = {
       readonly title: string;
       readonly start: string;
       readonly allDay: boolean;
+      // Scans stored before the note classifier (calendar-note-review) lack the
+      // fields below; they expire within 24 hours.
+      readonly end?: string;
+      // The series a recurring occurrence belongs to (Google's recurringEventId).
+      readonly seriesId?: string | null;
+      // Whether the event has a location or a conference link: the classifier
+      // gets only these flags, never the location text.
+      readonly hasLocation?: boolean;
+      readonly hasConferenceLink?: boolean;
+      // The note classifier's recommendation and its short reason; absent when no
+      // classifier ran. A recommendation frees nothing.
+      readonly verdict?: "note" | "event" | "unsure";
+      // The reason in English and Korean, so the review shows the host's screen
+      // language; scans stored before that carry one reason, in the
+      // conversation's language at scan time.
+      readonly reasons?: { readonly en: string; readonly ko: string } | null;
+      readonly reason?: string | null;
     }[];
   };
   readonly places: {

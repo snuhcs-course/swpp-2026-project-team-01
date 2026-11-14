@@ -127,7 +127,7 @@ export function GuestConversation({
   before,
   client,
   closedReason,
-  composerAside,
+  composerAction,
   entries = [],
   onError,
   lockedReason = null,
@@ -142,8 +142,8 @@ export function GuestConversation({
   readonly client: GuestDiscussionClient;
   // Why the composer is closed, when it is.
   readonly closedReason?: string;
-  // The thread's compact menu beside the composer (Edit details, Withdraw request).
-  readonly composerAside?: ReactNode;
+  // The thread's compact menu beside the send button (Edit details, Withdraw request).
+  readonly composerAction?: ReactNode;
   // The thread's cards and receipts, placed among the messages by time.
   readonly entries?: readonly ThreadEntry[];
   readonly onError?: (error: unknown) => void;
@@ -371,13 +371,12 @@ export function GuestConversation({
       </main>
 
       <div className="shrink-0 pb-[max(1rem,env(safe-area-inset-bottom))] sm:pb-6">
-        <div className="mx-auto flex w-full max-w-2xl items-end gap-2 px-4 sm:px-6">
-          {composerAside}
-          <div className="min-w-0 flex-1">
+        <div className="mx-auto w-full max-w-2xl px-4 sm:px-6">
           <ChatComposer
             autoFocus={false}
             disabled={phase === "loading" || Boolean(closedReason) || Boolean(lockedReason)}
             disabledReason={closedReason ?? lockedReason ?? undefined}
+            footerEnd={composerAction}
             isBusy={phase === "sending" || phase === "streaming"}
             onChange={setDraft}
             onStop={() => {}}
@@ -385,7 +384,6 @@ export function GuestConversation({
             placeholder={lockedReason ?? placeholder}
             value={draft}
           />
-          </div>
         </div>
       </div>
     </>

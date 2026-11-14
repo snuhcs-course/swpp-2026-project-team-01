@@ -1,0 +1,40 @@
+{
+  "branch": "claude/distracted-nobel-2f3778",
+  "user": "haisung.choi@gmail.com",
+  "sessions": {
+    "claude:1eafcc2f-ef27-4c8b-a878-ffac5369feeb": {
+      "agent": "claude-code",
+      "client": "claude-desktop",
+      "agent_ms": 0,
+      "models": {
+        "claude-opus-5-5": {
+          "input": 6,
+          "cache_read": 601929,
+          "cache_write_5m": 0,
+          "cache_write_1h": 5628,
+          "output": 2606,
+          "reasoning": 0
+        }
+      },
+      "first": "2026-11-14T06:31:24.845Z",
+      "last": "2026-11-14T06:32:26.289Z"
+    },
+    "claude:717ebf7e-07b7-4b9a-bb38-d2f890a204ab": {
+      "agent": "claude-code",
+      "client": "claude-desktop",
+      "agent_ms": 0,
+      "models": {
+        "claude-opus-5-5": {
+          "input": 92,
+          "cache_read": 6974578,
+          "cache_write_5m": 0,
+          "cache_write_1h": 130948,
+          "output": 47563,
+          "reasoning": 0
+        }
+      },
+      "first": "2026-11-14T05:48:44.657Z",
+      "last": "2026-11-14T06:17:12.868Z"
+    }
+  }
+}

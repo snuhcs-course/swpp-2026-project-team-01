@@ -9,6 +9,7 @@ import { turnReplyText } from "./email-replies";
 import { internalSigningKey, signInternalBearer } from "./internal-bearer";
 import { type JobHandler, publishJob } from "./jobs";
 import { assertMessagingAdmitted } from "./messaging";
+import { WEEKLY_LIST_PREFIX, WEEKLY_NOTE_TEMPLATE } from "./note-weekly-store";
 import {
   type PhotonConfig,
   photonConfig,
@@ -61,7 +62,8 @@ import { openToken, sealToken, type TokenKey, tokenKeyFromEnvironment } from "./
 // the row ends with category window_closed and is never sent as text. A closed
 // window's summary of a new request, a proposal awaiting approval or a booking
 // outcome queues one template instead, at most one per host per 12 hours and at
-// most the daily limit per line.
+// most the daily limit per line; so does the weekly note list, whose template has
+// no parameter (calendar-note-review design 10).
 // A guest's rows (guest-whatsapp-link design 1 and 3) take the guest binding's
 // channel and its last_inbound_at as the window; outside it they are suppressed
 // with window_closed, and no template follows, since guests have none.
@@ -528,7 +530,8 @@ export function createImessageSendHandler(load: () => ImessageSendDependencies =
       if (row.kind === "turn" && row.state === "waiting") {
         if (readText === undefined) throw new TurnNotEndedError();
         text = imessageTurnText(readText, deps.origin, row.requester_binding_id ? "requester" : "host");
-      } else if (row.kind !== "contact_card") {
+      } else if (row.kind !== "contact_card" && !(row.kind === "template" && row.text_ciphertext === null)) {
+        // A template with no parameter (the weekly note notice) has no text.
         // Every other message, a turn reply already frozen by an attempt that
         // found Photon unavailable included, sends its recorded text.
         text = open(deps, row, row.text_ciphertext);
@@ -687,9 +690,14 @@ async function queueTemplate(
   deps: ImessageSendDependencies,
   row: Pick<OutboxRow, "kind" | "dedupe_key" | "binding_id" | "host_account_id" | "request_id">,
 ) {
-  if (row.kind !== "notice" || !row.binding_id || !row.host_account_id || !row.request_id) return;
+  if (row.kind !== "notice" || !row.binding_id || !row.host_account_id) return;
+  // The weekly note list (calendar-note-review design 10) gets a template with no
+  // parameter and no event content, only for the list itself, not for the list
+  // re-sent after the host wrote.
+  const weekly = row.dedupe_key.startsWith(WEEKLY_LIST_PREFIX) && !row.dedupe_key.endsWith(":reopened");
+  if (!weekly && !row.request_id) return;
   const event = row.dedupe_key.split(":")[1] ?? "";
-  const templateName = TEMPLATE_FOR_NOTICE[event];
+  const templateName = weekly ? WEEKLY_NOTE_TEMPLATE : TEMPLATE_FOR_NOTICE[event];
   if (!templateName) return;
 
   const [binding] = await q<
@@ -722,7 +730,7 @@ async function queueTemplate(
     recipientHash: binding.sender_hash,
     requestId: row.request_id,
     templateName,
-    text: requestRef(row.request_id),
+    ...(row.request_id ? { text: requestRef(row.request_id) } : {}),
     tokenKey,
   });
 }

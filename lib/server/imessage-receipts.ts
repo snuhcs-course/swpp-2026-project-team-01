@@ -25,6 +25,7 @@ import {
   telegramDisplayName,
 } from "./imessage-links";
 import { endBlockedBinding, type ImessageSignal, recordOutbound, signalText } from "./imessage-outbox";
+import { reopenWeeklyNoteList } from "./note-weekly-store";
 import { type JobHandler, publishJob } from "./jobs";
 import { assertMessagingAdmitted } from "./messaging";
 import { type ChannelLanguage, hostConversationLanguage, textLanguage } from "./channel-language";
@@ -805,6 +806,9 @@ export async function processReceipt(
     update app.imessage_bindings set space_ciphertext = ${space.ciphertext}, last_inbound_at = now()
     where id = ${binding.id} and state = 'active'
   `;
+  // The window is open again: a weekly note list held back by it follows
+  // (calendar-note-review design 10).
+  if (receipt.channel === "whatsapp") await reopenWeeklyNoteList(tx, binding.host_account_id, binding.id);
 
   const bound = {
     authUserId: host.auth_user_id,

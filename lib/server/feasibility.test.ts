@@ -243,6 +243,24 @@ describe("deterministic intervals", () => {
     });
   });
 
+  it("skips every occurrence of a series excluded as a whole until it is edited", () => {
+    const events = normalizeBusy(
+      [
+        event({ calendarId: "birthdays", id: "mom_2026", recurringEventId: "mom", updated: "2026-10-01T00:00:00Z" }),
+        event({ calendarId: "birthdays", id: "mom_2027", recurringEventId: "mom", updated: "2026-09-01T00:00:00Z" }),
+        event({ calendarId: "birthdays", id: "mom_2028", recurringEventId: "mom", updated: "2026-10-20T00:00:00Z" }),
+      ],
+      {
+        endpointKey: hashed,
+        noteExclusions: [{ calendarId: "birthdays", eventId: "mom", fingerprint: "2026-10-01T00:00:00Z", scope: "series" }],
+        selfEmail: null,
+        timezone: "Asia/Seoul",
+      },
+    );
+
+    expect(events).toHaveLength(1);
+  });
+
   it("offers nothing when the host and requested modes conflict", () => {
     const result = evaluateFeasibility(input({ host: { ...HOST, meetingMode: "online" }, request: { mode: "in_person" } }));
     expect(result.mode).toBeNull();

@@ -1,0 +1,46 @@
+name: Epic
+description: Group related issues that land as separate pull requests under one goal.
+title: " (epic)"
+body:
+  - type: markdown
+    attributes:
+      value: |
+        An epic is a parent issue for work that several pull requests deliver, often by different people. Keep the `(epic)` suffix in the title. After opening it, add each piece as a sub-issue with **Create sub-issue** below, or `gh issue create --parent <N>`. A sub-issue is not itself an epic, and work that one pull request covers needs no epic.
+
+        Pull requests close their own sub-issue, never the epic. Close the epic when its last sub-issue closes. When an OpenSpec change is split this way, its tracking issue is the epic: name the change in Source, and the pull request that archives the change closes it.
+  - type: textarea
+    id: goal
+    attributes:
+      label: Goal
+      description: The outcome the sub-issues reach together, in one or two sentences.
+    validations:
+      required: true
+  - type: input
+    id: source
+    attributes:
+      label: Source
+      description: The OpenSpec change, implementation-plan phase, document or issue this epic comes from, if any.
+  - type: textarea
+    id: pieces
+    attributes:
+      label: Planned pieces
+      description: One line per sub-issue to open, each a piece of work for one branch and pull request.
+      placeholder: |
+        1.
+        2.
+        3.
+    validations:
+      required: true
+  - type: textarea
+    id: done
+    attributes:
+      label: Done when
+      description: Observable completion criteria for the whole epic.
+      value: Every sub-issue of this epic is closed.
+    validations:
+      required: true
+  - type: textarea
+    id: notes
+    attributes:
+      label: Notes
+      description: Order between the pieces, owners, and open questions.

@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useId, useMemo, useRef, useState } from "react";
-import { EllipsisIcon } from "lucide-react";
+import { SlidersHorizontalIcon } from "lucide-react";
 import { InkStage, Brand, CopyButton } from "@/app/_components/ink/chrome";
 import { COPY } from "@/app/_components/ink/copy";
 import { ResendLinkForm } from "@/app/_components/requester/resend-link-form";
@@ -204,16 +204,16 @@ function WebStart({
         </ChatConversation>
       </main>
       <div className="shrink-0 pb-[max(1rem,env(safe-area-inset-bottom))] sm:pb-6">
-        <div className="mx-auto flex w-full max-w-2xl items-end gap-2 px-4 sm:px-6">
-          {/* The booking page's Request actions, with nothing to act on yet. */}
-          <Button aria-label="Request actions" className="mb-1 size-11 shrink-0" disabled size="icon" type="button" variant="outline">
-            <EllipsisIcon aria-hidden className="size-5" />
-          </Button>
-          <div className="min-w-0 flex-1">
+        <div className="mx-auto w-full max-w-2xl px-4 sm:px-6">
           <ChatComposer
             autoFocus={false}
             disabled
             disabledReason={COMPOSER_LOCKED}
+            footerEnd={
+              <Button aria-label="Request actions" className="size-11 shrink-0 rounded-full" disabled size="icon" type="button" variant="secondary">
+                <SlidersHorizontalIcon aria-hidden className="size-5" />
+              </Button>
+            }
             isBusy={false}
             onChange={() => {}}
             onStop={() => {}}
@@ -221,7 +221,6 @@ function WebStart({
             placeholder={COMPOSER_LOCKED}
             value=""
           />
-          </div>
         </div>
       </div>
     </GuestFrame>

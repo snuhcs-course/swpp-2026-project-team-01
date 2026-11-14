@@ -65,7 +65,7 @@ export function createSetupStateHandler(load: () => SetupRouteDependencies = set
   };
 }
 
-const COMMAND_STATUS: Readonly<Record<CommandErrorCategory, number>> = {
+export const COMMAND_STATUS: Readonly<Record<CommandErrorCategory, number>> = {
   forbidden: 403,
   booking_pending: 409,
   identity_required: 409,
