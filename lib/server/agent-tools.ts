@@ -23,6 +23,7 @@ export type AgentToolDependencies = {
   readonly tokenKey: () => TokenKey;
   // How long find_times and evaluate_request wait for the evaluation.
   readonly evaluationWaitMs?: number;
+  readonly chatLinkOptions?: import("./imessage-links").LinkOptions;
   // The decline notice's settings; the environment's when absent, as for /app.
   readonly notices?: () => NoticeDependencies;
 };

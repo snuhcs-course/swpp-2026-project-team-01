@@ -237,6 +237,7 @@ describe("an existing request within delegation", () => {
 
     const agreed = await call(agent, token, handle, "agree_to_proposal", { expectedRevision: revision, input: { version }, retryKey: "agree-0002" });
     expect(agreed.isError).toBe(false);
+    expect(agreed.structuredContent.next).toBe("The person agreed to this time. Tell them the host must still approve, nothing is booked yet, and the outcome arrives by email. They can ask you to check again with get_request.");
     expect(agreed.structuredContent.request).toMatchObject({ state: "awaiting_host_approval" });
     const [{ count }] = Array.from(await db<{ count: number }[]>`select count(*)::int as count from app.approvals where request_id = ${request.requestId}`);
     expect(count).toBe(0);

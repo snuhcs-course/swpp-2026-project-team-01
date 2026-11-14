@@ -1,3 +1,6 @@
+import { NUMBER_INPUT } from "./imessage-links";
+import { chatStatus, linkOptions, startAgentLink } from "./connect-link";
+import { createRequesterImessageLinkCommand, readRequesterImessageStatus } from "./requester-imessage-links";
 import { z } from "zod";
 import type { RequesterView } from "../contracts/requester-view";
 import { createRequestForGrant, createRequestInput } from "./agent-requests";
@@ -63,7 +66,8 @@ export function agentRequesterProjection(view: RequesterView, requestId: string)
 
 async function projection(context: AgentToolContext, requestId: string) {
   const view = await readRequesterView(context.deps.db, requestId);
-  return view ? agentRequesterProjection(view, requestId) : null;
+  const options = linkOptions(context.deps);
+  return view ? { ...agentRequesterProjection(view, requestId), updates: chatStatus(await readRequesterImessageStatus(context.deps.db, options.tokenKeys, requestId, options.lineNumber, options.whatsappNumber)) } : null;
 }
 
 // A command of any input, as a tool holds it; the tool's own schema checked the input.
@@ -114,7 +118,7 @@ function requestCommandTool(spec: {
       });
       if (!outcome.ok) return commandError(outcome.error);
       const extra = spec.afterCommand ? await spec.afterCommand(context, outcome.result) : undefined;
-      return ok({ outcome: outcome.result, ...(extra === undefined ? {} : { evaluation: extra }), request: await projection(context, requestId) });
+      return ok({ ...(spec.name === "agree_to_proposal" && typeof outcome.result === "object" && outcome.result !== null && "outcome" in outcome.result && outcome.result.outcome === "agreed" ? { next: "The person agreed to this time. Tell them the host must still approve, nothing is booked yet, and the outcome arrives by email. They can ask you to check again with get_request." } : {}), outcome: outcome.result, ...(extra === undefined ? {} : { evaluation: extra }), request: await projection(context, requestId) });
     },
     scope: spec.scope,
     title: spec.title,
@@ -128,6 +132,21 @@ async function waitForTimes(context: AgentToolContext, result: unknown) {
 }
 
 export const REQUESTER_TOOLS: readonly AgentTool[] = [
+  {
+    name: "start_updates_link",
+    title: "Start an updates link",
+    description: "Start an iMessage or WhatsApp updates link for this request. Give the person the browser link to send the code and confirm; nothing is linked yet.",
+    role: "requester",
+    scope: "request:write",
+    readOnly: false,
+    input: z.object({ channel: z.enum(["imessage", "whatsapp"]), number: NUMBER_INPUT, retryKey: retryKeySchema }).strict(),
+    async run(context, raw) {
+      const requestId = requestOf(context);
+      if (!requestId) return unavailable();
+      const args = raw as { channel: "imessage" | "whatsapp"; number: string; retryKey: string };
+      return startAgentLink(context, createRequesterImessageLinkCommand(linkOptions(context.deps)), requestId, args);
+    },
+  },
   {
     afterClosure: true,
     bootstrap: true,

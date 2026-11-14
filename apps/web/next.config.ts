@@ -75,6 +75,7 @@ const nextConfig: NextConfig = {
       // The requester's Google return can redirect to a booking link.
       { headers: credentialPath, source: "/connections/:path*" },
       { headers: credentialPath, source: "/imessage/continue" },
+      { headers: [...credentialPath, { key: "Referrer-Policy", value: "same-origin" }], source: "/connect/link/:path*" },
       { headers: [{ key: "Cache-Control", value: "private, no-store" }], source: "/app" },
       { headers: [{ key: "Content-Security-Policy", value: consentContentSecurityPolicy }], source: "/connect/consent" },
       { headers: [{ key: "Cache-Control", value: "private, no-store" }], source: "/connect/consent" },
