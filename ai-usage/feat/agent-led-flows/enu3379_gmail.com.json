@@ -1,0 +1,57 @@
+{
+  "branch": "feat/agent-led-flows",
+  "user": "enu3379@gmail.com",
+  "sessions": {
+    "claude:cc70b365-d4d2-4c12-bc56-4883e8222433": {
+      "agent": "claude-code",
+      "client": "cli",
+      "agent_ms": 483624,
+      "models": {
+        "claude-opus-5-5": {
+          "input": 86,
+          "cache_read": 9881567,
+          "cache_write_5m": 0,
+          "cache_write_1h": 82246,
+          "output": 38507,
+          "reasoning": 0
+        }
+      },
+      "first": "2026-11-14T14:04:09.826Z",
+      "last": "2026-11-14T14:52:33.081Z"
+    },
+    "codex:01a1da64-ce4d-7642-b546-fd02c90d2f10": {
+      "agent": "codex",
+      "client": "codex_exec",
+      "agent_ms": 1581336,
+      "models": {
+        "gpt-6.1-sol": {
+          "input": 230912,
+          "cache_read": 13684608,
+          "cache_write_5m": 0,
+          "cache_write_1h": 0,
+          "output": 57696,
+          "reasoning": 16651
+        }
+      },
+      "first": "2026-11-14T14:10:11.553Z",
+      "last": "2026-11-14T14:36:22.354Z"
+    },
+    "codex:01a1da64-d06a-77d0-9da5-6b7378095cef": {
+      "agent": "codex",
+      "client": "codex_exec",
+      "agent_ms": 0,
+      "models": {
+        "codex-auto-review": {
+          "input": 162597,
+          "cache_read": 6395648,
+          "cache_write_5m": 0,
+          "cache_write_1h": 0,
+          "output": 6356,
+          "reasoning": 1711
+        }
+      },
+      "first": "2026-11-14T14:10:18.753Z",
+      "last": "2026-11-14T14:35:01.450Z"
+    }
+  }
+}
