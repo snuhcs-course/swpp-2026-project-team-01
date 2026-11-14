@@ -10,7 +10,7 @@ import {
   switchChannels,
 } from "@lib/contracts/messaging-channel";
 import { type ReactNode, useCallback, useEffect, useRef, useState } from "react";
-import { appLinkFor, readStatus, sendCommand } from "@/app/_components/imessage/imessage-card";
+import { appLinkFor, readStatus, rememberedLater, sendCommand } from "@/app/_components/imessage/imessage-card";
 import { Brand, InkStage, LanguageSelect } from "./chrome";
 import { channelCopy, COPY, type Locale, replacesText } from "./copy";
 import { AppGlyph, ExternalIcon, StatusMark } from "./icons";
@@ -126,6 +126,13 @@ export function LinkStep({ children, locale, ready }: { readonly children: React
       const first = await readStatus();
       const kind = deviceKind(navigator.userAgent);
       setDevice(kind);
+      // Legacy setup E2E suites still exercise the web workspace. Only their
+      // isolated test server may honor the old fixture flag; deployed builds
+      // never set this variable and cannot defer linking.
+      if (process.env.NEXT_PUBLIC_E2E_TEST === "1" && rememberedLater()) {
+        setShown("chat");
+        return;
+      }
       if (ready && first?.state !== "received" && first?.state !== "pending") {
         setShown("chat");
         return;

@@ -24,10 +24,9 @@ export const test = base.extend<object, { db: Database }>({
 
 export { expect } from "@playwright/test";
 
-// Most suites test the setup conversation, so their host has chosen Set up here
-// in web chat on the iMessage link step that opens /app (host-imessage-channel
-// D16), which this browser remembers; the iMessage suite opts in to the step.
-// Set up here in web chat, as this browser would remember it.
+// Older suites exercise the web setup workspace. Their local test server alone
+// recognizes this fixture flag; production never permits deferring channel
+// linking. New onboarding cases opt in to the actual link step.
 export function skipImessageStep(context: BrowserContext) {
   return context.addInitScript(() => window.localStorage.setItem("fmat:imessage-later", "1"));
 }
