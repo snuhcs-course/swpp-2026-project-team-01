@@ -426,6 +426,45 @@ test("the weekly limit counts Find Me a Time bookings unless the host chooses ev
   await expect(card(page, "Review your booking settings").getByText("At most 4 a week, counting all meetings with guests")).toBeVisible();
 });
 
+test("an in-person host is asked whether to group trips by day, after the travel buffer", async ({ baseURL, context, db, page }) => {
+  const host = await signedInHost(db, context, baseURL!);
+  await reviewableHost(db, host.hostAccountId);
+  await acceptSuggestions(db, host.hostAccountId, { displayName: "E2E Host", handle: uniqueHandle() });
+  // Every in-person answer is in; only the trip step is open.
+  const answered = (value: unknown) => db.json({ accepted: true, source: "stated", value } as Parameters<typeof db.json>[0]);
+  await db`
+    update app.setup_drafts
+    set fields = fields || jsonb_build_object(
+      'meetingMode', ${answered("in_person")}::jsonb,
+      'location', ${answered({ areas: ["Yeoksam"], kind: "places", venue: null })}::jsonb,
+      'travelMode', ${answered("transit")}::jsonb,
+      'travelBufferMinutes', ${answered(15)}::jsonb
+    )
+    where host_account_id = ${host.hostAccountId}
+  `;
+  await page.goto("/app");
+
+  const tripsName = "Should far meetings go on days you're already out that way?";
+  await expectOnlyCard(page, tripsName);
+  const trips = card(page, tripsName);
+  // The scan's fixture has no repeated trips, so the suggestion is off.
+  await expect(trips.getByText("Off", { exact: true })).toBeVisible();
+  await trips.getByRole("button", { name: "Choose my own" }).click();
+  await trips.getByRole("radio", { name: "Group trips by day" }).check();
+  await trips.getByRole("button", { name: "Save" }).click();
+
+  await expect(receipt(page, "trips")).toContainText("Far meetings go first on days you're already out that way");
+  await expectOnlyCard(page, "Review your booking settings");
+  const review = card(page, "Review your booking settings");
+  await expect(review.getByText("Far meetings go first on days you're already out that way")).toBeVisible();
+  await review.getByRole("button", { name: "Confirm and save proposed settings" }).click();
+  await expect(card(page, "You're ready.")).toBeVisible({ timeout: 15_000 });
+  const [saved] = await db<{ groupTrips: boolean }[]>`
+    select (settings ->> 'groupTrips')::boolean as "groupTrips" from app.host_settings where host_account_id = ${host.hostAccountId}
+  `;
+  expect(saved?.groupTrips).toBe(true);
+});
+
 test("the identity step and the review work by keyboard alone", async ({ baseURL, context, db, page }) => {
   const host = await signedInHost(db, context, baseURL!);
   await reviewableHost(db, host.hostAccountId);

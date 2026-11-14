@@ -109,6 +109,7 @@ export const SETUP_FIELD_SCHEMAS = {
   weeklyWindows: z.array(weeklyWindowSchema).min(1).max(21),
   weeklyLimit: z.number().int().min(1).max(50).nullable(),
   weeklyLimitCounts: z.enum(WEEKLY_LIMIT_COUNTS),
+  groupTrips: z.boolean(),
   noteExclusions: z.array(noteExclusionSchema).max(200),
   durationMinutes: z.number().int().min(15).max(240).multipleOf(5),
   bufferBeforeMinutes: z.number().int().min(0).max(120),
@@ -131,6 +132,14 @@ export const HOST_ANSWER_FIELDS: readonly SetupFieldName[] = ["meetingMode", "lo
 export const IN_PERSON_FIELDS: readonly SetupFieldName[] = ["location", "travelMode", "travelBufferMinutes"];
 
 export const OPTIONAL_FIELDS: readonly SetupFieldName[] = ["weeklyLimit", "weeklyLimitCounts", "noteExclusions"];
+
+// Optional fields that only an in-person or either policy saves; an online-only
+// policy saves none of them (same-day-trips).
+export const IN_PERSON_OPTIONAL_FIELDS: readonly SetupFieldName[] = ["groupTrips"];
+
+export function meetsInPerson(mode: MeetingMode | null | undefined) {
+  return mode === "in_person" || mode === "either";
+}
 
 // A value the host accepted earlier and has since replaced, kept so the setup
 // conversation can show the earlier answer's receipt as changed.
@@ -168,6 +177,7 @@ export const STARTER_DEFAULTS = {
   })),
   weeklyLimit: null,
   weeklyLimitCounts: "bookings",
+  groupTrips: false,
   noteExclusions: [],
   durationMinutes: 30,
   bufferBeforeMinutes: 10,
@@ -188,7 +198,7 @@ export function requiredFields(mode: MeetingMode | undefined): SetupFieldName[] 
     "handle",
   ];
 
-  return mode === "in_person" || mode === "either" ? [...base, ...IN_PERSON_FIELDS] : base;
+  return meetsInPerson(mode) ? [...base, ...IN_PERSON_FIELDS] : base;
 }
 
 export const SETUP_NEXT_ACTIONS = [
@@ -249,7 +259,7 @@ export type ConfirmedSettings = {
 };
 
 export function groupTripsOf(settings: Pick<ConfirmedSettings, "groupTrips">): boolean {
-  return settings.groupTrips ?? false;
+  return settings.groupTrips ?? STARTER_DEFAULTS.groupTrips;
 }
 
 export function weeklyLimitCountsOf(settings: Pick<ConfirmedSettings, "weeklyLimitCounts">): WeeklyLimitCount {

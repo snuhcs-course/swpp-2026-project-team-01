@@ -73,6 +73,16 @@ export type AnalysisEvidence = {
     readonly venue: { readonly name: string; readonly count: number } | null;
   };
   readonly durations: { readonly sampleSize: number; readonly medianMinutes: number | null };
+  // Trips that could have shared a day (same-day-trips): counts only, never a
+  // place. Scans stored before it was recorded lack it.
+  readonly trips?: {
+    // Local days with a busy, timed in-person event (a location and no
+    // conference link).
+    readonly inPersonDays: number;
+    // Days with an in-person event at a place other than the most frequent one,
+    // where that place also holds an in-person event on another day.
+    readonly repeatedAwayDays: number;
+  };
 };
 
 // The analysis card's projection: what was read, its result and the evidence,
@@ -105,6 +115,7 @@ export type AnalysisForModel = {
     readonly noteLikeCount: number;
     readonly places: { readonly sampleSize: number };
     readonly durations: AnalysisEvidence["durations"];
+    readonly trips: AnalysisEvidence["trips"] | null;
   } | null;
 };
 

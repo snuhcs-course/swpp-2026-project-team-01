@@ -1,6 +1,7 @@
 import type { SetupFieldName, ValueSource, WeeklyLimitCount } from "@lib/contracts/setup";
 import type { SetupState } from "@/lib/setup/client";
 import {
+  describeGroupTrips,
   describeLimit,
   describeLocation,
   describeTravelMode,
@@ -79,6 +80,8 @@ export function stepValueText(step: StepId, values: FieldValues): string {
       return has("travelMode") ? describeTravelMode(values.travelMode as Parameters<typeof describeTravelMode>[0]) : "";
     case "travelBuffer":
       return has("travelBufferMinutes") ? formatMinutes(values.travelBufferMinutes as number) : "";
+    case "trips":
+      return has("groupTrips") ? describeGroupTrips(values.groupTrips === true) : "";
     case "identity":
       return [has("displayName") ? String(values.displayName) : null, has("handle") ? `/${String(values.handle)}` : null]
         .filter(Boolean)

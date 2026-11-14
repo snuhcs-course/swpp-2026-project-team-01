@@ -1,0 +1,40 @@
+{
+  "branch": "claude/same-day-trips-setup-16a11b",
+  "user": "dodo41142727@gmail.com",
+  "sessions": {
+    "claude:5079a259-fcb2-4bf8-a8b0-81a051ff65dc": {
+      "agent": "claude-code",
+      "client": "claude-desktop",
+      "agent_ms": 0,
+      "models": {
+        "claude-opus-5-5": {
+          "input": 174,
+          "cache_read": 18492126,
+          "cache_write_5m": 0,
+          "cache_write_1h": 215677,
+          "output": 44493,
+          "reasoning": 0
+        }
+      },
+      "first": "2026-11-14T11:43:26.134Z",
+      "last": "2026-11-14T11:58:43.784Z"
+    },
+    "claude:5079a259-fcb2-4bf8-a8b0-81a051ff65dc/agent-ae9cf4e55ff4773cc": {
+      "agent": "claude-code",
+      "client": "claude-desktop",
+      "agent_ms": 0,
+      "models": {
+        "claude-sonnet-5-5": {
+          "input": 14,
+          "cache_read": 596938,
+          "cache_write_5m": 108587,
+          "cache_write_1h": 0,
+          "output": 6154,
+          "reasoning": 0
+        }
+      },
+      "first": "2026-11-14T11:54:56.944Z",
+      "last": "2026-11-14T11:55:40.774Z"
+    }
+  }
+}

@@ -219,6 +219,11 @@ export function describeLimit(limit: number | null, counts?: WeeklyLimitCount) {
   return counts ? `At most ${limit} a week, ${COUNTED_WORDS[counts]}` : `At most ${limit} meeting${limit === 1 ? "" : "s"} a week`;
 }
 
+// Whether far in-person meetings go first on days the host is already out that way.
+export function describeGroupTrips(on: boolean) {
+  return on ? "Far meetings go first on days you're already out that way" : "Off";
+}
+
 export function handleMessage(availability: HandleAvailability | null) {
   switch (availability) {
     case "available":
@@ -263,6 +268,7 @@ export const FIELD_LABELS: Readonly<Record<SetupFieldName, string>> = {
   travelMode: "How you travel",
   weeklyLimit: "Weekly meeting limit",
   weeklyLimitCounts: "What counts toward the limit",
+  groupTrips: "Group trips by day",
   weeklyWindows: "Weekly windows",
 };
 
