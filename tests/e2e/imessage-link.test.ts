@@ -183,12 +183,15 @@ for (const width of [390, 1280]) {
   });
 }
 
-test("at 1280px the link step after sign-in links by the sent message, then opens the chat", async ({ baseURL, context, db, page }) => {
+test("at 1280px a new host chooses iMessage, verifies the sender, then opens the messaging app", async ({ baseURL, context, db, page }) => {
   await page.setViewportSize({ height: 900, width: 1280 });
   const host = await signedInHost(db, context, baseURL!, { imessageStep: true });
   await page.goto("/app");
 
-  // The step asks for the number first, then shows the code: the message, the QR code and how long it works.
+  await expect(page.getByRole("heading", { level: 1, name: "You're signed in. Continue in your messages." })).toBeVisible({ timeout: 45_000 });
+  await expect(page.getByRole("button", { name: "Set up here in web chat" })).toHaveCount(0);
+  await page.getByRole("button", { name: "iMessage" }).click();
+  // The step asks for the number, then shows the message, QR code and expiry.
   await expect(page.getByRole("heading", { level: 1, name: "Which number do you use for iMessage?" })).toBeVisible({ timeout: 45_000 });
   await enterNumber(page);
   await expect(page.getByRole("heading", { level: 1, name: "Connect Thyme to your iMessage" })).toBeVisible({ timeout: 45_000 });
@@ -208,19 +211,19 @@ test("at 1280px the link step after sign-in links by the sent message, then open
   await expect(page.getByRole("heading", { name: "Your iMessage is connected." })).toBeVisible();
   expect(await db`select 1 from app.imessage_bindings where host_account_id = ${host.hostAccountId} and state = 'active'`).toHaveLength(1);
 
-  await page.getByRole("button", { name: "Go to Home" }).click();
-  await expect(page.getByRole("button", { name: "Open menu" })).toBeVisible({ timeout: 45_000 });
+  await expect(page.getByRole("link", { name: "Open iMessage" })).toHaveAttribute("href", `sms:${LINE}`);
+  await page.getByRole("link", { name: "Go to Home" }).click();
+  await expect(page).toHaveURL("/");
 });
 
-test("Set up here in web chat leaves the step, and this browser remembers it", async ({ baseURL, context, db, page }) => {
+test("a new host cannot defer messaging into web setup", async ({ baseURL, context, db, page }) => {
   await signedInHost(db, context, baseURL!, { imessageStep: true });
   await page.goto("/app");
-
-  await page.getByRole("button", { name: "Set up here in web chat" }).click({ timeout: 45_000 });
-  await expect(page.getByRole("button", { name: "Open menu" })).toBeVisible({ timeout: 45_000 });
+  await expect(page.getByRole("heading", { level: 1, name: "You're signed in. Continue in your messages." })).toBeVisible({ timeout: 45_000 });
+  await expect(page.getByRole("button", { name: "Set up here in web chat" })).toHaveCount(0);
+  await expect(page.getByRole("textbox", { name: "Message Thyme" })).toHaveCount(0);
   await page.reload();
-  await expect(page.getByRole("button", { name: "Open menu" })).toBeVisible({ timeout: 45_000 });
-  await expect(page.getByRole("heading", { name: "Connect Thyme to your iMessage" })).toHaveCount(0);
+  await expect(page.getByRole("heading", { level: 1, name: "You're signed in. Continue in your messages." })).toBeVisible({ timeout: 45_000 });
 });
 
 test("the landing's iMessage start opens the send popup, and the arriving message asks for Google", async ({ db, page }) => {
@@ -264,6 +267,7 @@ test.describe("on an iPhone", () => {
   test("the link step's Open Messages carries the deep link, with no QR code", async ({ baseURL, context, db, page }) => {
     await signedInHost(db, context, baseURL!, { imessageStep: true });
     await page.goto("/app");
+    await page.getByRole("button", { name: "iMessage" }).click();
     await enterNumber(page);
 
     const link = page.getByRole("link", { name: "Open Messages" });

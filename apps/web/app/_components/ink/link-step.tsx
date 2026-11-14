@@ -7,35 +7,19 @@ import {
   deviceKind,
   type DeviceKind,
   type MessagingChannel,
-  shownChannel,
   switchChannels,
 } from "@lib/contracts/messaging-channel";
 import { type ReactNode, useCallback, useEffect, useRef, useState } from "react";
-import { appLinkFor, readStatus, rememberedLater, rememberLater, sendCommand } from "@/app/_components/imessage/imessage-card";
+import { appLinkFor, readStatus, sendCommand } from "@/app/_components/imessage/imessage-card";
 import { Brand, InkStage, LanguageSelect } from "./chrome";
 import { channelCopy, COPY, type Locale, replacesText } from "./copy";
 import { AppGlyph, ExternalIcon, StatusMark } from "./icons";
 import { NumberForm } from "./number-form";
 import { clock, isPhone, MessagePreview, type SendCode, SendPanel, shownNumber, useNow, usePlatform } from "./send";
 
-// The /app link step (H11, D15, D16): right after Google sign-in, in place of the phone number the landing
-// redesign asked for, a host who has not linked iMessage sends Thyme one message. The step opens with a link
-// code already made. On a phone, Open Messages is a plain link the tap follows, and the screen then waits; on a
-// computer the send panel shows the QR code, this Mac's Messages and Copy. The message arriving shows the
-// masked sender for Confirm and link; an attempt carried over from the iMessage start on the landing shows here
-// the same way. A code that ran out shows Time's up with a new one a tap away. The step shows when a message
-// has arrived for the host to confirm, or, unless this browser chose Set up here in web chat (Maybe later,
-// remembered as the Connect iMessage card does), when a code is waiting or the host is not ready and has none.
-// Its words follow the `lang` cookie.
-// WhatsApp (host-whatsapp-channel D6, D7, D12) uses the same step. The channel follows the device: Android
-// makes a WhatsApp code, an iPhone, iPad or Mac an iMessage code with Use WhatsApp instead, and any other
-// computer first asks which app the host uses on their phone. A code or a sender already there keeps its own
-// channel. Confirming a WhatsApp sender first says what Thyme will send there, and confirming either says
-// which earlier link it replaces.
-// Telegram (host-telegram-channel D6, D7, D13) uses it too: Android gets Telegram where WhatsApp is not configured
-// and Use Telegram instead where it is, Apple devices get Use Telegram instead beside iMessage, the app question
-// lists every configured channel, a Telegram code opens the bot's start link, and confirming a Telegram sender
-// shows their Telegram name and says where Telegram keeps the chat.
+// After Google sign-in, an incomplete host chooses a configured messaging app and verifies its sender before
+// setup continues in that conversation. A pending or received attempt resumes here, including one started from
+// the landing page. The channel-specific proof, deep link and confirmation use the existing link commands.
 // An iMessage code needs the host's number first (imessage-number-registration D1, D3): Photon's shared lines
 // read only registered numbers, so the step asks for it, the server registers it, and the code it makes is
 // addressed to the number Photon assigned. The number is kept for this visit, so a new code needs no new entry.
@@ -132,8 +116,8 @@ export function LinkStep({ children, locale, ready }: { readonly children: React
     [base, take, wanted],
   );
 
-  // The first read decides whether the step shows, and makes the code when it does. It runs once, so a
-  // language change (which re-renders with new words) does not make another code.
+  // New hosts must choose and verify a messaging channel before setup continues
+  // there. Existing hosts with completed setup can still open the workspace.
   const started = useRef(false);
   useEffect(() => {
     if (started.current) return;
@@ -142,21 +126,15 @@ export function LinkStep({ children, locale, ready }: { readonly children: React
       const first = await readStatus();
       const kind = deviceKind(navigator.userAgent);
       setDevice(kind);
-      const later = rememberedLater();
-      const show =
-        first?.state === "received" || (!later && (first?.state === "pending" || (first?.state === "none" && !ready)));
-      if (!first || !show) {
+      if (ready && first?.state !== "received" && first?.state !== "pending") {
         setShown("chat");
         return;
       }
-      take(first);
+      if (first) take(first);
       setShown("step");
-      if (first.state !== "none") return;
-      const channel = shownChannel(kind, first.channels);
-      if (channel) await newCode(channel);
-      else setAsking(true);
+      if (first?.state === "none") setAsking(true);
     })();
-  }, [newCode, ready, take]);
+  }, [ready, take]);
 
   const state = status?.state;
   useEffect(() => {
@@ -189,14 +167,35 @@ export function LinkStep({ children, locale, ready }: { readonly children: React
   useEffect(() => heading.current?.focus({ preventScroll: true }), [screen, expired]);
 
   if (shown === "chat") return <>{children}</>;
-  if (shown === "loading" || !status) {
+  if (shown === "loading") {
     return (
       <p className="sr-only" role="status">
         Loading your workspace...
       </p>
     );
   }
-  if (status.state === "unavailable" || status.state === "fallback") return <>{children}</>;
+  if (!status || status.state === "unavailable" || status.state === "fallback" ||
+    (status.state === "none" && askChannels(status.channels).filter((option) => device !== "android" || option !== "imessage").length === 0)) {
+    return (
+      <InkStage locale={locale}>
+        <div className="inner" data-screen="imessage-link">
+          <header className="top"><Brand /><LanguageSelect locale={locale} /></header>
+          <main className="handoff">
+            <h1>{base.link.unavailableTitle}</h1>
+            <p className="lede small">{base.link.unavailableLede}</p>
+            <div className="verify-actions">
+              <button className="primary-btn" onClick={() => window.location.reload()} type="button">{base.link.retry}</button>
+              {status?.state === "fallback" ? (
+                <button className="link-btn" onClick={async () => {
+                  if (await command("imessage.link.cancel")) setAsking(true);
+                }} type="button">{base.link.chooseAnother}</button>
+              ) : null}
+            </div>
+          </main>
+        </div>
+      </InkStage>
+    );
+  }
 
   // The channel on screen: the sender's or binding's, the one whose number is asked, else the code's, else
   // the one asked for.
@@ -214,16 +213,16 @@ export function LinkStep({ children, locale, ready }: { readonly children: React
         ? switchChannels(device, status.channels, code.channel)
         : [];
 
-  const toChat = (later: boolean) => {
-    if (later) rememberLater();
+  const toChat = () => {
+    if (!ready) return;
     setShown("chat");
     window.scrollTo({ top: 0 });
   };
 
-  const skip = (alt: string) => (
+  const skip = (alt: string) => !ready ? null : (
     <span>
       {alt}{" "}
-      <button className="link-btn" onClick={() => toChat(true)} type="button">
+      <button className="link-btn" onClick={toChat} type="button">
         {c.link.skip}
       </button>
     </span>
@@ -295,7 +294,7 @@ export function LinkStep({ children, locale, ready }: { readonly children: React
           </h1>
           <p className="lede small">{c.link.askLede}</p>
           <div className="choices">
-            {askChannels(status.channels).map((option) => (
+            {askChannels(status.channels).filter((option) => device !== "android" || option !== "imessage").map((option) => (
               <button
                 aria-disabled={busy !== null}
                 className="secondary-btn"
@@ -392,9 +391,7 @@ export function LinkStep({ children, locale, ready }: { readonly children: React
             <button aria-disabled={busy !== null} className="primary-btn" onClick={() => busy === null && void newCode(channel)} type="button">
               {c.link.again}
             </button>
-            <button className="link-btn" onClick={() => toChat(true)} type="button">
-              {c.link.skip}
-            </button>
+            {ready ? <button className="link-btn" onClick={toChat} type="button">{c.link.skip}</button> : null}
           </div>
           {notice}
         </main>
@@ -448,6 +445,11 @@ export function LinkStep({ children, locale, ready }: { readonly children: React
 
     case "connected": {
       const linked = status as Extract<ImessageStatus, { state: "linked" }>;
+      const appUrl = linked.channel === "telegram"
+        ? "https://t.me/" + linked.lineNumber.replace(/^@/, "")
+        : linked.channel === "whatsapp"
+          ? "https://wa.me/" + linked.lineNumber.replace(/^\+/, "")
+          : platform === "ios" || platform === "mac" ? "sms:" + linked.lineNumber : null;
       body = (
         <main className="handoff verify">
           <StatusMark state="done" />
@@ -459,12 +461,8 @@ export function LinkStep({ children, locale, ready }: { readonly children: React
             {c.link.linkedTo} <b>{linked.sender}</b>
           </p>
           <div className="verify-actions">
-            <button className="primary-btn" onClick={() => toChat(false)} type="button">
-              {c.link.goHome}
-            </button>
-            <button className="link-btn faint" onClick={() => toChat(false)} type="button">
-              {c.link.chatWeb}
-            </button>
+            {appUrl ? <a className="primary-btn" href={appUrl}>{c.link.openConnected(channelName(linked.channel))}</a> : null}
+            <a className="link-btn faint" href="/">{c.link.goHome}</a>
           </div>
         </main>
       );
@@ -472,7 +470,7 @@ export function LinkStep({ children, locale, ready }: { readonly children: React
     }
 
     default:
-      // No code could be made (for example too many tries): say why and leave the way to the web chat.
+      // No code could be made (for example too many tries): show the retry action.
       body = (
         <main className="handoff">
           <h1 ref={heading} tabIndex={-1}>
