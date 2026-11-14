@@ -3,6 +3,7 @@ import { cookies } from "next/headers";
 import { connection } from "next/server";
 import { Suspense } from "react";
 import { HostWorkspace } from "@/app/_components/host-workspace";
+import { HostDashboard } from "@/app/_components/host-dashboard";
 import { LOCALE_COOKIE, localeOf } from "@/app/_components/ink/copy";
 import { LinkStep } from "@/app/_components/ink/link-step";
 import { WorkspaceMenu } from "@/app/_components/workspace-menu";
@@ -12,7 +13,7 @@ import { SignInCard, WorkspaceLoading } from "@/app/_components/sign-in-card";
 // account sees why it cannot continue; an active host gets the conversation,
 // whose empty setup session this visit opens on the server, after the iMessage
 // link step when it applies.
-type SearchParams = Promise<{ sign_in?: string }>;
+type SearchParams = Promise<{ sign_in?: string; view?: string; request?: string }>;
 
 // Authentication must run before any reusable page shell can be served.
 export const instant = false;
@@ -53,9 +54,13 @@ async function Workspace({ searchParams }: { readonly searchParams: SearchParams
     );
   }
 
+  const params = await searchParams;
+  if (standing.ready && !params.request && (!params.view || params.view === "dashboard")) {
+    return <HostDashboard />;
+  }
   return (
     <LinkStep locale={localeOf(jar.get(LOCALE_COOKIE)?.value)} ready={standing.ready}>
-      <HostWorkspace />
+      <HostWorkspace dashboardAvailable={standing.ready} />
     </LinkStep>
   );
 }

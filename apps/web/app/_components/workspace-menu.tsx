@@ -1,6 +1,6 @@
 "use client";
 
-import { InboxIcon, ListChecksIcon, LogOutIcon, MenuIcon, MessageCircleIcon, PlugIcon } from "lucide-react";
+import { InboxIcon, LayoutDashboardIcon, ListChecksIcon, LogOutIcon, MenuIcon, MessageCircleIcon, PlugIcon } from "lucide-react";
 import { useRef, useState } from "react";
 import { ConnectedAgentsDialog, HOST_GRANT_SOURCE } from "@/app/_components/connected-agents";
 import { Button } from "@/components/ui/button";
@@ -19,10 +19,12 @@ import {
 // Escape and returns focus to the trigger, except after Setup and iMessage, which
 // move focus to the current setup card or the iMessage card instead.
 export function WorkspaceMenu({
+  onSelectDashboard,
   onSelectImessage,
   onSelectRequests,
   onSelectSetup,
 }: {
+  readonly onSelectDashboard?: () => void;
   readonly onSelectImessage?: () => void;
   readonly onSelectRequests?: () => void;
   readonly onSelectSetup?: () => void;
@@ -64,6 +66,12 @@ export function WorkspaceMenu({
             >
               <ListChecksIcon aria-hidden />
               Setup
+            </DropdownMenuItem>
+          ) : null}
+          {onSelectDashboard ? (
+            <DropdownMenuItem onSelect={onSelectDashboard}>
+              <LayoutDashboardIcon aria-hidden />
+              Dashboard
             </DropdownMenuItem>
           ) : null}
           {onSelectRequests ? (
