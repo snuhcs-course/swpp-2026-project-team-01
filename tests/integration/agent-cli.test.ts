@@ -145,7 +145,7 @@ describe("fmat", () => {
     const revision = (setup.json.result as { draft?: { revision: number }; revision?: number }).draft?.revision ?? (setup.json.result as { revision: number }).revision;
     expect(typeof revision).toBe("number");
 
-    const input = JSON.stringify({ expectedRevision: revision, input: { action: "choose_own", field: "displayName", value: "Ada Agent" } });
+    const input = JSON.stringify({ expectedRevision: revision, hostWords: "Call me Ada Agent", input: { action: "choose_own", field: "displayName", value: "Ada Agent" } });
     const first = await fmat(["call", "update_setup_field", "--input", input]).done;
     expect(first.code).toBe(0);
     const retryKey = first.json.retryKey as string;
@@ -155,7 +155,7 @@ describe("fmat", () => {
     expect(again.code).toBe(0);
     expect(again.json.result).toEqual(first.json.result);
 
-    const other = JSON.stringify({ expectedRevision: revision, input: { action: "choose_own", field: "displayName", value: "Someone Else" } });
+    const other = JSON.stringify({ expectedRevision: revision, hostWords: "Call me Someone Else", input: { action: "choose_own", field: "displayName", value: "Someone Else" } });
     const conflict = await fmat(["call", "update_setup_field", "--input", other, "--retry-key", retryKey]).done;
     expect(conflict.code).toBe(1);
     expect(conflict.json).toMatchObject({ error: { category: "retry_conflict" }, ok: false, retryKey });
