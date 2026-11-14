@@ -37,7 +37,7 @@ Each connection path below is what the client's own documentation offers for a r
 | Claude Code | `claude mcp add --transport http findmeatime https://findmeatime.com/mcp`, then `/mcp`, choose the server and authenticate in the browser; requester: `claude mcp add --transport http findmeatime-{handle} https://findmeatime.com/{handle}/mcp`. If the server is absent from `/mcp`, restart Claude Code and continue | Not yet run | Not yet run |
 | Claude | A custom connector with the MCP endpoint URL | Not yet run | Not yet run |
 | ChatGPT | A connector (developer mode) with the MCP endpoint URL | Not yet run | Not yet run |
-| Codex | A Streamable HTTP MCP server in its configuration with the endpoint URL; otherwise the CLI through its shell | Not yet run | Not yet run |
+| Codex | `codex mcp add findmeatime --url <endpoint>`, which opens the browser to authorize (CLI 0.169.0); `codex mcp login findmeatime --scopes <the role's scopes>` if that did not finish; otherwise the CLI through its shell | Not yet run | Not yet run |
 | Dots | To be confirmed at the first run: remote MCP if offered, otherwise the instructions and web continuation | Not yet run | Not yet run |
 | Muse | To be confirmed at the first run: remote MCP if offered, otherwise the instructions and web continuation | Not yet run | Not yet run |
 | Instinct | To be confirmed at the first run: remote MCP if offered, otherwise the instructions and web continuation | Not yet run | Not yet run |

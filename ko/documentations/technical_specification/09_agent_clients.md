@@ -39,7 +39,7 @@
 | Claude Code | `claude mcp add --transport http findmeatime https://findmeatime.com/mcp`, 이후 `/mcp`에서 서버를 선택하고 브라우저로 인증한다. 요청자: `claude mcp add --transport http findmeatime-{handle} https://findmeatime.com/{handle}/mcp`. `/mcp`에 서버가 없으면 Claude Code를 다시 시작하고 계속한다 | 아직 실행하지 않음 | 아직 실행하지 않음 |
 | Claude | MCP 엔드포인트 URL을 지정하는 사용자 지정 커넥터 | 아직 실행하지 않음 | 아직 실행하지 않음 |
 | ChatGPT | MCP 엔드포인트 URL을 지정하는 커넥터(개발자 모드) | 아직 실행하지 않음 | 아직 실행하지 않음 |
-| Codex | 설정에서 엔드포인트 URL을 지정하는 Streamable HTTP MCP 서버. 지원하지 않으면 셸에서 CLI 사용 | 아직 실행하지 않음 | 아직 실행하지 않음 |
+| Codex | `codex mcp add findmeatime --url <endpoint>`, 실행하면 브라우저가 열려 인증 진행(CLI 0.169.0). 끝나지 않았으면 `codex mcp login findmeatime --scopes <역할의 권한>`. 지원하지 않으면 셸에서 CLI 사용 | 아직 실행하지 않음 | 아직 실행하지 않음 |
 | Dots | 첫 실행에서 확인: 지원하면 원격 MCP, 지원하지 않으면 지침과 웹에서 계속하기 | 아직 실행하지 않음 | 아직 실행하지 않음 |
 | Muse | 첫 실행에서 확인: 지원하면 원격 MCP, 지원하지 않으면 지침과 웹에서 계속하기 | 아직 실행하지 않음 | 아직 실행하지 않음 |
 | Instinct | 첫 실행에서 확인: 지원하면 원격 MCP, 지원하지 않으면 지침과 웹에서 계속하기 | 아직 실행하지 않음 | 아직 실행하지 않음 |
