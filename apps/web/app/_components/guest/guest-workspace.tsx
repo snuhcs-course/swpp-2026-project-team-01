@@ -4,7 +4,7 @@ import type { DiscussionEvent } from "@lib/contracts/discussion-events";
 import type { OpenRequesterView, RequesterView, ThreadCard } from "@lib/contracts/requester-view";
 import { displayTime } from "@lib/contracts/timezone";
 import { type ReactNode, useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { EllipsisIcon } from "lucide-react";
+import { SlidersHorizontalIcon } from "lucide-react";
 import {
   AwaitingCard,
   CalendarSelectionCard,
@@ -230,7 +230,7 @@ export function GuestWorkspace({
         ariaLabel={`Meeting request with ${host.displayName}`}
         before={before}
         client={client}
-        composerAside={context ? <ThreadMenu context={context} /> : null}
+        composerAction={context ? <ThreadMenu context={context} /> : null}
         entries={entries}
         onError={onError}
         onRecover={async (generation) => {
@@ -491,11 +491,11 @@ function ThreadMenu({ context }: { readonly context: RequesterCardContext }) {
     <>
       <DropdownMenu>
         <DropdownMenuTrigger asChild>
-          <Button aria-label="Request actions" className="mb-1 size-11 shrink-0" size="icon" type="button" variant="outline">
-            <EllipsisIcon aria-hidden className="size-5" />
+          <Button aria-label="Request actions" className="size-11 shrink-0 rounded-full" size="icon" type="button" variant="secondary">
+            <SlidersHorizontalIcon aria-hidden className="size-5" />
           </Button>
         </DropdownMenuTrigger>
-        <DropdownMenuContent align="start" className="min-w-48" side="top">
+        <DropdownMenuContent align="end" className="min-w-48" side="top">
           {choosing ? <DropdownMenuItem onSelect={() => context.openDetails()}>Edit details</DropdownMenuItem> : null}
           {agents ? <DropdownMenuItem onSelect={() => setAgentsOpen(true)}>Connected agents</DropdownMenuItem> : null}
           <DropdownMenuItem onSelect={() => setConfirming(true)}>Withdraw request</DropdownMenuItem>
