@@ -14,7 +14,13 @@ import { SignInCard, WorkspaceLoading } from "@/app/_components/sign-in-card";
 // link step when it applies.
 type SearchParams = Promise<{ sign_in?: string }>;
 
-export default function Page({ searchParams }: { readonly searchParams: SearchParams }) {
+// Authentication must run before any reusable page shell can be served.
+export const instant = false;
+
+export default async function Page({ searchParams }: { readonly searchParams: SearchParams }) {
+  // The whole host page depends on the browser's session. Keep the request-time
+  // boundary outside Suspense so the signed-out shell cannot be CDN cached.
+  await connection();
   return (
     <Suspense fallback={<WorkspaceLoading />}>
       <Workspace searchParams={searchParams} />
@@ -23,7 +29,6 @@ export default function Page({ searchParams }: { readonly searchParams: SearchPa
 }
 
 async function Workspace({ searchParams }: { readonly searchParams: SearchParams }) {
-  await connection();
   const jar = await cookies();
   const cookie = jar
     .getAll()
