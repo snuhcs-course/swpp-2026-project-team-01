@@ -15,7 +15,10 @@ test("a host checks the note entries on the week, confirms them, and goes back t
   await expect(page.getByRole("heading", { name: "Check the entries that are just notes" })).toBeVisible();
   // The review opens on this week; the week before it is not offered.
   await expect(page.getByRole("button", { name: "Previous week" })).toBeDisabled();
+  const firstWeek = await page.locator("[data-note-week]").getAttribute("data-note-week");
   await page.getByRole("button", { name: "Next week" }).click();
+  await expect(page.locator("[data-note-week]")).not.toHaveAttribute("data-note-week", firstWeek!);
+  const shownWeek = await page.locator("[data-note-week]").getAttribute("data-note-week");
 
   const grid = page.locator("[data-note-week-grid]");
   const box = (title: string) => grid.getByRole("checkbox", { name: new RegExp(`^${title}`) });
@@ -58,10 +61,10 @@ test("a host checks the note entries on the week, confirms them, and goes back t
   await expect(freed.locator('[data-note-decision="done"]')).toHaveCount(2, { timeout: 15_000 });
   await page.screenshot({ fullPage: true, path: testInfo.outputPath("note-review-after.png") });
 
-  // Back shows the week with the answers as they stand, to change one.
+  // Back shows the same week with the answers as they stand, to change one.
   await page.getByRole("button", { name: "Back" }).click();
   await expect(page.getByRole("heading", { name: "Check the entries that are just notes" })).toBeVisible();
-  await page.getByRole("button", { name: "Next week" }).click();
+  await expect(page.locator("[data-note-week]")).toHaveAttribute("data-note-week", shownWeek!);
   await expect(box("엄마 생일")).toBeChecked();
   await expect(box("과제 마감")).not.toBeChecked();
   await box("엄마 생일").uncheck();

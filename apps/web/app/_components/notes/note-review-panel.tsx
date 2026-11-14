@@ -73,6 +73,8 @@ export function NoteReviewPanel({
 
   // The week on screen, kept when the review reloads after a confirmation or a poll.
   const week = useRef<string | null>(null);
+  // On a phone, the first of the three days on screen, kept the same way.
+  const day = useRef<string | null>(null);
 
   const load = useCallback(async (fresh: boolean, start: string | null = week.current) => {
     const response = await fetch(`/api/notes/review${start ? `?week=${encodeURIComponent(start)}` : ""}`, { cache: "no-store" });
@@ -173,8 +175,12 @@ export function NoteReviewPanel({
           locale={locale}
           onConfirm={(choices) => void confirm(choices)}
           onContinue={onConfirmed ? () => void onConfirmed() : undefined}
+          onDay={(date) => {
+            day.current = date;
+          }}
           onWeek={(start) => void load(false, start)}
           review={review}
+          startDay={day.current}
         />
       ) : (
         <p className="text-muted-foreground" role="status">

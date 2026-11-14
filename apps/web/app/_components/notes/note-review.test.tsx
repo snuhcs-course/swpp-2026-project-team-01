@@ -1,8 +1,8 @@
 import type { NoteReview, NoteReviewDecision, NoteReviewItem, NoteWeek } from "@lib/contracts/note-review";
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it } from "vitest";
-import { NoteReviewDone, NoteReviewWeek } from "./note-review";
-import { layoutWeek } from "./note-week-layout";
+import { confirmedChoices, NoteReviewDone, NoteReviewWeek } from "./note-review";
+import { candidateKeys, firstWindow, layoutWeek, stepWindow, windowWeeks } from "./note-week-layout";
 
 // The week of Monday 2026-11-16 in Seoul (UTC+9).
 const week: NoteWeek = {
@@ -49,8 +49,8 @@ const items: NoteReviewItem[] = [
 
 const review: NoteReview = { analysisId: "00000000-0000-4000-8000-000000000001", decisions: [], items, slotImageWaits: false, state: "ready", week };
 
-function render(value: NoteReview, locale: "en" | "ko" = "ko") {
-  return renderToStaticMarkup(<NoteReviewWeek locale={locale} onConfirm={() => {}} review={value} />);
+function render(value: NoteReview, locale: "en" | "ko" = "ko", phone?: boolean) {
+  return renderToStaticMarkup(<NoteReviewWeek locale={locale} onConfirm={() => {}} phone={phone} review={value} />);
 }
 
 function text(markup: string) {
@@ -139,6 +139,80 @@ describe("NoteReviewWeek", () => {
     });
     expect(checked(block(answered, "occ-헬스"))).toBe(false);
     expect(checked(block(answered, "occ-엄마 생일"))).toBe(true);
+  });
+});
+
+describe("the phone view, three days at a time", () => {
+  it("opens on today and moves three days at a time, never before today", () => {
+    expect(firstWindow(week)).toBe("2026-11-16");
+    // A later week opens on its Monday; a kept day comes back.
+    expect(firstWindow({ start: "2026-11-23", today: "2026-11-16" })).toBe("2026-11-23");
+    expect(firstWindow(week, "2026-11-19")).toBe("2026-11-19");
+    expect(firstWindow({ start: "2026-11-16", today: "2026-11-18" }, "2026-11-16")).toBe("2026-11-18");
+
+    expect(stepWindow("2026-11-16", 1, "2026-11-16", week)).toBe("2026-11-19");
+    expect(stepWindow("2026-11-16", -1, "2026-11-16", week)).toBeNull();
+    expect(stepWindow("2026-11-20", -1, "2026-11-16", week)).toBe("2026-11-17");
+    expect(stepWindow("2026-11-18", -1, "2026-11-16", week)).toBe("2026-11-16");
+  });
+
+  it("crosses into the next week, asks for each week its days reach, and stops at the last week's Sunday", () => {
+    // Thursday to Saturday, then Sunday to Tuesday of the next week.
+    expect(stepWindow("2026-11-19", 1, "2026-11-16", week)).toBe("2026-11-22");
+    expect(windowWeeks("2026-11-22")).toEqual(["2026-11-16", "2026-11-23"]);
+    expect(windowWeeks("2026-11-16")).toEqual(["2026-11-16"]);
+    // In the scan's last week, the view ends on its Sunday.
+    const last = { next: null, start: "2026-12-07" };
+    expect(stepWindow("2026-12-08", 1, "2026-11-16", last)).toBe("2026-12-11");
+    expect(stepWindow("2026-12-11", 1, "2026-11-16", last)).toBeNull();
+    // The week holding the last day on screen is not loaded yet: wait for it.
+    expect(stepWindow("2026-11-22", 1, "2026-11-16", undefined)).toBeNull();
+  });
+
+  it("draws three days with the range in the header and arrows that move three days", () => {
+    const html = render(review, "ko", true);
+
+    expect(html).toContain('data-note-days="3"');
+    expect(html.match(/data-note-heading="/g)).toHaveLength(3);
+    expect(html).toContain('data-note-range="2026-11-16/2026-11-18"');
+    expect(text(html)).toContain("11월 16일~18일");
+    expect(html).toMatch(/<button[^>]*aria-label="이전 3일"[^>]*disabled=""/);
+    expect(html).not.toMatch(/<button[^>]*aria-label="다음 3일"[^>]*disabled=""/);
+    // The week does not scroll sideways.
+    expect(html).not.toContain("min-w-[600px]");
+    expect(html).not.toContain("overflow-x-auto");
+    // Monday to Wednesday: Tuesday's 헬스 and Wednesday's 엄마 생일; Friday's 과제 마감 is not drawn.
+    expect(block(html, "occ-헬스")).not.toBeNull();
+    expect(block(html, "occ-엄마 생일")).not.toBeNull();
+    expect(block(html, "occ-과제 마감")).toBeNull();
+    expect(text(html)).toContain("팀 회의");
+  });
+
+  it("keeps the desktop week of seven days", () => {
+    const html = render(review, "ko", false);
+    expect(html).toContain('data-note-days="7"');
+    expect(html).toContain('data-note-week="2026-11-16"');
+    expect(html).toContain('aria-label="다음 주"');
+    expect(html).toContain("min-w-[600px]");
+  });
+
+  it("records on 확인 only the candidates on days that were drawn, an unticked one as keep_busy", () => {
+    const layout = layoutWeek(week, items);
+    const monToWed = candidateKeys(layout.days.slice(0, 3));
+    expect([...monToWed].sort()).toEqual(["key-엄마 생일", "key-헬스"]);
+
+    const choices = new Map<string, "free" | "keep_busy">([
+      ["key-엄마 생일", "free"],
+      ["key-헬스", "keep_busy"],
+      ["key-과제 마감", "free"],
+    ]);
+    expect(confirmedChoices(items, monToWed, choices)).toEqual([
+      { decision: "free", key: "key-엄마 생일" },
+      { decision: "keep_busy", key: "key-헬스" },
+    ]);
+    // Once Thursday to Saturday has been on screen too, Friday's entry counts.
+    const both = new Set([...monToWed, ...candidateKeys(layout.days.slice(3, 6))]);
+    expect(confirmedChoices(items, both, choices).map((choice) => choice.key)).toContain("key-과제 마감");
   });
 });
 

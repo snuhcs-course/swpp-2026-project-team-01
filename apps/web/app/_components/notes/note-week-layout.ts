@@ -141,8 +141,67 @@ export function layoutWeek(week: NoteWeek, items: readonly NoteReviewItem[]): We
   }
 
   const days = dates.map((date) => ({ allDay: allDay.get(date)!, date, timed: withLanes(timed.get(date)!) }));
+  return { days, itemKeys, ...hourRange(days) };
+}
+
+// The hours the grid spans: 8 AM to 10 PM, widened to fit the days' entries.
+export function hourRange(days: readonly WeekDay[]) {
   const timedBlocks = days.flatMap((day) => day.timed);
   const firstHour = Math.min(8, ...timedBlocks.map((block) => Math.floor(block.startMinute / 60)));
   const lastHour = Math.max(22, ...timedBlocks.map((block) => Math.ceil(block.endMinute / 60)));
-  return { days, firstHour, itemKeys, lastHour: Math.min(24, lastHour) };
+  return { firstHour, lastHour: Math.min(24, lastHour) };
+}
+
+// The candidates drawn on the given days.
+export function candidateKeys(days: readonly WeekDay[]) {
+  const keys = new Set<string>();
+  for (const day of days) {
+    for (const block of [...day.allDay, ...day.timed]) if (block.itemKey) keys.add(block.itemKey);
+  }
+  return keys;
+}
+
+// The phone view (calendar-note-review task 3.2): three days at a time, from
+// today, moved three days back or ahead. The days can span two weeks, so the
+// view asks for each week it reaches.
+
+export const PHONE_DAYS = 3;
+
+export function mondayOf(date: string) {
+  const weekday = (new Date(`${date}T00:00:00Z`).getUTCDay() + 6) % 7;
+  return addDays(date, -weekday);
+}
+
+export function windowDates(start: string) {
+  return Array.from({ length: PHONE_DAYS }, (_, index) => addDays(start, index));
+}
+
+// The weeks the three days from start fall in.
+export function windowWeeks(start: string) {
+  return [...new Set(windowDates(start).map(mondayOf))];
+}
+
+// Where the three days start when the view opens: today in the week of today,
+// or the week's Monday, kept within the days the arrows can reach.
+export function firstWindow(week: Pick<NoteWeek, "start" | "today">, wanted: string | null = null) {
+  const opening = wanted ?? (mondayOf(week.today) === week.start ? week.today : week.start);
+  return opening < week.today ? week.today : opening;
+}
+
+// The next three days back or ahead, or null at either end: the view never
+// starts before today, and never runs past the Sunday of the scan's last week.
+// The week holding the last day on screen tells whether a week follows it.
+export function stepWindow(start: string, direction: -1 | 1, today: string, lastWeek: Pick<NoteWeek, "start" | "next"> | undefined) {
+  if (direction === -1) {
+    if (start <= today) return null;
+    const previous = addDays(start, -PHONE_DAYS);
+    return previous < today ? today : previous;
+  }
+  if (!lastWeek) return null;
+  const end = addDays(start, PHONE_DAYS - 1);
+  const limit = lastWeek.next ? addDays(lastWeek.next, 6) : addDays(lastWeek.start, 6);
+  if (end >= limit) return null;
+  const next = addDays(start, PHONE_DAYS);
+  const nextEnd = addDays(next, PHONE_DAYS - 1);
+  return nextEnd > limit ? addDays(limit, -(PHONE_DAYS - 1)) : next;
 }

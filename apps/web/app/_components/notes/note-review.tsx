@@ -1,14 +1,25 @@
 "use client";
 
-import type { NoteReview, NoteReviewChoice, NoteReviewDecision, NoteReviewItem } from "@lib/contracts/note-review";
+import type { NoteReview, NoteReviewChoice, NoteReviewDecision, NoteReviewItem, NoteWeek } from "@lib/contracts/note-review";
 import { ChevronLeftIcon, ChevronRightIcon, RotateCcwIcon } from "lucide-react";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import type { Locale } from "../ink/copy";
 import { NOTE_REVIEW_COPY } from "./note-review-copy";
 import type { NoteReviewExit } from "./note-review-exit";
-import { addDays, layoutWeek, type WeekBlock } from "./note-week-layout";
+import {
+  candidateKeys,
+  firstWindow,
+  hourRange,
+  layoutWeek,
+  mondayOf,
+  stepWindow,
+  type WeekBlock,
+  type WeekDay,
+  windowDates,
+  windowWeeks,
+} from "./note-week-layout";
 
 // The note review (calendar-note-review design 7) as a week, like Google
 // Calendar and like the slot image that follows it in the chat onboarding: the
@@ -16,9 +27,9 @@ import { addDays, layoutWeek, type WeekBlock } from "./note-week-layout";
 // candidates in yellow with a checkbox each, and the host's other plans in grey
 // for context. A checked candidate becomes free; those the classifier
 // recommends as notes start checked, and the classifier's reason is the block's
-// tooltip. Checking an entry that repeats checks the whole series. Confirm
-// records only the candidates of the weeks the host has looked at, so nothing is
-// freed unseen. Standalone, so the web setup's notes step, /app/notes and later
+// tooltip. Checking an entry that repeats checks the whole series. On a phone
+// the week shows three days at a time (task 3.2). Confirm records only the
+// candidates of the days the host has looked at, so nothing is freed unseen. Standalone, so the web setup's notes step, /app/notes and later
 // the redesigned settings can hold it. The look follows DESIGN.md until the
 // mock-ups are applied.
 
@@ -48,10 +59,44 @@ function dayHeading(date: string, locale: Locale) {
   };
 }
 
-function weekLabel(start: string, locale: Locale) {
+function rangeLabel(first: string, last: string, locale: Locale) {
   const format = new Intl.DateTimeFormat(tag(locale), { day: "numeric", month: "short", timeZone: "UTC" });
-  return format.formatRange(new Date(`${start}T00:00:00Z`), new Date(`${addDays(start, 6)}T00:00:00Z`));
+  return format.formatRange(new Date(`${first}T00:00:00Z`), new Date(`${last}T00:00:00Z`));
 }
+
+// Below Tailwind's sm breakpoint, where the seven days no longer fit, the week
+// shows three days at a time.
+const PHONE_QUERY = "(width < 640px)";
+
+function subscribePhone(onChange: () => void) {
+  const query = window.matchMedia(PHONE_QUERY);
+  query.addEventListener("change", onChange);
+  return () => query.removeEventListener("change", onChange);
+}
+
+function usePhone() {
+  return useSyncExternalStore(subscribePhone, () => window.matchMedia(PHONE_QUERY).matches, () => false);
+}
+
+// What 확인 records: of the candidates the host has seen, the unanswered ones
+// and the answers the host changed. An unticked candidate stays busy.
+export function confirmedChoices(
+  items: readonly NoteReviewItem[],
+  seen: ReadonlySet<string>,
+  choices: ReadonlyMap<string, "free" | "keep_busy">,
+): NoteReviewChoice[] {
+  return items
+    .filter((item) => seen.has(item.key))
+    .filter((item) => item.decision === null || choices.get(item.key) !== item.decision)
+    .map((item) => ({
+      decision: choices.get(item.key) ?? "keep_busy",
+      key: item.key,
+      ...(item.repeats ? { scope: "series" as const } : {}),
+    }));
+}
+
+// A day column: its entries, or null while its week is still loading.
+type Column = { readonly date: string; readonly day: WeekDay | null };
 
 
 export function NoteReviewWeek({
@@ -60,8 +105,11 @@ export function NoteReviewWeek({
   locale,
   onConfirm,
   onContinue,
+  onDay,
   onWeek,
+  phone: phoneOverride,
   review,
+  startDay = null,
 }: {
   readonly review: NoteReview;
   readonly locale: Locale;
@@ -70,7 +118,13 @@ export function NoteReviewWeek({
   readonly onConfirm: (choices: NoteReviewChoice[]) => void;
   // With nothing left to check, a host of the review that moves on (the setup step).
   readonly onContinue?: () => void;
+  // Loads the week of this Monday into review.week.
   readonly onWeek?: (start: string) => void;
+  // The phone view's first day on screen, kept by the host across reloads.
+  readonly startDay?: string | null;
+  readonly onDay?: (date: string) => void;
+  // Three days at a time or the whole week; by default from the screen width.
+  readonly phone?: boolean;
 }) {
   const t = NOTE_REVIEW_COPY[locale];
   const items = review.items;
@@ -79,34 +133,72 @@ export function NoteReviewWeek({
     // The host's standing answer, or the classifier's recommendation.
     () => new Map(items.map((item) => [item.key, item.decision ?? (item.verdict === "note" ? "free" : "keep_busy")])),
   );
-  const layout = useMemo(() => (review.week ? layoutWeek(review.week, items) : null), [review.week, items]);
-  const [seen, setSeen] = useState<ReadonlySet<string>>(() => new Set(layout?.itemKeys ?? []));
+  const screenPhone = usePhone();
+  const phone = phoneOverride ?? screenPhone;
+  const week = review.week;
 
-  // Candidates count as seen once their week has been shown.
+  // Every week loaded while this review is open, so three days that span two
+  // weeks can be drawn from both.
+  const [loaded, setLoaded] = useState<ReadonlyMap<string, NoteWeek>>(() => new Map(week ? [[week.start, week]] : []));
   useEffect(() => {
-    if (!layout) return;
+    if (!week) return;
+    setLoaded((current) => (current.get(week.start) === week ? current : new Map(current).set(week.start, week)));
+  }, [week]);
+  const weeks = useMemo(() => (week && loaded.get(week.start) !== week ? new Map(loaded).set(week.start, week) : loaded), [loaded, week]);
+  const layouts = useMemo(() => new Map([...weeks].map(([start, entry]) => [start, layoutWeek(entry, items)])), [weeks, items]);
+
+  const [windowStart, setWindowStart] = useState(() => (week ? firstWindow(week, startDay) : ""));
+  const moveWindow = (start: string) => {
+    setWindowStart(start);
+    onDay?.(start);
+  };
+
+  // The day columns on screen: the whole week, or three days on a phone.
+  const columns: Column[] = useMemo(() => {
+    if (!week) return [];
+    if (!phone) return layouts.get(week.start)!.days.map((day) => ({ date: day.date, day }));
+    return windowDates(windowStart).map((date) => ({
+      date,
+      day: layouts.get(mondayOf(date))?.days.find((entry) => entry.date === date) ?? null,
+    }));
+  }, [layouts, phone, week, windowStart]);
+  const drawn = useMemo(() => columns.flatMap((column) => (column.day ? [column.day] : [])), [columns]);
+  const hours = useMemo(() => hourRange(drawn), [drawn]);
+  const visibleKeys = useMemo(() => candidateKeys(drawn), [drawn]);
+
+  // The phone view asks once for each week its three days reach.
+  const asked = useRef(new Set<string>());
+  useEffect(() => {
+    if (!phone || !windowStart) return;
+    for (const start of windowWeeks(windowStart)) {
+      if (weeks.has(start) || asked.current.has(start)) continue;
+      asked.current.add(start);
+      onWeek?.(start);
+    }
+  }, [onWeek, phone, weeks, windowStart]);
+
+  // Candidates count as seen once a day they are on has been drawn.
+  const [seen, setSeen] = useState<ReadonlySet<string>>(() => visibleKeys);
+  useEffect(() => {
     setSeen((current) => {
-      const missing = [...layout.itemKeys].filter((key) => !current.has(key));
+      const missing = [...visibleKeys].filter((key) => !current.has(key));
       return missing.length === 0 ? current : new Set([...current, ...missing]);
     });
-  }, [layout]);
+  }, [visibleKeys]);
 
   const choose = (key: string, choice: Choice) => setChoices((current) => new Map(current).set(key, choice));
-  const seenItems = items.filter((item) => seen.has(item.key));
-  const confirm = () =>
-    onConfirm(
-      // Unanswered entries the host has seen, and answers the host changed.
-      seenItems
-        .filter((item) => item.decision === null || choices.get(item.key) !== item.decision)
-        .map((item) => ({
-          decision: choices.get(item.key) ?? "keep_busy",
-          key: item.key,
-          ...(item.repeats ? { scope: "series" as const } : {}),
-        })),
-    );
+  const anySeen = items.some((item) => seen.has(item.key));
+  const confirm = () => onConfirm(confirmedChoices(items, seen, choices));
 
-  const week = review.week;
   const timeZone = week?.timezone ?? "UTC";
+  const contextUnavailable = phone
+    ? windowWeeks(windowStart).some((start) => weeks.get(start)?.contextUnavailable)
+    : (week?.contextUnavailable ?? false);
+  const lastShown = columns.at(-1)?.date ?? "";
+  const previousDays = week && phone ? stepWindow(windowStart, -1, week.today, undefined) : null;
+  const nextDays = week && phone ? stepWindow(windowStart, 1, week.today, weeks.get(mondayOf(lastShown))) : null;
+  const gridColumns = phone ? "grid-cols-[56px_repeat(3,minmax(0,1fr))]" : "grid-cols-[56px_repeat(7,minmax(0,1fr))]";
+  const height = (hours.lastHour - hours.firstHour) * HOUR_PX;
 
   return (
     <div className="flex flex-col gap-4" data-note-review>
@@ -124,18 +216,28 @@ export function NoteReviewWeek({
             </div>
           ) : null}
         </div>
-      ) : week && layout ? (
+      ) : week && columns.length > 0 ? (
         <>
           <div className="flex flex-wrap items-center justify-between gap-2">
-            <p className="text-sm font-semibold text-primary tabular-nums" data-note-week={week.start}>
-              {weekLabel(week.start, locale)}
+            <p
+              className="text-sm font-semibold text-primary tabular-nums"
+              data-note-range={phone ? `${windowStart}/${lastShown}` : undefined}
+              data-note-week={phone ? undefined : week.start}
+            >
+              {rangeLabel(columns[0]!.date, lastShown, locale)}
             </p>
             <div className="flex items-center gap-1">
               <Button
-                aria-label={t.previousWeek}
+                aria-label={phone ? t.previousDays : t.previousWeek}
                 className="size-9 rounded-full"
-                disabled={busy || !week.previous}
-                onClick={() => week.previous && onWeek?.(week.previous)}
+                disabled={busy || (phone ? !previousDays : !week.previous)}
+                onClick={() => {
+                  if (phone) {
+                    if (previousDays) moveWindow(previousDays);
+                  } else if (week.previous) {
+                    onWeek?.(week.previous);
+                  }
+                }}
                 size="icon"
                 type="button"
                 variant="secondary"
@@ -143,10 +245,16 @@ export function NoteReviewWeek({
                 <ChevronLeftIcon aria-hidden />
               </Button>
               <Button
-                aria-label={t.nextWeek}
+                aria-label={phone ? t.nextDays : t.nextWeek}
                 className="size-9 rounded-full"
-                disabled={busy || !week.next}
-                onClick={() => week.next && onWeek?.(week.next)}
+                disabled={busy || (phone ? !nextDays : !week.next)}
+                onClick={() => {
+                  if (phone) {
+                    if (nextDays) moveWindow(nextDays);
+                  } else if (week.next) {
+                    onWeek?.(week.next);
+                  }
+                }}
                 size="icon"
                 type="button"
                 variant="secondary"
@@ -158,15 +266,15 @@ export function NoteReviewWeek({
 
           {/* The soft board holding the white week card, as in the slot image. */}
           <div className="rounded-[24px] bg-secondary p-2 sm:p-3">
-            <div className="overflow-x-auto rounded-2xl bg-card" data-note-week-grid>
-              <div className="min-w-[600px] px-2 pt-3 pb-2">
-                <div className="grid grid-cols-[56px_repeat(7,minmax(0,1fr))] gap-x-1.5">
+            <div className={cn("rounded-2xl bg-card", !phone && "overflow-x-auto")} data-note-days={columns.length} data-note-week-grid>
+              <div className={cn("px-2 pt-3 pb-2", !phone && "min-w-[600px]")}>
+                <div className={cn("grid gap-x-1.5", gridColumns)}>
                   <span />
-                  {layout.days.map((day) => {
-                    const heading = dayHeading(day.date, locale);
-                    const today = day.date === week.today;
+                  {columns.map(({ date }) => {
+                    const heading = dayHeading(date, locale);
+                    const today = date === week.today;
                     return (
-                      <div className="flex flex-col items-center pb-1.5" key={day.date}>
+                      <div className="flex flex-col items-center pb-1.5" data-note-heading={date} key={date}>
                         <span className={cn("text-xs font-semibold", today ? "text-primary" : "text-muted-foreground")}>{heading.weekday}</span>
                         <span
                           className={cn(
@@ -181,9 +289,9 @@ export function NoteReviewWeek({
                   })}
 
                   <span className="pt-1 pr-2 text-right text-[11px] text-muted-foreground">{t.allDay}</span>
-                  {layout.days.map((day) => (
-                    <div className="flex min-h-7 flex-col gap-1 border-b border-secondary pb-1.5" data-note-all-day={day.date} key={day.date}>
-                      {day.allDay.map((block) => (
+                  {columns.map(({ date, day }) => (
+                    <div className="flex min-h-7 flex-col gap-1 border-b border-secondary pb-1.5" data-note-all-day={date} key={date}>
+                      {day?.allDay.map((block) => (
                         <Block
                           block={block}
                           choice={block.itemKey ? choices.get(block.itemKey) : undefined}
@@ -201,33 +309,34 @@ export function NoteReviewWeek({
                   ))}
                 </div>
 
-                <div className="mt-1 grid grid-cols-[56px_repeat(7,minmax(0,1fr))] gap-x-1.5">
-                  <div className="relative" style={{ height: (layout.lastHour - layout.firstHour) * HOUR_PX }}>
-                    {Array.from({ length: layout.lastHour - layout.firstHour }, (_, index) => layout.firstHour + index).map((hour) => (
+                <div className={cn("mt-1 grid gap-x-1.5", gridColumns)}>
+                  <div className="relative" style={{ height }}>
+                    {Array.from({ length: hours.lastHour - hours.firstHour }, (_, index) => hours.firstHour + index).map((hour) => (
                       <span
                         className="absolute right-2 -translate-y-1/2 text-[11px] whitespace-nowrap text-muted-foreground tabular-nums"
                         key={hour}
-                        style={{ top: (hour - layout.firstHour) * HOUR_PX }}
+                        style={{ top: (hour - hours.firstHour) * HOUR_PX }}
                       >
-                        {hour === layout.firstHour ? "" : hourLabel(hour, locale)}
+                        {hour === hours.firstHour ? "" : hourLabel(hour, locale)}
                       </span>
                     ))}
                   </div>
-                  {layout.days.map((day) => (
+                  {columns.map(({ date, day }) => (
                     <div
-                      className="relative rounded-xl bg-background"
-                      data-note-day={day.date}
-                      key={day.date}
-                      style={{ height: (layout.lastHour - layout.firstHour) * HOUR_PX }}
+                      aria-busy={day ? undefined : true}
+                      className={cn("relative rounded-xl bg-background", !day && "animate-pulse")}
+                      data-note-day={date}
+                      key={date}
+                      style={{ height }}
                     >
-                      {day.timed.map((block) => (
+                      {day?.timed.map((block) => (
                         <div
                           className="absolute px-0.5"
                           key={block.id}
                           style={{
                             height: Math.max(((block.endMinute - block.startMinute) / 60) * HOUR_PX, 20),
                             left: `${(block.lane / block.lanes) * 100}%`,
-                            top: ((block.startMinute - layout.firstHour * 60) / 60) * HOUR_PX,
+                            top: ((block.startMinute - hours.firstHour * 60) / 60) * HOUR_PX,
                             width: `${100 / block.lanes}%`,
                           }}
                         >
@@ -251,10 +360,10 @@ export function NoteReviewWeek({
             </div>
           </div>
 
-          {week.contextUnavailable ? <p className="text-sm text-warning">{t.contextUnavailable}</p> : null}
+          {contextUnavailable ? <p className="text-sm text-warning">{t.contextUnavailable}</p> : null}
 
           <div className="flex flex-wrap items-center gap-3">
-            <Button className="min-h-11" disabled={busy || seenItems.length === 0} onClick={confirm} type="button">
+            <Button className="min-h-11" disabled={busy || !anySeen} onClick={confirm} type="button">
               {busy ? t.confirming : (confirmLabel ?? t.confirm)}
             </Button>
           </div>

@@ -20,6 +20,8 @@ export const NOTE_REVIEW_COPY = {
     untitled: "An entry",
     previousWeek: "Previous week",
     nextWeek: "Next week",
+    previousDays: "Previous 3 days",
+    nextDays: "Next 3 days",
     contextUnavailable: "Your other plans could not be loaded, so only the entries to check are shown.",
     state: {
       failed: "Couldn't update Google Calendar. It stays busy.",
@@ -47,6 +49,8 @@ export const NOTE_REVIEW_COPY = {
     untitled: "일정",
     previousWeek: "이전 주",
     nextWeek: "다음 주",
+    previousDays: "이전 3일",
+    nextDays: "다음 3일",
     contextUnavailable: "다른 일정을 불러오지 못해서 확인할 일정만 보여요.",
     state: {
       failed: "Google 캘린더에 반영하지 못했어요. 바쁨으로 남아 있어요.",
