@@ -3,7 +3,7 @@ import { z } from "zod";
 import { switchConversationForTool, switchConversationToolInput } from "../../lib/server/channel-selection";
 import { database } from "../../lib/server/database";
 import { setupDependenciesFromEnvironment } from "../../lib/server/setup";
-import { confirmSettingsForTool, confirmSettingsToolInput, listHostRequestsForSetupTool } from "../../lib/server/setup-channel-tools";
+import { confirmSettingsForTool, confirmSettingsToolInput, listHostRequestsForSetupTool, setCalendarRolesForTool, setCalendarRolesToolInput, previewNextWeekForTool } from "../../lib/server/setup-channel-tools";
 import {
   draftSettingsForTool,
   draftSettingsToolInput,
@@ -55,9 +55,19 @@ export default defineDynamic({
                   sessionId: toolCtx.session.id,
                 }),
             }),
+            set_calendar_roles: defineTool({
+              description: "Set the conflict calendars and booking destination the host asked for in the linked conversation. Use the quoted calendar names and zero-based indices from read_setup_state. The destination must be writable.",
+              inputSchema: setCalendarRolesToolInput,
+              execute: (input, ctx) => setCalendarRolesForTool(setupDependenciesFromEnvironment(), { auth: ctx.session.auth.current, callId: ctx.callId, sessionId: ctx.session.id }, input),
+            }),
+            preview_next_week: defineTool({
+              description: "Send next week's open times as a slot image to the linked conversation, using the current draft. Record the host's hours, meeting mode, place and travel answers first. Returns the review reference and open ranges. Ask whether to open them; confirm only after the host agrees.",
+              inputSchema: z.object({}).strict(),
+              execute: (_input, ctx) => previewNextWeekForTool(setupDependenciesFromEnvironment(), { auth: ctx.session.auth.current, callId: ctx.callId, sessionId: ctx.session.id }),
+            }),
             confirm_settings: defineTool({
               description:
-                "Save the reviewed settings because the host, writing from their linked iMessage, WhatsApp or Telegram, clearly says to save them after you went through them, such as \"save it\", \"looks right, confirm\" or \"저장해 주세요\". Never call it when the host still changes something, adds a condition or asks a question, and never for a message typed on the web, where the host presses Confirm and save proposed settings. Call it only after you listed these settings to the host yourself in this conversation and they answered that list; if they refer to a review the service sent, call read_setup_state, list the settings and ask again. Pass read_setup_state's reviewRef. It saves exactly that review or nothing, and returns the booking links to repeat.",
+                "Save the current settings after the host agrees to its delivered slot preview in the linked conversation. Pass read_setup_state's reviewRef. If they change anything, send a new preview first. On the web the host confirms with the card. Return the saved booking link.",
               inputSchema: confirmSettingsToolInput,
               execute: (input, toolCtx) =>
                 confirmSettingsForTool(

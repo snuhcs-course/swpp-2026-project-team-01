@@ -9,7 +9,11 @@ import {
   normalizeNumber,
 } from "../contracts/imessage";
 import { configuredChannels, type MessagingChannel } from "../contracts/messaging-channel";
-import { lockActiveHost } from "./analysis";
+import { defaultCalendarRoles, readDefaultRoleCalendars } from "./calendar-roles";
+import { hostConversationLanguage } from "./channel-language";
+import { channelReplies } from "./channel-texts";
+import { googleCalendarConfigFromEnvironment, type GoogleCalendarDependencies, type CalendarListEntry } from "./google-calendar";
+import { lockActiveHost, queueHoursQuestion, readLatestAnalysis } from "./analysis";
 import { type CommandDefinition, CommandError } from "./commands";
 import type { Database, Queryable, Transaction } from "./database";
 import { generateLinkCode, hashLinkCode } from "./email-links";
@@ -70,6 +74,7 @@ export const IMESSAGE_FALLBACK_LIMITS = {
 } as const;
 
 export type LinkOptions = {
+  readonly liveCalendars?: readonly CalendarListEntry[] | null;
   readonly tokenKey: TokenKey;
   readonly tokenKeys: readonly TokenKey[];
   // The line's number; iMessage linking is unavailable without one.
@@ -131,7 +136,6 @@ export const LINK_TEXTS = {
   linked: "Linked. Send help for what I can do here.",
   welcomeCalendar: (url: string) =>
     `You're connected! I'm Thyme, and we can set up your meetings right here. First, connect Google Calendar: ${url}`,
-  welcomeSetup: "You're connected! I'm Thyme, and we can set up your meetings right here. How long should a typical meeting be?",
   backFromGoogle: "You're back from Google. Let's keep going here: tell me your meeting preferences, or send setup to see what's next.",
   fallbackCode: (code: string, minutes: number) => `Your Find Me a Time code is ${code}. It expires in ${minutes} minutes.`,
 } as const;
@@ -325,9 +329,13 @@ async function bind(
     linkId,
     recipient: { address: sender, spaceId },
     recipientHash: senderHash,
-    text: await linkedText(tx, hostAccountId, options.origin),
+    text: await linkedText(tx, hostAccountId, options),
     tokenKey: options.tokenKey,
   });
+  const analysis = await readLatestAnalysis(tx, hostAccountId);
+  if (analysis && analysis.state !== "pending") {
+    await queueHoursQuestion(tx, hostAccountId, options.tokenKeys, analysis.state === "completed" ? analysis.evidence : null, analysis.id);
+  }
   // Photon's deliverability guidance: once the host saves the line's contact
   // card, iMessage stops offering Report Junk. It follows the welcome, once
   // per binding (D22, design 18); WhatsApp shows the verified business name instead.
@@ -368,12 +376,15 @@ export function calendarConnectUrl(origin: string) {
 // The linked message (D19): a ready host is told what Thyme can do; a host still
 // setting up is welcomed into setup in this conversation, with Calendar first when
 // it is not usable yet, since setup cannot go further without it.
-async function linkedText(tx: Transaction, hostAccountId: string, origin: string) {
+async function linkedText(tx: Transaction, hostAccountId: string, options: LinkOptions) {
   if ((await readReadiness(tx, hostAccountId)).ready) return LINK_TEXTS.linked;
   const [grant] = await tx<{ usable: boolean }[]>`
     select ${calendarUsable(tx)} as usable from app.provider_grants g where g.host_account_id = ${hostAccountId}
   `;
-  return grant?.usable ? LINK_TEXTS.welcomeSetup : LINK_TEXTS.welcomeCalendar(calendarConnectUrl(origin));
+  if (!grant?.usable) return LINK_TEXTS.welcomeCalendar(calendarConnectUrl(options.origin));
+  const name = await defaultCalendarRoles(tx, hostAccountId, options.liveCalendars ?? null);
+  const texts = channelReplies(await hostConversationLanguage(tx, hostAccountId)).onboarding;
+  return name ? texts.rolesDefault(name) : texts.rolesNeeded;
 }
 
 const noInput = z.object({}).strict() as unknown as z.ZodType<Record<string, never>>;
@@ -971,19 +982,30 @@ export async function receiveLinkCode(tx: Transaction, options: Pick<LinkOptions
 // conversation to carry on, through the outbox like every other reply. The
 // redeemed authorization code keys it, so a replayed callback queues nothing
 // twice; it does not claim that Calendar was granted.
-export async function resumeImessageOnboarding(db: Database, key: TokenKey, hostAccountId: string, authCode: string) {
+export async function resumeImessageOnboarding(db: Database, key: TokenKey, hostAccountId: string, authCode: string, calendar: Omit<GoogleCalendarDependencies, "db"> = { config: googleCalendarConfigFromEnvironment(), tokenKeys: [key] }) {
+  const live = await readDefaultRoleCalendars(db, hostAccountId, calendar);
   await db.begin(async (tx) => {
     await lockHostLinking(tx, hostAccountId);
     const binding = await activeBindingOfHost(tx, hostAccountId);
     if (!binding) return;
+    const dedupeKey = `google-return:${createHmac("sha256", key.key).update(`imessage-google-return:${authCode}`).digest("hex")}`;
+    const [already] = await tx`select id from app.imessage_outbox where kind = 'command' and dedupe_key = ${dedupeKey}`;
+    if (already) return;
+    const [grant] = await tx<{ usable: boolean }[]>`select ${calendarUsable(tx)} as usable from app.provider_grants g where g.host_account_id = ${hostAccountId}`;
+    let text: string = LINK_TEXTS.backFromGoogle;
+    if (grant?.usable && !(await readReadiness(tx, hostAccountId)).ready) {
+      const name = await defaultCalendarRoles(tx, hostAccountId, live);
+      const texts = channelReplies(await hostConversationLanguage(tx, hostAccountId)).onboarding;
+      text = name ? texts.rolesDefault(name) : texts.rolesNeeded;
+    }
     await recordOutbound(tx, {
       bindingId: binding.id,
-      dedupeKey: `google-return:${createHmac("sha256", key.key).update(`imessage-google-return:${authCode}`).digest("hex")}`,
+      dedupeKey,
       hostAccountId,
       kind: "command",
       recipient: bindingRecipient([key], binding),
       recipientHash: binding.sender_hash,
-      text: LINK_TEXTS.backFromGoogle,
+      text,
       tokenKey: key,
     });
   });

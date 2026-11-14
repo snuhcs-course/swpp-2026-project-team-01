@@ -78,6 +78,8 @@
 
 첫 호스트 온보딩 호스팅 테스트에서 큰 카드 여러 개가 한꺼번에 나타나 설정을 따라가기 어려웠던 점을 반영해 2026-10-20에 추가했습니다.
 
+예외: 연동된 iMessage나 WhatsApp 설정에서는 채팅이 최소한만 묻고 호스트가 자연스럽게 답하도록, 메시지 하나가 장소, 미팅 방식, 이동 수단을 함께 묻습니다([`host-onboarding-in-chat` D2](../openspec/changes/host-onboarding-in-chat/proposal.md#decisions), #166).
+
 ## 원칙 적용하기
 
 각 기능마다 다음을 검토합니다.

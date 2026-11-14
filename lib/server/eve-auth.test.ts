@@ -2,7 +2,7 @@ import { randomUUID } from "node:crypto";
 import { ForbiddenError } from "eve/channels/auth";
 import { describe, expect, it } from "vitest";
 import type { Database } from "./database";
-import { createAppAuth, createEvalRequesterAuth } from "./eve-auth";
+import { createAppAuth, createEvalHostReviewAuth, createEvalRequesterAuth } from "./eve-auth";
 import { signInternalBearer } from "./internal-bearer";
 
 // Requests refused on their route alone; the database is never consulted.
@@ -87,6 +87,29 @@ describe("evalRequesterAuth", () => {
   it("skips a request that carries a credential, and any process that is not eve dev", async () => {
     const auth = createEvalRequesterAuth(untouched as never, { FMAT_EVAL_AUDIENCE: "requester" });
     expect(await auth(create({ authorization: "Bearer anything" }))).toBeNull();
+    // Unit tests do not run inside an eve dev server, so localDev admits nothing.
+    expect(await auth(create())).toBeNull();
+  });
+});
+
+describe("evalHostReviewAuth", () => {
+  const untouched = () => {
+    throw new Error("A skipped eval request must not reach the database.");
+  };
+  const create = (headers: Record<string, string> = {}) =>
+    new Request("http://127.0.0.1:2000/eve/v1/session", { headers: { "x-fmat-eval-request": randomUUID(), ...headers }, method: "POST" });
+
+  it("skips unless host-review evals are switched on outside Vercel", async () => {
+    expect(await createEvalHostReviewAuth(untouched as never, {})(create())).toBeNull();
+    expect(await createEvalHostReviewAuth(untouched as never, { FMAT_EVAL_AUDIENCE: "requester" })(create())).toBeNull();
+    expect(await createEvalHostReviewAuth(untouched as never, { FMAT_EVAL_AUDIENCE: "host_review", VERCEL: "1", VERCEL_ENV: "production" })(create())).toBeNull();
+    expect(await createEvalHostReviewAuth(untouched as never, { FMAT_EVAL_AUDIENCE: "host_review", VERCEL: "1", VERCEL_ENV: "preview" })(create())).toBeNull();
+  });
+
+  it("skips a request that carries a credential, and any process that is not eve dev", async () => {
+    const auth = createEvalHostReviewAuth(untouched as never, { FMAT_EVAL_AUDIENCE: "host_review" });
+    expect(await auth(create({ authorization: "Bearer anything" }))).toBeNull();
+    expect(await auth(create({ cookie: "sb-project-auth-token=anything" }))).toBeNull();
     // Unit tests do not run inside an eve dev server, so localDev admits nothing.
     expect(await auth(create())).toBeNull();
   });

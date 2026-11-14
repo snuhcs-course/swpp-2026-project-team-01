@@ -1,6 +1,6 @@
 import { z } from "zod";
 import { IMESSAGE_PREFIX, type MessagingChannel, TELEGRAM_PREFIX, WHATSAPP_PREFIX } from "../contracts/messaging-channel";
-import type { Database } from "./database";
+import type { Database, Queryable } from "./database";
 import { HOST_REVIEW_AUDIENCE, HOST_SETUP_AUDIENCE } from "./eve-auth";
 import { listHostRequests } from "./host-requests";
 import { requestRef } from "./request-ref";
@@ -52,7 +52,7 @@ export function channelOf(message: string): MessagingChannel | null {
 // one that starts with a prefix, or when the session is not the host's own live
 // one. Every action the assistant takes in the host's words checks this first
 // (channel-actions-in-words D1).
-export async function channelOfTurn(db: Database, sessionId: string, hostAccountId: string): Promise<MessagingChannel | null> {
+export async function channelOfTurn(db: Queryable, sessionId: string, hostAccountId: string): Promise<MessagingChannel | null> {
   const [turn] = await db<{ message: string; channel: MessagingChannel }[]>`
     select i.message, r.channel from app.agent_sessions s
     join app.conversation_inputs i on i.id = s.current_input_id

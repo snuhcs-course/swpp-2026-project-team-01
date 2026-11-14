@@ -1,4 +1,5 @@
 import { randomUUID } from "node:crypto";
+import { readDefaultRoleCalendars } from "../../../lib/server/calendar-roles";
 import type { MessageStreamEvent } from "eve/client";
 import type { ConversationRuntime } from "../../../lib/server/conversations";
 import type { Database } from "../../../lib/server/database";
@@ -88,8 +89,9 @@ export function imessageHarness(
     signingKey: SIGNING_KEY,
     tokenKeys: [testTokenKey],
   });
-  const commands = (lineDayLimit = 1000) =>
+  const commands = (liveCalendars: Awaited<ReturnType<typeof readDefaultRoleCalendars>>, lineDayLimit = 1000) =>
     imessageCommands({
+      liveCalendars,
       lineDayLimit,
       lineNumber: TEST_LINE,
       origin: "http://localhost:3000",
@@ -195,9 +197,12 @@ export function imessageHarness(
       return runJob(db, job!.id, createImessageReceiptHandler(() => deps));
     },
     async command(hostAccountId: string, operation: string, input: unknown = {}, retryKey: string = randomUUID(), lineDayLimit?: number) {
+      const liveCalendars = operation === "imessage.link.confirm" || operation === "imessage.link.verify_code"
+        ? await readDefaultRoleCalendars(db, hostAccountId, receiptDeps().setup.calendar)
+        : null;
       return runCommand(
         { authenticate: async () => ({ id: hostAccountId, kind: "host_account" }), db },
-        commands(lineDayLimit)[operation]!,
+        commands(liveCalendars, lineDayLimit)[operation]!,
         { input, resourceId: hostAccountId, retryKey },
       );
     },

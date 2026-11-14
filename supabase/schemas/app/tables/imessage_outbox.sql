@@ -30,9 +30,10 @@ CREATE TABLE "app"."imessage_outbox" (
   "kind" text NOT NULL CHECK (
     "kind" IN (
       'link_received', 'link_refused', 'linked', 'fallback_code', 'unlinked_sender', 'text_only',
-      'command', 'turn', 'notice', 'contact_card', 'signal', 'template', 'edit_markup', 'callback_answer'
+      'command', 'turn', 'notice', 'image', 'contact_card', 'signal', 'template', 'edit_markup', 'callback_answer'
     )
   ),
+  "review_hash" text CHECK ("review_hash" ~ '^[0-9a-f]{64}$'),
   "dedupe_key" text NOT NULL CHECK (char_length("dedupe_key") BETWEEN 1 AND 300),
   "host_account_id" uuid REFERENCES "app"."host_accounts" ("id") ON DELETE CASCADE,
   "binding_id" uuid REFERENCES "app"."imessage_bindings" ("id") ON DELETE CASCADE,
@@ -55,6 +56,7 @@ CREATE TABLE "app"."imessage_outbox" (
   "updated_at" timestamptz NOT NULL DEFAULT now(),
   "dispatched_at" timestamptz,
   "completed_at" timestamptz,
+  CONSTRAINT "imessage_outbox_image_review" CHECK (("kind" = 'image') = ("review_hash" IS NOT NULL)),
   CONSTRAINT "imessage_outbox_kind_dedupe_key_key" UNIQUE ("kind", "dedupe_key"),
   CONSTRAINT "imessage_outbox_final" CHECK (
     ("state" IN ('accepted', 'failed', 'uncertain', 'suppressed')) = ("completed_at" IS NOT NULL)

@@ -3,6 +3,7 @@ import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { approveCommand } from "../../lib/server/bookings";
 import { requestRef, reviewRef, settingsRef } from "../../lib/server/imessage-commands";
 import { receivePhotonWebhook } from "../../lib/server/photon-receiver";
+import { previewNextWeekForTool } from "../../lib/server/setup-channel-tools";
 import { computeSetupProposal } from "../../lib/server/setup";
 import { suggestChangesCommand } from "../../lib/server/shared-changes";
 import { agreedRequest, asHost } from "./support/booking";
@@ -31,7 +32,8 @@ const im = imessageHarness(db, () => photon, { receipt: () => ({ setup: setupDep
 beforeAll(async () => {
   photon = await startFakePhoton();
   google = await startFakeGoogle();
-  setupDeps = setupDependencies(db, google);
+  const setup = setupDependencies(db, google);
+  setupDeps = { ...setup, calendar: { ...setup.calendar, tokenKeys: [testTokenKey, setup.tokenKey] } };
 });
 
 afterAll(async () => {
@@ -190,6 +192,13 @@ describe("settings commands", () => {
     expect((await say(sender, host.hostAccountId, "confirm 00000000")).reply).toContain(`the current one is ${ref}`);
     expect(await db`select 1 from app.host_settings where host_account_id = ${host.hostAccountId}`).toHaveLength(0);
 
+    expect((await say(sender, host.hostAccountId, `confirm ${ref}`)).reply).not.toMatch(/^Saved/);
+    await im.deliver({ sender, text: "Show next week" });
+    const [input] = await db<{ id: string }[]>`select id from app.conversation_inputs where discussion_id = ${host.discussionId} order by accepted_at desc limit 1`;
+    await db`update app.agent_sessions set current_input_id = ${input!.id} where session_id = ${host.sessionId}`;
+    expect(await previewNextWeekForTool(setupDeps, { auth: { principalId: host.hostAccountId, principalType: "user", attributes: { audience: "host_setup" } }, sessionId: host.sessionId, callId: randomUUID() })).toMatchObject({ queued: true });
+    const [image] = await im.outbox({ hostAccountId: host.hostAccountId, kind: "image" });
+    await im.send(image!.id);
     const saved = await say(sender, host.hostAccountId, `confirm ${ref}`);
     expect(saved.reply).toMatch(/^Saved\. Your booking link is https:\/\/findmeatime\.test\//);
     expect(await db`select 1 from app.host_settings where host_account_id = ${host.hostAccountId}`).toHaveLength(1);

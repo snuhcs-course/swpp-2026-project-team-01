@@ -28,3 +28,27 @@ The remainder of that `NOTICE` covers the code-mode runtime bundled inside the `
 
 - Source: <https://github.com/shadcn-ui/ui>, <https://ui.shadcn.com/docs/ai-elements>
 - License: MIT License, Copyright (c) 2023 shadcn
+
+## Noto Sans KR
+
+`lib/server/fonts/NotoSansKR-Regular.woff` and `NotoSansKR-Bold.woff` are subsets of Noto Sans KR, bundled so the slot image (`lib/server/slot-preview-image.ts`) renders Korean without fetching fonts at runtime. They were made on 2026-11-09 from the variable font with fontTools 4.60.1: `fonttools varLib.instancer` at weights 400 and 700, then `pyftsubset` to Basic Latin, Latin-1, general punctuation, arrows, CJK symbols, Hangul compatibility jamo, all Hangul syllables and fullwidth forms (`U+0020-007E,U+00A0-00FF,U+2010-2027,U+2030-203A,U+2190-2193,U+2212,U+3000-303F,U+3131-318E,U+AC00-D7A3,U+FF01-FF5E`), without hinting, as WOFF. The license is copied beside them as `lib/server/fonts/OFL.txt`.
+
+- Source: <https://github.com/google/fonts>, file `ofl/notosanskr/NotoSansKR[wght].ttf`, last changed in commit `4efc2774c63917927efe769ca845def6bd6debae` (2022-12-09, "Noto Sans KR hotfix2")
+- Copyright 2014-2021 Adobe (http://www.adobe.com/), with Reserved Font Name 'Source'
+- License: SIL Open Font License, Version 1.1, <https://openfontlicense.org>
+
+## Geist
+
+`lib/server/fonts/Geist-Regular.ttf` and `Geist-SemiBold.ttf` are Geist 1.800 at weights 400 and 600, bundled so the slot image (`lib/server/slot-preview-image.ts`) renders without fetching fonts at runtime. They are the static TTF instances Google Fonts' CSS API (`fonts.googleapis.com/css2?family=Geist:wght@400` and `@600`) served on 2026-11-12, unmodified. The license is copied beside them as `lib/server/fonts/OFL.txt`.
+
+- Source: <https://github.com/vercel/geist-font>, through Google Fonts
+- Copyright 2024 The Geist Project Authors (https://github.com/vercel/geist-font)
+- License: SIL Open Font License, Version 1.1, <https://openfontlicense.org>
+
+## Instrument Serif
+
+`lib/server/fonts/InstrumentSerif-Regular.ttf` and `InstrumentSerif-Italic.ttf` are Instrument Serif 1.000, bundled for the slot image's headline. They are the TTF files Google Fonts' CSS API (`fonts.googleapis.com/css2?family=Instrument+Serif` and `:ital@1`) served on 2026-11-12, unmodified. The license is copied beside them as `lib/server/fonts/OFL.txt`.
+
+- Source: <https://github.com/Instrument/instrument-serif>, through Google Fonts
+- Copyright 2022 The Instrument Serif Project Authors (https://github.com/Instrument/instrument-serif)
+- License: SIL Open Font License, Version 1.1, <https://openfontlicense.org>

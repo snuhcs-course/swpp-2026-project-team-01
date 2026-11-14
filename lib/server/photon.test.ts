@@ -198,3 +198,14 @@ describe("photonRegistrar", () => {
     expect(fetcher).not.toHaveBeenCalled();
   });
 });
+
+it("passes slot preview data and language to the stand-in without rendering", async () => {
+  const fetcher = vi.fn<typeof fetch>().mockResolvedValue(new Response(JSON.stringify({ messageId: "image-1" }), { status: 200 }));
+  const content = { kind: "image" as const, language: "ko" as const, preview: {
+    timezone: "Asia/Seoul", weekStart: "2026-11-16", grid: { start: "10:00", end: "20:00" }, days: [],
+    place: "강남역", meetingMode: "in_person" as const, travelMode: "transit" as const, durationMinutes: 30, reviewRef: "ABCD1234",
+  } };
+  const result = await standInTransport("http://127.0.0.1:9000", "test", fetcher).send({ channel: "whatsapp", content, recipient: { address: "+15550000000", spaceId: null }, idempotencyKey: "image" });
+  expect(result.status).toBe("accepted");
+  expect(JSON.parse(String(fetcher.mock.calls[0]![1]!.body)).content).toEqual(content);
+});

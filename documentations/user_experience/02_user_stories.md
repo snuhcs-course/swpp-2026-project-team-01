@@ -19,13 +19,13 @@ J-01; FR-01; AC-10.
 
 As a host, I want the assistant to recommend which Google Calendars to check and where to create bookings, explain why, and let me change the choices, so that setup is easy while scheduling reflects my commitments.
 
-J-01; FR-02; AC-28.
+J-01; FR-02; AC-28. Setting up in iMessage or WhatsApp, I start from my primary calendar for both, am told so, and add or change calendars in my own words ([`host-onboarding-in-chat`](../../openspec/changes/host-onboarding-in-chat/proposal.md#decisions), #166).
 
 ### US-03 — Control rules
 
 As a host, I want the assistant to guide every onboarding step and suggest my preferences first, using calendars I choose to analyze or clearly labeled starter defaults, so that I can review and adjust calendar choices, timezone, meeting windows, duration, buffers and locations without starting from a blank form.
 
-J-01; FR-04; AC-28.
+J-01; FR-04; AC-28. Setting up in iMessage or WhatsApp, I am asked only about my hours and places, each with a suggestion from my calendar, answer in my own words, see next week's open slots as one image and save by agreeing to it ([`host-onboarding-in-chat`](../../openspec/changes/host-onboarding-in-chat/proposal.md#decisions), #166).
 
 ### US-04 — Recover calendar access
 
