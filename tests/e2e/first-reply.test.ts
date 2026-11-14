@@ -1,6 +1,6 @@
 import { randomUUID } from "node:crypto";
 import { completeGoogleLeg, createGoogleUser } from "../integration/support/auth";
-import { expect, test } from "./support/session";
+import { expect, skipImessageStep, test } from "./support/session";
 
 // The Phase 1 join (task 5.1): a new host signs in from the home page through
 // the real web routes and the real local Supabase Auth flow, lands on /app with
@@ -17,11 +17,14 @@ const live = process.env.E2E_LIVE_MODEL === "1";
 
 test("a new host signs in, lands on /app with an empty setup session and gets Thyme's first reply", async ({
   baseURL,
+  context,
   db,
   page,
 }) => {
   test.setTimeout(live ? 180_000 : 60_000);
   const user = await createGoogleUser(db);
+  // This suite exercises the legacy web conversation on the isolated test server.
+  await skipImessageStep(context);
 
   await page.route("**/auth/sign-in", async (route) => {
     const response = await route.fetch({ maxRedirects: 0 });
@@ -38,8 +41,6 @@ test("a new host signs in, lands on /app with an empty setup session and gets Th
   await page.goto("/");
   await page.getByRole("link", { name: "Continue with Google" }).click();
   await page.waitForURL((url) => url.pathname === "/app" && url.search === "");
-  // A new host first sees the iMessage link step (D16) and sets up on the web instead.
-  await page.getByRole("button", { name: "Set up here in web chat" }).click();
   const composer = page.getByRole("textbox", { name: "Message Thyme" });
   await expect(composer).toBeEnabled();
 
