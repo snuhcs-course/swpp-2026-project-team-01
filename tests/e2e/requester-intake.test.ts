@@ -181,7 +181,12 @@ for (const viewport of [
     `;
     expect(agreed).toEqual({ state: "awaiting_host_approval", version: 1 });
 
-    // Withdraw request is in the thread's menu beside the composer, by keyboard.
+    // Request actions sit inside the composer, immediately before Send.
+    const composerButtons = page.locator('[data-chat-composer] [data-slot="input-group-addon"] > button');
+    await expect(composerButtons).toHaveCount(2);
+    await expect(composerButtons.first()).toHaveAttribute("aria-label", "Request actions");
+    await expect(composerButtons.last()).toHaveAttribute("aria-label", "Send message");
+    // Withdraw request remains available by keyboard.
     await press(page, /^Request actions$/);
     await expect(page.getByRole("menuitem", { name: "Withdraw request" })).toBeVisible();
     await page.keyboard.press("Escape");
