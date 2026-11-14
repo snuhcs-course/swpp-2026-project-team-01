@@ -125,7 +125,7 @@ export function ReviewCard({ pending = false }: { readonly pending?: boolean }) 
           )}
         </Row>
         <Row label={FIELD_LABELS.noteExclusions} step={noteEntries(state).length > 0 ? "notes" : null}>
-          {exclusions === 0 ? "None excluded" : `${exclusions} excluded from busy time`}
+          {exclusions === 0 ? "Checked in the note review" : `${exclusions} excluded from busy time`}
         </Row>
         <Row label={FIELD_LABELS.meetingMode} step="mode">
           {mode ? MEETING_MODE_LABELS[mode] : null}

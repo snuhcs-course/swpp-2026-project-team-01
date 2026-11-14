@@ -148,33 +148,146 @@ describe("computeEvidence", () => {
     expect(evidence.preferredTimes.sampleSize).toBe(4);
   });
 
-  it("lists note-like entries, timed or all-day, with their identity, title and fingerprint", () => {
+  it("lists note candidates, timed or all-day, with their identity, title, fingerprint and shape", () => {
     const evidence = computeEvidence(
       [
         event({ attendees: [], hasConferenceLink: false, id: "focus", summary: "Focus time", updated: "2026-10-02T00:00:00Z" }),
         allDay({ id: "report", summary: "Write report", updated: "2026-10-03T00:00:00Z" }),
-        // Not note-like: a location, a link, or another attendee.
-        event({ attendees: [], hasConferenceLink: false, location: "Office" }),
-        event({ attendees: [], hasConferenceLink: true }),
-        event({ attendees: [self, { ...colleague, responseStatus: "declined" }], hasConferenceLink: false }),
-        // Not busy, so not listed.
-        allDay({ id: "free", transparency: "transparent" }),
+        // A location or a link no longer rules an entry out: "헬스" at a gym may be a note.
+        event({ attendees: [], hasConferenceLink: false, id: "gym", location: "Gym", summary: "헬스" }),
+        event({ attendees: [self], hasConferenceLink: true, id: "solo-call" }),
       ],
       ctx,
     );
 
-    expect(evidence.noteLike.entries).toEqual([
-      {
-        allDay: false,
-        calendarId: host,
-        eventId: "focus",
-        fingerprint: "2026-10-02T00:00:00Z",
-        start: "2026-10-13T01:00:00.000Z",
-        title: "Focus time",
-      },
-      { allDay: true, calendarId: host, eventId: "report", fingerprint: "2026-10-03T00:00:00Z", start: "2026-10-14", title: "Write report" },
-    ]);
-    expect(evidence.preferredTimes.sampleSize).toBe(1);
+    expect(evidence.noteLike.entries.map((entry) => entry.eventId)).toEqual(["focus", "report", "gym", "solo-call"]);
+    expect(evidence.noteLike.entries[0]).toEqual({
+      allDay: false,
+      calendarId: host,
+      end: "2026-10-13T01:30:00.000Z",
+      eventId: "focus",
+      fingerprint: "2026-10-02T00:00:00Z",
+      hasConferenceLink: false,
+      hasLocation: false,
+      seriesId: null,
+      start: "2026-10-13T01:00:00.000Z",
+      title: "Focus time",
+    });
+    expect(evidence.noteLike.entries[1]).toMatchObject({ allDay: true, end: "2026-10-15", start: "2026-10-14", title: "Write report" });
+    expect(evidence.noteLike.entries[2]).toMatchObject({ hasConferenceLink: false, hasLocation: true, title: "헬스" });
+    // The location text itself is never part of a candidate.
+    expect(JSON.stringify(evidence.noteLike.entries)).not.toContain("Gym");
+    expect(evidence.noteLike.entries[3]).toMatchObject({ hasConferenceLink: true, hasLocation: false });
+  });
+
+  it("never lists an event with a guest, a transparent event or one the host declined", () => {
+    const evidence = computeEvidence(
+      [
+        event({ attendees: [self, colleague], hasConferenceLink: false, id: "with-guest" }),
+        event({ attendees: [colleague], hasConferenceLink: false, id: "guest-without-self" }),
+        // An invited guest, even one who declined, makes it a real event.
+        event({ attendees: [self, { ...colleague, responseStatus: "declined" }], hasConferenceLink: false, id: "declined-guest" }),
+        allDay({ id: "free-day", transparency: "transparent" }),
+        event({ attendees: [], hasConferenceLink: false, id: "free-time", transparency: "transparent" }),
+        event({ attendees: [{ ...self, responseStatus: "declined" }], hasConferenceLink: false, id: "declined" }),
+        event({ attendees: [], hasConferenceLink: false, id: "cancelled", status: "cancelled" }),
+        // Opaque is Google's default, written out or absent.
+        allDay({ id: "birthday", summary: "엄마 생일", transparency: "opaque" }),
+      ],
+      ctx,
+    );
+
+    expect(evidence.noteLike.entries.map((entry) => entry.eventId)).toEqual(["birthday"]);
+  });
+
+  it("leaves out entries the host answered while their fingerprint matches", () => {
+    const answer = (calendarId: string, eventId: string, fingerprint: string, scope: "series" | "occurrence" = "occurrence") =>
+      ({ calendarId, eventId, fingerprint, scope });
+    const answers = [
+      answer(host, "kept", "2026-10-02T00:00:00Z"),
+      answer(host, "edited", "2026-10-02T00:00:00Z"),
+      answer(host, "recycling", "2026-10-05T00:00:00Z", "series"),
+      // The same event ID on another calendar is another event.
+      answer("team@group.calendar.google.com", "other-calendar", "2026-10-02T00:00:00Z"),
+    ];
+    const note = (overrides: Parameters<typeof event>[0]) =>
+      event({ attendees: [], hasConferenceLink: false, updated: "2026-10-02T00:00:00Z", ...overrides });
+    const evidence = computeEvidence(
+      [
+        note({ id: "kept", summary: "헬스" }),
+        // Edited after the answer: a new candidate.
+        note({ id: "edited", updated: "2026-10-09T00:00:00Z" }),
+        // Every occurrence of a series answered as a whole.
+        note({ id: "recycling_20261013", recurringEventId: "recycling", updated: "2026-10-05T00:00:00Z" }),
+        note({ id: "recycling_20261020", recurringEventId: "recycling", startUtc: "2026-10-20T01:00:00Z", updated: "2026-10-05T00:00:00Z" }),
+        // Google gives occurrences of one series their own updated times: an earlier
+        // one is still answered, one edited after the answer is asked again.
+        note({ id: "recycling_20261027", recurringEventId: "recycling", startUtc: "2026-10-27T01:00:00Z", updated: "2026-09-20T00:00:00Z" }),
+        note({ id: "recycling_20261103", recurringEventId: "recycling", startUtc: "2026-11-03T01:00:00Z", updated: "2026-10-06T00:00:00Z" }),
+        note({ id: "other-calendar" }),
+        note({ id: "unanswered" }),
+      ],
+      { ...ctx, answers },
+    );
+
+    expect(evidence.noteLike.entries.map((entry) => entry.eventId)).toEqual(["edited", "recycling_20261103", "other-calendar", "unanswered"]);
+  });
+
+  // The scan reads four weeks back and ahead, but only entries still ahead are
+  // note candidates: freeing a past entry opens no time.
+  describe("only entries that have not ended", () => {
+    // Tuesday 2026-10-13 10:30 KST.
+    const now = new Date("2026-10-13T01:30:00Z");
+    const note = (overrides: Parameters<typeof event>[0]) => event({ attendees: [], hasConferenceLink: false, ...overrides });
+    const candidates = (events: CalendarEvent[]) => computeEvidence(events, { ...ctx, now }).noteLike.entries.map((entry) => entry.eventId);
+
+    it("leaves out a past entry", () => {
+      expect(
+        candidates([
+          note({ id: "yesterday", startUtc: "2026-10-12T01:00:00Z" }),
+          // Ended exactly now.
+          note({ id: "just-ended", minutes: 30, startUtc: "2026-10-13T01:00:00Z" }),
+          allDay({ end: { date: "2026-10-13" }, id: "past-day", start: { date: "2026-10-12" } }),
+          note({ id: "tomorrow", startUtc: "2026-10-14T01:00:00Z" }),
+        ]),
+      ).toEqual(["tomorrow"]);
+    });
+
+    it("keeps an entry in progress, timed or all-day", () => {
+      expect(
+        candidates([
+          note({ id: "now", minutes: 60, startUtc: "2026-10-13T01:00:00Z" }),
+          // Today in Seoul, ending at tomorrow's start.
+          allDay({ end: { date: "2026-10-14" }, id: "today", start: { date: "2026-10-13" } }),
+        ]),
+      ).toEqual(["now", "today"]);
+    });
+
+    it("leaves out a series whose listed occurrences have all passed, and keeps the next one of a running series", () => {
+      expect(
+        candidates([
+          note({ id: "old_1", recurringEventId: "old", startUtc: "2026-09-29T01:00:00Z" }),
+          note({ id: "old_2", recurringEventId: "old", startUtc: "2026-10-06T01:00:00Z" }),
+          note({ id: "weekly_1", recurringEventId: "weekly", startUtc: "2026-10-06T01:00:00Z" }),
+          note({ id: "weekly_2", recurringEventId: "weekly", startUtc: "2026-10-20T01:00:00Z" }),
+        ]),
+      ).toEqual(["weekly_2"]);
+    });
+
+    it("still counts past meetings toward the hours and the load", () => {
+      const evidence = computeEvidence([event({ startUtc: "2026-10-06T01:00:00Z" })], { ...ctx, now });
+      expect(evidence.preferredTimes.sampleSize).toBe(1);
+      expect(evidence.noteLike.entries).toEqual([]);
+    });
+  });
+
+  it("keeps the series of a recurring candidate", () => {
+    const evidence = computeEvidence(
+      [event({ attendees: [], hasConferenceLink: false, id: "recycling_20261013", recurringEventId: "recycling", summary: "분리수거" })],
+      ctx,
+    );
+
+    expect(evidence.noteLike.entries[0]).toMatchObject({ eventId: "recycling_20261013", seriesId: "recycling" });
   });
 
   it("takes places only from events with a location and no conference link", () => {

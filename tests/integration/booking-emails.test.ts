@@ -98,6 +98,7 @@ describe("the confirmation", () => {
       openCalendar: async () => ({
         conferenceSolutionTypes: async () => [],
         getEvent: async () => ({ outcome: "absent" }),
+        patchTransparency: async () => ({ httpStatus: null, outcome: "uncertain" }),
         insertEvent: async (_calendar, event) => ({
           event: { htmlLink: null, iCalUID: null, id: String(event.id), joinUrl: null, organizerEmail: null, organizerName: null, status: "confirmed" },
           outcome: "created",

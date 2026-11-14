@@ -33,7 +33,7 @@ In the linked conversation the host SHALL be able to answer the current weekly r
 ## MODIFIED Requirements
 
 ### Requirement: Setup over iMessage
-A linked host SHALL be able to finish setup in the linked conversation without opening `/app`. Sign-in, Google consent and protected fields SHALL stay browser steps; Thyme SHALL send a link for connecting Google Calendar that returns the host to the conversation. Linking SHALL send a welcome by where the host stands: a ready host is told what Thyme can do, a host without a usable Calendar gets the Calendar link, and any other host is told which calendar is used. Once the analysis settles, the service SHALL send the hours question once, with the suggested hours. Thyme SHALL then ask one place question that also asks how the host meets and travels, and ask again only for an answer that is missing. After the place answer, when the scan has note candidates, the service SHALL send the note review page link on every channel, and SHALL send the image of next week's open slots and their place only after the host confirms the review, with the confirmed notes no longer blocking it; with no candidates, or when the host skips the review in words, the image SHALL follow without it and the candidates SHALL stay busy. Thyme SHALL ask whether to open the slots. Settings SHALL be saved only for the current settings review whose image was sent, by the host's clear words to the assistant or the exact `confirm <ref>` command, under the same checks as the web confirmation, and the reply SHALL carry the booking link.
+A linked host SHALL be able to finish setup in the linked conversation without opening `/app`. Sign-in, Google consent and protected fields SHALL stay browser steps; Thyme SHALL send a link for connecting Google Calendar that returns the host to the conversation. Linking SHALL send a welcome by where the host stands: a ready host is told what Thyme can do, a host without a usable Calendar gets the Calendar link, and any other host is told which calendar is used. Once the analysis settles, the service SHALL send the hours question once, with the suggested hours. Thyme SHALL then ask one place question that also asks how the host meets and travels, and ask again only for an answer that is missing. After the place answer, when the scan has note candidates, the service SHALL send the note review page link on every channel, and SHALL send the image of next week's open slots and their place only after the host confirms the review, with the confirmed notes no longer blocking it; with no candidates, or when the host skips the review in words, the image SHALL follow without it and the candidates SHALL stay busy; when the host neither confirms nor skips within a day (on WhatsApp, before Meta's 24-hour window closes), the image SHALL follow once with the candidates busy and one line that they can still be chosen later from the link. Thyme SHALL ask whether to open the slots. Settings SHALL be saved only for the current settings review whose image was sent, by the host's clear words to the assistant or the exact `confirm <ref>` command, under the same checks as the web confirmation, and the reply SHALL carry the booking link.
 
 #### Scenario: Welcome into setup
 - **WHEN** a host with a usable grant who is not ready confirms the received sender
@@ -54,6 +54,10 @@ A linked host SHALL be able to finish setup in the linked conversation without o
 #### Scenario: Review skipped
 - **WHEN** the host replies "나중에 할게" to the review link
 - **THEN** the slot image is sent with the candidates still busy
+
+#### Scenario: Review left unanswered
+- **WHEN** a day passes after the review link with no 확인 and no reply
+- **THEN** the slot image is sent once with the candidates still busy, followed by one line with the review link, and a later 확인 sends no second image
 
 #### Scenario: Slot image and link
 - **WHEN** the host agrees to the slot image

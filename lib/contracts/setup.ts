@@ -78,6 +78,14 @@ export const noteExclusionSchema = z.object({
   // The provider's updated time when the host confirmed it; a different value
   // later means the entry needs re-checking.
   fingerprint: z.string().max(100),
+  // A free note decision on a calendar the host cannot change
+  // (calendar-note-review design 6) covers a whole series when the scope is
+  // "series": eventId is then the series ID, and an occurrence matches while its
+  // updated time is not later than the fingerprint.
+  scope: z.enum(["series", "occurrence"]).optional(),
+  // The event's end (an ISO time or an all-day date), so the 200-entry limit drops
+  // ended entries first.
+  end: z.string().max(40).optional(),
 });
 
 export function isValidTimeZone(zone: string) {

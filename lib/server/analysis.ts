@@ -32,6 +32,11 @@ import { channelReplies } from "./channel-texts";
 import { readReadiness } from "./readiness";
 import { HostIneligibleError } from "./host-eligibility";
 import { type ClaimedJob, type JobHandler, publishJob } from "./jobs";
+import { type NoteAnswer, noteAnswerMatcher, readNoteAnswers } from "./note-answers";
+import { limitNoteClassifier } from "./model-limits";
+import { classifyNoteCandidates, type NoteCandidate, type NoteClassifierModel, type NoteVerdict } from "./note-classifier";
+import { knownWeeklyVerdicts, publishWeeklyNoteReview } from "./note-weekly-store";
+import { noteClassifierFromEnvironment } from "./note-classifier-stand-in";
 import { type TokenKey, tokenKeyFromEnvironment } from "./token-encryption";
 
 // Calendar analysis (design decision 8). Saving roles, or Analyze again, publishes
@@ -63,6 +68,11 @@ type EvidenceContext = {
   readonly calendars: readonly { readonly id: string; readonly summary: string; readonly ok: boolean }[];
   // The scanned range, so a full week without meetings counts toward the minimum load.
   readonly range?: { readonly start: Date; readonly end: Date };
+  // Entries the host already answered (free or keep busy). An entry an answer
+  // matches (note-answers.ts) is not a candidate.
+  readonly answers?: readonly NoteAnswer[];
+  // The scan's clock: note candidates are only entries that have not ended.
+  readonly now?: Date;
 };
 
 const SHORT_WEEKDAYS: Readonly<Record<string, Weekday>> = {
@@ -173,8 +183,11 @@ function median(values: readonly number[]) {
 //   not decline, or a location without a conference link; all-day events are never
 //   counted. Weekly load still counts only meetings with guests, as feasibility does;
 // - it is internal when every such attendee shares the host's email domain;
-// - note-like entries (timed or all-day) have no other attendee, no location and
-//   no link, and stay busy;
+// - note candidates (calendar-note-review design 1) are busy, timed or all-day,
+//   and have no other attendee; a location or a link does not exclude one ("헬스"
+//   at a gym may be a note). Entries that have ended, and entries the host
+//   answered with an unchanged fingerprint, are left out. Candidates stay
+//   busy: the classifier only recommends, and the host decides;
 // - places come from busy timed events with a location and no conference link, so
 //   an event with both decides nothing.
 export function computeEvidence(events: readonly CalendarEvent[], ctx: EvidenceContext): AnalysisEvidence {
@@ -192,6 +205,17 @@ export function computeEvidence(events: readonly CalendarEvent[], ctx: EvidenceC
   });
 
   const seen = new Set<string>();
+  const answered = noteAnswerMatcher(ctx.answers ?? []);
+  // Only entries still ahead are note candidates: freeing a past one opens no
+  // time. A timed entry counts until its end; an all-day entry while its
+  // (exclusive) end date is after today in the host timezone. Without a clock,
+  // every entry counts.
+  const today = ctx.now ? localTime(formatter, ctx.now).date : null;
+  const ended = (event: CalendarEvent) => {
+    if (!ctx.now) return false;
+    if (event.end.dateTime) return Date.parse(event.end.dateTime) <= ctx.now.getTime();
+    return event.end.date !== undefined && event.end.date <= today!;
+  };
   const cells = new Map<string, { weekday: Weekday; hour: number; count: number }>();
   const samples: { weekday: Weekday; startMinute: number; endMinute: number }[] = [];
   const locations = new Map<string, { name: string; count: number }>();
@@ -214,12 +238,16 @@ export function computeEvidence(events: readonly CalendarEvent[], ctx: EvidenceC
     const others = event.attendees.filter((attendee) => !isHost(attendee, hostEmail));
     const timed = Boolean(event.start.dateTime && event.end.dateTime);
 
-    if (others.length === 0 && !event.location && !event.hasConferenceLink && notes.length < MAX_NOTE_ENTRIES) {
+    if (others.length === 0 && notes.length < MAX_NOTE_ENTRIES && !ended(event) && !answered(event)) {
       notes.push({
         allDay: !timed,
         calendarId: event.calendarId,
+        end: event.end.dateTime ?? event.end.date ?? "",
         eventId: event.id,
         fingerprint: event.updated ?? "",
+        hasConferenceLink: event.hasConferenceLink,
+        hasLocation: event.location !== null,
+        seriesId: event.recurringEventId,
         start: event.start.dateTime ?? event.start.date ?? "",
         title: event.summary?.trim() || "(No title)",
       });
@@ -545,13 +573,21 @@ export async function writeDraft(tx: Transaction, hostAccountId: string, fields:
 
 // Inserts a pending scan of the saved conflict calendars and publishes its job in
 // the caller's transaction. One scan per (host, key): publishing the same key again
-// returns the scan already published.
-export async function publishAnalysis(tx: Transaction, hostAccountId: string, rolesRevision: number, key: string) {
+// returns the scan already published. A weekly note check (calendar-note-review
+// design 9) names its week, so the finished scan records that week's review.
+export async function publishAnalysis(
+  tx: Transaction,
+  hostAccountId: string,
+  rolesRevision: number,
+  key: string,
+  options: { readonly weeklyCheck?: string; readonly rangeDays?: number } = {},
+) {
   const analysisId = randomUUID();
+  const rangeDays = options.rangeDays ?? RANGE_DAYS;
   const jobId = await publishJob(tx, {
     dedupeKey: `${CALENDAR_ANALYSIS_JOB}:${hostAccountId}:${key}`,
     kind: CALENDAR_ANALYSIS_JOB,
-    payload: { analysisId },
+    payload: { analysisId, ...(options.weeklyCheck ? { weeklyCheck: options.weeklyCheck } : {}) },
   });
 
   if (!jobId) {
@@ -566,7 +602,7 @@ export async function publishAnalysis(tx: Transaction, hostAccountId: string, ro
   await tx`
     insert into app.calendar_analyses (id, host_account_id, roles_revision, range_start, range_end, calendars)
     select ${analysisId}, r.host_account_id, ${rolesRevision},
-           now() - make_interval(days => ${RANGE_DAYS}), now() + make_interval(days => ${RANGE_DAYS}),
+           now() - make_interval(days => ${rangeDays}), now() + make_interval(days => ${rangeDays}),
            coalesce(
              (select jsonb_agg(jsonb_build_object('id', c ->> 'id', 'summary', c ->> 'summary', 'ok', null))
               from jsonb_array_elements(r.conflict_calendars) c),
@@ -638,10 +674,49 @@ export type CalendarAnalysisDependencies = {
   readonly tokenKeys: readonly TokenKey[];
   readonly config: GoogleCalendarConfig;
   readonly budgetMs?: number;
+  // The note classifier (calendar-note-review design 2); without one, candidates
+  // are listed without a recommendation.
+  readonly classify?: NoteClassifierModel;
+  // Puts each classifier call under the host's usage limit; limitNoteClassifier
+  // by default.
+  readonly limitClassifier?: (model: NoteClassifierModel, hostAccountId: string) => NoteClassifierModel;
 };
 
 function analysisDependenciesFromEnvironment(): CalendarAnalysisDependencies {
-  return { config: googleCalendarConfigFromEnvironment(), tokenKeys: [tokenKeyFromEnvironment()] };
+  return {
+    classify: noteClassifierFromEnvironment(),
+    config: googleCalendarConfigFromEnvironment(),
+    tokenKeys: [tokenKeyFromEnvironment()],
+  };
+}
+
+// The scan's note candidates with the classifier's recommendations. The call is
+// apart from the host assistant and sees titles only as data; whatever it
+// answers, a candidate stays busy until the host confirms it.
+// A weekly check passes the verdicts its earlier list already gave (known), so
+// only new or changed candidates go to the model again (proposal D10).
+export async function withNoteRecommendations(
+  evidence: AnalysisEvidence,
+  classify: NoteClassifierModel | undefined,
+  known: (entry: NoteCandidate) => NoteVerdict | null = () => null,
+): Promise<AnalysisEvidence> {
+  const entries = evidence.noteLike.entries;
+  if (!classify || entries.length === 0) return evidence;
+  const kept = entries.map((entry) => known(entry));
+  const fresh = entries.filter((_, index) => kept[index] === null);
+  const recommended = fresh.length ? await classifyNoteCandidates(fresh, classify, { timezone: evidence.timezone }) : [];
+  let next = 0;
+  return {
+    ...evidence,
+    noteLike: {
+      entries: entries.map((entry, index) => {
+        const verdict = kept[index];
+        if (verdict) return { ...entry, reasons: null, verdict };
+        const judged = recommended[next++]!;
+        return { ...judged.candidate, reasons: judged.reasons, verdict: judged.verdict };
+      }),
+    },
+  };
 }
 
 function failureCategory(error: unknown): CalendarAccessCategory {
@@ -788,13 +863,22 @@ export function createCalendarAnalysisHandler(
     const [identity] = await tx<{ email: string }[]>`
       select email from app.google_identities where host_account_id = ${hostAccountId}
     `;
-    const evidence = computeEvidence(events, {
+    const counted = computeEvidence(events, {
+      answers: await readNoteAnswers(tx, hostAccountId),
       calendars: results,
       hostEmail: identity?.email ?? "",
       primaryTimeZone,
       range: { end: analysis.range_end, start: analysis.range_start },
+      now: new Date(),
       timezone: countingZone(zones, primaryTimeZone),
     });
+    const { classify, limitClassifier = limitNoteClassifier } = load();
+    const weeklyCheck = typeof job.payload.weeklyCheck === "string" ? job.payload.weeklyCheck : null;
+    const evidence = await withNoteRecommendations(
+      counted,
+      classify && limitClassifier(classify, hostAccountId),
+      weeklyCheck ? await knownWeeklyVerdicts(tx, hostAccountId) : undefined,
+    );
 
     await tx`
       update app.calendar_analyses
@@ -804,6 +888,7 @@ export function createCalendarAnalysisHandler(
       where id = ${analysisId}
     `;
     await queueHoursQuestion(tx, hostAccountId, load().tokenKeys, evidence, analysisId!);
+    if (weeklyCheck) await publishWeeklyNoteReview(tx, { analysisId: analysisId!, hostAccountId, week: weeklyCheck });
     return { state: "completed" };
   };
 

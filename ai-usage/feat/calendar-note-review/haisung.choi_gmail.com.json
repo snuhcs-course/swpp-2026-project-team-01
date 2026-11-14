@@ -1,0 +1,23 @@
+{
+  "branch": "feat/calendar-note-review",
+  "user": "haisung.choi@gmail.com",
+  "sessions": {
+    "claude:1eafcc2f-ef27-4c8b-a878-ffac5369feeb": {
+      "agent": "claude-code",
+      "client": "claude-desktop",
+      "agent_ms": 0,
+      "models": {
+        "claude-opus-5-5": {
+          "input": 94,
+          "cache_read": 11341099,
+          "cache_write_5m": 0,
+          "cache_write_1h": 66010,
+          "output": 22324,
+          "reasoning": 0
+        }
+      },
+      "first": "2026-11-14T06:33:16.527Z",
+      "last": "2026-11-14T07:07:31.019Z"
+    }
+  }
+}

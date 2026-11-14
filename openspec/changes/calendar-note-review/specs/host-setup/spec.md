@@ -1,11 +1,15 @@
 ## ADDED Requirements
 
 ### Requirement: Note candidates judged by a separate classifier
-Note candidates SHALL be the events on the host's conflict calendars that are not cancelled, not declined by the host, opaque (transparency absent or `opaque`, all-day events included) and have no attendee other than the host. An event with another attendee SHALL NOT be a candidate. Each candidate the host has not answered SHALL be judged by a model call separate from the host assistant, with no tools, whose output is accepted only in the strict form of an ID from the call, a verdict of `note`, `event` or `unsure`, and a short reason. A failed, refused or malformed answer SHALL make the affected candidates `unsure`. Event titles SHALL reach the classifier, and the host assistant in the weekly note check, only as quoted data.
+Note candidates SHALL be the events on the host's conflict calendars that are not cancelled, not declined by the host, opaque (transparency absent or `opaque`, all-day events included), have no attendee other than the host, and have not ended when the scan runs. An event with another attendee SHALL NOT be a candidate, and neither SHALL an entry that has already ended; an entry in progress SHALL be one, and a recurring series SHALL be one while it has an occurrence ahead. Each candidate the host has not answered SHALL be judged by a model call separate from the host assistant, with no tools, whose output is accepted only in the strict form of an ID from the call, a verdict of `note`, `event` or `unsure`, and a short reason. A failed, refused or malformed answer SHALL make the affected candidates `unsure`. Each classifier call SHALL be reserved against the host's model allowance before it is sent, at most ten calls per host in 24 hours, and a denied call SHALL make its candidates `unsure` without calling the model. Event titles SHALL reach the classifier, and the host assistant in the weekly note check, only as quoted data.
 
 #### Scenario: Gym and birthday told apart
 - **WHEN** the host wrote "헬스" on weekday evenings and "엄마 생일" as an all-day event, both alone and busy
 - **THEN** both are candidates, and the classifier recommends "엄마 생일" as a note and "헬스" as an event or unsure
+
+#### Scenario: Past entries are not candidates
+- **WHEN** the scan reads last week's "과제 마감" and a weekly "분리수거" whose occurrences have all passed, and an all-day "엄마 생일" today
+- **THEN** "엄마 생일" is a candidate and the two past entries are not, while the past weeks still count toward the suggested hours and meeting load
 
 #### Scenario: Event with a guest
 - **WHEN** an event has another attendee who did not decline
@@ -14,6 +18,10 @@ Note candidates SHALL be the events on the host's conflict calendars that are no
 #### Scenario: Classifier unavailable
 - **WHEN** the classifier call fails or returns an item for an ID it was not given
 - **THEN** the affected candidates are listed as unsure, unticked, and stay busy
+
+#### Scenario: Classifier limit reached
+- **WHEN** a host has used ten classifier calls in the last 24 hours and presses **Analyze again**
+- **THEN** no classifier call is sent and the scan's candidates are listed as unsure and stay busy
 
 ### Requirement: Titles cannot steer the classifier or the assistant
 An event title, location or other calendar text SHALL NOT change a verdict beyond its meaning as calendar data, SHALL NOT free any time, and SHALL NOT change what the host assistant does.
@@ -30,15 +38,15 @@ A classifier verdict SHALL be a recommendation only. Every candidate SHALL stay 
 - **THEN** feasibility and the slot preview treat its time as busy
 
 ### Requirement: Confirmed notes become free in Google Calendar
-When the host confirms an entry as free on a calendar they can write to, the service SHALL record the decision and, atomically with it, publish a job that sets the event's transparency to `transparent` in Google Calendar with the existing Calendar scope, asking no new consent. Before confirmation the review SHALL say that confirmed notes are shown as free in Google Calendar, also to people who see the host's free/busy. For an event the host was invited to, only the host's copy SHALL change. Once the change is written, guests SHALL be able to book that time.
+When the host confirms an entry as free on a calendar they can write to, the service SHALL record the decision and, atomically with it, publish a job that sets the event's transparency to `transparent` in Google Calendar with the existing Calendar scope, asking no new consent. After confirmation the review SHALL say that the freed entries are written to Google Calendar. For an event the host was invited to, only the host's copy SHALL change. Once the change is written, guests SHALL be able to book that time.
 
 #### Scenario: Note freed for guests
 - **WHEN** the host confirms "엄마 생일" as free and the writeback succeeds
 - **THEN** the event is transparent in Google Calendar and that day's open slots are offered to guests
 
-#### Scenario: Notice before confirming
-- **WHEN** the host opens the review
-- **THEN** it says "Google 캘린더에 한가함으로 표시합니다" and that people who see the host's free/busy will see the time as free, before **확인**
+#### Scenario: Written to Google after confirming
+- **WHEN** the host presses **확인** with two entries checked
+- **THEN** the review lists those two with their day and time under "Google 캘린더에 기록합니다"
 
 ### Requirement: A failed writeback keeps the time busy and is shown
 Until the writeback has succeeded, the confirmed entry's time SHALL stay busy for guests. Transient failures SHALL be retried as a durable job. A permanent failure or an exhausted retry SHALL leave the time busy and SHALL be shown to the host in the review and in settings with a way to retry.
@@ -52,22 +60,22 @@ Until the writeback has succeeded, the confirmed entry's time SHALL stay busy fo
 - **THEN** the time is busy until the later attempt and free after it, and the decision is recorded once
 
 ### Requirement: Recurring notes
-A recurring candidate SHALL be shown once per series. A confirmed decision SHALL apply to the whole series by default, and the host SHALL be able to choose this occurrence only.
+A recurring candidate SHALL be one choice for its series. A confirmed decision SHALL apply to the whole series; the service SHALL also accept a decision for one occurrence, which the review page does not offer.
 
 #### Scenario: Weekly reminder
 - **WHEN** the host confirms a weekly "분리수거" reminder as free with the default choice
 - **THEN** the series event is made transparent and every occurrence is free
 
 #### Scenario: One occurrence
-- **WHEN** the host chooses this occurrence only
+- **WHEN** a decision for one occurrence of a series reaches the service
 - **THEN** only that occurrence is made transparent and the others stay busy
 
 ### Requirement: Calendars that cannot be changed
-On a subscribed or read-only calendar, a free decision SHALL be recorded only in the host's settings as a note exclusion matched by calendar, event and fingerprint, and the review SHALL say that the calendar is changed only in Find Me a Time.
+On a subscribed or read-only calendar, a free decision SHALL be recorded only in the host's settings as a note exclusion matched by calendar, event and fingerprint.
 
-#### Scenario: Subscribed holiday calendar
-- **WHEN** the host confirms an entry of a subscribed calendar as free
-- **THEN** Google Calendar is not called, the entry is excluded from busy time, and the review says it changed only in Find Me a Time
+#### Scenario: Subscribed birthday calendar
+- **WHEN** the host checks an all-day "아빠 생일" of a subscribed birthday calendar and confirms
+- **THEN** Google Calendar is not called, the entry is excluded from busy time, and it is listed among the freed entries like any other
 
 ### Requirement: Remembered answers
 The service SHALL store both kinds of answer, free and keep busy, with the event's fingerprint, and SHALL NOT judge or ask about an answered entry again while its fingerprint matches. The service's own writeback SHALL NOT make an entry look changed. Answers SHALL be host decisions kept by analysis cleanup.
@@ -81,14 +89,22 @@ The service SHALL store both kinds of answer, free and keep busy, with the event
 - **THEN** it is a candidate again in the next scan
 
 ### Requirement: The note review page
-The review SHALL list the current candidates with each one's title, time, whether it repeats, and the classifier's recommendation. Entries recommended as notes SHALL be marked and pre-ticked with the reason; `event` and `unsure` entries SHALL start unticked. Pressing **확인** SHALL record ticked entries as free and the others shown as keep busy, and SHALL then show each freed entry's writeback state. The same review SHALL serve the web setup, the chat onboarding link, the weekly check and settings.
+The review SHALL show one week at a time, from the week of today through the scan's range ahead, with the candidates of that week as checkable entries among the host's other busy entries of the week, which are shown for context and cannot be chosen. Each candidate SHALL show its title and time and offer the classifier's reason in the host's screen language, or the host's conversation language when the screen's is not known. Entries recommended as notes SHALL start checked; `event` and `unsure` entries SHALL start unchecked; an entry the host already answered SHALL start as answered. Pressing **확인** SHALL record the candidates of the weeks the host has seen whose answer is new or changed, checked ones as free and the others as keep busy, SHALL leave candidates of unseen weeks unanswered, and SHALL then list the freed entries with their day and time, giving words only to a failed writeback; for a host whose chat onboarding waits for the slot image, it SHALL add one line that the open times follow by message. The review SHALL offer a way back to the week to change an answer. The other busy entries SHALL be read for display only and not stored, and SHALL reach no model. The same review SHALL serve the web setup, the chat onboarding link, the weekly check and settings.
 
-#### Scenario: Pre-ticked recommendations
-- **WHEN** the classifier recommends two of five entries as notes
-- **THEN** those two are marked and ticked, the other three are unticked, and nothing is freed until **확인**
+#### Scenario: Pre-checked recommendations in their week
+- **WHEN** the classifier recommends two of five entries in one week as notes, and that week also has two meetings with guests
+- **THEN** the week shows the five candidates, the two notes checked and the other three unchecked, beside the two meetings, which cannot be checked, and nothing is freed until **확인**
+
+#### Scenario: Going back to change an answer
+- **WHEN** after **확인** the host goes back, unchecks a freed entry and presses **확인** again
+- **THEN** that entry is set back to busy in Google Calendar and the other answers are not recorded again
+
+#### Scenario: Unseen weeks stay busy
+- **WHEN** a recommended note falls in a week the host has not opened and the host presses **확인**
+- **THEN** that note is not recorded and stays busy until the host sees it
 
 ### Requirement: Weekly note check
-Once a week a scheduled durable job SHALL scan each ready host's conflict calendars afresh, select candidates that are new or changed since the host last answered or was last asked, judge them, and record a review of them without their titles. A week with no such candidate SHALL send nothing. New candidates SHALL stay busy until the host answers. A replayed job SHALL record one review.
+Once a week a scheduled durable job SHALL scan each ready host's conflict calendars afresh, select the candidates the host has not answered with an unchanged entry (new entries, entries changed since the answer, and entries left unanswered in an earlier list), judge only those that are new or changed since the previous list, and record a review of them without their titles, replacing the previous one. A week with no such candidate SHALL record and send nothing. New candidates SHALL stay busy until the host answers. A replayed job SHALL record one review.
 
 #### Scenario: Only new entries asked
 - **WHEN** last week's check offered three entries, the host answered two, and one new note was written since
@@ -97,6 +113,10 @@ Once a week a scheduled durable job SHALL scan each ready host's conflict calend
 #### Scenario: Nothing new
 - **WHEN** no candidate is new, changed or unanswered
 - **THEN** no review is recorded and nothing is sent
+
+#### Scenario: Replayed check
+- **WHEN** the week's check job runs again after it recorded the review
+- **THEN** the same review stands and no second list is sent
 
 ### Requirement: Reviewing notes again from settings
 After setup the host SHALL be able to open the note review from the web settings at any time. It SHALL scan afresh, show current candidates and earlier decisions with their writeback state, and let the host change a decision, a busy entry becoming free under the same confirmation and writeback rules and a freed entry becoming busy again in Google Calendar.

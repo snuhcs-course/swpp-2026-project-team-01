@@ -251,3 +251,43 @@ describe("openHostCalendar", () => {
     });
   });
 });
+
+describe("patchTransparency", () => {
+  async function patchWith(answer: () => Response | Promise<Response>) {
+    const { db } = grantDatabase();
+    const requests: { url: string; init: RequestInit | undefined }[] = [];
+    const fetcher = vi.fn<typeof fetch>(async (input, init) => {
+      if (String(input).includes("oauth.test")) return jsonResponse(200, { access_token: "ya29.access", expires_in: 3599 });
+      requests.push({ init, url: String(input) });
+      return answer();
+    });
+    const calendar = await openHostCalendar({ config: config(fetcher), db, tokenKeys: [key] }, hostAccountId);
+    const outcome = await calendar.patchTransparency("me@example.test", "series/1", "transparent");
+    return { outcome, requests };
+  }
+
+  it("patches only the transparency without notifying anyone and returns Google's updated time", async () => {
+    const { outcome, requests } = await patchWith(() => jsonResponse(200, { id: "series/1", transparency: "transparent", updated: "2026-11-13T01:02:03.456Z" }));
+
+    expect(outcome).toEqual({ outcome: "patched", updated: "2026-11-13T01:02:03.456Z" });
+    expect(requests).toHaveLength(1);
+    const url = new URL(requests[0]!.url);
+    expect(url.pathname).toBe("/calendar/v3/calendars/me%40example.test/events/series%2F1");
+    expect(url.searchParams.get("sendUpdates")).toBe("none");
+    expect(requests[0]!.init?.method).toBe("PATCH");
+    expect(JSON.parse(String(requests[0]!.init?.body))).toEqual({ transparency: "transparent" });
+  });
+
+  it("classifies a refusal as rejected and a rate limit, a 5xx or a lost response as uncertain", async () => {
+    const forbidden = () => jsonResponse(403, { error: { errors: [{ reason: "forbiddenForNonOrganizer" }] } });
+    const limited = () => jsonResponse(403, { error: { errors: [{ reason: "rateLimitExceeded" }] } });
+
+    expect((await patchWith(forbidden)).outcome).toEqual({ httpStatus: 403, outcome: "rejected" });
+    expect((await patchWith(() => jsonResponse(404, {}))).outcome).toEqual({ httpStatus: 404, outcome: "rejected" });
+    expect((await patchWith(() => jsonResponse(410, {}))).outcome).toEqual({ httpStatus: 410, outcome: "rejected" });
+    expect((await patchWith(limited)).outcome).toEqual({ httpStatus: 403, outcome: "uncertain" });
+    expect((await patchWith(() => jsonResponse(429, {}))).outcome).toEqual({ httpStatus: 429, outcome: "uncertain" });
+    expect((await patchWith(() => jsonResponse(503, {}))).outcome).toEqual({ httpStatus: 503, outcome: "uncertain" });
+    expect((await patchWith(() => Promise.reject(new Error("socket hang up")))).outcome).toEqual({ httpStatus: null, outcome: "uncertain" });
+  });
+});
