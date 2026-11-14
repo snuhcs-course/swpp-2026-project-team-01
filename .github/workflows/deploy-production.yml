@@ -1,0 +1,74 @@
+name: Deploy production
+
+# Every push to main deploys the shared environment: first the shared Supabase
+# project, then the web and agent services of the Vercel project to Production.
+# The Vercel project has no Git connection, so this workflow is the only path that
+# should deploy it; nobody runs `vercel deploy --prod` by hand. The migrations run
+# on every push rather than only when supabase/** changes, so a queued run that
+# GitHub cancels in favour of a newer one cannot leave a migration behind.
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+concurrency:
+  group: deploy-production
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  supabase:
+    uses: ./.github/workflows/deploy-shared.yml
+    secrets: inherit
+
+  vercel:
+    # The app never ships ahead of its schema: a failed migration stops the deploy.
+    needs: supabase
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    env:
+      VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+      VERCEL_ORG_ID: ${{ vars.VERCEL_ORG_ID }}
+      VERCEL_PROJECT_ID: ${{ vars.VERCEL_PROJECT_ID }}
+      PRODUCTION_ORIGIN: https://findmeatime.com
+    steps:
+      - name: Check the Vercel settings
+        run: |
+          for name in VERCEL_TOKEN VERCEL_ORG_ID VERCEL_PROJECT_ID; do
+            if [ -z "${!name}" ]; then
+              echo "Set $name in the repository secrets (VERCEL_TOKEN) or variables (the IDs)." >&2
+              exit 1
+            fi
+          done
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version: 24
+          cache: npm
+      - name: Install dependencies
+        # The CLI compiles vercel.ts before uploading, and it imports eve/vercel.
+        run: npm ci
+      - name: Install the Vercel CLI
+        run: npm install --global vercel@65.7.0
+      - name: Deploy to Production
+        # Vercel builds remotely from the uploaded checkout, as `vercel deploy --prod`
+        # from a clean checkout of main always has; .vercelignore keeps env files out.
+        run: |
+          vercel deploy --prod --yes --json --token "$VERCEL_TOKEN" > "$RUNNER_TEMP/deploy.json"
+          url=$(node -p 'JSON.parse(require("node:fs").readFileSync(process.argv[1], "utf8")).deployment.url' "$RUNNER_TEMP/deploy.json")
+          echo "Deployed $url"
+          echo "### Production deployment" >> "$GITHUB_STEP_SUMMARY"
+          echo "Commit \`$GITHUB_SHA\` deployed as $url and aliased to $PRODUCTION_ORIGIN." >> "$GITHUB_STEP_SUMMARY"
+      - name: Check the production origin
+        run: |
+          for _ in 1 2 3 4 5 6; do
+            if curl --fail --silent --show-error --output /dev/null "$PRODUCTION_ORIGIN/eve/v1/health"; then
+              echo "$PRODUCTION_ORIGIN/eve/v1/health answered."
+              exit 0
+            fi
+            sleep 10
+          done
+          echo "$PRODUCTION_ORIGIN/eve/v1/health did not answer after the deploy." >&2
+          exit 1
