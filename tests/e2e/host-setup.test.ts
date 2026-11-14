@@ -166,8 +166,13 @@ test("a new host completes setup one card at a time, from the authored messages 
   // review; the fixture's two candidates are next weekend.
   await expectOnlyCard(page, "Check the entries that are just notes");
   const notes = card(page, "Check the entries that are just notes");
-  await notes.getByRole("button", { name: "Next week" }).click();
+  // At 390px the review shows three days at a time (task 3.2): page ahead
+  // until the candidate's day is on screen.
   const focus = notes.getByRole("checkbox", { name: /^Focus time/ });
+  for (let step = 0; step < 5 && !(await focus.isVisible()); step += 1) {
+    await notes.getByRole("button", { name: "Next 3 days" }).click();
+    await page.waitForTimeout(300);
+  }
   await expect(focus).not.toBeChecked();
   await focus.check();
   await expect(focus).toBeChecked();
