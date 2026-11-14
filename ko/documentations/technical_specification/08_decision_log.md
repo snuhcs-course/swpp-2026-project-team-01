@@ -743,3 +743,15 @@
 | D2 | 필수인 `hostInstruction`(다듬은 뒤 1–500자, 저장하지 않음)이 호스트의 말을 전달하며, 두 도구 모두 `expectedRevision`이 필수입니다. 설명, 서버 지침, `/SKILL.md`는 호스트가 분명히 말할 때만, 에이전트의 판단이나 요청자의 말로는 결코, 조건을 붙여서도 결코 하지 말라고 안내합니다 | MCP 엘리싯테이션; 말을 저장; 불리언 `confirmed` | 제안; 설계 2 | `agent-host-tools.ts`의 `hostInstructionSchema`; `lib/server/agent-mcp.ts`의 `INSTRUCTIONS`; `lib/server/entry-documents.ts`의 `hostEntryDocument` |
 | D3 | `host:decide`가 두 도구를 허용하며, 동의 문구는 "에이전트에게 말할 때 요청을 승인하고 거절합니다"가 됩니다. 이 권한이 있는 기존 부여도 두 도구를 얻습니다 | 새 권한; 변경 이후에 만든 부여만 | 제안; 설계 3; `agent-client-authorization` 델타 "Role-bound permission scopes" | `lib/contracts/agent-access.ts`의 `SCOPE_DESCRIPTIONS`, 동의 페이지, `connected-agents.tsx` |
 | D4 | CLI는 `fmat call approve_proposal`과 `fmat call decline_request`로 이들에 닿으며, 새 하위 명령은 없습니다 | `fmat approve`와 `fmat decline` | 제안; 설계 4 | `cli/src/app.ts` |
+
+## `guest-time-place-pairs`
+
+[설계](../../openspec/changes/guest-time-place-pairs/design.md)는 다음 선택을 기록합니다. 이슈 #182(반복 4 킥오프, 2026-11-08)를 위해 변경을 작성한 세션에서 2026-11-14에 정했습니다. 아직 팀원의 검토를 받지 않았습니다.
+
+| # | 선택 | 대안 | 기록 위치 | 바꾸려면 |
+|---|---|---|---|---|
+| D1 | 장소가 없는 대면 요청은 호스트가 확인한 장소, 그다음 지역과 짝지으며 최대 여섯 개입니다. 요청된 장소, 회의마다 결정(Decide per meeting), 온라인 회의는 하나의 장소 또는 장소 없음을 유지합니다 | 게스트의 장소도 호스트의 장소와 짝짓기; 캘린더 분석에서 가져온 장소 | 설계 1 | `lib/server/evaluation.ts`의 `hostPlaces` |
+| D2 | 각 빈 시간은 바쁜 시간에 대해 한 번, 이후 장소마다 이동에 대해 한 번 확인합니다. 후보 40개 제한은 짝의 수를 세며 시작 시간, 그다음 장소 순으로 정렬합니다. 같은 날 이동 순위는 짝에 적용되지 않습니다 | 모든 시간에 대해 모든 장소 확인하기; 장소 우선 순서 | 설계 2 | `lib/server/feasibility.ts`의 `plan()` |
+| D3 | 짝 ID에 장소 인덱스를 더합니다(`-p<index>`). 게스트는 어느 시간의 두 번째 짝보다 모든 시간의 첫 번째 짝을 먼저 봅니다 | 시간과 장소를 따로 선택하기; 시간당 짝 하나 | 설계 3과 4 | `candidateId`, `requesterProjection` |
+| D4 | 다른 지역은 검토 카드를 거쳐 요청의 장소가 됩니다. 가능한 곳이 없으면 메시지가 장소를 밝히되 이유는 말하지 않으며, 기존의 시간당 평가 10회 제한이 이를 포함합니다 | 지역별 별도 제한; 게스트의 장소 옆에 호스트의 장소를 함께 제시하기 | 설계 5와 6 | `lib/contracts/feasibility.ts`의 `noMatchMessage`, `agent/instructions/requester.ts` |
+| D5 | 합의 시 다시 확인과 예약 재검증은 제안 자체의 장소를 확인합니다 | 그 시간에 호스트의 모든 장소를 다시 확인하기 | 설계 7 | `EvaluateOptions.place`; `agreeCommand`, 예약 작업 |

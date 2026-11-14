@@ -1,0 +1,40 @@
+{
+  "branch": "feat/guest-time-place-pairs",
+  "user": "dodo41142727@gmail.com",
+  "sessions": {
+    "claude:98e65f70-25ec-4bd7-afc8-355a38790377": {
+      "agent": "claude-code",
+      "client": "claude-desktop",
+      "agent_ms": 0,
+      "models": {
+        "claude-opus-5-5": {
+          "input": 150,
+          "cache_read": 14969655,
+          "cache_write_5m": 0,
+          "cache_write_1h": 149238,
+          "output": 47141,
+          "reasoning": 0
+        }
+      },
+      "first": "2026-11-14T11:43:22.573Z",
+      "last": "2026-11-14T11:59:04.547Z"
+    },
+    "claude:98e65f70-25ec-4bd7-afc8-355a38790377/agent-a641d01197a43c718": {
+      "agent": "claude-code",
+      "client": "claude-desktop",
+      "agent_ms": 0,
+      "models": {
+        "claude-sonnet-5-5": {
+          "input": 14,
+          "cache_read": 616634,
+          "cache_write_5m": 71004,
+          "cache_write_1h": 0,
+          "output": 7235,
+          "reasoning": 0
+        }
+      },
+      "first": "2026-11-14T11:57:50.843Z",
+      "last": "2026-11-14T11:58:39.706Z"
+    }
+  }
+}

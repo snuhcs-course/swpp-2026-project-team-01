@@ -1,6 +1,6 @@
 "use client";
 
-import { EVALUATION_FAILURE_MESSAGES, NO_MATCH_MESSAGE, TIMES_SHOWN } from "@lib/contracts/feasibility";
+import { EVALUATION_FAILURE_MESSAGES, noMatchMessage, TIMES_SHOWN } from "@lib/contracts/feasibility";
 import type { LinkPlan, RequesterCandidate, RequestLanguage, RequestWindow, ReviewPatch } from "@lib/contracts/request";
 import { displayTime, zoneLabel } from "@lib/contracts/timezone";
 import { type FormEvent, type ReactNode, useEffect, useId, useState } from "react";
@@ -769,7 +769,7 @@ export function CandidatesCard({ context }: { readonly context: RequesterCardCon
   const message = evaluation.failure
     ? EVALUATION_FAILURE_MESSAGES[evaluation.failure][lang]
     : offered.length === 0 && trips.length === 0
-      ? NO_MATCH_MESSAGE[lang]
+      ? noMatchMessage(lang, request.details.mode === "in_person" ? (request.details.location ?? null) : null)
       : null;
 
   async function choose(candidate: RequesterCandidate) {
