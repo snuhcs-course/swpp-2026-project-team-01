@@ -4,13 +4,14 @@ import { z } from "zod";
 // the /api/setup routes and the cards (host-setup capability). A draft holds one
 // entry per field; confirmation copies accepted values into the confirmed policy.
 
-export const VALUE_SOURCES = ["stated", "inferred", "starter_default"] as const;
+export const VALUE_SOURCES = ["stated", "inferred", "starter_default", "schedule_image"] as const;
 export type ValueSource = (typeof VALUE_SOURCES)[number];
 
 export const VALUE_SOURCE_LABELS: Readonly<Record<ValueSource, string>> = {
   stated: "Stated",
   inferred: "Inferred",
   starter_default: "Starter default",
+  schedule_image: "From timetable image",
 };
 
 // Fewer counted meetings than this and an inference falls back to the starter default.
@@ -155,7 +156,7 @@ export const STARTER_DEFAULTS = {
   weeklyWindows: (["monday", "tuesday", "wednesday", "thursday", "friday"] as const).map((weekday) => ({
     weekday,
     start: "10:00",
-    end: "17:00",
+    end: "20:00",
   })),
   weeklyLimit: null,
   weeklyLimitCounts: "bookings",
@@ -193,6 +194,7 @@ export const SETUP_NEXT_ACTIONS = [
 export type SetupNextAction = (typeof SETUP_NEXT_ACTIONS)[number];
 
 export const SETUP_OPERATIONS = [
+  "setup.suggest_image_windows",
   "setup.save_calendar_roles",
   "setup.analyze_again",
   "setup.set_up_manually",

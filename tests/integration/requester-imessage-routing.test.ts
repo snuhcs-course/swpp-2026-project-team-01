@@ -3,7 +3,7 @@ import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { REQUESTER_IMESSAGE_OPERATIONS } from "../../lib/contracts/requester-imessage";
 import { enqueueStatusNotice } from "../../lib/server/booking-notices";
 import { type CommandDefinition, runCommand } from "../../lib/server/commands";
-import { HELP_TEXT, requestRef } from "../../lib/server/imessage-commands";
+import { helpText, requestRef } from "../../lib/server/imessage-commands";
 import { createImessageNoticeHandler, GUEST_NOTICE_TEXTS } from "../../lib/server/imessage-notice-job";
 import { enqueueHostNotice, guestNoticeKey, IMESSAGE_NOTICE_JOB } from "../../lib/server/imessage-notices";
 import { GUEST_TEXTS } from "../../lib/server/imessage-receipts";
@@ -133,8 +133,39 @@ describe("routing a guest's message", () => {
     expect(await guestInputs(first.requestId)).toHaveLength(0);
     expect(await guestInputs(second.requestId)).toHaveLength(0);
     const texts = await sentTo(sender, before);
-    expect(texts.join("\n")).toContain(`request ${requestRef(first.requestId)}`);
-    expect(texts.join("\n")).toContain(`request ${requestRef(second.requestId)}`);
+    // The question names each conversation and asks for no command (#137).
+    expect(texts.join("\n")).toContain(`your request with Ada Lovelace (${requestRef(first.requestId)})`);
+    expect(texts.join("\n")).toContain(`your request with Grace Hopper (${requestRef(second.requestId)})`);
+    expect(texts.join("\n")).not.toContain(`request ${requestRef(first.requestId)}`);
+  });
+
+  it("forwards a message that names one of the conversations in words (#137)", async () => {
+    const sender = newSender();
+    const first = await linkedGuest(sender, "Ada Lovelace");
+    const second = await linkedGuest(sender, "Grace Hopper");
+    const before = await outboxOf(sender);
+
+    expect((await im.deliver({ sender, text: "Grace, is Friday possible?" })).outcome).toBe("forwarded");
+    expect(await guestInputs(first.requestId)).toHaveLength(0);
+    expect((await guestInputs(second.requestId)).map((input) => input.message)).toEqual(["[iMessage] Grace, is Friday possible?"]);
+    expect(await sentTo(sender, before)).toEqual([GUEST_TEXTS.switched("Grace Hopper")]);
+
+    // The choice holds for the next message.
+    await im.deliver({ sender, text: "Or Monday" });
+    expect((await guestInputs(second.requestId)).map((input) => input.message)).toContain("[iMessage] Or Monday");
+  });
+
+  it("asks in Korean, in words, when a Korean message names no conversation (#137)", async () => {
+    const sender = newSender();
+    await linkedGuest(sender, "Ada Lovelace");
+    await linkedGuest(sender, "Grace Hopper");
+    const before = await outboxOf(sender);
+
+    expect((await im.deliver({ sender, text: "금요일 괜찮아요?" })).outcome).toBe("replied");
+    const [question] = await sentTo(sender, before);
+    expect(question).toContain("어느 대화에 보내는 메시지인가요?");
+    expect(question).toContain("Ada Lovelace님과의 예약 요청 (");
+    expect(question).not.toMatch(/request [0-9A-Z]{6}|send setup/);
   });
 
   it("asks again after another request produces a notice", async () => {
@@ -275,6 +306,28 @@ describe("routing a guest's message", () => {
     expect((await guestInputs(second.requestId)).map((input) => input.message)).toContain("[iMessage] Back to this one");
   });
 
+  it("lets a host who is also a guest reach their own conversation by saying so (#137)", async () => {
+    const host = await hostWithUser(db);
+    await makeHostReady(db, host.hostAccountId, { displayName: "Eunwoo Lee" });
+    const { sender } = await im.link(host.hostAccountId);
+    // The host booked with themself, so the guest request names them too.
+    const guest = await linkedGuest(sender, "Eunwoo Lee", host.hostAccountId);
+    const before = await outboxOf(sender);
+
+    // Neither conversation was chosen yet, and the message says which one.
+    expect((await im.deliver({ sender, text: "먼소리야. 호스트인데 나" })).outcome).toBe("forwarded");
+    expect(await hostInputs(host.hostAccountId)).toEqual(["[iMessage] 먼소리야. 호스트인데 나"]);
+    expect(await guestInputs(guest.requestId)).toHaveLength(0);
+    const texts = await sentTo(sender, before);
+    expect(texts).toContain("이제 호스트로서 내 Find Me a Time 계정에 대해 이야기해요.");
+    expect(texts.join("\n")).not.toContain("Choose a conversation");
+
+    // The host conversation stays chosen for the next message.
+    expect((await im.deliver({ sender, text: "들어온 예약 있어?" })).outcome).toBe("forwarded");
+    expect(await hostInputs(host.hostAccountId)).toContain("[iMessage] 들어온 예약 있어?");
+    expect(await guestInputs(guest.requestId)).toHaveLength(0);
+  });
+
   it("keeps a host's commands and host notices on the host side for a host who is also a guest", async () => {
     const host = await hostWithUser(db);
     await makeHostReady(db, host.hostAccountId, { displayName: "Dana Scully" });
@@ -294,7 +347,7 @@ describe("routing a guest's message", () => {
     expect((await im.deliver({ sender, text: "help" })).outcome).toBe("command");
     // A command gets the read mark beside its reply, in no set order, and the
     // mark moves no selection (D20).
-    expect((await sentTo(sender, since)).sort()).toEqual(["[signal]", HELP_TEXT].sort());
+    expect((await sentTo(sender, since)).sort()).toEqual(["[signal]", helpText("http://localhost:3000", "en")].sort());
 
     // Select the host conversation before sending free text.
     const own = await createTestRequest(db, { hostAccountId: host.hostAccountId });

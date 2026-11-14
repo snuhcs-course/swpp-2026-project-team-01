@@ -168,6 +168,10 @@ describe("whatsAppSendFailure", () => {
       category: "template_unavailable",
       status: "rejected",
     });
+    expect(
+      whatsAppSendFailure(Object.assign(new Error("(#131037) WhatsApp provided number needs display name approval before message can be sent."), { code: "internalError" })),
+    ).toEqual({ category: "provider_rejected", status: "rejected" });
+    expect(whatsAppSendFailure(new Error("(#131031) Business account has been locked"))).toEqual({ category: "provider_rejected", status: "rejected" });
     expect(whatsAppSendFailure(new Error("(#130429) Rate limit hit"))).toEqual({ status: "unavailable" });
     expect(whatsAppSendFailure(new Error("(#131056) Pair rate limit"))).toEqual({ status: "unavailable" });
   });

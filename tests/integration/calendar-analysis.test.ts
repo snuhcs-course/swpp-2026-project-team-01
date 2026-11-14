@@ -107,6 +107,7 @@ describe("calendar analysis job", () => {
     expect(evidence.meetingLoad.weeks.every((week) => week.internal === 1 && week.external === 2)).toBe(true);
     expect(evidence.places).toEqual({
       area: { count: 3, name: "Seongsu" },
+      candidates: [{ count: 3, name: "Blue Bottle Coffee, Seongsu, Seoul" }],
       sampleSize: 3,
       venue: { count: 3, name: "Blue Bottle Coffee" },
     });
@@ -116,7 +117,12 @@ describe("calendar analysis job", () => {
 
     const suggestions = suggestFromEvidence(evidence, "Asia/Seoul");
     expect(suggestions.weeklyWindows).toMatchObject({ sampleSize: 12, source: "inferred" });
-    expect(suggestions.weeklyLimit).toMatchObject({ source: "inferred", value: 3 });
+    expect(suggestions.weeklyLimit).toEqual({
+      reason: "No limit unless you set one.",
+      sampleSize: null,
+      source: "starter_default",
+      value: null,
+    });
 
     const model = analysisForModel(card!);
     expect(model.evidence!.noteLikeCount).toBe(2);

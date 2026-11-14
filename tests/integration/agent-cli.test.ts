@@ -132,7 +132,8 @@ describe("fmat", () => {
     expect(tools.code).toBe(0);
     const names = (tools.json.result as { tools: { name: string }[] }).tools.map((tool) => tool.name);
     expect(names).toContain("get_host_status");
-    expect(names).not.toContain("request_host_decision");
+    expect(names).not.toContain("approve_proposal");
+    expect(names).not.toContain("decline_request");
 
     const status = await fmat(["call", "get_host_status"]).done;
     expect(status.code).toBe(0);

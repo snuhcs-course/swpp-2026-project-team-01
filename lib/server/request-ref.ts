@@ -22,3 +22,9 @@ export function requestRef(requestId: string) {
   }
   return out;
 }
+
+// A settings review's reference (host-imessage-channel design 8): the first
+// eight characters of the setup proposal hash.
+export function settingsRef(proposalHash: string) {
+  return proposalHash.slice(0, 8).toUpperCase();
+}

@@ -21,13 +21,13 @@ J-01; FR-01; AC-10.
 
 호스트로서, 어시스턴트가 확인할 Google Calendar와 예약을 생성할 위치를 추천하고, 그 이유를 설명하며, 내가 선택을 변경할 수 있게 해 주기를 원합니다. 그래야 설정이 쉬우면서도 일정 조율에 내 일정이 반영됩니다.
 
-J-01; FR-02; AC-28.
+J-01; FR-02; AC-28. iMessage나 WhatsApp에서 설정할 때는 기본 캘린더를 두 용도 모두에 쓰는 것으로 시작하고, 그 사실을 안내받으며, 내 말로 캘린더를 추가하거나 바꿉니다([`host-onboarding-in-chat`](../../openspec/changes/host-onboarding-in-chat/proposal.md#decisions), #166).
 
 ### US-03 — 규칙 관리
 
 호스트로서, 어시스턴트가 온보딩의 모든 단계를 안내하고, 내가 분석하도록 선택한 캘린더 또는 명확하게 라벨이 붙은 시작 기본값을 사용해 내 선호를 먼저 제안해 주기를 원합니다. 그래야 빈 양식에서 시작하지 않고도 캘린더 선택, 시간대, 회의 가능 시간대, 회의 시간 길이, 여유 시간, 장소를 검토하고 조정할 수 있습니다.
 
-J-01; FR-04; AC-28.
+J-01; FR-04; AC-28. iMessage나 WhatsApp에서 설정할 때는 미팅 가능 시간과 장소만 각각 내 캘린더에서 나온 제안과 함께 질문받고, 내 말로 답하며, 다음 주의 빈 시간을 이미지 한 장으로 보고 동의하는 것으로 저장합니다([`host-onboarding-in-chat`](../../openspec/changes/host-onboarding-in-chat/proposal.md#decisions), #166).
 
 ### US-04 — 캘린더 접근 복구
 

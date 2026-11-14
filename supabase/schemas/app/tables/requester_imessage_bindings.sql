@@ -6,10 +6,14 @@
 -- imessage_bindings. The binding ends as unlinked (Unlink iMessage), ended (the
 -- request was booked or withdrawn, or 30 days passed) or moved (to the revised
 -- request named by moved_to_request_id, which gets its own active binding).
+-- channel is the platform the guest linked, iMessage or WhatsApp
+-- (guest-whatsapp-link D1); outbox rows for the binding go out on it, and a
+-- moved binding keeps it. last_inbound_at starts WhatsApp's 24-hour window.
 CREATE TABLE "app"."requester_imessage_bindings" (
   "id" uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   "request_id" uuid NOT NULL REFERENCES "app"."requests" ("id") ON DELETE CASCADE,
   "link_id" uuid REFERENCES "app"."imessage_links" ("id") ON DELETE SET NULL,
+  "channel" text NOT NULL DEFAULT 'imessage' CHECK ("channel" IN ('imessage', 'whatsapp')),
   "sender_hash" text NOT NULL CHECK ("sender_hash" ~ '^[0-9a-f]{64}$'),
   "sender_ciphertext" text,
   "space_ciphertext" text,

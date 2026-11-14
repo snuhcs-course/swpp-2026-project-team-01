@@ -1,4 +1,5 @@
 import { randomUUID } from "node:crypto";
+import { readDefaultRoleCalendars } from "../../../lib/server/calendar-roles";
 import type { MessageStreamEvent } from "eve/client";
 import type { ConversationRuntime } from "../../../lib/server/conversations";
 import type { Database } from "../../../lib/server/database";
@@ -88,8 +89,9 @@ export function imessageHarness(
     signingKey: SIGNING_KEY,
     tokenKeys: [testTokenKey],
   });
-  const commands = (lineDayLimit = 1000) =>
+  const commands = (liveCalendars: Awaited<ReturnType<typeof readDefaultRoleCalendars>>, lineDayLimit = 1000) =>
     imessageCommands({
+      liveCalendars,
       lineDayLimit,
       lineNumber: TEST_LINE,
       origin: "http://localhost:3000",
@@ -195,9 +197,12 @@ export function imessageHarness(
       return runJob(db, job!.id, createImessageReceiptHandler(() => deps));
     },
     async command(hostAccountId: string, operation: string, input: unknown = {}, retryKey: string = randomUUID(), lineDayLimit?: number) {
+      const liveCalendars = operation === "imessage.link.confirm" || operation === "imessage.link.verify_code"
+        ? await readDefaultRoleCalendars(db, hostAccountId, receiptDeps().setup.calendar)
+        : null;
       return runCommand(
         { authenticate: async () => ({ id: hostAccountId, kind: "host_account" }), db },
-        commands(lineDayLimit)[operation]!,
+        commands(liveCalendars, lineDayLimit)[operation]!,
         { input, resourceId: hostAccountId, retryKey },
       );
     },
@@ -225,7 +230,12 @@ export function imessageHarness(
     // With channel "whatsapp", the sender is a WhatsApp contact ID.
     async link(hostAccountId: string, sender?: string, channel: "imessage" | "whatsapp" = "imessage") {
       sender ??= channel === "whatsapp" ? newWhatsAppSender() : newSender();
-      await this.command(hostAccountId, "imessage.link.create", channel === "whatsapp" ? { channel } : { number: sender.startsWith("+") ? sender : newSender() });
+      // Both channels register the number first (guest-whatsapp-link D3); a WhatsApp contact ID is the number's digits.
+      await this.command(
+        hostAccountId,
+        "imessage.link.create",
+        channel === "whatsapp" ? { channel, number: `+${sender}` } : { number: sender.startsWith("+") ? sender : newSender() },
+      );
       const pending = await this.status(hostAccountId);
       if (pending.state !== "pending") throw new Error(`Expected a pending code, got ${pending.state}.`);
       await this.deliver({ channel, sender, text: linkMessage(pending.code) });

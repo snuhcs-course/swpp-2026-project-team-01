@@ -3,6 +3,7 @@ import {
   type CalendarRef,
   type ConfirmedSettings,
   type DraftEntry,
+  HOST_ANSWER_FIELDS,
   SETUP_FIELD_NAMES,
   SETUP_FIELD_SCHEMAS,
   type SetupFieldName,
@@ -15,7 +16,9 @@ import { assertRevision, canonicalJson, type CommandDefinition, CommandError } f
 import type { Transaction } from "./database";
 import type { CalendarListEntry } from "./google-calendar";
 import { assignHandle, checkHandle, HandleError } from "./handles";
-import { acceptedEntry, computeSetupProposal, proposalValues, type SetupLinks, setupLinks } from "./setup";
+import { authorizeSetupTool, type SetupToolCall } from "./setup-tools";
+import { channelOfTurn } from "./channel-selection";
+import { acceptedEntry, computeSetupProposal, draftedEntry, proposalValues, type SetupLinks, setupLinks } from "./setup";
 
 // The draft and confirmation commands of host setup (design decisions 10 to 12).
 // Each runs through runCommand: the actor comes from verified credentials, the
@@ -25,6 +28,22 @@ import { acceptedEntry, computeSetupProposal, proposalValues, type SetupLinks, s
 // command takes the browser's zone.
 
 const fieldName = z.enum(SETUP_FIELD_NAMES as [SetupFieldName, ...SetupFieldName[]]);
+
+// An image supplies a suggestion for the weekly-hours question. It does not
+// accept the hours or bypass the existing Google Calendar setup.
+export const suggestImageWindowsCommand: CommandDefinition<{ weeklyWindows: ConfirmedSettings["weeklyWindows"] }, { revision: number }> = {
+  input: z.object({ weeklyWindows: SETUP_FIELD_SCHEMAS.weeklyWindows }).strict(),
+  operation: "setup.suggest_image_windows",
+  async run(tx, context) {
+    await lockActiveHost(tx, context.actor.id);
+    const draft = await lockDraft(tx, context.actor.id);
+    assertRevision(draft.revision, context.expectedRevision);
+    const existing = draft.fields.weeklyWindows;
+    const suggested = { ...(draftedEntry(existing, context.input.weeklyWindows, "schedule_image") as DraftEntry<"weeklyWindows">), reason: "Free hours detected in your uploaded timetable. Review these before saving." };
+    const revision = await writeDraft(tx, context.actor.id, { ...draft.fields, weeklyWindows: suggested });
+    return { revision };
+  },
+};
 
 // A handle may be drafted only when the host could take it now.
 export async function assertHandleAvailable(tx: Transaction, hostAccountId: string, handle: string) {
@@ -124,6 +143,7 @@ function toRef(calendar: CalendarRef): CalendarRef {
 export function confirmSettingsCommand(
   live: readonly CalendarListEntry[],
   appOrigin: string,
+  channelReview?: { readonly bindingId: string; readonly call?: SetupToolCall },
 ): CommandDefinition<z.infer<typeof confirmInput>, ConfirmSettingsResult> {
   const byId = new Map(live.map((calendar) => [calendar.id, calendar]));
 
@@ -136,10 +156,32 @@ export function confirmSettingsCommand(
       await lockCalendarRoles(tx, hostAccountId);
       const draft = await lockDraft(tx, hostAccountId);
       assertRevision(draft.revision, context.expectedRevision);
-      const proposal = await computeSetupProposal(tx, hostAccountId);
+      let proposal = await computeSetupProposal(tx, hostAccountId);
 
       if (!proposal || proposal.proposalHash !== context.input.proposalHash) {
         throw new CommandError("stale_revision");
+      }
+
+      if (channelReview) {
+        if (channelReview.call) {
+          await authorizeSetupTool(tx, channelReview.call.auth, channelReview.call.sessionId, { lock: true });
+          if (!(await channelOfTurn(tx, channelReview.call.sessionId, hostAccountId))) throw new CommandError("forbidden");
+        }
+        const [binding] = await tx`select id from app.imessage_bindings where id = ${channelReview.bindingId} and host_account_id = ${hostAccountId} and state = 'active'`;
+        const [preview] = await tx<{ state: string; review_hash: string | null }[]>`
+          select state, review_hash from app.imessage_outbox
+          where host_account_id = ${hostAccountId} and binding_id = ${channelReview.bindingId} and kind = 'image'
+          order by created_at desc, id desc limit 1
+        `;
+        if (!binding || preview?.state !== "accepted" || preview.review_hash !== proposal.proposalHash) throw new CommandError("stale_revision");
+        const fields: Record<string, DraftEntry> = { ...draft.fields };
+        for (const field of HOST_ANSWER_FIELDS) {
+          const entry = fields[field];
+          if (entry?.source === "stated") fields[field] = acceptedEntry(entry, entry, new Date().toISOString());
+        }
+        await writeDraft(tx, hostAccountId, fields);
+        proposal = await computeSetupProposal(tx, hostAccountId);
+        if (!proposal || proposal.proposalHash !== context.input.proposalHash) throw new CommandError("stale_revision");
       }
 
       // The roles the reviewed hash covers, read under the roles lock.

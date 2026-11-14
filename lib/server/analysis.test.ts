@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import type { AnalysisEvidence } from "../contracts/analysis";
-import { STARTER_DEFAULTS } from "../contracts/setup";
-import { analysisForModel, computeEvidence, countingZone, placeHintFromEvidence, suggestFromEvidence } from "./analysis";
+import { STARTER_DEFAULTS, WEEKDAYS } from "../contracts/setup";
+import { analysisForModel, computeEvidence, countingZone, hoursSuggestion, placeHintFromEvidence, suggestFromEvidence } from "./analysis";
 import type { CalendarEvent } from "./google-calendar";
 
 const host = "host@example.test";
@@ -174,7 +174,7 @@ describe("computeEvidence", () => {
       },
       { allDay: true, calendarId: host, eventId: "report", fingerprint: "2026-10-03T00:00:00Z", start: "2026-10-14", title: "Write report" },
     ]);
-    expect(evidence.preferredTimes.sampleSize).toBe(0);
+    expect(evidence.preferredTimes.sampleSize).toBe(1);
   });
 
   it("takes places only from events with a location and no conference link", () => {
@@ -192,7 +192,7 @@ describe("computeEvidence", () => {
       ctx,
     );
 
-    expect(evidence.places).toEqual({
+    expect(evidence.places).toMatchObject({
       area: { count: 2, name: "Seongsu" },
       sampleSize: 3,
       venue: { count: 2, name: "Blue Bottle Coffee" },
@@ -252,24 +252,26 @@ describe("suggestFromEvidence", () => {
     expect(suggestions.weeklyLimit).toMatchObject({ source: "starter_default", value: null });
   });
 
-  it("infers windows, the weekly limit and duration from enough meetings", () => {
+  it("infers windows and duration but keeps no weekly limit even with enough meetings", () => {
     const suggestions = suggestFromEvidence(evidenceWith(busyWeeks(8)), "Asia/Seoul");
 
     expect(suggestions.weeklyWindows).toMatchObject({
       sampleSize: 8,
       source: "inferred",
-      value: [
-        { end: "11:00", start: "10:00", weekday: "tuesday" },
-        { end: "15:00", start: "14:00", weekday: "thursday" },
-      ],
+      value: WEEKDAYS.slice(0, 5).map(weekday => ({ end: "15:00", start: "10:00", weekday })),
     });
-    expect(suggestions.weeklyLimit).toMatchObject({ sampleSize: 8, source: "inferred", value: 4 });
+    expect(suggestions.weeklyLimit).toEqual({
+      reason: "No limit unless you set one.",
+      sampleSize: null,
+      source: "starter_default",
+      value: null,
+    });
     // Median of 30 and 60 minutes is 45.
     expect(suggestions.durationMinutes).toMatchObject({ sampleSize: 8, source: "inferred", value: 45 });
     expect(suggestions.timezone).toMatchObject({ source: "inferred", value: "Asia/Seoul" });
   });
 
-  it("requires at least two weeks before inferring a weekly limit", () => {
+  it("keeps no weekly limit with meetings in only one week", () => {
     const oneWeek = Array.from({ length: 6 }, (_, index) => event({ startUtc: `2026-10-1${3 + (index % 3)}T0${index}:00:00Z` }));
     const suggestions = suggestFromEvidence(evidenceWith(oneWeek), null);
 
@@ -300,21 +302,15 @@ describe("suggestFromEvidence", () => {
       event({ minutes: 120, startUtc: new Date(Date.UTC(2026, 8, 18 + week * 7, 13)).toISOString() }),
     );
 
-    expect(suggestFromEvidence(evidenceWith(late), "Asia/Seoul").weeklyWindows!.value).toEqual([
-      { end: "01:00", start: "22:00", weekday: "friday" },
-    ]);
-    expect(suggestFromEvidence(evidenceWith(midnight), "Asia/Seoul").weeklyWindows!.value).toEqual([
-      { end: "00:00", start: "22:00", weekday: "friday" },
-    ]);
+    expect(suggestFromEvidence(evidenceWith(late), "Asia/Seoul").weeklyWindows!.value).toEqual(WEEKDAYS.slice(0, 5).map(weekday => ({ end: "01:00", start: "22:00", weekday })));
+    expect(suggestFromEvidence(evidenceWith(midnight), "Asia/Seoul").weeklyWindows!.value).toEqual(WEEKDAYS.slice(0, 5).map(weekday => ({ end: "00:00", start: "22:00", weekday })));
   });
 
   it("ends a window of a whole day or more a minute before its start hour", () => {
     // Tuesday 10:00 KST for 25 hours, five times.
     const long = Array.from({ length: 5 }, () => event({ minutes: 25 * 60, startUtc: "2026-10-13T01:00:00Z" }));
 
-    expect(suggestFromEvidence(evidenceWith(long), null).weeklyWindows!.value).toEqual([
-      { end: "09:59", start: "10:00", weekday: "tuesday" },
-    ]);
+    expect(suggestFromEvidence(evidenceWith(long), null).weeklyWindows!.value).toEqual(WEEKDAYS.slice(0, 5).map(weekday => ({ end: "09:59", start: "10:00", weekday })));
   });
 
   it("rounds the median duration to 15 minutes, at least 15", () => {
@@ -362,4 +358,87 @@ describe("analysisForModel", () => {
     expect(text).not.toContain("secret-event");
     expect(text).not.toContain(host);
   });
+});
+
+describe("chat hours", () => {
+  it("counts located appointments and ignores a single early and late outlier across weekdays", () => {
+    const events = [
+      event({ startUtc: "2026-10-12T00:30:00Z", minutes: 750 }),
+      event({ startUtc: "2026-10-13T00:30:00Z", minutes: 750 }),
+      event({ startUtc: "2026-10-14T02:00:00Z" }),
+      event({ startUtc: "2026-10-15T02:00:00Z", attendees: [], location: "Station", hasConferenceLink: false }),
+      event({ startUtc: "2026-10-16T02:00:00Z" }),
+      event({ startUtc: "2026-10-16T00:00:00Z", minutes: 900 }),
+    ];
+    const evidence = computeEvidence(events, ctx);
+    expect(evidence.preferredTimes.sampleSize).toBe(6);
+    expect(suggestFromEvidence(evidence, null).weeklyWindows).toMatchObject({ source: "inferred", value:
+      ["monday", "tuesday", "wednesday", "thursday", "friday"].map(weekday => ({ weekday, start: "09:00", end: "22:00" })) });
+  });
+
+  it("uses 10–20 for fewer than five counted events", () => {
+    expect(STARTER_DEFAULTS.weeklyWindows).toEqual(
+      ["monday", "tuesday", "wednesday", "thursday", "friday"].map(weekday => ({ weekday, start: "10:00", end: "20:00" })));
+    expect(hoursSuggestion(evidenceWith(busyWeeks(4)))).toEqual({
+      weekdays: { start: "10:00", end: "20:00" }, weekend: [], source: "starter_default", sampleSize: 4,
+    });
+  });
+
+  it("uses the earliest start and latest end for exactly two weekday events without inverting", () => {
+    const events = [
+      event({ startUtc: "2026-10-13T00:15:00Z", minutes: 45 }),
+      event({ startUtc: "2026-10-14T09:00:00Z", minutes: 45 }),
+      ...Array.from({ length: 3 }, () => event({ startUtc: "2026-10-17T01:30:00Z", minutes: 120 })),
+    ];
+    expect(hoursSuggestion(evidenceWith(events))).toEqual({
+      weekdays: { start: "09:00", end: "19:00" },
+      weekend: [{ weekday: "saturday", start: "10:00", end: "13:00" }], source: "inferred", sampleSize: 5,
+    });
+  });
+
+  it.each([0, 1])("keeps weekday defaults with %i weekday events and weekend evidence", (weekdayCount) => {
+    const events = [
+      ...busyWeeks(weekdayCount),
+      ...Array.from({ length: 3 }, () => event({ startUtc: "2026-10-17T01:30:00Z", minutes: 120 })),
+      event({ startUtc: "2026-10-18T00:15:00Z", minutes: 45 }),
+      event({ startUtc: "2026-10-25T09:00:00Z", minutes: 45 }),
+    ];
+    const evidence = evidenceWith(events);
+    expect(hoursSuggestion(evidence)).toEqual({
+      weekdays: { start: "10:00", end: "20:00" },
+      weekend: [
+        { weekday: "saturday", start: "10:00", end: "13:00" },
+        { weekday: "sunday", start: "09:00", end: "19:00" },
+      ], source: "inferred", sampleSize: 5 + weekdayCount,
+    });
+    expect(suggestFromEvidence(evidence, null).weeklyWindows).toMatchObject({
+      source: "inferred", value: [
+        ...WEEKDAYS.slice(0, 5).map(weekday => ({ weekday, start: "10:00", end: "20:00" })),
+        { weekday: "saturday", start: "10:00", end: "13:00" },
+        { weekday: "sunday", start: "09:00", end: "19:00" },
+      ],
+    });
+  });
+});
+
+it("includes a weekend day only with two counted events, and exports the fixed question shape", () => {
+  const weekday = busyWeeks(8);
+  const saturday = [event({ startUtc: "2026-10-17T01:30:00Z", minutes: 120 }), event({ startUtc: "2026-10-24T02:30:00Z", minutes: 120 })];
+  const sunday = event({ startUtc: "2026-10-18T01:00:00Z" });
+  expect(hoursSuggestion(computeEvidence([...weekday, ...saturday, sunday], ctx))).toEqual({
+    weekdays: { start: "10:00", end: "15:00" }, weekend: [{ weekday: "saturday", start: "10:00", end: "14:00" }], source: "inferred", sampleSize: 11,
+  });
+  expect(hoursSuggestion(null)).toEqual({ weekdays: { start: "10:00", end: "20:00" }, weekend: [], source: "starter_default", sampleSize: 0 });
+});
+
+it("keeps the complete location strings as the five most frequent candidates", () => {
+  const events = ["A", "B", "C", "D", "E", "F", "F"].map(location => event({ location, hasConferenceLink: false, attendees: [] }));
+  expect(computeEvidence(events, ctx).places.candidates).toEqual([
+    { name: "F", count: 2 }, ...["A", "B", "C", "D"].map(name => ({ name, count: 1 })),
+  ]);
+});
+
+it("does not widen the end for a lone 22:00 event when the next latest end is 18:30", () => {
+  const events = [510, 510, 480, 480, 720].map(minutes => event({ minutes }));
+  expect(hoursSuggestion(computeEvidence(events, ctx)).weekdays).toEqual({ start: "10:00", end: "19:00" });
 });

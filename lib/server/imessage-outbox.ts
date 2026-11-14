@@ -1,3 +1,6 @@
+import type { SlotPreview } from "../contracts/slot-preview";
+import { type ChannelLanguage } from "./channel-language";
+import { channelReplies } from "./channel-texts";
 import type { MessageStreamEvent } from "eve/client";
 import type { StoredChannel } from "../contracts/messaging-channel";
 import { agentUrlFromEnvironment, type ConversationRuntime, eveRuntime } from "./conversations";
@@ -59,6 +62,9 @@ import { openToken, sealToken, type TokenKey, tokenKeyFromEnvironment } from "./
 // window's summary of a new request, a proposal awaiting approval or a booking
 // outcome queues one template instead, at most one per host per 12 hours and at
 // most the daily limit per line.
+// A guest's rows (guest-whatsapp-link design 1 and 3) take the guest binding's
+// channel and its last_inbound_at as the window; outside it they are suppressed
+// with window_closed, and no template follows, since guests have none.
 // Telegram rows (host-telegram-channel design 9, D11) go through the Bot API
 // transport instead of Photon's. Consecutive sends to one chat are at least a
 // second apart: the claim reserves the chat's next slot under a lock and the
@@ -103,6 +109,7 @@ export function templateDailyLimit(env: Readonly<Record<string, string | undefin
 }
 
 export type OutboxKind =
+  | "image"
   | "link_received"
   | "link_refused"
   | "linked"
@@ -121,7 +128,6 @@ export type OutboxKind =
 export type OutboxState = "waiting" | "queued" | "dispatching" | "accepted" | "failed" | "uncertain" | "suppressed";
 
 export type RecordOutbound = {
-  readonly kind: OutboxKind;
   // The platform; by default the binding's or the link attempt's, else iMessage.
   readonly channel?: StoredChannel;
   // A template row's template (WhatsApp only).
@@ -154,7 +160,10 @@ export type RecordOutbound = {
   // Holds the send this long. Rows of one transaction have no order of their
   // own, so a message that must follow another waits (the card after linking).
   readonly delaySeconds?: number;
-};
+} & (
+  | { readonly kind: "image"; readonly image: { readonly preview: SlotPreview; readonly language: ChannelLanguage }; readonly reviewHash: string }
+  | { readonly kind: Exclude<OutboxKind, "image">; readonly image?: never; readonly reviewHash?: never }
+);
 
 export function outboxSealContext(outboxId: string) {
   return `imessage_outbox:${outboxId}`;
@@ -174,18 +183,19 @@ export async function recordOutbound(tx: Transaction, message: RecordOutbound): 
   const turn = message.kind === "turn";
   const channel = message.channel ?? (await ownerChannel(tx, message));
   const buttons = channel === "whatsapp" && BUTTON_KINDS.has(message.kind) && message.buttons?.items.length ? message.buttons : null;
+  const payload = message.kind === "image" ? JSON.stringify(message.image) : message.text;
   const text =
-    suppressed || message.text === undefined ? null : sealToken(message.tokenKey, buttons ? sealedWithButtons(message.text, buttons) : message.text, context);
+    suppressed || payload === undefined ? null : sealToken(message.tokenKey, buttons ? sealedWithButtons(payload, buttons) : payload, context);
   // Telegram keeps its keyboard on the row (design 7, D9), where button retirement finds it.
   const keyboard = channel === "telegram" && message.buttons ? telegramButtonsOf(message.buttons) : null;
   const keyboardJson = keyboard ? tx.json(keyboard as unknown as Parameters<typeof tx.json>[0]) : null;
 
   const [created] = await tx<{ id: string }[]>`
     insert into app.imessage_outbox
-      (id, channel, kind, template_name, buttons, dedupe_key, host_account_id, binding_id, requester_binding_id, link_id, request_id, input_id,
+      (id, channel, kind, review_hash, template_name, buttons, dedupe_key, host_account_id, binding_id, requester_binding_id, link_id, request_id, input_id,
        recipient_hash, recipient_ciphertext, text_ciphertext, sealed_key_id, state, failure_category, completed_at)
     values
-      (${id}, ${channel}, ${message.kind}, ${message.templateName ?? null}, ${keyboardJson}, ${message.dedupeKey}, ${message.hostAccountId ?? null},
+      (${id}, ${channel}, ${message.kind}, ${message.reviewHash ?? null}, ${message.templateName ?? null}, ${keyboardJson}, ${message.dedupeKey}, ${message.hostAccountId ?? null},
        ${message.bindingId ?? null}, ${message.requesterBindingId ?? null}, ${message.linkId ?? null}, ${message.requestId ?? null},
        ${message.inputId ?? null}, ${message.recipientHash},
        ${recipient?.ciphertext ?? null}, ${text?.ciphertext ?? null}, ${message.tokenKey.id},
@@ -219,6 +229,12 @@ export async function recordOutbound(tx: Transaction, message: RecordOutbound): 
 }
 
 async function ownerChannel(tx: Transaction, message: RecordOutbound): Promise<StoredChannel> {
+  if (message.requesterBindingId) {
+    const [binding] = await tx<{ channel: StoredChannel }[]>`
+      select channel from app.requester_imessage_bindings where id = ${message.requesterBindingId}
+    `;
+    if (binding) return binding.channel;
+  }
   if (message.bindingId) {
     const [binding] = await tx<{ channel: StoredChannel }[]>`select channel from app.imessage_bindings where id = ${message.bindingId}`;
     if (binding) return binding.channel;
@@ -463,6 +479,20 @@ export function createImessageSendHandler(load: () => ImessageSendDependencies =
         inWindow = binding.in_window;
       }
 
+      // A guest's window runs from their last message, the link message
+      // included (guest-whatsapp-link design 3); an unlinked guest gets nothing.
+      if (row.requester_binding_id) {
+        const [binding] = await claimTx<{ state: string; in_window: boolean }[]>`
+          select state, coalesce(last_inbound_at > now() - make_interval(mins => ${WHATSAPP_WINDOW_MINUTES}), false) as in_window
+          from app.requester_imessage_bindings where id = ${row.requester_binding_id}
+        `;
+        if (binding?.state === "unlinked") {
+          await finish(claimTx, row.id, row.state, "suppressed", { category: "unlinked" });
+          return { state: "suppressed" as const };
+        }
+        if (binding) inWindow = binding.in_window;
+      }
+
       // Free-form WhatsApp text outside the window is never sent (D8).
       if (row.channel === "whatsapp" && row.kind !== "template" && !inWindow) {
         await finish(claimTx, row.id, row.state, "suppressed", { category: WINDOW_CLOSED });
@@ -478,16 +508,6 @@ export function createImessageSendHandler(load: () => ImessageSendDependencies =
         `;
         if (!edited?.editable) {
           await finish(claimTx, row.id, row.state, "suppressed", { category: "edit_expired" });
-          return { state: "suppressed" as const };
-        }
-      }
-
-      if (row.requester_binding_id) {
-        const [binding] = await claimTx<{ state: string }[]>`
-          select state from app.requester_imessage_bindings where id = ${row.requester_binding_id}
-        `;
-        if (binding?.state === "unlinked") {
-          await finish(claimTx, row.id, row.state, "suppressed", { category: "unlinked" });
           return { state: "suppressed" as const };
         }
       }
@@ -748,6 +768,12 @@ function contentOf(
   text: string | null,
   buttonsOn: boolean,
 ): PhotonContent {
+  if (row.kind === "image") {
+    const image = JSON.parse(text!) as { preview: SlotPreview; language: ChannelLanguage };
+    return row.channel === "telegram"
+      ? { kind: "text", text: channelReplies(image.language).onboarding.slotCaption(image.preview) }
+      : { kind: "image", ...image };
+  }
   if (row.kind === "edit_markup") return { kind: "edit_markup", messageId: text ?? "" };
   if (row.kind === "callback_answer") {
     const answer = JSON.parse(text ?? "{}") as Partial<CallbackAnswer>;

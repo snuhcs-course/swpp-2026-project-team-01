@@ -115,7 +115,8 @@ test.describe("on Android", () => {
     const host = await signedInHost(db, context, baseURL!, { imessageStep: true });
     await page.goto("/app");
 
-    await expect(page.getByRole("heading", { level: 1, name: "Connect Thyme to your WhatsApp" })).toBeVisible({ timeout: 45_000 });
+    // WhatsApp asks for the number first (guest-whatsapp-link D3); Telegram needs none.
+    await expect(page.getByRole("heading", { level: 1, name: "Which number do you use for WhatsApp?" })).toBeVisible({ timeout: 45_000 });
     await expect(page.getByRole("button", { name: "Use iMessage instead" })).toHaveCount(0);
     await page.getByRole("button", { name: "Use Telegram instead" }).click();
 
@@ -139,6 +140,8 @@ test.describe("on Android", () => {
 
     await page.getByRole("button", { name: "Go to Home" }).click();
     const card = await openCard(page);
+    // Linked, the card folds into a small status pill that opens the full card.
+    await card.getByRole("button", { name: "Telegram linked Dohyeon (@dohyeon)" }).click();
     await expect(card.getByRole("heading", { name: "Telegram is linked" })).toBeVisible();
     await expect(card).toContainText("Linked on Telegram Dohyeon (@dohyeon)");
     await expect(card.getByRole("button", { name: "Add to contacts" })).toHaveCount(0);
@@ -269,7 +272,7 @@ test.describe("on a Windows computer", () => {
     await expect(card.getByText("This replaces your iMessage link.")).toBeVisible();
     await expect(card.getByText(PRIVACY)).toBeVisible();
     await card.getByRole("button", { name: "Confirm and link" }).click();
-    await expect(card.getByRole("heading", { name: "Telegram is linked" })).toBeVisible({ timeout: 10_000 });
+    await expect(card.getByRole("button", { name: "Telegram linked Dohyeon (@dohyeon)" })).toBeVisible({ timeout: 10_000 });
     expect(await activeChannel(db, host.hostAccountId)).toEqual([{ channel: "telegram" }]);
   });
 

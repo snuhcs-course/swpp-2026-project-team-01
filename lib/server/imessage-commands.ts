@@ -9,6 +9,8 @@ import {
   type WeeklyWindow,
 } from "../contracts/setup";
 import { approveCommand, declineCommand } from "./bookings";
+import { type ChannelLanguage, hostConversationLanguage } from "./channel-language";
+import { channelReplies, FIELD_LABELS, locale, STATE_WORDS, weekdayShort } from "./channel-texts";
 import { type CommandDefinition, type CommandOutcome, runCommand } from "./commands";
 import type { Database, Transaction } from "./database";
 import { recordDestinationAccess } from "./calendar-roles";
@@ -17,7 +19,7 @@ import { listHostRequests, readHostRequest } from "./host-requests";
 import { calendarConnectUrl } from "./imessage-links";
 import { callbackAnswerText, recordOutbound } from "./imessage-outbox";
 import type { WhatsAppButtons } from "./photon";
-import { requestRef } from "./request-ref";
+import { requestRef, settingsRef } from "./request-ref";
 import { WHATSAPP_BUTTON_CONTENT } from "./whatsapp";
 import type { BoundMessage, ImessageReceiptDependencies, OpenedReceipt } from "./imessage-receipts";
 import { computeSetupProposal, readSetupState } from "./setup";
@@ -45,6 +47,10 @@ import type { TokenKey } from "./token-encryption";
 // receipt whose data names one of these commands, runs here exactly like the
 // typed command, and is answered: empty when it ran, with the current proposal
 // when it named an older version.
+// Since channel-actions-in-words (D2, D3) the host need not know any of this:
+// every action also works in words through Thyme's tools, the commands keep
+// working for buttons and for hosts who type them, and no reply asks for one.
+// Replies follow the conversation's language, English or Korean (D4).
 
 export type ParsedCommand =
   | { readonly name: "help" | "requests" | "setup" | "review" | "changes" | "stop" }
@@ -76,38 +82,20 @@ export function reviewRef(requestId: string, version: number) {
   return `${requestRef(requestId)}-${version}`;
 }
 
-export function settingsRef(proposalHash: string) {
-  return proposalHash.slice(0, 8).toUpperCase();
+export { settingsRef } from "./request-ref";
+
+// The help reply (D3): what the host can say, not which commands exist.
+export function helpText(origin: string, language: ChannelLanguage, telegram = false) {
+  const texts = channelReplies(language);
+  return telegram ? `${texts.help(origin)}\n${texts.telegramHelp}` : texts.help(origin);
 }
 
-export const HELP_TEXT = [
-  "Here's what you can send:",
-  "requests: your open requests",
-  "request <ref>: talk about one request here",
-  "review: the current proposal, or your settings in setup",
-  "changes: suggested changes to the selected request",
-  "approve <ref> or decline <ref>: decide a proposal",
-  "setup: continue setting up",
-  "stop: unlink this conversation from Find Me a Time",
-  "Anything else goes to Thyme.",
-].join("\n");
-
-// Telegram's help names its buttons too (design 8).
-export const TELEGRAM_HELP_TEXT = HELP_TEXT.replace(
-  "Anything else goes to Thyme.",
-  "Or tap Approve, Decline or Show details under a proposal.\nAnything else goes to Thyme.",
-);
-
-export const STOP_TEXTS = {
-  imessage: "Unlinked. You won't get iMessages from Find Me a Time.",
-  whatsapp: "Unlinked. You won't get WhatsApp messages from Find Me a Time.",
-  telegram: "Unlinked. You won't get Telegram messages from Find Me a Time.",
-} as const;
+export const STOP_TEXTS = channelReplies("en").stop;
 
 // What a button tap's spinner is answered with (design 7). Success answers with nothing.
 export const CALLBACK_TEXTS = {
-  stale: "This proposal has changed. Here is the current one.",
-  notLinked: "Not linked",
+  stale: channelReplies("en").callbackStale,
+  notLinked: channelReplies("en").callbackNotLinked,
 } as const;
 
 // Answers a button tap once, keyed by its receipt; nothing for any other receipt.
@@ -132,41 +120,27 @@ export async function answerCallback(
 }
 
 const CLOSED: readonly RequestState[] = ["booked", "declined", "withdrawn", "expired"];
-const STATE_WORDS: Readonly<Record<RequestState, string>> = {
-  awaiting_host_approval: "awaiting your approval",
-  booked: "booked",
-  booking: "booking",
-  declined: "declined",
-  draft: "draft",
-  expired: "expired",
-  gathering: "gathering details",
-  negotiating: "finding a time",
-  withdrawn: "withdrawn",
-};
-
-function meetingTime(start: string, end: string, zone: string) {
-  const day = new Intl.DateTimeFormat("en-US", { day: "numeric", month: "short", timeZone: zone, weekday: "short" }).format(new Date(start));
-  const clock = new Intl.DateTimeFormat("en-US", { hour: "numeric", minute: "2-digit", timeZone: zone });
+function meetingTime(start: string, end: string, zone: string, language: ChannelLanguage = "en") {
+  const day = new Intl.DateTimeFormat(locale(language), { day: "numeric", month: "short", timeZone: zone, weekday: "short" }).format(new Date(start));
+  const clock = new Intl.DateTimeFormat(locale(language), { hour: "numeric", minute: "2-digit", timeZone: zone });
   return `${day}, ${clock.format(new Date(start))}–${clock.format(new Date(end))} (${zone})`;
 }
 
-// The request's summary as the review command and the summaries show it.
-export function requestSummary(view: HostRequestView) {
+// The request's summary as the review command and the summaries show it. A
+// proposal awaiting approval says the host may decide in words (D3).
+export function requestSummary(view: HostRequestView, language: ChannelLanguage = "en") {
+  const texts = channelReplies(language);
   const ref = requestRef(view.requestId);
-  const lines = [`Request ${ref} from ${view.requester.name}${view.details.purpose ? `: ${view.details.purpose}` : ""}.`];
+  const lines: string[] = [texts.request(ref, view.requester.name, view.details.purpose)];
 
   if (view.proposal) {
-    const place = view.proposal.mode === "online" ? "online" : `in person${view.proposal.location ? ` at ${view.proposal.location}` : ""}`;
-    lines.push(`Proposal ${view.proposal.version}: ${meetingTime(view.proposal.start, view.proposal.end, view.hostTimezone)}, ${view.proposal.durationMinutes} minutes, ${place}.`);
+    const place = view.proposal.mode === "online" ? texts.online : texts.inPerson(view.proposal.location);
+    lines.push(texts.proposal(view.proposal.version, meetingTime(view.proposal.start, view.proposal.end, view.hostTimezone, language), view.proposal.durationMinutes, place));
   }
 
-  lines.push(`Status: ${STATE_WORDS[view.state]}.`);
+  lines.push(texts.status(STATE_WORDS[language][view.state]));
 
-  if (view.state === "awaiting_host_approval" && view.proposal?.agreedAt) {
-    const decision = reviewRef(view.requestId, view.proposal.version);
-    // Approval also works in the host's own words (D23); decline stays exact.
-    lines.push(`To approve, reply in your own words, such as "book it", or send: approve ${decision}`, `To decline, send exactly: decline ${decision}`);
-  }
+  if (view.state === "awaiting_host_approval" && view.proposal?.agreedAt) lines.push(texts.decideInWords);
   return lines.join("\n");
 }
 
@@ -174,65 +148,51 @@ export function requestSummary(view: HostRequestView) {
 // design 11, D17; host-telegram-channel design 7, D8): WhatsApp reply buttons
 // and Telegram's inline keyboard (the outbox drops them on iMessage), with IDs
 // that name the exact request and version.
-export const BUTTON_TITLES = { approve: "Approve", confirm: "Confirm settings", decline: "Decline", details: "Show details" } as const;
+export const BUTTON_TITLES = channelReplies("en").buttons;
 
-export function decisionButtons(view: HostRequestView): WhatsAppButtons | undefined {
+export function decisionButtons(view: HostRequestView, language: ChannelLanguage = "en"): WhatsAppButtons | undefined {
   if (view.state !== "awaiting_host_approval" || !view.proposal?.agreedAt) return undefined;
+  const texts = channelReplies(language);
   const ref = requestRef(view.requestId);
   const decision = reviewRef(view.requestId, view.proposal.version);
   return {
     items: [
-      { id: `a:${decision}`, title: BUTTON_TITLES.approve },
-      { id: `d:${decision}`, title: BUTTON_TITLES.decline },
-      { id: `s:${ref}`, title: BUTTON_TITLES.details },
+      { id: `a:${decision}`, title: texts.buttons.approve },
+      { id: `d:${decision}`, title: texts.buttons.decline },
+      { id: `s:${ref}`, title: texts.buttons.details },
     ],
-    prompt: `Decide on request ${ref}?`,
+    prompt: texts.decidePrompt(ref),
   };
 }
 
-export function settingsButtons(proposalHash: string): WhatsAppButtons {
-  return { items: [{ id: `c:${settingsRef(proposalHash)}`, title: BUTTON_TITLES.confirm }], prompt: "Save these settings?" };
+export function settingsButtons(proposalHash: string, language: ChannelLanguage = "en"): WhatsAppButtons {
+  const texts = channelReplies(language);
+  return { items: [{ id: `c:${settingsRef(proposalHash)}`, title: texts.buttons.confirm }], prompt: texts.savePrompt };
 }
 
-function windowsText(windows: readonly WeeklyWindow[]) {
-  return windows.map((window) => `${window.weekday.slice(0, 3)} ${window.start}–${window.end}`).join(", ");
+function windowsText(windows: readonly WeeklyWindow[], language: ChannelLanguage) {
+  return windows.map((window) => `${weekdayShort(window.weekday, language)} ${window.start}–${window.end}`).join(", ");
 }
 
-const FIELD_LABELS: Readonly<Record<SetupFieldName, string>> = {
-  bufferAfterMinutes: "Buffer after",
-  bufferBeforeMinutes: "Buffer before",
-  displayName: "Name on your page",
-  durationMinutes: "Meeting length",
-  handle: "Booking link handle",
-  location: "Where you meet",
-  meetingMode: "Meeting mode",
-  noteExclusions: "Excluded note entries",
-  timezone: "Timezone",
-  travelBufferMinutes: "Extra travel time",
-  travelMode: "How you travel",
-  weeklyLimit: "Weekly meeting limit",
-  weeklyLimitCounts: "Counted toward the limit",
-  weeklyWindows: "Meeting hours",
-};
-
-function fieldText(field: SetupFieldName, value: unknown) {
+function fieldText(field: SetupFieldName, value: unknown, language: ChannelLanguage) {
+  const texts = channelReplies(language);
   switch (field) {
     case "weeklyWindows":
-      return windowsText(value as WeeklyWindow[]);
+      return windowsText(value as WeeklyWindow[], language);
     case "durationMinutes":
     case "bufferBeforeMinutes":
     case "bufferAfterMinutes":
     case "travelBufferMinutes":
-      return `${value as number} minutes`;
+      return texts.minutes(value as number);
     case "weeklyLimit":
-      return value === null ? "none" : `${value as number} a week`;
+      return value === null ? texts.none : texts.perWeek(value as number);
     case "weeklyLimitCounts":
       return WEEKLY_LIMIT_COUNT_LABELS[value as keyof typeof WEEKLY_LIMIT_COUNT_LABELS] ?? String(value);
     case "travelMode":
       return TRAVEL_MODE_LABELS[value as keyof typeof TRAVEL_MODE_LABELS] ?? String(value);
     case "location": {
       const answer = value as { kind: string; areas?: string[]; venue?: string | null };
-      return answer.kind === "decide_per_meeting" ? "decide per meeting" : [...(answer.areas ?? []), answer.venue].filter(Boolean).join(", ");
+      return answer.kind === "decide_per_meeting" ? texts.decidePerMeeting : [...(answer.areas ?? []), answer.venue].filter(Boolean).join(", ");
     }
     case "noteExclusions":
       return `${(value as unknown[]).length}`;
@@ -244,47 +204,41 @@ function fieldText(field: SetupFieldName, value: unknown) {
 export const MAX_REVIEW_CHARS = 1_500;
 
 // The authored settings review: every proposed value with its source, the
-// calendars, what is still missing, and the exact confirm command.
-export async function settingsReview(db: Database, hostAccountId: string, origin: string): Promise<Reply> {
+// calendars and what is still missing. A complete review ends by saying the
+// host may tell Thyme to save it (D3); the Confirm settings button still
+// carries its reference.
+export async function settingsReview(db: Database, hostAccountId: string, origin: string, language: ChannelLanguage = "en"): Promise<Reply> {
+  const texts = channelReplies(language);
   const proposal = await computeSetupProposal(db, hostAccountId);
-  if (!proposal) return { text: `Open ${origin}/app to set up.` };
+  if (!proposal) return { text: texts.openToSetUp(origin) };
 
-  const lines = ["Your settings for review:"];
+  const lines: string[] = [texts.settingsHeader];
   if (proposal.roles) {
     lines.push(
-      `Calendars checked: ${proposal.roles.conflictCalendars.map((calendar) => calendar.summary).join(", ")}`,
-      `Bookings go to: ${proposal.roles.bookingCalendar.summary}`,
+      texts.calendarsChecked(proposal.roles.conflictCalendars.map((calendar) => calendar.summary).join(", ")),
+      texts.bookingsGoTo(proposal.roles.bookingCalendar.summary),
     );
   }
   for (const field of SETUP_FIELD_NAMES) {
     const entry = proposal.proposed[field];
     if (!entry) continue;
     if (field === "weeklyLimitCounts" && proposal.proposed.weeklyLimit?.value == null) continue;
-    const source = entry.source === "starter_default" ? " (starter default)" : entry.source === "inferred" ? " (suggested)" : "";
-    lines.push(`${FIELD_LABELS[field]}: ${fieldText(field, entry.value)}${source}`);
+    const source = entry.source === "starter_default" ? texts.starterDefault : entry.source === "inferred" ? texts.suggested : "";
+    lines.push(`${FIELD_LABELS[language][field]}: ${fieldText(field, entry.value, language)}${source}`);
   }
 
   const ready = Boolean(proposal.roles) && proposal.missingFields.length === 0;
   if (!ready) {
-    const missing = proposal.missingFields.map((field) => FIELD_LABELS[field].toLowerCase());
-    lines.push(`Still needed: ${proposal.roles ? missing.join(", ") : "your calendars"}. Answer here, or open ${origin}/app.`);
+    const missing = proposal.missingFields.map((field) => FIELD_LABELS[language][field].toLowerCase());
+    lines.push(texts.stillNeeded(proposal.roles ? missing.join(", ") : texts.yourCalendars, origin));
   } else {
-    lines.push(`To save these settings, reply exactly: confirm ${settingsRef(proposal.proposalHash)}`);
+    lines.push(texts.saveInWords);
   }
 
   const text = lines.join("\n");
-  if (text.length > MAX_REVIEW_CHARS) return { text: `Your settings review is too long for a message. Review and confirm it at ${origin}/app.` };
-  return ready ? { buttons: settingsButtons(proposal.proposalHash), text } : { text };
+  if (text.length > MAX_REVIEW_CHARS) return { text: texts.reviewTooLong(origin) };
+  return ready ? { buttons: settingsButtons(proposal.proposalHash, language), text } : { text };
 }
-
-const NEXT_STEP_TEXT: Readonly<Record<string, string>> = {
-  analyzing: "I'm looking at your calendars; I'll have suggestions shortly.",
-  choose_calendars: "Choose which calendars to check and where bookings go. Tell me here, or open the link below.",
-  confirm_settings: "Your settings are ready to review. Send review.",
-  connect_calendar: "Connect Google Calendar first; that happens in the browser.",
-  ready: "You're set up. Send review to see your settings, or tell me what to change.",
-  review_suggestions: "Let's go through your suggested settings. Tell me what you prefer, or send review.",
-};
 
 export type CommandDependencies = ImessageReceiptDependencies;
 
@@ -349,90 +303,84 @@ function run<Input, Result>(
   );
 }
 
-function changeTexts(changes: NonNullable<HostRequestView["suggestion"]>["changes"], zone: string) {
+function changeTexts(changes: NonNullable<HostRequestView["suggestion"]>["changes"], zone: string, language: ChannelLanguage) {
+  const texts = channelReplies(language).change;
   const parts: string[] = [];
   if (changes.start) {
-    const at = new Intl.DateTimeFormat("en-US", { day: "numeric", hour: "numeric", minute: "2-digit", month: "short", timeZone: zone, weekday: "short" });
-    parts.push(`start ${at.format(new Date(changes.start))} (${zone})`);
+    const at = new Intl.DateTimeFormat(locale(language), { day: "numeric", hour: "numeric", minute: "2-digit", month: "short", timeZone: zone, weekday: "short" });
+    parts.push(texts.start(`${at.format(new Date(changes.start))} (${zone})`));
   }
-  if (changes.durationMinutes) parts.push(`${changes.durationMinutes} minutes`);
-  if (changes.mode) parts.push(changes.mode === "online" ? "online" : "in person");
-  if (changes.location) parts.push(`at ${changes.location}`);
-  if (changes.linkPlan) parts.push(changes.linkPlan.kind === "google_meet" ? "a Google Meet link" : "a meeting link the requester gave");
+  if (changes.durationMinutes) parts.push(texts.minutes(changes.durationMinutes));
+  if (changes.mode) parts.push(changes.mode === "online" ? texts.online : texts.inPerson);
+  if (changes.location) parts.push(texts.at(changes.location));
+  if (changes.linkPlan) parts.push(changes.linkPlan.kind === "google_meet" ? texts.googleMeet : texts.requesterLink);
   return parts;
 }
-
-const STALE_REQUEST = (deps: CommandDependencies) => `I don't recognize that reference. Send requests to see yours, or open ${deps.origin}/app.`;
 
 async function decide(
   deps: CommandDependencies,
   message: BoundMessage,
   kind: "approve" | "decline",
   ref: string,
+  language: ChannelLanguage,
 ): Promise<Reply & { requestId?: string }> {
+  const texts = channelReplies(language);
   const parts = splitRef(ref);
   const version = parts ? Number(parts.suffix) : Number.NaN;
   const found = parts && Number.isInteger(version) && version > 0 ? await requestByRef(deps, message.hostAccountId, parts.request) : null;
-  if (!found || "error" in found) return { text: STALE_REQUEST(deps) };
+  if (!found || "error" in found) return { text: texts.unknownRef(deps.origin) };
 
   const view = await readHostRequest(deps.db, message.hostAccountId, found.requestId);
-  if (!view) return { text: STALE_REQUEST(deps) };
+  if (!view) return { text: texts.unknownRef(deps.origin) };
   const current = view.proposal ? reviewRef(view.requestId, view.proposal.version) : null;
 
-  if (CLOSED.includes(view.state)) return { requestId: view.requestId, text: `This request is ${STATE_WORDS[view.state]}; nothing changed.` };
+  if (CLOSED.includes(view.state)) return { requestId: view.requestId, text: texts.closedNothingChanged(STATE_WORDS[language][view.state]) };
   if (!view.proposal || view.proposal.version !== version) {
     // A stale tap shows the current proposal, since WhatsApp cannot take the
     // old buttons back (D17). On Telegram the tap's answer says it changed (D8).
     if (message.receipt.contentType === WHATSAPP_BUTTON_CONTENT) {
-      return { buttons: decisionButtons(view), requestId: view.requestId, text: `This proposal has changed.\n${requestSummary(view)}` };
+      return { buttons: decisionButtons(view, language), requestId: view.requestId, text: `${texts.proposalChanged}\n${requestSummary(view, language)}` };
     }
     if (message.receipt.contentType === "callback") {
-      return { answer: CALLBACK_TEXTS.stale, buttons: decisionButtons(view), requestId: view.requestId, text: requestSummary(view) };
+      return { answer: texts.callbackStale, buttons: decisionButtons(view, language), requestId: view.requestId, text: requestSummary(view, language) };
     }
-    return {
-      requestId: view.requestId,
-      text: current ? `That proposal is no longer current. The current one is ${current}; send review to see it.` : "There's no proposal to decide yet.",
-    };
+    return { requestId: view.requestId, text: current ? texts.notCurrent(current) : texts.noProposal };
   }
 
   if (kind === "approve") {
     // The reference names the version; the revision read with it makes sure
     // nothing changed between this read and the decision.
     const outcome = await run(deps, message, approveCommand, view.requestId, { version }, view.revision);
-    if (outcome.ok) {
-      return {
-        requestId: view.requestId,
-        text: outcome.result.repeated
-          ? "That proposal is already approved; the booking is under way."
-          : "Approved. I'm adding it to your calendar and will tell you when it's confirmed.",
-      };
-    }
-    return { requestId: view.requestId, text: decisionRefusal(deps, outcome.error.category, current) };
+    if (outcome.ok) return { requestId: view.requestId, text: outcome.result.repeated ? texts.alreadyApproved : texts.approved };
+    return { requestId: view.requestId, text: decisionRefusal(deps, outcome.error.category, current, language) };
   }
 
   const outcome = await run(deps, message, declineCommand(() => deps.notices), view.requestId, {}, view.revision);
-  return {
-    requestId: view.requestId,
-    text: outcome.ok ? "Declined. The requester will be told; nothing was booked." : decisionRefusal(deps, outcome.error.category, current),
-  };
+  return { requestId: view.requestId, text: outcome.ok ? texts.declined : decisionRefusal(deps, outcome.error.category, current, language) };
 }
 
-function decisionRefusal(deps: CommandDependencies, category: string, current: string | null) {
+function decisionRefusal(deps: CommandDependencies, category: string, current: string | null, language: ChannelLanguage) {
+  const texts = channelReplies(language);
   switch (category) {
     case "stale_revision":
-      return current
-        ? `That proposal can't be decided now; it may have changed or still need the requester's agreement. Send review for the current one (${current}).`
-        : "That proposal can't be decided now. Send review.";
+      return texts.cannotDecide(current);
     case "request_closed":
-      return "This request is closed; nothing changed.";
+      return texts.requestClosed;
     case "booking_pending":
-      return "A booking for this request is under way; check it in the app.";
+      return texts.bookingUnderWay;
     default:
-      return `I couldn't do that here. Open ${deps.origin}/app to continue.`;
+      return texts.couldNotHere(deps.origin);
   }
 }
 
-async function changes(deps: CommandDependencies, message: BoundMessage, kind: "show" | "share" | "dismiss", ref?: string): Promise<Reply & { requestId?: string }> {
+async function changes(
+  deps: CommandDependencies,
+  message: BoundMessage,
+  kind: "show" | "share" | "dismiss",
+  language: ChannelLanguage,
+  ref?: string,
+): Promise<Reply & { requestId?: string }> {
+  const texts = channelReplies(language);
   let requestId = message.selectedRequestId;
   let number: number | null = null;
 
@@ -440,10 +388,10 @@ async function changes(deps: CommandDependencies, message: BoundMessage, kind: "
     const parts = splitRef(ref);
     number = parts && /^S\d+$/.test(parts.suffix) ? Number(parts.suffix.slice(1)) : null;
     const found = parts && number ? await requestByRef(deps, message.hostAccountId, parts.request) : null;
-    if (!found || "error" in found) return { text: STALE_REQUEST(deps) };
+    if (!found || "error" in found) return { text: texts.unknownRef(deps.origin) };
     requestId = found.requestId;
   }
-  if (!requestId) return { text: "Choose a request first: send requests, then request <ref>." };
+  if (!requestId) return { text: texts.chooseRequestFirst };
 
   const [request] = await deps.db<{ revision: number }[]>`
     select revision from app.requests where id = ${requestId} and host_account_id = ${message.hostAccountId}
@@ -458,18 +406,13 @@ async function changes(deps: CommandDependencies, message: BoundMessage, kind: "
 
   if (kind === "show") {
     const view = await readHostRequest(deps.db, message.hostAccountId, requestId);
-    if (!view?.suggestion || view.suggestion.state !== "pending" || !pendingRef) {
-      return { requestId, text: "There are no suggested changes for this request. Tell me what you'd like to change." };
-    }
-    const parts = changeTexts(view.suggestion.changes, view.hostTimezone);
-    return {
-      requestId,
-      text: [`Suggested changes ${pendingRef}: ${parts.join("; ")}.`, `To share them with the requester, reply exactly: share ${pendingRef}`, `To drop them: dismiss ${pendingRef}`].join("\n"),
-    };
+    if (!view?.suggestion || view.suggestion.state !== "pending" || !pendingRef) return { requestId, text: texts.noChanges };
+    const parts = changeTexts(view.suggestion.changes, view.hostTimezone, language);
+    return { requestId, text: [texts.suggestedChanges(pendingRef, parts.join("; ")), texts.shareOrDrop].join("\n") };
   }
 
   if (!pendingRef || number !== pendingIndex + 1) {
-    return { requestId, text: pendingRef ? `Those aren't the current suggestions. The current ones are ${pendingRef}; send changes.` : "There are no suggested changes to act on." };
+    return { requestId, text: pendingRef ? texts.notCurrentChanges(pendingRef) : texts.noChangesToAct };
   }
 
   const input = { suggestionId: drafts[pendingIndex]!.id };
@@ -477,42 +420,43 @@ async function changes(deps: CommandDependencies, message: BoundMessage, kind: "
     kind === "share"
       ? await run(deps, message, shareChangesCommand, requestId, input, request?.revision ?? null)
       : await run(deps, message, dismissChangesCommand, requestId, input, request?.revision ?? null);
-  if (!outcome.ok) return { requestId, text: decisionRefusal(deps, outcome.error.category, null) };
-  return {
-    requestId,
-    text: kind === "share" ? "Shared. I'll check the new time and send it to the requester for agreement." : "Dropped those suggestions; nothing was shared.",
-  };
+  if (!outcome.ok) return { requestId, text: decisionRefusal(deps, outcome.error.category, null, language) };
+  return { requestId, text: kind === "share" ? texts.shared : texts.dropped };
 }
 
-async function confirmSettings(deps: CommandDependencies, message: BoundMessage, ref: string): Promise<Reply & { saved?: boolean }> {
+async function confirmSettings(deps: CommandDependencies, message: BoundMessage, ref: string, language: ChannelLanguage): Promise<Reply & { saved?: boolean }> {
+  const texts = channelReplies(language);
   const proposal = await computeSetupProposal(deps.db, message.hostAccountId);
   if (!proposal || settingsRef(proposal.proposalHash) !== ref) {
-    return {
-      text: proposal ? `That review is no longer current. The current one is ${settingsRef(proposal.proposalHash)}; send review to see it.` : `Open ${deps.origin}/app to set up.`,
-    };
+    return { text: proposal ? texts.reviewNotCurrent(settingsRef(proposal.proposalHash)) : texts.openToSetUp(deps.origin) };
   }
 
   let live;
   try {
     live = (await (await openHostCalendar(deps.setup.calendar, message.hostAccountId)).listCalendars()).calendars;
   } catch (error) {
-    if (error instanceof CalendarAccessError) return { text: `Google Calendar couldn't be read. Reconnect it at ${deps.origin}/app, then try again.` };
+    if (error instanceof CalendarAccessError) return { text: texts.calendarUnreadable(deps.origin) };
     throw error;
   }
 
-  const outcome = await run(deps, message, confirmSettingsCommand(live, deps.setup.appOrigin), message.hostAccountId, { proposalHash: proposal.proposalHash }, proposal.records.draftRevision);
-  if (outcome.ok) return { saved: true, text: `Saved. Your booking link is ${outcome.result.links.booking}` };
+  const outcome = await run(deps, message, confirmSettingsCommand(live, deps.setup.appOrigin, { bindingId: message.bindingId }), message.hostAccountId, { proposalHash: proposal.proposalHash }, proposal.records.draftRevision);
+  if (outcome.ok) return { saved: true, text: texts.saved(outcome.result.links.booking) };
   if (outcome.error.reason === "destination_not_writable") {
     await recordDestinationAccess(deps.db, message.hostAccountId, live);
-    return { text: `Bookings can't be added to that calendar any more. Choose another at ${deps.origin}/app.` };
+    return { text: texts.destinationGone(deps.origin) };
   }
-  return { text: outcome.error.category === "stale_revision" ? "Your settings changed meanwhile. Send review for the current ones." : `I couldn't save that here. Open ${deps.origin}/app.` };
+  return { text: outcome.error.category === "stale_revision" ? texts.settingsMoved : texts.couldNotSave(deps.origin) };
 }
 
 // The reply to a decision this receipt already made, from its saved command
 // outcome, so a retried receipt answers as the first attempt did even when the
 // request has moved on since.
-async function savedDecisionReply(deps: CommandDependencies, message: BoundMessage): Promise<(Reply & { requestId: string | null }) | null> {
+async function savedDecisionReply(
+  deps: CommandDependencies,
+  message: BoundMessage,
+  language: ChannelLanguage,
+): Promise<(Reply & { requestId: string | null }) | null> {
+  const texts = channelReplies(language);
   const [saved] = await deps.db<{ operation: string; resource_id: string; result: Record<string, unknown> | null }[]>`
     select operation, resource_id, result from app.command_outcomes
     where actor = ${`host_account:${message.hostAccountId}`} and retry_key = ${`imessage:${message.receipt.id}`}
@@ -522,21 +466,16 @@ async function savedDecisionReply(deps: CommandDependencies, message: BoundMessa
 
   switch (saved.operation) {
     case "request.approve":
-      return {
-        requestId,
-        text: saved.result?.repeated
-          ? "That proposal is already approved; the booking is under way."
-          : "Approved. I'm adding it to your calendar and will tell you when it's confirmed.",
-      };
+      return { requestId, text: saved.result?.repeated ? texts.alreadyApproved : texts.approved };
     case "request.decline":
-      return { requestId, text: "Declined. The requester will be told; nothing was booked." };
+      return { requestId, text: texts.declined };
     case "request.share_changes":
-      return { requestId, text: "Shared. I'll check the new time and send it to the requester for agreement." };
+      return { requestId, text: texts.shared };
     case "request.dismiss_changes":
-      return { requestId, text: "Dropped those suggestions; nothing was shared." };
+      return { requestId, text: texts.dropped };
     case "setup.confirm_settings": {
       const links = saved.result?.links as { booking?: string } | undefined;
-      return { requestId, text: `Saved. Your booking link is ${links?.booking ?? `${deps.origin}/app`}` };
+      return { requestId, text: texts.saved(links?.booking ?? `${deps.origin}/app`) };
     }
     default:
       return null;
@@ -545,12 +484,16 @@ async function savedDecisionReply(deps: CommandDependencies, message: BoundMessa
 
 const DECISIONS = new Set(["approve", "decline", "share", "dismiss", "confirm"]);
 
-// Runs a parsed command for a bound host and queues its reply.
+// Runs a parsed command for a bound host and queues its reply, in the language
+// of the host's conversation (D4): a command word or a button says nothing
+// about the language the host speaks.
 export async function executeCommand(tx: Transaction, deps: CommandDependencies, message: BoundMessage, command: ParsedCommand) {
   let result: Reply & { requestId?: string | null };
   const telegram = message.receipt.channel === "telegram";
+  const language = await hostConversationLanguage(deps.db, message.hostAccountId);
+  const texts = channelReplies(language);
 
-  const replayed = DECISIONS.has(command.name) ? await savedDecisionReply(deps, message) : null;
+  const replayed = DECISIONS.has(command.name) ? await savedDecisionReply(deps, message, language) : null;
   if (replayed) {
     await reply(tx, deps, message, replayed.text, replayed.requestId);
     await answerCallback(tx, deps.tokenKey, message.receipt, message.recipient, null);
@@ -559,7 +502,7 @@ export async function executeCommand(tx: Transaction, deps: CommandDependencies,
 
   switch (command.name) {
     case "help":
-      result = { text: telegram ? TELEGRAM_HELP_TEXT : HELP_TEXT };
+      result = { text: helpText(deps.origin, language, telegram) };
       break;
     case "stop": {
       // Ends the binding as Unlink does (D12); the confirmation is not host-private,
@@ -582,7 +525,7 @@ export async function executeCommand(tx: Transaction, deps: CommandDependencies,
         kind: "command",
         recipient: message.recipient,
         recipientHash: message.receipt.senderHash,
-        text: STOP_TEXTS[message.receipt.channel],
+        text: texts.stop[message.receipt.channel],
         tokenKey: deps.tokenKey,
       });
       await answerCallback(tx, deps.tokenKey, message.receipt, message.recipient, null);
@@ -593,23 +536,23 @@ export async function executeCommand(tx: Transaction, deps: CommandDependencies,
       result = {
         text:
           open.length === 0
-            ? "You have no open requests."
-            : ["Your open requests:", ...open.map((item) => `${requestRef(item.requestId)}: ${item.requesterName}, ${STATE_WORDS[item.state]}`), "Send request <ref> to talk about one."].join("\n"),
+            ? texts.noOpenRequests
+            : [texts.openRequests, ...open.map((item) => texts.requestLine(requestRef(item.requestId), item.requesterName, STATE_WORDS[language][item.state])), texts.whichRequest].join("\n"),
       };
       break;
     }
     case "request": {
       const found = await requestByRef(deps, message.hostAccountId, command.ref);
       if ("error" in found) {
-        result = { text: found.error === "ambiguous" ? `That reference matches more than one request. Open ${deps.origin}/app.` : STALE_REQUEST(deps) };
+        result = { text: found.error === "ambiguous" ? texts.ambiguousRef(deps.origin) : texts.unknownRef(deps.origin) };
         break;
       }
       await tx`update app.imessage_bindings set selected_request_id = ${found.requestId} where id = ${message.bindingId} and state = 'active'`;
       const view = await readHostRequest(deps.db, message.hostAccountId, found.requestId);
       result = {
-        buttons: view ? decisionButtons(view) : undefined,
+        buttons: view ? decisionButtons(view, language) : undefined,
         requestId: found.requestId,
-        text: `${view ? requestSummary(view) : ""}\nMessages here now go to this request.`.trim(),
+        text: `${view ? requestSummary(view, language) : ""}\n${texts.selectedRequest}`.trim(),
       };
       break;
     }
@@ -619,33 +562,33 @@ export async function executeCommand(tx: Transaction, deps: CommandDependencies,
       const next = state?.nextAction ?? "connect_calendar";
       // Calendar is connected in the browser and returns here (D19); the rest can be done in this conversation or /app.
       const link = next === "connect_calendar" ? calendarConnectUrl(deps.origin) : `${deps.origin}/app`;
-      result = { text: `Setup selected. ${NEXT_STEP_TEXT[next]}\n${link}` };
+      result = { text: `${texts.selectedSetup} ${texts.nextStep[next]}\n${link}` };
       break;
     }
     case "review": {
       if (message.selectedRequestId) {
         const view = await readHostRequest(deps.db, message.hostAccountId, message.selectedRequestId);
         result = view
-          ? { buttons: decisionButtons(view), requestId: view.requestId, text: requestSummary(view) }
-          : { text: "That request isn't available any more. Send requests." };
+          ? { buttons: decisionButtons(view, language), requestId: view.requestId, text: requestSummary(view, language) }
+          : { text: texts.requestGoneHere };
       } else {
-        result = await settingsReview(deps.db, message.hostAccountId, deps.origin);
+        result = await settingsReview(deps.db, message.hostAccountId, deps.origin, language);
       }
       break;
     }
     case "changes":
-      result = await changes(deps, message, "show");
+      result = await changes(deps, message, "show", language);
       break;
     case "share":
     case "dismiss":
-      result = await changes(deps, message, command.name, command.ref);
+      result = await changes(deps, message, command.name, language, command.ref);
       break;
     case "approve":
     case "decline":
-      result = await decide(deps, message, command.name, command.ref);
+      result = await decide(deps, message, command.name, command.ref, language);
       break;
     case "confirm": {
-      const confirmed = await confirmSettings(deps, message, command.ref);
+      const confirmed = await confirmSettings(deps, message, command.ref, language);
       if (confirmed.saved) await enqueueSettingsButtonRetirement(tx, message.hostAccountId, `imessage:${message.receipt.id}`);
       result = confirmed;
       break;
