@@ -73,7 +73,7 @@ function ErrorNotice({ message, onDismiss }: { readonly message: string; readonl
   );
 }
 
-export function HostRequests({ onOpenSetup, request }: { readonly onOpenSetup: () => void; readonly request: string | null }) {
+export function HostRequests({ onOpenDashboard, onOpenSetup, request }: { readonly onOpenDashboard?: () => void; readonly onOpenSetup: () => void; readonly request: string | null }) {
   const router = useRouter();
   const [notice, setNotice] = useState<string | null>(null);
   const openInbox = useCallback(() => router.push("/app?view=requests"), [router]);
@@ -87,7 +87,7 @@ export function HostRequests({ onOpenSetup, request }: { readonly onOpenSetup: (
     <div className="flex h-dvh min-h-0 flex-col bg-background text-foreground">
       <header className="flex shrink-0 items-center justify-between gap-3 px-5 py-3 sm:px-8">
         <h1 className="wordmark-lockup min-w-0">Find Me a Time</h1>
-        <div className="flex items-center"><HostSettingsDialog /><WorkspaceMenu onSelectRequests={openInbox} onSelectSetup={onOpenSetup} /></div>
+        <div className="flex items-center"><HostSettingsDialog /><WorkspaceMenu onSelectDashboard={onOpenDashboard} onSelectRequests={openInbox} onSelectSetup={onOpenSetup} /></div>
       </header>
       {notice ? <ErrorNotice message={notice} onDismiss={() => setNotice(null)} /> : null}
       {request ? (
