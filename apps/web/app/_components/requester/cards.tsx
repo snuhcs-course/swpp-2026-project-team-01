@@ -31,6 +31,13 @@ export type CommandOutcome =
   | { readonly ok: true; readonly result: unknown; readonly replayed: boolean }
   | { readonly ok: false; readonly error: { readonly category: string; readonly message: string }; readonly status?: string };
 
+export type AgreementFailure = {
+  readonly title: string;
+  readonly message: string;
+  readonly action: string;
+  readonly focusCard: "proposal" | "candidates";
+};
+
 export type RequesterCardContext = {
   readonly bookingId: string;
   readonly view: OpenRequesterView;
@@ -49,6 +56,9 @@ export type RequesterCardContext = {
   readonly closeDetails: () => void;
   // Moves focus to an open card's heading, as "the current one" from a receipt.
   readonly focusCard: (domId: string) => void;
+  // A successful agreement opens the immediate confirmation in the workspace.
+  readonly onAgreed: (version: number) => void;
+  readonly onAgreementFailure: (failure: AgreementFailure) => void;
 };
 
 export function focusCardHeading(domId: string) {
@@ -66,6 +76,8 @@ export function useRequesterCards(
   refresh: () => Promise<void>,
   details: { readonly open: () => void; readonly close: () => void },
   chooseAnotherTime: () => void,
+  onAgreed: (version: number) => void,
+  onAgreementFailure: (failure: AgreementFailure) => void,
 ) {
   const keys = useRef(new Map<string, string>());
 
@@ -105,6 +117,8 @@ export function useRequesterCards(
     closeDetails: details.close,
     focusCard: focusCardHeading,
     openDetails: details.open,
+    onAgreed,
+    onAgreementFailure,
     refresh,
     run,
     timezone,
@@ -868,7 +882,7 @@ function InnerStep({ children, description, title }: { readonly children: ReactN
 }
 
 // The wait for the host, as a card in the thread from the agreement (U22), with
-// **Get updates in iMessage** as its button.
+// the decision's destination and optional messaging links in the same card.
 export function AwaitingCard({ context }: { readonly context: RequesterCardContext }) {
   const agreed = context.view.agreement && context.view.proposal ? context.view.proposal : null;
   const booking = context.view.booking;
@@ -890,13 +904,40 @@ export function AwaitingCard({ context }: { readonly context: RequesterCardConte
 
   return (
     <GuestCard
-      description={`${agreed ? `You agreed to ${displayTime(new Date(agreed.start), context.timezone)}` : "You agreed"} · nothing is booked yet`}
+      description={agreed ? `You agreed to ${displayTime(new Date(agreed.start), context.timezone)}` : "You agreed"}
       id="awaiting"
       label="Request"
       title={`Waiting for ${context.view.host.displayName} to approve`}
     >
+      <AwaitingDecisionDetails
+        agreementEmailSentTo={context.view.agreementEmailSentTo}
+        email={context.view.contact?.email}
+      />
       <ImessageUpdates context={context} />
     </GuestCard>
+  );
+}
+
+export function AwaitingDecisionDetails({
+  agreementEmailSentTo,
+  email,
+}: {
+  readonly agreementEmailSentTo?: string | null;
+  readonly email?: string;
+}) {
+  return (
+    <div className="flex min-w-0 flex-col gap-2 rounded-xl bg-secondary p-3 text-sm" data-guest-decision-details="">
+      <p>The request is waiting for the host’s approval. Nothing is booked yet.</p>
+      <p>
+        We’ll email the host’s decision{email ? <> to <strong className="break-all font-medium">{email}</strong></> : null}.
+        {" "}If iMessage or WhatsApp is linked, updates can arrive there too.
+      </p>
+      {agreementEmailSentTo ? (
+        <p>
+          We sent a copy of your agreement to <strong className="break-all font-medium">{agreementEmailSentTo}</strong>.
+        </p>
+      ) : null}
+    </div>
   );
 }
 

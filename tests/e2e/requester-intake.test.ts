@@ -164,13 +164,54 @@ for (const viewport of [
     await expect(page.getByRole("heading", { name: "Agree to this time?" })).toBeFocused();
     await expect(page.getByText("A Google Meet link is created when the meeting is booked")).toBeVisible();
     await openCardCount(page, 1);
+
+    // A failed send explains the problem and returns focus to the proposal;
+    // it must not record an agreement or show the success confirmation.
+    let failAgreementOnce = true;
+    const commandsUrl = "**/api/requests/*/commands";
+    await page.route(commandsUrl, async (route) => {
+      const command = route.request().postDataJSON() as { operation?: string };
+      if (command.operation === "request.agree" && failAgreementOnce) {
+        failAgreementOnce = false;
+        await route.fulfill({
+          body: JSON.stringify({ error: { category: "unavailable", message: "Service unavailable." }, ok: false }),
+          contentType: "application/json",
+          status: 503,
+        });
+      } else {
+        await route.continue();
+      }
+    });
     await press(page, /^Agree to this proposal$/);
+    const failedDialog = page.getByRole("dialog", { name: "Request not sent" });
+    await expect(failedDialog).toBeVisible();
+    await expect(failedDialog).toContainText("Please try again.");
+    await expect(page.getByRole("dialog", { name: "Request sent successfully" })).toHaveCount(0);
+    await failedDialog.getByRole("button", { name: "Back to request" }).click();
+    await expect(page.getByRole("heading", { name: "Agree to this time?" })).toBeFocused();
+    await page.unroute(commandsUrl);
+    await press(page, /^Agree to this proposal$/);
+
+    // The successful command acknowledges receipt before the guest returns to
+    // the persistent waiting card. An unavailable time must never open this.
+    const sentDialog = page.getByRole("dialog", { name: "Request sent successfully" });
+    await expect(sentDialog).toBeVisible();
+    await expect(sentDialog).not.toContainText("Nothing is booked yet");
+    await expect(sentDialog).not.toContainText(email);
+    await sentDialog.getByRole("button", { name: "View request" }).click();
+    await expect(sentDialog).toBeHidden();
+    await expect(page.getByRole("heading", { name: "Waiting for Ada Lovelace to approve" })).toBeFocused();
 
     // G8: waiting for the host, with nothing booked: the waiting card (U22),
     // with Get updates in iMessage as its button (U10).
     const waiting = page.locator('[data-guest-card="awaiting"]');
     await expect(waiting.getByRole("heading", { name: "Waiting for Ada Lovelace to approve" })).toBeVisible();
     await expect(waiting.getByText(/nothing is booked yet/)).toBeVisible();
+    const decision = waiting.locator("[data-guest-decision-details]");
+    await expect(decision).toContainText("The request is waiting for the host’s approval. Nothing is booked yet.");
+    await expect(decision).toContainText(`We’ll email the host’s decision to ${email}.`);
+    await expect(decision).toContainText("If iMessage or WhatsApp is linked, updates can arrive there too.");
+    await expect(decision).not.toContainText("We sent a copy of your agreement");
     await openCardCount(page, 1);
     await expect(page.locator('[data-guest-receipt="answered"]').getByText(/You agreed to/)).toBeVisible();
     await expect(waiting.getByRole("button", { exact: true, name: "Get updates in iMessage" })).toBeVisible();
@@ -194,8 +235,10 @@ for (const viewport of [
 
     // A reload loads the same thread from its stored records, cards in place.
     await page.reload();
+    await expect(page.getByRole("dialog", { name: "Request sent successfully" })).toHaveCount(0);
     await expect(page.getByText("Talk about compilers, online.")).toBeVisible();
     await expect(page.getByRole("heading", { name: "Waiting for Ada Lovelace to approve" })).toBeVisible();
+    await expect(page.locator("[data-guest-decision-details]")).toContainText(`We’ll email the host’s decision to ${email}.`);
     await expect(page.locator('[data-guest-card="calendar"]').getByText("Skipped")).toBeVisible();
     await openCardCount(page, 1);
   });
