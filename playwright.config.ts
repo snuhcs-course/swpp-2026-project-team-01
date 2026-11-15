@@ -160,6 +160,7 @@ export default defineConfig({
         ...shared,
         APP_ORIGIN: baseURL,
         EVE_AGENT_URL: `http://127.0.0.1:${EVE_PORT}`,
+        NEXT_PUBLIC_E2E_TEST: "1",
       },
       reuseExistingServer: !process.env.CI,
       timeout: 120_000,
