@@ -206,7 +206,7 @@ for (const viewport of [
     // with Get updates in iMessage as its button (U10).
     const waiting = page.locator('[data-guest-card="awaiting"]');
     await expect(waiting.getByRole("heading", { name: "Waiting for Ada Lovelace to approve" })).toBeVisible();
-    await expect(waiting.getByText(/nothing is booked yet/)).toBeVisible();
+    await expect(waiting.getByText(/Nothing is booked yet/)).toBeVisible();
     const decision = waiting.locator("[data-guest-decision-details]");
     await expect(decision).toContainText("The request is waiting for the host’s approval. Nothing is booked yet.");
     await expect(decision).toContainText(`We’ll email the host’s decision to ${email}.`);
