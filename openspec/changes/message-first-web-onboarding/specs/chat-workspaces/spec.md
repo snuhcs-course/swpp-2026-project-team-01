@@ -3,11 +3,15 @@
 ## MODIFIED Requirements
 
 ### Requirement: Conversation-first entry
-The website SHALL open request management and ready-host work on the relevant conversation, with the current next action and a message composer available without navigating through structured forms. For an active host whose setup is incomplete, `/app` SHALL instead show messaging channel selection and verified linking before any web setup conversation. The primary workspace SHALL have no persistent sidebar or dashboard panel. Navigation SHALL remain available through a compact, keyboard-operable control. Structured controls SHALL remain reachable from a secondary, clearly labeled surface. A protected request opened without valid authority SHALL show only the generic unavailable view with the link resend control that the meeting-request contract requires.
+The website SHALL open request management on the relevant conversation, with the current next action and a message composer available without navigating through structured forms. A ready host who opens `/app` without a specific request or workspace view SHALL see the calendar Dashboard. For an active host whose setup is incomplete, `/app` SHALL show messaging channel selection and verified linking before any web setup conversation. Navigation SHALL remain available through a compact, keyboard-operable control. Structured controls SHALL remain reachable from a secondary, clearly labeled surface. A protected request opened without valid authority SHALL show only the generic unavailable view with the link resend control that the meeting-request contract requires.
 
 #### Scenario: Resume host setup
 - **WHEN** an active host with incomplete setup opens `/app` after Google sign-in or on a later visit
 - **THEN** the host sees the channel linking step first, and no browser setup question or composer is shown
+
+#### Scenario: Return after setup
+- **WHEN** a ready host signs in and opens `/app` without a request or a workspace view
+- **THEN** the calendar Dashboard appears, with the existing Settings dialog and workspace menu reachable
 
 #### Scenario: Resume request
 - **WHEN** a requester or host opens an active meeting request
@@ -15,7 +19,7 @@ The website SHALL open request management and ready-host work on the relevant co
 
 #### Scenario: Browse host requests
 - **WHEN** a host opens the meeting inbox
-- **THEN** request conversations appear as selectable artifacts in the conversation workspace without a dashboard or permanent sidebar
+- **THEN** request conversations appear as selectable artifacts in the conversation workspace without a permanent sidebar
 
 #### Scenario: Switch host discussion visibility
 - **WHEN** a host reviews a request with shared and private discussions
@@ -23,7 +27,7 @@ The website SHALL open request management and ready-host work on the relevant co
 
 #### Scenario: Use compact navigation
 - **WHEN** a host opens the workspace menu by pointer or keyboard
-- **THEN** setup, inbox, and sign-out actions are available, the menu closes with Escape, and focus returns to its trigger
+- **THEN** dashboard, setup, inbox, and sign-out actions are available for a ready host, the menu closes with Escape, and focus returns to its trigger
 
 #### Scenario: Request link without authority
 - **WHEN** a browser opens a protected request without its continuation credential, or with an unknown, malformed or expired one
