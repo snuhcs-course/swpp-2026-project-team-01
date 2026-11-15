@@ -1,7 +1,7 @@
 ## ADDED Requirements
 
 ### Requirement: Match a guest to a host account by Google identity
-On the requester Google return, the service SHALL compare the verified Google subject with host accounts' Google identities and SHALL treat the guest as a host only when that account is active, has confirmed settings and is not the request's host. An email address match alone SHALL NOT count. A match SHALL create no account session, sign-in or Google grant.
+On the requester Google return, the service SHALL compare the verified Google subject with host accounts' Google identities and SHALL link the request to an active account other than the request's host, even when that account has not completed host settings. The host-profile card SHALL be offered only when that account has confirmed settings. An email address match alone SHALL NOT count. A match SHALL create no account session, sign-in or Google grant.
 
 #### Scenario: Same address, different Google account
 - **WHEN** the guest's Google email equals a host's address but the subject differs
@@ -11,8 +11,12 @@ On the requester Google return, the service SHALL compare the verified Google su
 - **WHEN** a host requests a meeting through their own public page
 - **THEN** no host-profile card is shown
 
+#### Scenario: Active account without host settings
+- **WHEN** a guest's verified Google subject matches an active account without confirmed host settings
+- **THEN** the sent request is linked to that account but no host-profile settings card is shown
+
 ### Requirement: Opt-in host profile per request
-A matched guest SHALL see one card offering calendars and basic details, each uncheckable, and nothing SHALL be used before **Use these settings**. **Not now** SHALL be kept so the card does not return; **Change** on its receipt SHALL reopen it. The choice SHALL be stored per request and deleted when the request closes or is deleted. With Calendars chosen, busy time from the guest's host conflict calendars SHALL be combined with busy time from any Calendar connected for the request.
+A matched guest SHALL see one card offering calendars and basic details, each uncheckable, and nothing SHALL be used before **Use these settings**. **Not now** SHALL be kept so the card does not return; **Change** on its receipt SHALL reopen it. The choice SHALL be stored per open request and cleared when the request closes. The verified account-to-request match SHALL remain for the signed-in account's sent request history until the request or account is deleted. With Calendars chosen, busy time from the guest's host conflict calendars SHALL be combined with busy time from any Calendar connected for the request.
 
 #### Scenario: Partial opt-in
 - **WHEN** the guest unchecks Basic details and presses **Use these settings**
@@ -24,7 +28,7 @@ A matched guest SHALL see one card offering calendars and basic details, each un
 
 #### Scenario: Closure
 - **WHEN** the request is declined
-- **THEN** the stored host-profile choice is deleted in the same transaction as the request's requester grants
+- **THEN** the stored host-profile choice is cleared in the same transaction as the request's requester grants, while the verified account match remains
 
 ### Requirement: Host data stays with the guest
 Host-profile data used for a request SHALL NOT reach the request's host, the host projection or host model context. Calendar events read through the guest-host's grant SHALL be used inside the evaluation only and never stored or shown. A failed or revoked guest-host grant SHALL clear the calendar item and pause dependent evaluation until the guest connects a calendar or supplies availability, and SHALL never be treated as free time.
