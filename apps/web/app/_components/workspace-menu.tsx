@@ -17,7 +17,11 @@ import {
 // agents (agent-access design 10, also for a suspended host, who keeps
 // revocation) and Sign out. Radix gives the menu arrow-key movement, closes it on
 // Escape and returns focus to the trigger, except after Setup and iMessage, which
-// move focus to the current setup card or the iMessage card instead.
+// move focus to the current setup card or the iMessage card instead. Connected
+// agents opens its dialog only once the menu has closed and returned focus:
+// opened from onSelect, the dialog took the closing menu's
+// `pointer-events: none` on <body> for the page's own and left it behind,
+// freezing the page (#207). Closing the dialog returns focus to the menu button.
 export function WorkspaceMenu({
   onSelectImessage,
   onSelectRequests,
@@ -30,13 +34,15 @@ export function WorkspaceMenu({
   const signOutRef = useRef<HTMLFormElement>(null);
   const setupSelected = useRef(false);
   const imessageSelected = useRef(false);
+  const agentsSelected = useRef(false);
+  const triggerRef = useRef<HTMLButtonElement>(null);
   const [agentsOpen, setAgentsOpen] = useState(false);
 
   return (
     <>
       <DropdownMenu>
         <DropdownMenuTrigger asChild>
-          <Button aria-label="Open menu" size="icon" type="button" variant="ghost">
+          <Button aria-label="Open menu" ref={triggerRef} size="icon" type="button" variant="ghost">
             <MenuIcon aria-hidden className="size-5" />
           </Button>
         </DropdownMenuTrigger>
@@ -44,6 +50,11 @@ export function WorkspaceMenu({
           align="end"
           className="min-w-48"
           onCloseAutoFocus={(event) => {
+            if (agentsSelected.current) {
+              agentsSelected.current = false;
+              setAgentsOpen(true);
+              return;
+            }
             if (imessageSelected.current) {
               imessageSelected.current = false;
               event.preventDefault();
@@ -82,7 +93,11 @@ export function WorkspaceMenu({
               iMessage
             </DropdownMenuItem>
           ) : null}
-          <DropdownMenuItem onSelect={() => setAgentsOpen(true)}>
+          <DropdownMenuItem
+            onSelect={() => {
+              agentsSelected.current = true;
+            }}
+          >
             <PlugIcon aria-hidden />
             Connected agents
           </DropdownMenuItem>
@@ -94,7 +109,7 @@ export function WorkspaceMenu({
         </DropdownMenuContent>
       </DropdownMenu>
       <form action="/auth/sign-out" hidden method="post" ref={signOutRef} />
-      <ConnectedAgentsDialog onOpenChange={setAgentsOpen} open={agentsOpen} source={HOST_GRANT_SOURCE} />
+      <ConnectedAgentsDialog onOpenChange={setAgentsOpen} open={agentsOpen} returnFocus={triggerRef} source={HOST_GRANT_SOURCE} />
     </>
   );
 }

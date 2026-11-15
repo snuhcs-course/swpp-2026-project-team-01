@@ -464,9 +464,14 @@ function threadEntries(
 // lists and revokes the personal agents connected to this request
 // (agent-access design 10), **Withdraw request** asks for confirmation in a
 // dialog. Radix gives the menu arrow-key movement, closes it on Escape and
-// returns focus to its trigger.
+// returns focus to its trigger. Both dialogs open only once the menu has closed:
+// opened from onSelect, a dialog took the closing menu's `pointer-events: none`
+// on <body> for the page's own and left it behind, freezing the page (#207).
+// Closing either dialog returns focus to the menu button.
 function ThreadMenu({ context }: { readonly context: RequesterCardContext }) {
   const [agentsOpen, setAgentsOpen] = useState(false);
+  const openAfterClose = useRef<(() => void) | null>(null);
+  const triggerRef = useRef<HTMLButtonElement>(null);
   const agents = useMemo(() => (context.bookingId ? requestGrantSource(context.bookingId) : null), [context.bookingId]);
   const [confirming, setConfirming] = useState(false);
   const [busy, setBusy] = useState(false);
@@ -491,19 +496,47 @@ function ThreadMenu({ context }: { readonly context: RequesterCardContext }) {
     <>
       <DropdownMenu>
         <DropdownMenuTrigger asChild>
-          <Button aria-label="Request actions" className="size-11 shrink-0 rounded-full" size="icon" type="button" variant="secondary">
+          <Button aria-label="Request actions" ref={triggerRef} className="size-11 shrink-0 rounded-full" size="icon" type="button" variant="secondary">
             <SlidersHorizontalIcon aria-hidden className="size-5" />
           </Button>
         </DropdownMenuTrigger>
-        <DropdownMenuContent align="end" className="min-w-48" side="top">
+        <DropdownMenuContent
+          align="end"
+          className="min-w-48"
+          onCloseAutoFocus={() => {
+            const open = openAfterClose.current;
+            openAfterClose.current = null;
+            open?.();
+          }}
+          side="top"
+        >
           {choosing ? <DropdownMenuItem onSelect={() => context.openDetails()}>Edit details</DropdownMenuItem> : null}
-          {agents ? <DropdownMenuItem onSelect={() => setAgentsOpen(true)}>Connected agents</DropdownMenuItem> : null}
-          <DropdownMenuItem onSelect={() => setConfirming(true)}>Withdraw request</DropdownMenuItem>
+          {agents ? (
+            <DropdownMenuItem
+              onSelect={() => {
+                openAfterClose.current = () => setAgentsOpen(true);
+              }}
+            >
+              Connected agents
+            </DropdownMenuItem>
+          ) : null}
+          <DropdownMenuItem
+            onSelect={() => {
+              openAfterClose.current = () => setConfirming(true);
+            }}
+          >
+            Withdraw request
+          </DropdownMenuItem>
         </DropdownMenuContent>
       </DropdownMenu>
-      {agents ? <ConnectedAgentsDialog onOpenChange={setAgentsOpen} open={agentsOpen} source={agents} /> : null}
+      {agents ? <ConnectedAgentsDialog onOpenChange={setAgentsOpen} open={agentsOpen} returnFocus={triggerRef} source={agents} /> : null}
       <Dialog onOpenChange={setConfirming} open={confirming}>
-        <DialogContent>
+        <DialogContent
+          onCloseAutoFocus={(event) => {
+            event.preventDefault();
+            triggerRef.current?.focus();
+          }}
+        >
           <DialogHeader>
             <DialogTitle>Withdraw this request?</DialogTitle>
             <DialogDescription>It closes for good and cannot be reopened.</DialogDescription>
