@@ -21,10 +21,10 @@ export function isAgentScope(value: string): value is AgentScope {
 // What each permission lets the agent do, in the consent page's words.
 export const SCOPE_DESCRIPTIONS: Readonly<Record<AgentScope, string>> = {
   "host:read": "See your setup, your requests and their booking status",
-  "host:write": "Change your setup draft, check times, suggest and share changes, and allow exceptions",
+  "host:write": "Draft setup, find times, suggest and share changes, and start chat links for you to confirm",
   "host:decide": "Approve and decline requests when you tell the agent to",
   "request:read": "See the host's public profile and your request",
-  "request:write": "Create your request, change its details, find and choose times",
+  "request:write": "Create your request, change its details, find and choose times, and start an updates link for you to confirm",
   "request:decide": "Agree to the proposed time and withdraw the request for you",
 };
 
