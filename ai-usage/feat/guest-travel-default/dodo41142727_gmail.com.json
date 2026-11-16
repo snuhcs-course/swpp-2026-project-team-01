@@ -1,0 +1,40 @@
+{
+  "branch": "feat/guest-travel-default",
+  "user": "dodo41142727@gmail.com",
+  "sessions": {
+    "claude:a0feee46-40d1-48e7-807c-348141ec87fd": {
+      "agent": "claude-code",
+      "client": "claude-desktop",
+      "agent_ms": 0,
+      "models": {
+        "claude-opus-5-5": {
+          "input": 38,
+          "cache_read": 3285466,
+          "cache_write_5m": 0,
+          "cache_write_1h": 19657,
+          "output": 7777,
+          "reasoning": 0
+        }
+      },
+      "first": "2026-11-16T05:53:49.655Z",
+      "last": "2026-11-16T05:56:00.721Z"
+    },
+    "claude:a0feee46-40d1-48e7-807c-348141ec87fd/agent-a814b49307a1405e5": {
+      "agent": "claude-code",
+      "client": "claude-desktop",
+      "agent_ms": 0,
+      "models": {
+        "claude-sonnet-5-5": {
+          "input": 8,
+          "cache_read": 316204,
+          "cache_write_5m": 64088,
+          "cache_write_1h": 0,
+          "output": 2002,
+          "reasoning": 0
+        }
+      },
+      "first": "2026-11-16T05:54:53.901Z",
+      "last": "2026-11-16T05:55:10.124Z"
+    }
+  }
+}

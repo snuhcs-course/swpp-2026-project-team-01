@@ -739,6 +739,46 @@ describe("travel legs", () => {
     expect(allowed.candidates[0]!.basis).toContain("The requester's own trip fits.");
   });
 
+  it("estimates the requester's own trip by public transit when they named no travel mode", () => {
+    const result = evaluateFeasibility(
+      input({
+        estimate: routes({ "Requester's office -> Cafe Onion, Seongsu": 20 }),
+        host: { ...HOST, travelMode: "driving" },
+        requesterBusy: [busy(at("11:30"), at("12:00"), place("Requester's office"))],
+        request: { ...inPerson, travelMode: null, ...only("12:30") },
+      }),
+    );
+
+    const leg = result.candidates[0]!.legs.find((entry) => entry.party === "requester")!;
+    expect(result.candidates[0]!.status).toBe("offered");
+    expect(leg).toEqual(expect.objectContaining({ mode: "transit", status: "fits", unresolvedReason: null }));
+  });
+
+  it("estimates the requester's own trip in the mode they named", () => {
+    const result = evaluateFeasibility(
+      input({
+        estimate: routes({ "Requester's office -> Cafe Onion, Seongsu": 20 }),
+        requesterBusy: [busy(at("11:30"), at("12:00"), place("Requester's office"))],
+        request: { ...inPerson, travelMode: "walking", ...only("12:30") },
+      }),
+    );
+
+    expect(result.candidates[0]!.legs.find((entry) => entry.party === "requester")!.mode).toBe("walking");
+  });
+
+  it("still leaves a host leg unresolved without a host travel mode", () => {
+    const result = evaluateFeasibility(
+      input({
+        host: { ...HOST, travelMode: null },
+        hostBusy: [busy(at("10:00"), at("11:00"), office)],
+        request: { ...inPerson, travelMode: null, ...only("12:00") },
+      }),
+    );
+
+    expect(result.candidates[0]!.status).toBe("host_unresolved");
+    expect(result.candidates[0]!.legs[0]!.unresolvedReason).toBe("travel_mode_unknown");
+  });
+
   it("uses no host buffer for the requester's own trip", () => {
     const result = evaluateFeasibility(
       input({

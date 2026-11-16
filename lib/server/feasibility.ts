@@ -1,3 +1,4 @@
+import { DEFAULT_REQUESTER_TRAVEL_MODE } from "../contracts/request";
 import type { LinkPlan, RequesterCandidate, RequesterEvaluation, RequesterTravelMode, EvaluationState } from "../contracts/request";
 import {
   endsNextDay,
@@ -909,9 +910,11 @@ function plan(input: FeasibilityInput): Plan {
       const span = { end: startOfLocalDay(addDays(date, 1), request.timezone), start: startOfLocalDay(date, request.timezone) };
       const own = adjacent(input.requesterBusy, entry.start, entry.end, span);
 
-      // The requester's own trips carry no host buffer.
-      if (own.previous) legs.push(planLeg("requester", "inbound", own.previous, meeting, entry, request.travelMode, 0));
-      if (own.next) legs.push(planLeg("requester", "outbound", own.next, meeting, entry, request.travelMode, 0));
+      // The requester's own trips carry no host buffer, and use public transit
+      // unless the requester named a mode (guest-travel-default).
+      const requesterMode = request.travelMode ?? DEFAULT_REQUESTER_TRAVEL_MODE;
+      if (own.previous) legs.push(planLeg("requester", "inbound", own.previous, meeting, entry, requesterMode, 0));
+      if (own.next) legs.push(planLeg("requester", "outbound", own.next, meeting, entry, requesterMode, 0));
     }
 
     return { ...entry, legs };
