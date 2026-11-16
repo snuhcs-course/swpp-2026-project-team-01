@@ -105,6 +105,9 @@ export type OpenRequesterView = {
   // evaluation, with the agreement to it once given.
   readonly proposal: RequesterProposal | null;
   readonly agreement: RequesterAgreement | null;
+  // Populated by the agreement email flow (#178) only after delivery is
+  // confirmed. The waiting card must not infer a sent email from agreement.
+  readonly agreementEmailSentTo?: string | null;
   // The thread's cards in order.
   readonly thread: readonly ThreadCard[];
   // The booking once the host approved: in progress, failed, or confirmed with
