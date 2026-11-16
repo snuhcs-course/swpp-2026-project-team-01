@@ -1,5 +1,5 @@
 {
-  "branch": "claude/self-service-deletion-ac34c4",
+  "branch": "feat/self-service-account-deletion",
   "user": "dodo41142727@gmail.com",
   "sessions": {
     "claude:41954358-6694-495e-b6aa-5073cbbc9118": {
@@ -8,16 +8,16 @@
       "agent_ms": 0,
       "models": {
         "claude-opus-5-5": {
-          "input": 304,
-          "cache_read": 38124190,
+          "input": 334,
+          "cache_read": 43349114,
           "cache_write_5m": 0,
-          "cache_write_1h": 309921,
-          "output": 101756,
+          "cache_write_1h": 322808,
+          "output": 106035,
           "reasoning": 0
         }
       },
       "first": "2026-11-16T06:15:12.156Z",
-      "last": "2026-11-16T06:44:55.721Z"
+      "last": "2026-11-16T06:48:02.831Z"
     },
     "claude:41954358-6694-495e-b6aa-5073cbbc9118/agent-a0272865df6e6a657": {
       "agent": "claude-code",
