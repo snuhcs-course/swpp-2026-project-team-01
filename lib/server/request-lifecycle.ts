@@ -72,8 +72,12 @@ export async function closeRequest(
 
   await enqueueButtonRetirement(tx, requestId);
   await revokeRequestGrants(tx, requestId);
-  // A guest-host's choice of their host settings goes with the grants (design 6).
-  await tx`delete from app.requester_host_profiles where request_id = ${requestId}`;
+  // The opted-in host settings go with the grants. Retain the verified account
+  // match so the guest can still find this request in their signed-in history.
+  await tx`
+    update app.requester_host_profiles set items = '{}', decided_at = null
+    where request_id = ${requestId}
+  `;
   await supersedeConfirmations(tx, requestId);
   // The guest binding stays at every closing: a declined, expired or withdrawn
   // request continues as a revised request (guest-flow-completion design 5,

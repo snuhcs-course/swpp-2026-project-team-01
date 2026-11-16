@@ -1,5 +1,6 @@
 import type { CommandFailure } from "@lib/contracts/command-errors";
 import type { HostRequestItem, HostRequestOperation, HostRequestView } from "@lib/contracts/host-request";
+import type { WorkspaceRequestItem } from "@lib/contracts/workspace-request";
 import { ChatRequestError } from "./discussion";
 
 // Browser access to the host's requests in /app (host-review-and-booking
@@ -19,6 +20,11 @@ async function readJson<T>(response: Response): Promise<T> {
 
 export async function readHostRequests(signal?: AbortSignal) {
   const body = await readJson<{ requests: HostRequestItem[] }>(await fetch("/api/host/requests", { cache: "no-store", signal }));
+  return body.requests;
+}
+
+export async function readWorkspaceRequests(signal?: AbortSignal) {
+  const body = await readJson<{ requests: WorkspaceRequestItem[] }>(await fetch("/api/host/workspace-requests", { cache: "no-store", signal }));
   return body.requests;
 }
 

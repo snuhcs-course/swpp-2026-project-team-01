@@ -77,7 +77,8 @@ import {
   setManualAvailabilityCommand,
   useGoogleEmailCommand,
 } from "./requester-grants";
-import { decideHostProfileCommand, readHostProfileView } from "./requester-host-profiles";
+import { decideHostProfileCommand, readHostProfileView, recordHostSessionMatch } from "./requester-host-profiles";
+import { supabaseAuthConfigFromEnvironment, type SupabaseAuthConfig, verifiedUserId } from "./supabase-auth";
 import {
   confirmRequesterImessageLinkCommand,
   createRequesterImessageLinkCommand,
@@ -108,6 +109,7 @@ export type RequesterRouteDependencies = ConversationDependencies &
   GuestConversationDependencies &
   AppOrigins & {
     readonly tokenKey: () => TokenKey;
+    readonly hostAuth?: SupabaseAuthConfig;
     readonly confirmationLimits?: Partial<ConfirmationLimits>;
     readonly creationLimits?: Partial<CreationLimits>;
     readonly followIdleMs?: number;
@@ -132,6 +134,7 @@ export function requesterRouteDependenciesFromEnvironment(): RequesterRouteDepen
     whatsappNumber: photonConfig().whatsappNumber,
     signingKey: internalSigningKey(),
     tokenKey: tokenKeyFromEnvironment,
+    hostAuth: supabaseAuthConfigFromEnvironment(),
   };
 }
 
@@ -576,6 +579,11 @@ export function createRequesterCommandHandler(load: () => RequesterRouteDependen
         view ? { ...outcome, status: view.request.state } : outcome,
         COMMAND_STATUS[outcome.error.category],
       );
+    }
+
+    if (body.data.operation === "request.identify" && deps.hostAuth) {
+      const userId = await verifiedUserId(request, deps.hostAuth);
+      if (userId) await deps.db.begin((tx) => recordHostSessionMatch(tx, link.requestId, userId));
     }
 
     return requesterJson(outcome, 200);
