@@ -137,9 +137,16 @@
 .ink .tg-glyph { background: linear-gradient(180deg, #37AEE2 0%, #1E96C8 100%); }
 .ink .blue.wa { background: #008069; }
 .ink .blue.tg { background: #2AABEE; }
-/* the app question on the link step: two equal choices */
-.ink .choices { display: flex; flex-wrap: wrap; gap: 10px; width: 100%; }
-.ink .choices > * { flex: 1 1 180px; min-height: 56px; }
+/* Compact messaging choices keep every configured app on one row. */
+.ink .choices { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); align-items: end; gap: 10px; width: 100%; }
+.ink .choices.choices-1 { grid-template-columns: minmax(0, 1fr); }
+.ink .choices.choices-2 { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+.ink .choice-wrap { position: relative; min-width: 0; padding-top: 22px; }
+.ink .choice-badge { position: absolute; top: 0; left: 50%; z-index: 1; transform: translateX(-50%); padding: 3px 9px; border-radius: 9999px; background: var(--primary); color: var(--on-primary); font-size: 11px; font-weight: 600; line-height: 16px; white-space: nowrap; }
+.ink .choice-badge::after { position: absolute; left: 50%; bottom: -4px; transform: translateX(-50%); border: 4px solid transparent; border-top-color: var(--primary); content: ""; }
+.ink .choice-btn { width: 100%; min-width: 0; min-height: 50px; gap: 6px; padding-inline: 7px; font-size: 13px; white-space: nowrap; }
+.ink .choice-btn .im-glyph { width: 20px; height: 20px; }
+.ink .choice-btn .im-glyph svg { width: 13px; height: 13px; }
 /* the number asked before an iMessage link (imessage-number-registration D3): one white field with the country
    code on a soft tab, and the pill beside it; inputs stay at 16px or more so iOS doesn't zoom in */
 .ink .phone-form { display: flex; flex-direction: column; gap: 8px; width: 100%; padding-top: 4px; }
@@ -257,6 +264,10 @@
   .ink .prompt-copy { min-height: 44px; }
   .ink .alt .link-btn { padding-block: 12px; }
   .ink .lang-btn, .ink .top .secondary-btn { min-height: 44px; height: 44px; }
+  .ink .choices { gap: 7px; }
+  .ink .choice-btn { min-height: 48px; gap: 4px; padding-inline: 4px; font-size: 12px; }
+  .ink .choice-btn .im-glyph { width: 18px; height: 18px; }
+  .ink .choice-btn .im-glyph svg { width: 12px; height: 12px; }
   .ink .ways, .ink .ways.two { grid-template-columns: minmax(0, 1fr); }
   /* the number gets the full width and the button sits under it */
   .ink .phone-field { flex-basis: 100%; }

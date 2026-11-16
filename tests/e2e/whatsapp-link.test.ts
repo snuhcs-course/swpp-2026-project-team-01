@@ -180,7 +180,7 @@ test.describe("on a Windows computer", () => {
     await signedInHost(db, context, baseURL!, { imessageStep: true });
     await page.goto("/app");
 
-    await expect(page.getByRole("heading", { level: 1, name: "You're signed in. Continue in your messages." })).toBeVisible({ timeout: 45_000 });
+    await expect(page.getByRole("heading", { level: 1, name: "Connect a messaging app" })).toBeVisible({ timeout: 45_000 });
     await expect(page.getByTestId("imessage-link-message")).toHaveCount(0);
     await page.getByRole("button", { exact: true, name: "WhatsApp" }).click();
 
