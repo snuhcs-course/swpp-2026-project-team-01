@@ -8,7 +8,7 @@ See [proposal.md](proposal.md). Operator deletion is one plpgsql function, `app.
 
 ### D1. The schedule is a column and one delayed job
 
-`app.host_accounts.deletion_due_at timestamptz` holds the due time; null means nothing is scheduled. A check keeps it null on a deleted account. Scheduling publishes one `host_deletion` job with `run_after` at the due time and the dedupe key `host:{id}:{due}`, whose payload names the account and the due time. The job runs the deletion only when the account's `deletion_due_at` still equals its payload's due time and has passed; otherwise it completes as `cancelled` and does nothing. Cancelling therefore only clears the column, and a later schedule publishes a new job with a new key, so an old job can never run a newer schedule early.
+`app.host_accounts.deletion_due_at timestamptz` holds the due time; null means nothing is scheduled. A check keeps it null on a deleted account. Scheduling publishes one `host_deletion` job with `run_after` at the due time and the dedupe key `host:{id}:{due}:{retryKey}`, whose payload names the account and the due time. The job runs the deletion only when the account's `deletion_due_at` still equals its payload's due time and has passed; otherwise it completes as `cancelled` and does nothing. Cancelling therefore only clears the column, and a later schedule publishes a new job with a new key, so an old job can never run a newer schedule early.
 
 Rejected: a pg_cron sweep over due accounts | it adds a schedule and a publisher function for what one delayed job already does. Rejected: a status value such as `pending_deletion` | `status` is the operator's suspension decision and is read by every eligibility check; the host stays active during the grace period.
 

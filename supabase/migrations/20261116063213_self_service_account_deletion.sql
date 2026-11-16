@@ -109,6 +109,92 @@ BEGIN
 END;
 $function$;
 
+CREATE OR REPLACE FUNCTION app.operator_delete_host (
+  target        text,
+  operator_name text,
+  reason        text,
+  environment   text
+)
+  RETURNS TABLE (
+    result_host_account_id uuid,
+    result_previous_status text
+  )
+  LANGUAGE plpgsql
+  SET search_path TO ''
+  AS $function$
+DECLARE
+  account_id uuid;
+  old_status text;
+  was_deleted timestamptz;
+  auth_user uuid;
+  reference record;
+BEGIN
+  IF target ~ '^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$' THEN
+    account_id := target::uuid;
+  ELSE
+    SELECT h.host_account_id INTO account_id
+    FROM app.host_handles h
+    WHERE h.handle = lower(target) AND h.released_at IS NULL;
+  END IF;
+
+  SELECT a.status, a.deleted_at INTO old_status, was_deleted FROM app.host_accounts a WHERE a.id = account_id FOR UPDATE;
+
+  IF old_status IS NULL THEN
+    RAISE EXCEPTION 'unknown host' USING ERRCODE = 'P0002';
+  END IF;
+
+  IF was_deleted IS NOT NULL THEN
+    RAISE EXCEPTION 'host already deleted' USING ERRCODE = '55000';
+  END IF;
+
+  -- The booking worker locks a request before it commits a dispatch, so locking
+  -- every request of the host first makes the check below see any dispatch that
+  -- was in progress.
+  PERFORM 1 FROM app.requests r WHERE r.host_account_id = account_id ORDER BY r.id FOR UPDATE;
+
+  IF EXISTS (SELECT 1 FROM app.bookings b WHERE b.host_account_id = account_id AND b.state = 'dispatching') THEN
+    RAISE EXCEPTION 'booking in flight' USING ERRCODE = '55000';
+  END IF;
+
+  SELECT g.auth_user_id INTO auth_user FROM app.google_identities g WHERE g.host_account_id = account_id;
+
+  PERFORM app.delete_request_records(array(SELECT r.id FROM app.requests r WHERE r.host_account_id = account_id));
+  PERFORM app.delete_discussion_records(array(
+    SELECT d.id FROM app.discussions d WHERE d.principal_type = 'host_account' AND d.principal_id = account_id
+    UNION
+    SELECT i.discussion_id FROM app.intakes i WHERE i.host_account_id = account_id
+  ));
+  DELETE FROM app.command_outcomes WHERE actor = 'host_account:' || account_id;
+
+  FOR reference IN
+    SELECT c.conrelid::regclass AS relation, a.attname AS column_name
+    FROM pg_catalog.pg_constraint c
+    JOIN pg_catalog.pg_attribute a ON a.attrelid = c.conrelid AND a.attnum = c.conkey[1]
+    WHERE c.contype = 'f'
+      AND c.confrelid = 'app.host_accounts'::regclass
+      AND c.conrelid NOT IN ('app.host_handles'::regclass, 'app.handle_assignments'::regclass, 'app.operator_actions'::regclass)
+    ORDER BY 1
+  LOOP
+    EXECUTE format('DELETE FROM %s WHERE %I = $1', reference.relation, reference.column_name) USING account_id;
+  END LOOP;
+
+  IF auth_user IS NOT NULL THEN
+    DELETE FROM auth.users u WHERE u.id = auth_user;
+  END IF;
+
+  -- A deletion the host scheduled from Settings is done once this runs
+  -- (self-service-account-deletion D4).
+  UPDATE app.host_accounts a
+  SET status = 'suspended', display_name = NULL, deleted_at = now(), deletion_due_at = NULL, updated_at = now()
+  WHERE a.id = account_id;
+
+  INSERT INTO app.operator_operations (operator, action, target_id, previous_state, reason, environment)
+  VALUES (operator_name, 'delete_host', account_id, old_status, reason, environment);
+
+  RETURN QUERY SELECT account_id, old_status;
+END;
+$function$;
+
 ALTER TABLE "app"."email_deliveries"
   ADD CONSTRAINT "email_deliveries_kind_check"
     CHECK

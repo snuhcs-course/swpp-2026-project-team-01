@@ -177,8 +177,10 @@ BEGIN
     DELETE FROM auth.users u WHERE u.id = auth_user;
   END IF;
 
+  -- A deletion the host scheduled from Settings is done once this runs
+  -- (self-service-account-deletion D4).
   UPDATE app.host_accounts a
-  SET status = 'suspended', display_name = NULL, deleted_at = now(), updated_at = now()
+  SET status = 'suspended', display_name = NULL, deleted_at = now(), deletion_due_at = NULL, updated_at = now()
   WHERE a.id = account_id;
 
   INSERT INTO app.operator_operations (operator, action, target_id, previous_state, reason, environment)

@@ -99,14 +99,16 @@ export function scheduleHostDeletionCommand(
 
       const [scheduled] = await tx<{ deletion_due_at: Date }[]>`
         update app.host_accounts
-        set deletion_due_at = date_trunc('second', now()) + make_interval(days => ${DELETION_GRACE_DAYS}), updated_at = now()
+        set deletion_due_at = date_trunc('milliseconds', now()) + make_interval(days => ${DELETION_GRACE_DAYS}), updated_at = now()
         where id = ${id}
         returning deletion_due_at
       `;
       const dueAt = scheduled!.deletion_due_at.toISOString();
 
       await publishJob(tx, {
-        dedupeKey: `host:${id}:${dueAt}`,
+        // The retry key keeps a schedule made again within the same
+        // millisecond after a cancellation from sharing the old job.
+        dedupeKey: `host:${id}:${dueAt}:${context.retryKey}`,
         kind: HOST_DELETION_JOB,
         payload: { dueAt, hostAccountId: id },
         runAfter: scheduled!.deletion_due_at,
@@ -114,7 +116,7 @@ export function scheduleHostDeletionCommand(
 
       if (email) {
         await enqueueAccountEmail(tx, deps, {
-          dedupeKey: `${id}:${dueAt}`,
+          dedupeKey: `${id}:${dueAt}:${context.retryKey}`,
           kind: "account_deletion_scheduled",
           language: "en",
           parameters: { appUrl: appUrl(deps.origin), dueAt, hostAccountId: id },
