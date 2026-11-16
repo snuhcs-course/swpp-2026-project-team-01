@@ -2,13 +2,11 @@
 
 import Link from "next/link";
 import { type ReactNode, type RefObject, useEffect, useRef, useState } from "react";
-import { type Copy } from "./copy";
+import { type Copy, type Locale } from "./copy";
 import { CopyIcon } from "./icons";
 import "./ink.css";
 
-// The ink screens' frame and the controls they share (from the landing redesign's brand.tsx,
-// language-select.tsx and copy-button.tsx): the stage that scopes ink.css, the wordmark, the
-// language menu and the copy button.
+// The ink screens' frame and shared controls: the stage that scopes ink.css, the wordmark and copy button.
 
 export function InkStage({ children, locale }: { readonly children: ReactNode; readonly locale: Locale }) {
   return (
