@@ -86,7 +86,7 @@ import {
   shareRequesterContactCardCommand,
   unlinkRequesterImessageCommand,
 } from "./requester-imessage-links";
-import { photonConfig } from "./photon";
+import { offeredWhatsappNumber, photonConfig } from "./photon";
 import { type AppOrigins, appOriginsFromEnvironment, crossSiteRefusal } from "./same-origin";
 import { sourceHash } from "./signup-limits";
 import { type TokenKey, tokenKeyFromEnvironment } from "./token-encryption";
@@ -131,7 +131,7 @@ export function requesterRouteDependenciesFromEnvironment(): RequesterRouteDepen
     runtime: eveRuntime(agentUrlFromEnvironment()),
     emailInbox: agentMailConfigFromEnvironment().inboxId,
     lineNumber: photonConfig().lineNumber,
-    whatsappNumber: photonConfig().whatsappNumber,
+    whatsappNumber: offeredWhatsappNumber(),
     signingKey: internalSigningKey(),
     tokenKey: tokenKeyFromEnvironment,
     hostAuth: supabaseAuthConfigFromEnvironment(),

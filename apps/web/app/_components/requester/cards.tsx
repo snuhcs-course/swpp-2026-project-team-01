@@ -930,7 +930,7 @@ export function AwaitingDecisionDetails({
       <p>The request is waiting for the host’s approval. Nothing is booked yet.</p>
       <p>
         We’ll email the host’s decision{email ? <> to <strong className="break-all font-medium">{email}</strong></> : null}.
-        {" "}If iMessage or WhatsApp is linked, updates can arrive there too.
+        {" "}If iMessage is linked, updates can arrive there too.
       </p>
       {agreementEmailSentTo ? (
         <p>

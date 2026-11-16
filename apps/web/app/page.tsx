@@ -1,4 +1,4 @@
-import { isMessagingChannel } from "@lib/contracts/messaging-channel";
+import { isMessagingChannel, whatsappOffered } from "@lib/contracts/messaging-channel";
 import type { Metadata } from "next";
 import { cookies } from "next/headers";
 import { Suspense } from "react";
@@ -24,5 +24,7 @@ export default function Page({ searchParams }: { readonly searchParams: SearchPa
 
 async function Entry({ searchParams }: { readonly searchParams: SearchParams }) {
   const [{ flow }, jar] = await Promise.all([searchParams, cookies()]);
-  return <Landing flow={isMessagingChannel(flow) ? flow : null} locale={localeOf(jar.get(LOCALE_COOKIE)?.value)} />;
+  // While WhatsApp is hidden (WHATSAPP_OFFERED, issue #221), an old /?flow=whatsapp link starts from Telegram.
+  const channel = flow === "whatsapp" && !whatsappOffered(process.env) ? "telegram" : flow;
+  return <Landing flow={isMessagingChannel(channel) ? channel : null} locale={localeOf(jar.get(LOCALE_COOKIE)?.value)} />;
 }
