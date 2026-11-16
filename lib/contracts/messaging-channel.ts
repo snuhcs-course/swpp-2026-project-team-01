@@ -11,6 +11,14 @@ export type MessagingChannel = (typeof MESSAGING_CHANNELS)[number];
 // of host-telegram-channel, every channel the screens offer.
 export type StoredChannel = MessagingChannel;
 
+// WhatsApp is hidden from every screen while its connection is unstable (issue
+// #221): unless WHATSAPP_OFFERED is "1", no card, start, link step, guest card
+// or chat link offers it, so the screens offer iMessage and Telegram only.
+// Bindings already linked keep receiving and sending.
+export function whatsappOffered(env: Readonly<Record<string, string | undefined>>) {
+  return env.WHATSAPP_OFFERED?.trim() === "1";
+}
+
 export function isMessagingChannel(value: unknown): value is MessagingChannel {
   return (MESSAGING_CHANNELS as readonly unknown[]).includes(value);
 }

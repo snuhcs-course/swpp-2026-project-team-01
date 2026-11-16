@@ -120,7 +120,7 @@ export const HOST_TOOLS: readonly AgentTool[] = [
   {
     name: "start_chat_link",
     title: "Start a chat link",
-    description: "Start an iMessage, WhatsApp or Telegram link. Give the person the returned browser link; only they can confirm it after sending the code from their own phone.",
+    description: "Start an iMessage or Telegram link. Give the person the returned browser link; only they can confirm it after sending the code from their own phone.",
     role: "host",
     scope: "host:write",
     readOnly: false,
