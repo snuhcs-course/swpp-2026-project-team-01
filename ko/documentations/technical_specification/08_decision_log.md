@@ -767,3 +767,16 @@
 | D3 | 이동 순위는 주당 상한 다음, 요청자의 선호와 요일 분산 앞에 옵니다 | 주당 상한 앞; 요청자의 선호 뒤 | 설계 3 | `plan()`의 가중 정렬 |
 | D4 | `groupTrips`는 선택적 설정 필드로, 대면 또는 둘 다 방식일 때만 저장하고, 장소를 미팅마다 정하는 경우가 아니면 이동 버퍼 다음의 별도 단계로 웹에서 묻습니다. 웹 검토와 연결된 채팅의 설정 검토에 표시되며, 채팅 설정에서는 묻지 않습니다 | 대면 답변에서 필수로 받기; 장소에 후보가 있을 때만 저장 | 설계 6; `host-setup` 델타 "Same-day trip setting" | `lib/contracts/setup.ts`의 `IN_PERSON_OPTIONAL_FIELDS`; `apps/web/app/_components/setup/steps.ts`의 `setupSteps` |
 | D5 | 스캔은 가장 자주 가는 곳이 아닌 장소에서 대면 일정이 있었고 그 장소가 다른 날에도 나타난 날이 이틀 이상이면 켜는 것으로 제안합니다. 장소 텍스트로 판단하고 횟수만 저장하며, 호스트가 확인한 뒤에야 정책이 됩니다 | 선호 지역이 아직 없는 스캔 중의 경로 추정; 호스트의 장소 답변과 비교 | 설계 7; `host-setup` 델타 "Same-day trip suggestion" | `lib/server/analysis.ts`의 `tripEvidence`, `suggestFromEvidence` |
+
+## `self-service-account-deletion`
+
+[설계](../../openspec/changes/self-service-account-deletion/design.md)는 이슈 #228에 대한 다음 선택을 기록합니다. 그 이슈의 제안 코멘트를 바탕으로, 이를 구현한 세션에서 2026-11-16에 정했습니다. 유예 기간과 예약된 미팅의 처리는 거기서 열린 질문이었으며, 이슈 담당자의 동의를 기다리고 있습니다.
+
+| # | 선택 | 대안 | 기록 위치 | 바꾸려면 |
+|---|---|---|---|---|
+| D1 | 호스트는 설정에서 핸들(핸들이 없으면 Google 주소)을 입력해 삭제를 예약하며, 7일 뒤에 실행됩니다. 그 사이 Google로 로그인하면 취소됩니다 | 즉시 삭제; 채팅에서 삭제; 다른 유예 기간 | 제안; 설계 1–3; `host-account-deletion` 델타 | `lib/server/account-deletion.ts`의 `DELETION_GRACE_DAYS` |
+| D2 | 예약은 `host_accounts.deletion_due_at`과 지연 실행되는 `host_deletion` 작업 하나이며, 작업은 예정 시각이 여전히 계정의 것일 때만 실행됩니다 | pg_cron 스윕; 모든 자격 확인이 읽어야 하는 `pending_deletion` 상태 | 설계 1 | 해당 컬럼, `createHostDeletionHandler`, 새 마이그레이션 |
+| D3 | 작업은 `self-service`로 감사되는 `app.operator_delete_host`를 실행하며, 이 함수가 이제 예약을 지웁니다 | 두 번째 삭제 함수 | 설계 4 | `supabase/schemas/app/functions/data_deletion.sql` |
+| D4 | 예약된 미팅은 취소하지 않습니다. 열린 요청은 닫히고 게스트는 이메일을 받으며, 호스트는 예약, 취소, 실행 때 이메일을 받습니다. 계정 이메일에는 요청이 없으므로 끝난 지 30일 뒤에 삭제합니다 | 호스트 대신 캘린더 이벤트 취소; 채팅으로 게스트에게 알리기 | 제안; 설계 5 | `lib/server/account-emails.ts`, `accountEmailCurrent`, `account_emails` 보존 규칙 |
+| D5 | 예약하면 Supabase의 전역 범위로 모든 세션에서 로그아웃합니다 | 세션을 유지하고 취소 버튼 제공 | 설계 2 | `createAccountDeletionHandler` |
+| D6 | 채팅과 MCP 서버는 삭제하지 않고 `/app?settings=account`를 안내합니다 | 확인 절차를 거치는 삭제 도구 | 설계 6 | `agent/instructions/base.md`, `host-imessage.ts`, `lib/server/agent-mcp.ts` |
