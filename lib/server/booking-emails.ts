@@ -18,6 +18,8 @@ export const BOOKING_EMAIL_TEMPLATES = [
   "status_cancelled",
   // The requester cancelled a booked meeting: the host's notice.
   "booking_cancelled",
+  // A change after booking was declined or expired; the meeting stands.
+  "status_change_dropped",
 ] as const;
 export type BookingEmailTemplate = (typeof BOOKING_EMAIL_TEMPLATES)[number];
 
@@ -57,6 +59,10 @@ export type BookingEmailParameters = MeetingParameters & {
   // The proposal a new-version notice replaces, frozen with it, so the notice
   // can say what the host changed (#198). Absent on notices recorded before.
   readonly previous?: MeetingTerms;
+  // A confirmation of a change after booking: the existing event was updated.
+  readonly changed?: boolean;
+  // Why a change after booking was dropped.
+  readonly reason?: "declined" | "expired";
 };
 
 // The parts of a proposal the host can change.
@@ -263,8 +269,11 @@ function page(language: RequestLanguage, title: string, body: readonly string[])
 function renderConfirmation(language: RequestLanguage, parameters: BookingEmailParameters, viewUrl: string): RenderedBookingEmail {
   const labels = LABELS[language];
   const subject = confirmationSubject(parameters, language);
-  const lead =
-    language === "ko"
+  const lead = parameters.changed
+    ? language === "ko"
+      ? "미팅이 변경되었고 캘린더 일정도 바뀌었습니다."
+      : "Your meeting was changed, and the calendar event is updated."
+    : language === "ko"
       ? "미팅이 확정되어 캘린더에 추가되었습니다."
       : "Your meeting is confirmed and in the calendar.";
   const meeting = blocks(parameters, language);
@@ -390,6 +399,16 @@ function statusCopy(
           ],
           subject: `${host}님과의 미팅 예약이 진행 중입니다`,
         };
+      case "status_change_dropped":
+        return {
+          action: "예약 보기",
+          paragraphs: [
+            parameters.reason === "declined"
+              ? `${host}님이 요청하신 변경을 받아들이지 않았습니다. 미팅은 원래대로 ${when}에 진행됩니다.`
+              : `미팅 변경 요청이 기한 안에 마무리되지 않았습니다. 미팅은 원래대로 ${when}에 진행됩니다.`,
+          ],
+          subject: `${host}님과의 미팅은 원래 시간 그대로입니다`,
+        };
       case "status_cancelled":
         return {
           action: "예약 보기",
@@ -437,6 +456,16 @@ function statusCopy(
           byReply ? "It is not booked yet. We'll tell you when it is." : "It is not booked yet. Your booking page will show the outcome.",
         ],
         subject: `Your meeting with ${host} is still being booked`,
+      };
+    case "status_change_dropped":
+      return {
+        action: "View booking",
+        paragraphs: [
+          parameters.reason === "declined"
+            ? `${host} kept your meeting as it was, so the change you asked for was not made. It stays at ${when}.`
+            : `Your change to the meeting wasn't settled in time, so it stays as it was: ${when}.`,
+        ],
+        subject: `Your meeting with ${host} stays as booked`,
       };
     case "status_cancelled":
       return {

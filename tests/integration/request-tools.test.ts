@@ -15,6 +15,7 @@ import {
   RequestToolDeniedError,
   withdrawRequestForTool,
   cancelBookingForTool,
+  changeBookingForTool,
 } from "../../lib/server/request-tools";
 import { testDatabase } from "./support/database";
 import { type FakeGoogle, startFakeGoogle } from "./support/fake-google";
@@ -236,6 +237,7 @@ describe("a booked request (U18)", () => {
     await expect(withdrawRequestForTool(db, r.call())).rejects.toBeInstanceOf(RequestToolDeniedError);
     // A booked state without a confirmed booking has nothing to cancel.
     expect(await cancelBookingForTool(db, r.call())).toMatchObject({ recorded: false, message: expect.stringContaining("Nothing is booked") });
+    expect(await changeBookingForTool(db, r.call())).toMatchObject({ recorded: false, message: expect.stringContaining("Nothing is booked") });
   });
 
   it("stays readable once cancelled and reports a second cancellation (post-booking-changes)", async () => {

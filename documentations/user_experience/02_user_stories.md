@@ -161,7 +161,7 @@ J-06, J-08; FR-23, FR-28; AC-09, AC-18.
 
 As a requester, I want to withdraw before booking and see accurate pending or closed status, so that late replies cannot silently revive a withdrawn, declined, or expired request.
 
-J-08; FR-09; AC-13; PRD section 7. Either side can cancel a booked meeting until it starts, and changes after booking follow ([`post-booking-changes`](../../openspec/changes/post-booking-changes/proposal.md), PRD FR-43).
+J-08; FR-09; AC-13; PRD section 7. Either side can cancel or change a booked meeting until it starts ([`post-booking-changes`](../../openspec/changes/post-booking-changes/proposal.md), PRD FR-43).
 
 ## Agent connection and permissions
 

@@ -29,6 +29,8 @@ export const BOOKING_FAILURES = [
   // Cancelled after confirmation by the host or the requester (post-booking-changes).
   "host_cancelled",
   "requester_cancelled",
+  // Replaced by a change after booking, whose event update succeeded.
+  "changed",
 ] as const;
 export type BookingFailure = (typeof BOOKING_FAILURES)[number];
 

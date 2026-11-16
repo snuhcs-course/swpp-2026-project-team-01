@@ -133,6 +133,9 @@ async function requesterBookingUrl(tx: Transaction, deps: NoticeDependencies, re
 
 export type ConfirmedMeeting = Meeting & {
   readonly bookingId: string;
+  // A change after booking patched the existing event: the copy says the
+  // meeting moved, and Google's own update carries the invitation.
+  readonly changed?: boolean;
   readonly iCalUID: string | null;
   readonly confirmedAt: string;
 };
@@ -146,7 +149,7 @@ export async function enqueueConfirmations(tx: Transaction, deps: NoticeDependen
 
   const sender = frozenSender(process.env, parties.hostName);
   const attachmentFor = (parameters: MeetingParameters) =>
-    meeting.iCalUID
+    meeting.iCalUID && !meeting.changed
       ? [
           {
             content: Buffer.from(calendarInvitation({ ...parameters, stamp: meeting.confirmedAt, uid: meeting.iCalUID }), "utf8").toString("base64"),
@@ -160,7 +163,7 @@ export async function enqueueConfirmations(tx: Transaction, deps: NoticeDependen
   const link = await requesterBookingUrl(tx, deps, requestId);
 
   if (link) {
-    const parameters: BookingEmailParameters = { ...requesterMeeting, audience: "requester" };
+    const parameters: BookingEmailParameters = { ...requesterMeeting, audience: "requester", ...(meeting.changed ? { changed: true } : {}) };
     await enqueueEmail(tx, {
       attachments: attachmentFor(requesterMeeting),
       dedupeKey: `${meeting.bookingId}:requester`,
@@ -181,6 +184,7 @@ export async function enqueueConfirmations(tx: Transaction, deps: NoticeDependen
     const parameters: BookingEmailParameters = {
       ...hostMeeting,
       audience: "host",
+      ...(meeting.changed ? { changed: true } : {}),
       viewUrl: hostRequestUrl(deps.origin, requestId),
     };
     await enqueueEmail(tx, {
@@ -327,6 +331,72 @@ export async function enqueueHostCancellation(
     replyTo: parties.requesterEmail,
     requestId,
     secrets: {},
+    tokenKey: deps.tokenKey,
+  });
+}
+
+// A change after booking that was declined or ran out of time: the booked
+// meeting stands as it was (post-booking-changes design 5). The guest is told
+// by email and in their linked chat, with the meeting that stands.
+export async function enqueueChangeDropped(tx: Transaction, deps: NoticeDependencies, requestId: string, reason: "declined" | "expired") {
+  const [booking] = await tx<{ id: string; start_at: Date; end_at: Date; details: { mode: "online" | "in_person"; location: string | null } }[]>`
+    select b.id, b.start_at, b.end_at, p.details
+    from app.bookings b join app.proposals p on p.id = b.proposal_id
+    where b.request_id = ${requestId} and b.state = 'confirmed'
+  `;
+  const parties = await partiesOf(tx, requestId);
+  const link = parties ? await requesterBookingUrl(tx, deps, requestId) : null;
+  if (!booking || !parties || !link) return;
+
+  const [version] = await tx<{ version: number }[]>`select max(version)::int as version from app.proposals where request_id = ${requestId}`;
+  const parameters: BookingEmailParameters = {
+    ...meetingFor(
+      parties,
+      {
+        end: booking.end_at.toISOString(),
+        joinUrl: null,
+        location: booking.details.mode === "in_person" ? booking.details.location : null,
+        mode: booking.details.mode,
+        start: booking.start_at.toISOString(),
+      },
+      parties.requesterTimezone,
+    ),
+    audience: "requester",
+    bookingId: booking.id,
+    reason,
+    version: version?.version ?? 0,
+  };
+  const dedupeKey = `${requestId}:v${version?.version ?? 0}:${reason}`;
+  await enqueueGuestNotice(tx, requestId, { bookingId: booking.id, kind: "status_change_dropped", reason, version: version?.version ?? 0 });
+
+  const [thread] = await tx<{ id: string; inbox_id: string; last_message_id: string }[]>`
+    select id, inbox_id, last_message_id from app.email_threads where request_id = ${requestId} and state = 'active'
+  `;
+  const inboxId = thread?.inbox_id ?? deps.inboxId ?? null;
+  if (!inboxId) {
+    await enqueueEmail(tx, {
+      dedupeKey,
+      kind: "status_change_dropped",
+      language: parties.language,
+      parameters,
+      recipient: parties.requesterEmail,
+      requestId,
+      secrets: { bookingUrl: link },
+      tokenKey: deps.tokenKey,
+    });
+    return;
+  }
+  await recordReply(tx, {
+    bindingId: thread?.id ?? null,
+    dedupeKey: `status_change_dropped:${dedupeKey}:${thread?.id ?? "new"}`,
+    inboxId,
+    kind: "notice",
+    language: parties.language,
+    parameters,
+    replyToMessageId: thread?.last_message_id ?? null,
+    requestId,
+    secrets: {},
+    template: "status_change_dropped",
     tokenKey: deps.tokenKey,
   });
 }

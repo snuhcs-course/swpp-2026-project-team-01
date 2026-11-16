@@ -5,7 +5,9 @@ import { type BookingDependencies, bookingDependenciesFromEnvironment, lockHost,
 import { assertRevision, type CommandDefinition, CommandError } from "./commands";
 import type { Transaction } from "./database";
 import { CalendarAccessError } from "./google-calendar";
-import { enqueueHostNotice } from "./imessage-notices";
+import { enqueueButtonRetirement, enqueueHostNotice } from "./imessage-notices";
+import { cancelReservedBooking, standingBookingOf } from "./request-lifecycle";
+import { revokeRequestGrants } from "./requester-grants";
 import { type JobHandler, publishJob } from "./jobs";
 
 // Cancelling a booked meeting (post-booking-changes design 1 to 4).
@@ -64,6 +66,20 @@ async function lockForActor(tx: Transaction, actor: { readonly kind: string; rea
   throw new CommandError("forbidden");
 }
 
+// The pre-dispatch cancellation categories reuse withdrawal and decline.
+function byActor(kind: string) {
+  return kind === "host_account" ? ("declined" as const) : ("withdrawn" as const);
+}
+
+// What closing an open request settles, for a change after booking that the
+// cancellation ends (closeRequest does this for its own states).
+async function closeOpenParts(tx: Transaction, requestId: string) {
+  await enqueueButtonRetirement(tx, requestId);
+  await revokeRequestGrants(tx, requestId);
+  await tx`update app.request_reviews set state = 'superseded', resolved_at = now() where request_id = ${requestId} and state = 'pending'`;
+  await tx`update app.shared_change_drafts set state = 'superseded', resolved_at = now() where request_id = ${requestId} and state = 'pending'`;
+}
+
 type BookedMeeting = {
   readonly id: string;
   readonly start_at: Date;
@@ -82,11 +98,15 @@ export function cancelBookingCommand(
       const request = await lockForActor(tx, context.actor, context.resourceId);
 
       if (request.state === "cancelled") throw new CommandError("request_closed");
-      if (request.state === "booking") throw new CommandError("booking_pending");
-      if (request.state !== "booked") throw new CommandError("invalid_input", { reason: "not_booked" });
+      // While a change is open the booked meeting still stands and can be
+      // cancelled; a change already dispatching may be in the calendar.
+      const changing = request.state !== "booked" && (await standingBookingOf(tx, request.id)) !== null;
+      if (request.state === "booking" && !changing) throw new CommandError("booking_pending");
+      if (request.state !== "booked" && !changing) throw new CommandError("invalid_input", { reason: "not_booked" });
       assertRevision(request.revision, context.expectedRevision);
 
       await lockHost(tx, request.host_account_id);
+      if (changing) await cancelReservedBooking(tx, request.id, byActor(context.actor.kind));
       const [booking] = await tx<BookedMeeting[]>`
         select b.id, b.start_at, b.end_at, p.details, b.evidence
         from app.bookings b join app.proposals p on p.id = b.proposal_id
@@ -107,8 +127,9 @@ export function cancelBookingCommand(
       `;
       await tx`
         update app.requests set state = 'cancelled', closed_at = now(), revision = revision + 1, updated_at = now()
-        where id = ${request.id} and state = 'booked'
+        where id = ${request.id} and state in ('booked', 'gathering', 'negotiating', 'awaiting_host_approval', 'booking')
       `;
+      if (changing) await closeOpenParts(tx, request.id);
       await publishJob(tx, {
         dedupeKey: `cancel:${booking.id}`,
         kind: BOOKING_CANCEL_JOB,
@@ -182,3 +203,50 @@ export function createBookingCancelHandler(load: () => BookingDependencies = boo
     return { bookingId, outcome: "deleted" };
   };
 }
+
+// ---------------------------------------------------------------------------
+// booking.change: reopening a booked meeting for a change (design 5)
+
+export const CHANGE_BOOKING_OPERATION = "booking.change";
+// A change gets the request's usual seven days, but never past the meeting.
+export const CHANGE_LIFETIME_DAYS = 7;
+
+export type ChangeBookingResult = { readonly state: "negotiating"; readonly revision: number; readonly expiresAt: string };
+
+// Either side reopens a booked meeting, until it starts, so a new time or
+// place can go through the usual proposal, agreement and approval. The booked
+// meeting stands meanwhile; withdrawing, declining or running out of time
+// leaves it as it was, and approval patches its event in place.
+export const changeBookingCommand: CommandDefinition<Record<string, never>, ChangeBookingResult> = {
+  input: z.object({}).strict() as unknown as z.ZodType<Record<string, never>>,
+  operation: CHANGE_BOOKING_OPERATION,
+  async run(tx, context) {
+    const request = await lockForActor(tx, context.actor, context.resourceId);
+    if (request.state === "cancelled") throw new CommandError("request_closed");
+    if (request.state !== "booked") {
+      // Already open for a change: nothing to do.
+      if ((await standingBookingOf(tx, request.id)) && request.state !== "booking") {
+        const [row] = await tx<{ expires_at: Date }[]>`select expires_at from app.requests where id = ${request.id}`;
+        return { expiresAt: row!.expires_at.toISOString(), revision: request.revision, state: "negotiating" };
+      }
+      if (request.state === "booking") throw new CommandError("booking_pending");
+      throw new CommandError("invalid_input", { reason: "not_booked" });
+    }
+    assertRevision(request.revision, context.expectedRevision);
+
+    const [booking] = await tx<{ start_at: Date }[]>`
+      select start_at from app.bookings where request_id = ${request.id} and state = 'confirmed'
+    `;
+    if (!booking) throw new CommandError("invalid_input", { reason: "not_booked" });
+    const [clock] = await tx<{ now: Date }[]>`select clock_timestamp() as now`;
+    if (booking.start_at.getTime() <= clock!.now.getTime()) throw new CommandError("invalid_input", { reason: "start_passed" });
+
+    const expiresAt = new Date(Math.min(clock!.now.getTime() + CHANGE_LIFETIME_DAYS * 86_400_000, booking.start_at.getTime()));
+    await tx`
+      update app.requests
+      set state = 'negotiating', closed_at = null, expires_at = ${expiresAt}, revision = revision + 1, updated_at = now()
+      where id = ${request.id} and state = 'booked'
+    `;
+    return { expiresAt: expiresAt.toISOString(), revision: request.revision + 1, state: "negotiating" };
+  },
+};

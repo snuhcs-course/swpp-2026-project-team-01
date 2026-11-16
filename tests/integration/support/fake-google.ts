@@ -337,7 +337,30 @@ export async function startFakeGoogle(
         return;
       }
 
-      const body = JSON.parse(raw) as { transparency?: string };
+      const body = JSON.parse(raw) as { transparency?: string } & Partial<FakeEvent> & { conferenceData?: unknown };
+      // A change after booking patches a created event's details, not its transparency.
+      if (body.transparency === undefined) {
+        const store = createdIn(calendarId);
+        const index = store.findIndex((event) => event.id === eventId);
+        if (index < 0) {
+          json(response, 404, { error: { code: 404, message: "Not Found" } });
+          return;
+        }
+        const current = store[index]!;
+        const next: FakeEvent = {
+          ...current,
+          ...body,
+          hangoutLink: current.hangoutLink ?? (body.conferenceData ? `https://meet.google.com/${eventId.slice(0, 3)}-fake-link` : undefined),
+          id: current.id,
+        };
+        store[index] = next;
+        if (behavior === "lost_after_patch") {
+          request.socket.destroy();
+          return;
+        }
+        json(response, 200, next);
+        return;
+      }
       clock += 1;
       const change = { transparency: body.transparency ?? "opaque", updated: new Date(Date.now() + clock).toISOString() };
       patches.set(patchKey(calendarId, eventId), change);

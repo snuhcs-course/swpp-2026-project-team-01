@@ -44,7 +44,7 @@ import { createEmailLinkCommand, readEmailLinkStatus, unlinkEmailCommand } from 
 import { internalSigningKey } from "./internal-bearer";
 import { findReadyHostByHandle } from "./readiness";
 import { withdrawRequestCommand } from "./request-lifecycle";
-import { cancelBookingCommand } from "./booking-cancellation";
+import { cancelBookingCommand, changeBookingCommand } from "./booking-cancellation";
 import {
   agreeCommand,
   allowTripCommand,
@@ -532,6 +532,7 @@ export function requesterCommands(
     registered(resendConfirmationCommand(contact)),
     registered(checkBookingCommand),
     registered(cancelBookingCommand()),
+    registered(changeBookingCommand),
     registered(createEmailLinkCommand({ tokenKey: contact.tokenKey })),
     registered(unlinkEmailCommand()),
     registered(createRequesterImessageLinkCommand(imessage)),

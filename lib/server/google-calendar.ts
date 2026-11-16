@@ -114,6 +114,12 @@ export type HostCalendar = {
   // sends attendees its cancellation. The outcome is classified, never thrown,
   // except a revoked grant (calendar_access_revoked).
   deleteEvent(calendarId: string, eventId: string, options?: { readonly signal?: AbortSignal }): Promise<EventDeleteOutcome>;
+  // events.patch of a booked event's time, place and details for a change after
+  // booking (post-booking-changes design 5), with sendUpdates=all and
+  // conferenceDataVersion=1. Patching the same body again is harmless, so an
+  // uncertain outcome is retried. Classified, never thrown, except a revoked
+  // grant (calendar_access_revoked).
+  patchEvent(calendarId: string, eventId: string, body: Record<string, unknown>, options?: { readonly signal?: AbortSignal }): Promise<EventReplaceOutcome>;
   // events.patch of the event's transparency only (calendar-note-review design 4),
   // with sendUpdates=none: the calendar.events scope allows it, and for an event
   // the host was invited to only the host's copy changes. The outcome is
@@ -125,6 +131,14 @@ export type HostCalendar = {
     options?: { readonly signal?: AbortSignal },
   ): Promise<EventPatchOutcome>;
 };
+
+export type EventReplaceOutcome =
+  | { readonly outcome: "patched"; readonly event: CreatedEvent }
+  // 404 or 410: the event is gone.
+  | { readonly outcome: "absent" }
+  // 400 or 403 (not a rate limit): Google refused the change.
+  | { readonly outcome: "rejected"; readonly httpStatus: number }
+  | { readonly outcome: "uncertain"; readonly httpStatus: number | null };
 
 export type EventDeleteOutcome =
   // 2xx, or 404 and 410: the event is gone.
@@ -450,6 +464,32 @@ export function createGoogleCalendarClient(
       const read = await body<RawWrittenEvent>(response);
       if (!read) return { httpStatus: response.status, outcome: "uncertain" };
       return { event: toCreatedEvent(read, eventId), outcome: "found" };
+    },
+
+    async patchEvent(calendarId, eventId, event, options) {
+      const url = `${config.apiBaseUrl}/calendars/${encodeURIComponent(calendarId)}/events/${encodeURIComponent(eventId)}?${new URLSearchParams({
+        conferenceDataVersion: "1",
+        sendUpdates: "all",
+      })}`;
+      const response = await exchange(
+        url,
+        { body: JSON.stringify(event), headers: { "content-type": "application/json" }, method: "PATCH" },
+        options?.signal,
+      );
+
+      if (!response) return { httpStatus: null, outcome: "uncertain" };
+      if (response.status === 404 || response.status === 410) return { outcome: "absent" };
+      if (response.status === 403) {
+        const refusal = await body<{ error?: { errors?: { reason?: string }[] } }>(response);
+        const reason = refusal?.error?.errors?.[0]?.reason ?? "";
+        return /rateLimitExceeded/i.test(reason) ? { httpStatus: 403, outcome: "uncertain" } : { httpStatus: 403, outcome: "rejected" };
+      }
+      if (response.status === 400) return { httpStatus: 400, outcome: "rejected" };
+      if (!response.ok) return { httpStatus: response.status, outcome: "uncertain" };
+
+      const written = await body<RawWrittenEvent>(response);
+      if (!written) return { httpStatus: response.status, outcome: "uncertain" };
+      return { event: toCreatedEvent(written, eventId), outcome: "patched" };
     },
 
     async deleteEvent(calendarId, eventId, options) {

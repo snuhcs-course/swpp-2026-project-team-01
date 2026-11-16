@@ -98,6 +98,7 @@ describe("the confirmation", () => {
       openCalendar: async () => ({
         conferenceSolutionTypes: async () => [],
         deleteEvent: async () => ({ outcome: "deleted" }),
+        patchEvent: async () => ({ outcome: "absent" }),
         getEvent: async () => ({ outcome: "absent" }),
         patchTransparency: async () => ({ httpStatus: null, outcome: "uncertain" }),
         insertEvent: async (_calendar, event) => ({

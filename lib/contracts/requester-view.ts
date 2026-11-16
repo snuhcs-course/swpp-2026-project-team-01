@@ -162,5 +162,6 @@ export const REQUESTER_OPERATIONS = [
   "request.host_profile.decide",
   "booking.check",
   "booking.cancel",
+  "booking.change",
 ] as const;
 export type RequesterOperation = (typeof REQUESTER_OPERATIONS)[number];

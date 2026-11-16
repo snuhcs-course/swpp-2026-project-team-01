@@ -57,12 +57,15 @@ export type GuestNotice =
   | { readonly kind: "status_expired" }
   | { readonly kind: "status_pending"; readonly bookingId: string }
   | { readonly kind: "status_cancelled"; readonly bookingId: string }
+  | { readonly kind: "status_change_dropped"; readonly bookingId: string; readonly reason: "declined" | "expired"; readonly version: number }
   | { readonly kind: "booking_confirmation"; readonly bookingId: string };
 
 export function guestNoticeKey(requestId: string, notice: GuestNotice) {
   switch (notice.kind) {
     case "status_new_version":
       return `guest-notice:${notice.kind}:${requestId}:v${notice.version}`;
+    case "status_change_dropped":
+      return `guest-notice:${notice.kind}:${requestId}:v${notice.version}:${notice.reason}`;
     case "status_pending":
     case "status_cancelled":
     case "booking_confirmation":

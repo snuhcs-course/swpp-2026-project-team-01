@@ -1,6 +1,6 @@
 import { randomUUID } from "node:crypto";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
-import { cancelBookingForHostTool, declineRequestForTool, resolveChangesForTool } from "../../lib/server/host-review-tools";
+import { cancelBookingForHostTool, changeBookingForHostTool, declineRequestForTool, resolveChangesForTool } from "../../lib/server/host-review-tools";
 import { approveCommand } from "../../lib/server/bookings";
 import { revisionOf } from "./support/scheduling";
 import { requestRef } from "../../lib/server/imessage-commands";
@@ -183,6 +183,22 @@ describe("cancelling a booked meeting in words (post-booking-changes)", () => {
     const open = await reviewerWrote("Cancel it");
     expect(await cancelBookingForHostTool(db, open.call, notices)).toMatchObject({ cancelled: false, problem: expect.stringContaining("decline it instead") });
     expect(await stateOf(open.request.requestId)).toBe("awaiting_host_approval");
+  });
+});
+
+describe("changing a booked meeting in words (post-booking-changes)", () => {
+  it("reopens the booked meeting for a message from iMessage, keeping it booked", async () => {
+    const { call, request } = await reviewerWrote("Can we move the meeting?");
+    const approved = await asHost(db, request.hostAccountId, request.requestId, approveCommand, { version: 1 }, {
+      expectedRevision: await revisionOf(db, request.requestId),
+    });
+    if (!approved.ok) throw new Error("approve failed");
+    expect(await runBooking(db, bookingDeps(db, google), approved.result.bookingId)).toBe("completed");
+
+    expect(await changeBookingForHostTool(db, call)).toMatchObject({ opened: true, message: expect.stringContaining("propose_shared_changes") });
+    expect(await stateOf(request.requestId)).toBe("negotiating");
+    const [booking] = await db<{ state: string }[]>`select state from app.bookings where id = ${approved.result.bookingId}`;
+    expect(booking!.state).toBe("confirmed");
   });
 });
 

@@ -154,6 +154,16 @@ async function recipientCurrent(tx: Transaction, delivery: DeliveryRow) {
       `;
       return row?.current ?? false;
     }
+    case "status_change_dropped": {
+      // Current while the meeting it names still stands and the request is booked.
+      const [row] = await tx<{ current: boolean }[]>`
+        select (r.state = 'booked' and l.expires_at > now() and lower(r.contact_email) = ${recipient}
+                and exists (select 1 from app.bookings b where b.id = ${parameters.bookingId ?? null}::uuid and b.state = 'confirmed')) as current
+        from app.requests r join app.booking_links l on l.request_id = r.id
+        where r.id = ${delivery.request_id}
+      `;
+      return row?.current ?? false;
+    }
     case "booking_cancelled": {
       const [row] = await tx<{ current: boolean }[]>`
         select (r.state = 'cancelled') as current from app.requests r where r.id = ${delivery.request_id}

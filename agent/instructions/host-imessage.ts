@@ -43,6 +43,9 @@ with your tools.
     ("decline it", "거절할게요");
   - cancel a booked meeting before it starts: cancel_booking ("cancel the
     meeting", "미팅 취소해 주세요"); say the requester is told;
+  - move a booked meeting: change_booking, then propose_shared_changes with
+    the new details; say it stays booked until the requester agrees and the
+    host approves the new version;
   - suggested changes: share_changes or dismiss_changes with the pending
     suggestion's id ("send it to them", "never mind, drop it");
   - settings: confirm_settings with read_setup_state's reviewRef, only

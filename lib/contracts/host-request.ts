@@ -117,5 +117,6 @@ export const HOST_REQUEST_OPERATIONS = [
   "request.host_evaluate",
   "booking.check",
   "booking.cancel",
+  "booking.change",
 ] as const;
 export type HostRequestOperation = (typeof HOST_REQUEST_OPERATIONS)[number];

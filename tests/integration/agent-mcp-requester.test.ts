@@ -271,7 +271,7 @@ describe("an existing request within delegation", () => {
     expect(expired.status).toBe(401);
   });
 
-  it("cancels a booked meeting, and offers cancel_booking only while it is booked", async () => {
+  it("cancels a booked meeting, and offers cancel_booking and change_booking only while it is booked", async () => {
     const agent = agentDependencies(db);
     const request = await agreedRequest(db, google);
     const [settings] = await db<{ handle: string }[]>`select settings ->> 'handle' as handle from app.host_settings where host_account_id = ${request.hostAccountId}`;
@@ -289,7 +289,7 @@ describe("an existing request within delegation", () => {
         result: { tools: { name: string }[] };
       }).result.tools.map((tool) => tool.name).sort();
 
-    expect(await names()).toEqual(["cancel_booking", "get_host", "get_request"]);
+    expect(await names()).toEqual(["cancel_booking", "change_booking", "get_host", "get_request"]);
     const read = await call(agent, tokens.access_token, handle, "get_request");
     const cancelled = await call(agent, tokens.access_token, handle, "cancel_booking", { expectedRevision: read.structuredContent.revision, retryKey: "cancel-0001" });
     expect(cancelled.structuredContent.error).toBeUndefined();

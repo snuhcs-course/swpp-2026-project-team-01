@@ -326,3 +326,37 @@ describe("deleteEvent", () => {
     expect((await deleteWith(() => Promise.reject(new Error("socket hang up")))).outcome).toEqual({ httpStatus: null, outcome: "uncertain" });
   });
 });
+
+describe("patchEvent", () => {
+  async function patchWith(answer: () => Response | Promise<Response>) {
+    const { db } = grantDatabase();
+    const requests: { url: string; init: RequestInit | undefined }[] = [];
+    const fetcher = vi.fn<typeof fetch>(async (input, init) => {
+      if (String(input).includes("oauth.test")) return jsonResponse(200, { access_token: "ya29.access", expires_in: 3599 });
+      requests.push({ init, url: String(input) });
+      return answer();
+    });
+    const calendar = await openHostCalendar({ config: config(fetcher), db, tokenKeys: [key] }, hostAccountId);
+    const outcome = await calendar.patchEvent("me@example.test", "abc123", { end: { dateTime: "2026-11-20T02:00:00Z" }, start: { dateTime: "2026-11-20T01:00:00Z" } });
+    return { outcome, requests };
+  }
+
+  it("patches the event, notifies attendees and returns its evidence", async () => {
+    const { outcome, requests } = await patchWith(() => jsonResponse(200, { iCalUID: "abc123@google.com", id: "abc123", status: "confirmed" }));
+
+    expect(outcome).toMatchObject({ event: { iCalUID: "abc123@google.com", id: "abc123", status: "confirmed" }, outcome: "patched" });
+    const url = new URL(requests[0]!.url);
+    expect(url.searchParams.get("sendUpdates")).toBe("all");
+    expect(url.searchParams.get("conferenceDataVersion")).toBe("1");
+    expect(requests[0]!.init?.method).toBe("PATCH");
+  });
+
+  it("classifies a missing event, a refusal and an uncertain answer", async () => {
+    expect((await patchWith(() => jsonResponse(404, {}))).outcome).toEqual({ outcome: "absent" });
+    expect((await patchWith(() => jsonResponse(410, {}))).outcome).toEqual({ outcome: "absent" });
+    expect((await patchWith(() => jsonResponse(403, { error: { errors: [{ reason: "forbidden" }] } }))).outcome).toEqual({ httpStatus: 403, outcome: "rejected" });
+    expect((await patchWith(() => jsonResponse(403, { error: { errors: [{ reason: "rateLimitExceeded" }] } }))).outcome).toEqual({ httpStatus: 403, outcome: "uncertain" });
+    expect((await patchWith(() => jsonResponse(503, {}))).outcome).toEqual({ httpStatus: 503, outcome: "uncertain" });
+    expect((await patchWith(() => Promise.reject(new Error("reset")))).outcome).toEqual({ httpStatus: null, outcome: "uncertain" });
+  });
+});

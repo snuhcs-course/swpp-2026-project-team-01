@@ -18,7 +18,7 @@ import {
 import { encodeDisplayName } from "./entry-documents";
 import { awaitEvaluation } from "./evaluation";
 import { checkBookingCommand } from "./bookings";
-import { cancelBookingCommand } from "./booking-cancellation";
+import { cancelBookingCommand, changeBookingCommand } from "./booking-cancellation";
 import type { CommandDefinition } from "./commands";
 import { readReadiness } from "./readiness";
 import { withdrawRequestCommand } from "./request-lifecycle";
@@ -291,6 +291,16 @@ export const REQUESTER_TOOLS: readonly AgentTool[] = [
     commandInput: null,
     scope: "request:decide",
     title: "Cancel the booked meeting",
+  }),
+  requestCommandTool({
+    afterClosure: "booked",
+    description:
+      "Reopen the booked meeting for a change of time, place or meeting type, until it starts, when the person asked to move or change it. The meeting stays booked until the host approves a new version; then the same calendar event is updated. Afterwards change details, find times, choose and agree as usual; withdraw_request drops the change and keeps the booked meeting.",
+    name: "change_booking",
+    command: () => loose(changeBookingCommand),
+    commandInput: null,
+    scope: "request:decide",
+    title: "Change the booked meeting",
   }),
   requestCommandTool({
     description: "Check a booking whose calendar write is still uncertain.",

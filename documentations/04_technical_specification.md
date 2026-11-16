@@ -61,7 +61,7 @@ Keep host setup, host-private request discussion and requester-facing history di
 
 ## Scheduling guarantees
 
-Deterministic calendar, rule and travel checks filter candidates before AI ranking. Booking requires requester agreement and attributable host approval for the current version, followed by fresh feasibility checks. Persist stable event identity before dispatch; reconcile uncertain writes before another create. Failed delivery does not change confirmed booking status. Either side can cancel a booked meeting until it starts: the request closes as cancelled and a job deletes the event with updates sent ([`post-booking-changes`](../openspec/changes/post-booking-changes/design.md)); rescheduling after booking follows. The initial release excludes private host email.
+Deterministic calendar, rule and travel checks filter candidates before AI ranking. Booking requires requester agreement and attributable host approval for the current version, followed by fresh feasibility checks. Persist stable event identity before dispatch; reconcile uncertain writes before another create. Failed delivery does not change confirmed booking status. Either side can cancel a booked meeting until it starts: the request closes as cancelled and a job deletes the event with updates sent ([`post-booking-changes`](../openspec/changes/post-booking-changes/design.md)); a change reopens the request while the confirmed booking stands, and its approved booking patches the same event. The initial release excludes private host email.
 
 ## Detailed design owners
 

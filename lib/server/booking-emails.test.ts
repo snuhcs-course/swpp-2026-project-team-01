@@ -124,6 +124,21 @@ describe("the cancellation notices (post-booking-changes)", () => {
   });
 });
 
+describe("changes after booking (post-booking-changes)", () => {
+  it("says a declined or expired change leaves the meeting as it was", () => {
+    const declined = renderBookingEmail("status_change_dropped", "en", { ...meeting, bookingId: "b1", reason: "declined" }, secrets);
+    expect(declined.subject).toBe("Your meeting with Ada Lovelace stays as booked");
+    expect(declined.text).toContain("kept your meeting as it was");
+    expect(declined.text).toContain("10:00–10:30");
+    expect(renderBookingEmail("status_change_dropped", "ko", { ...meeting, reason: "expired" }, secrets).text).toContain("기한 안에");
+  });
+
+  it("confirms a changed meeting as updated", () => {
+    const email = renderBookingEmail("booking_confirmation", "en", { ...meeting, changed: true }, secrets);
+    expect(email.text).toContain("Your meeting was changed, and the calendar event is updated.");
+  });
+});
+
 describe("the new-version notice says what the host changed (#198)", () => {
   const inPerson: BookingEmailParameters = { ...meeting, joinUrl: null, location: "Seoul Station", mode: "in_person", version: 2 };
   const terms = (parameters: BookingEmailParameters) => ({

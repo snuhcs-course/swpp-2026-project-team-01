@@ -19,11 +19,15 @@
 
 ## Changes (step 2)
 
-- [ ] Write the `rebooking` delta (design 5) and settle its open questions.
-- [ ] Reopen a booked request on a new proposal version while the confirmed booking stays live.
-- [ ] Book an approved change by patching the existing event in place, and settle the old booking as superseded.
-- [ ] Let the guest and host assistants ask for a change after booking; update the guest assistant's instructions.
-- [ ] Tests for a change approved, abandoned and cancelled midway.
+- [x] Write the change delta (design 5, D6): reopen to `negotiating` with the confirmed booking standing.
+- [x] Schema: `replaces_booking_id`; one booking in progress and one confirmed per request; event IDs unique among original bookings; email kind `status_change_dropped`.
+- [x] `booking.change` for both sides; leave the meeting's own event out of busy time in evaluation, agreement and revalidation.
+- [x] Book an approved change by patching the existing event (`patchEvent`), then cancel the replaced booking as `changed`; confirmations say the meeting changed.
+- [x] Withdrawal, decline and expiry drop the change and keep the meeting; decline and expiry tell the guest (`status_change_dropped`); cancellation during a change cancels the meeting.
+- [x] Tools: `change_booking` for the guest assistant, the guest MCP, the host's linked chat and the host MCP; **Change meeting** on the host's booking card and a note while a change is open; assistant instructions.
+- [x] Tests: unit (`patchEvent`, email copy) and integration (reopen, own time offered again, patched approval, withdraw, decline, expiry, cancel midway).
+- [ ] Remove a Meet link when a booked online meeting changes to in person.
+- [ ] Try a change end to end against a real Google Calendar.
 
 ## Review
 

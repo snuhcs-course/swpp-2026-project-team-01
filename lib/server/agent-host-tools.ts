@@ -4,7 +4,7 @@ import { createImessageLinkCommand, readImessageStatus, linkChannels, NUMBER_INP
 import { z } from "zod";
 import type { HostRequestOperation } from "../contracts/host-request";
 import { approveCommand, declineCommand } from "./bookings";
-import { cancelBookingCommand } from "./booking-cancellation";
+import { cancelBookingCommand, changeBookingCommand } from "./booking-cancellation";
 import { recordDestinationAccess } from "./calendar-roles";
 import type { CommandDefinition } from "./commands";
 import { CalendarAccessError, openHostCalendar } from "./google-calendar";
@@ -372,5 +372,25 @@ export const HOST_TOOLS: readonly AgentTool[] = [
     },
     scope: "host:decide",
     title: "Cancel the booked meeting",
+  },
+  {
+    description:
+      "Reopen the booked meeting for a change of time, place or meeting type, until it starts, when the host has clearly told you in their own words to move or change it. The meeting stays booked until the requester agrees to a new version and the host approves it; then suggest_changes drafts the new details as usual. Put the host's words in hostInstruction and pass the request's revision from get_request as expectedRevision.",
+    input: z
+      .object({
+        requestId: requestIdSchema,
+        expectedRevision: expectedRevisionSchema,
+        hostInstruction: hostInstructionSchema,
+        retryKey: retryKeySchema,
+      })
+      .strict(),
+    name: "change_booking",
+    readOnly: false,
+    role: "host",
+    async run(context, raw) {
+      return decide(context, raw as { requestId: string; expectedRevision: number; retryKey: string }, changeBookingCommand, {});
+    },
+    scope: "host:decide",
+    title: "Change the booked meeting",
   },
 ];

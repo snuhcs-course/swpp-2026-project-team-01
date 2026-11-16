@@ -63,6 +63,10 @@ export const GUEST_NOTICE_TEXTS = {
       `${host} approved ${when}. It's still being confirmed in Google Calendar, so nothing is booked yet. I'll tell you here when it is.`,
     booking_confirmation: (host: string, when: string) =>
       `Booked with ${host}: ${when}. The invitation is in your email. Ask here anytime about the time or place.`,
+    status_change_dropped: (host: string, when: string, reason: "declined" | "expired") =>
+      reason === "declined"
+        ? `${host} kept your meeting as it was, so it stays at ${when}.`
+        : `Your change wasn't settled in time, so your meeting with ${host} stays at ${when}.`,
     status_cancelled: (host: string, when: string) =>
       `${host} cancelled your meeting (${when}). The calendar invitation is cancelled too. Write here if you'd like to ask for a new time.`,
   },
@@ -77,6 +81,10 @@ export const GUEST_NOTICE_TEXTS = {
       `${host}님이 ${when} 미팅을 승인했습니다. Google Calendar에서 아직 확인 중이라 예약이 확정된 것은 아닙니다. 확정되면 여기로 알려 드릴게요.`,
     booking_confirmation: (host: string, when: string) =>
       `${host}님과의 미팅이 예약되었습니다: ${when}. 초대장은 이메일에 있습니다. 시간이나 장소가 궁금하면 언제든 여기에 물어보세요.`,
+    status_change_dropped: (host: string, when: string, reason: "declined" | "expired") =>
+      reason === "declined"
+        ? `${host}님이 미팅을 원래대로 유지했습니다. ${when}에 그대로 진행됩니다.`
+        : `변경이 기한 안에 마무리되지 않아 ${host}님과의 미팅은 ${when} 그대로입니다.`,
     status_cancelled: (host: string, when: string) =>
       `${host}님이 미팅(${when})을 취소했습니다. 캘린더 초대도 함께 취소됩니다. 새로 시간을 잡고 싶으시면 여기에 적어 주세요.`,
   },
@@ -119,6 +127,7 @@ async function guestNoticeText(q: Transaction, requestId: string, notice: GuestN
     select start_at, end_at from app.bookings where id = ${notice.bookingId} and request_id = ${requestId}
   `;
   if (!meeting) return null;
+  if (notice.kind === "status_change_dropped") return texts.status_change_dropped(host, timeOf(meeting.start_at, meeting.end_at), notice.reason);
   return texts[notice.kind](host, timeOf(meeting.start_at, meeting.end_at));
 }
 

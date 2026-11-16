@@ -36,6 +36,33 @@ The requester and the host SHALL each be able to cancel a booked meeting until i
 - **WHEN** Google refuses the deletion or the host's Calendar access is gone
 - **THEN** the request stays cancelled and the host is told to remove the event from their calendar
 
+#### Scenario: Cancelled during a change
+- **WHEN** either side cancels while a change to the booked meeting is open
+- **THEN** the booked meeting is cancelled as above and any change reserved for booking is cancelled with it
+
 #### Scenario: Cancelled twice
 - **WHEN** a cancellation is replayed or the other side cancels the same meeting afterwards
 - **THEN** the saved outcome is returned or the request is reported as already cancelled, and no second notice is sent
+
+### Requirement: Changing a booked meeting
+The requester and the host SHALL each be able to reopen a booked meeting for a change of time, place or meeting type until it starts. The change SHALL go through the usual proposal version, requester agreement and host approval, while the booked meeting stays booked. The meeting's own calendar event SHALL NOT count as busy time for its change. On approval, the booking SHALL update the existing Google Calendar event in place with updates sent to attendees, and only then replace the booked meeting. A change that is withdrawn, declined or expires SHALL leave the booked meeting as it was and tell the requester when the host declined or time ran out.
+
+#### Scenario: Guest moves a booked meeting
+- **WHEN** the guest asks to move a booked meeting, agrees to a new time and the host approves it
+- **THEN** the same Google event moves to the new time with updates sent, the earlier booking is replaced, and both parties get a confirmation saying the meeting changed
+
+#### Scenario: The booked meeting stands during a change
+- **WHEN** a change is open, agreed or approved but not yet written to the calendar
+- **THEN** both parties still see the booked meeting, and its time is offered again if it remains free
+
+#### Scenario: Change dropped
+- **WHEN** the guest withdraws the change, the host declines it, or it reaches its deadline (seven days or the meeting's start, whichever is earlier)
+- **THEN** the request is booked again with the meeting as it was, and for a decline or a deadline the guest is told
+
+#### Scenario: Change fails in the calendar
+- **WHEN** Google refuses the update or the event is gone
+- **THEN** the booked meeting stays as it was and the host sees the failure and can approve again
+
+#### Scenario: Meeting already started
+- **WHEN** either side asks to change a meeting after its start
+- **THEN** nothing reopens and they are told it has started

@@ -53,6 +53,13 @@ describe("host decision tools", () => {
     expect(cancel.description).toMatch(/clearly told you, in their own words/);
   });
 
+  it("offer change_booking under host:decide with the host's words", () => {
+    const change = tool("change_booking");
+    expect(change.scope).toBe("host:decide");
+    expect(change.input.safeParse({ expectedRevision: 3, hostInstruction: "Move it to Thursday", requestId, retryKey: "change-0001" }).success).toBe(true);
+    expect(change.input.safeParse({ expectedRevision: 3, requestId, retryKey: "change-0001" }).success).toBe(false);
+  });
+
   it("mark the decline destructive and tell the agent when it may decide", () => {
     expect(toolDefinition(tool("decline_request")).annotations.destructiveHint).toBe(true);
     expect(toolDefinition(tool("approve_proposal")).annotations.readOnlyHint).toBe(false);

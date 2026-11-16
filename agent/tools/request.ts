@@ -17,11 +17,13 @@ import {
   readRequestForTool,
   withdrawRequestForTool,
   cancelBookingForTool,
+  changeBookingForTool,
 } from "../../lib/server/request-tools";
 import {
   approveProposalForTool,
   approveProposalToolInput,
   cancelBookingForHostTool,
+  changeBookingForHostTool,
   declineRequestForTool,
   declineRequestToolInput,
   evaluateCandidatesForHostTool,
@@ -122,6 +124,12 @@ function requesterTools() {
       inputSchema: z.object({}),
       execute: (_input, toolCtx) => cancelBookingForTool(database(), call(toolCtx)),
     }),
+    change_booking: defineTool({
+      description:
+        "Reopen the booked meeting for a change of time, place or meeting type, when the guest asks to move or change it, before it starts. The meeting stays booked until the host approves the new version; then the same calendar event is updated. After it, draft the change and find times as usual.",
+      inputSchema: z.object({}),
+      execute: (_input, toolCtx) => changeBookingForTool(database(), call(toolCtx)),
+    }),
   };
 }
 
@@ -168,6 +176,12 @@ function hostReviewTools() {
         "Cancel this request's booked meeting because the host, writing from their linked iMessage, WhatsApp or Telegram, clearly says to cancel it in their own words, such as \"cancel the meeting\" or \"미팅 취소해 주세요\". Never call it when the host hesitates, adds a condition, asks a question, or wants another time, which propose_shared_changes drafts only before booking; and never for a message typed on the web, where the host presses Cancel meeting. The requester is told and the event is removed from the host's calendar.",
       inputSchema: z.object({}),
       execute: (_input, toolCtx) => cancelBookingForHostTool(database(), call(toolCtx)),
+    }),
+    change_booking: defineTool({
+      description:
+        "Reopen this request's booked meeting for a change because the host, writing from their linked iMessage, WhatsApp or Telegram, asks to move it or change its place (\"can we move it to Thursday?\", \"미팅 시간 바꿔 주세요\"). The meeting stays booked until the requester agrees to a new version and the host approves it. Then draft the new details with propose_shared_changes. Never for a message typed on the web, where the host presses Change meeting.",
+      inputSchema: z.object({}),
+      execute: (_input, toolCtx) => changeBookingForHostTool(database(), call(toolCtx)),
     }),
     share_changes: defineTool({
       description:

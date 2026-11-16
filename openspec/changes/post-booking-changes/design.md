@@ -37,18 +37,21 @@ The side that cancelled sees the outcome in its own conversation or card. The ot
 
 Each email is still current only while the request is cancelled. Neither carries a reason; a reason a person gives stays in their own conversation.
 
-## 5. Changes after booking (step 2, D5; not implemented in this change)
+## 5. Changes after booking (step 2, D5 and D6)
 
-To be implemented as its own task list below, adding its own delta before this change is archived:
+**Reopening.** `booking.change`, by either side until the meeting starts, moves a booked request back to `negotiating` (no new state, D6): `closed_at` is cleared, the revision advances, and `expires_at` becomes the earlier of seven days from now and the meeting's start. The confirmed booking stays confirmed; a request that is open while it has a confirmed booking is "changing". Neither side needs the other's leave to reopen: nothing changes for the other side until they agree or approve. The guest reopens through `change_booking` (assistant or MCP), the host with **Change meeting** on the booking card (which then opens the suggestion editor), `change_booking` in their linked chat, or their MCP agent.
 
-- Either side asks for another time or place. The guest's assistant drafts the change as a review; the host drafts it with **Request changes** as today. Either creates a new proposal version on the booked request, which moves from `booked` to a new open state, `rebooking`, that keeps the confirmed booking live.
-- The guest agrees and the host approves through the existing commands. Approval reserves a second booking row for the new version against the same event ID; the booking job patches the event (`events.patch`, `sendUpdates=all`) instead of inserting, so the invitation thread stays the same, then settles the old booking as superseded and the request as `booked` again.
-- A new version that is never agreed or approved expires back to the original booking, which stood the whole time. Cancelling during a change cancels the original meeting.
+**The usual flow.** The guest drafts new availability or details and chooses a time; the host suggests changes and shares them. Agreement and approval run unchanged. Evaluation, the agreement recheck and booking revalidation leave the meeting's own event out of both calendars' busy time (by its event ID or iCalUID), and revalidation leaves out the request's own bookings, so the change may overlap its own old time. The weekly limit already left out the request's own bookings.
 
-The open questions for that step: whether `rebooking` counts against the host's weekly limit twice, and whether the guest may propose a change without the host's first approving a reopening.
+**Booking the change.** Approval of a newer version while a confirmed booking stands reserves a second booking with `replaces_booking_id` naming it, on the same calendar and event ID. Its job revalidates as any booking, freezes the payload and patches the event (`events.patch`, `sendUpdates=all`, `conferenceDataVersion=1`) with the time, place, title and description, leaving the ID and attendees; a conference is sent only when the event has none, so an existing Meet stays. Patching again is harmless, so an uncertain outcome retries the patch; a missing event fails the change as `event_removed`, a refusal as `calendar_rejected`, and the request waits for approval again with the original still booked. On confirmation, in one transaction, the replaced booking is cancelled as `changed`, the change confirmed and the request booked again. Both parties get the confirmation email, saying the meeting changed, without the calendar part, since Google's update carries the invitation. The schema allows one booking in progress and one confirmed booking per request, and an event ID shared by a booking and the changes that replace it.
+
+**Leaving a change.** Withdrawal by the guest, decline by the host and expiry each drop the change: a change still reserved is cancelled (one already dispatching answers `booking_pending`), and the request is booked again with the meeting as it was. A decline or an expiry tells the guest by the `status_change_dropped` email and chat message. A cancellation during a change cancels the meeting itself and any reserved change.
+
+**Not covered.** Switching a booked online meeting to in person keeps its Meet link on the event; the event's location changes.
 
 ## Alternatives
 
 - **Keep the request `booked` and cancel only the booking.** Every projection, list and email would show a cancelled meeting as booked unless each also read the booking. Rejected.
 - **Delete the event inside the command.** A Google call inside the command's transaction holds the request lock across the network, and an uncertain outcome has nowhere to go. Rejected for the job, which the booking path already uses.
 - **Cancel and book again for a change.** Google would send a cancellation and a new invitation, and the guest would see the meeting disappear. Rejected for an in-place update.
+- **A separate `rebooking` request state.** Every proposal, agreement and approval guard would need to admit it. Rejected for reopening to `negotiating` and recognising a change by its standing confirmed booking (D6).
