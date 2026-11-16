@@ -1,6 +1,6 @@
 "use client";
 
-import { InboxIcon, LayoutDashboardIcon, ListChecksIcon, LogOutIcon, MenuIcon, MessageCircleIcon, PlugIcon } from "lucide-react";
+import { InboxIcon, LayoutDashboardIcon, LogOutIcon, MenuIcon, MessageCircleIcon, PlugIcon } from "lucide-react";
 import { useRef, useState } from "react";
 import { ConnectedAgentsDialog, HOST_GRANT_SOURCE } from "@/app/_components/connected-agents";
 import { Button } from "@/components/ui/button";
@@ -12,25 +12,22 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 
-// The workspace's compact, keyboard-operable navigation: Setup, Requests (the
-// inbox of meeting requests), iMessage (the Connect iMessage card), Connected
+// The workspace's compact, keyboard-operable navigation: Requests (the inbox
+// of meeting requests), iMessage (the Connect iMessage card), Connected
 // agents (agent-access design 10, also for a suspended host, who keeps
 // revocation) and Sign out. Radix gives the menu arrow-key movement, closes it on
-// Escape and returns focus to the trigger, except after Setup and iMessage, which
-// move focus to the current setup card or the iMessage card instead.
+// Escape and returns focus to the trigger, except after iMessage, which moves
+// focus to the iMessage card instead.
 export function WorkspaceMenu({
   onSelectDashboard,
   onSelectImessage,
   onSelectRequests,
-  onSelectSetup,
 }: {
   readonly onSelectDashboard?: () => void;
   readonly onSelectImessage?: () => void;
   readonly onSelectRequests?: () => void;
-  readonly onSelectSetup?: () => void;
 }) {
   const signOutRef = useRef<HTMLFormElement>(null);
-  const setupSelected = useRef(false);
   const imessageSelected = useRef(false);
   const [agentsOpen, setAgentsOpen] = useState(false);
 
@@ -52,22 +49,8 @@ export function WorkspaceMenu({
               onSelectImessage?.();
               return;
             }
-            if (!setupSelected.current) return;
-            setupSelected.current = false;
-            event.preventDefault();
-            onSelectSetup?.();
           }}
         >
-          {onSelectSetup ? (
-            <DropdownMenuItem
-              onSelect={() => {
-                setupSelected.current = true;
-              }}
-            >
-              <ListChecksIcon aria-hidden />
-              Setup
-            </DropdownMenuItem>
-          ) : null}
           {onSelectDashboard ? (
             <DropdownMenuItem onSelect={onSelectDashboard}>
               <LayoutDashboardIcon aria-hidden />
