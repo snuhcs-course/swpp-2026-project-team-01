@@ -3,7 +3,7 @@ import type { ChannelLanguage } from "./channel-language";
 import { channelReplies } from "./channel-texts";
 import { renderSlotPreviewPng } from "./slot-preview-image";
 import { E164_NUMBER } from "../contracts/imessage";
-import type { StoredChannel } from "../contracts/messaging-channel";
+import { type StoredChannel, whatsappOffered } from "../contracts/messaging-channel";
 import { deploymentEnvironment } from "./deployment";
 import { gateTransport, type MessagingTransport } from "./messaging";
 import type { TelegramButtons } from "./telegram";
@@ -117,6 +117,13 @@ export function photonConfig(env: Environment = process.env): PhotonConfig {
     projectSecret: env.PHOTON_PROJECT_SECRET?.trim() ?? "",
     whatsappNumber: env.PHOTON_WHATSAPP_NUMBER?.trim().replace(/^\+/, "") ?? "",
   };
+}
+
+// The WhatsApp number the screens may offer: the configured one while
+// WhatsApp is offered (WHATSAPP_OFFERED=1), else "" so every screen treats
+// WhatsApp as not configured. Sending and receiving keep photonConfig's number.
+export function offeredWhatsappNumber(config: Pick<PhotonConfig, "whatsappNumber"> = photonConfig(), env: Environment = process.env) {
+  return whatsappOffered(env) ? config.whatsappNumber : "";
 }
 
 const REJECTIONS: readonly PhotonRejection[] = [

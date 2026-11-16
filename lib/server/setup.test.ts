@@ -15,6 +15,7 @@ import {
   missingFields,
   type NextActionInput,
   proposalHash,
+  proposalValues,
   proposedOf,
   type ProposedFields,
 } from "./setup";
@@ -343,6 +344,38 @@ describe("suggestions and field precedence", () => {
     expect(chosen.weeklyLimitCounts).toMatchObject({ accepted: true, source: "stated", value: "all_meetings" });
     expect(differsFromConfirmed(chosen, roles, every)).toBe(false);
     expect(differsFromConfirmed(untouched, roles, every)).toBe(true);
+
+    // Trip grouping is not part of an online-only policy, even with a suggestion on.
+    const tripsOn = { groupTrips: { reason: "Trips.", sampleSize: 6, source: "inferred" as const, value: true } };
+    const online = proposedOf(buildFieldViews({}, settings, tripsOn));
+    expect(proposalValues(online).groupTrips).toBeUndefined();
+    expect(differsFromConfirmed(online, roles, settings)).toBe(false);
+
+    // An in-person policy confirmed before trip grouping existed has it off, as a
+    // starter default, and the suggestion does not replace it.
+    const inPerson = {
+      ...settings,
+      location: { areas: ["Yeoksam"], kind: "places" as const, venue: null },
+      meetingMode: "in_person" as const,
+      provenance: { ...settings.provenance, location: "stated" as const, travelMode: "stated" as const },
+      travelBufferMinutes: 15,
+      travelMode: "transit" as const,
+    } satisfies ConfirmedSettings;
+    const before = proposedOf(buildFieldViews({}, inPerson, tripsOn));
+    expect(before.groupTrips).toMatchObject({ accepted: true, source: "starter_default", value: false });
+    expect(proposalValues(before).groupTrips).toEqual({ source: "starter_default", value: false });
+    expect(differsFromConfirmed(before, roles, inPerson)).toBe(false);
+
+    const grouped = proposedOf(
+      buildFieldViews({ groupTrips: { accepted: true, source: "inferred", value: true } }, inPerson, tripsOn),
+    );
+    expect(differsFromConfirmed(grouped, roles, inPerson)).toBe(true);
+    expect(differsFromConfirmed(grouped, roles, { ...inPerson, groupTrips: true })).toBe(false);
+  });
+
+  it("suggests trip grouping off by default", () => {
+    const suggestions = buildSuggestions({ email: null, evidenceSuggestions: null, profileName: null, proposedHandle: null, starterTimeZone: null });
+    expect(suggestions.groupTrips).toMatchObject({ source: "starter_default", value: false });
   });
 });
 

@@ -69,7 +69,7 @@ Once connected:
 1. Start with get_host_status and follow its nextStep.
 2. Use get_setup and its nextStep. Propose values from suggestions or what you know about the host; set a value only after they agree, passing their own words as hostWords to update_setup_field and confirm_setup. Ask for meeting mode, place and travel mode when unknown; never assume them. Calendar connection and calendar choice stay at ${origin}/app.
 3. Give the host the booking link returned after confirm_setup and tell them to share it. You are not notified of new requests: tell the host to ask you to check, using list_requests when they do.
-4. If asked to link a chat, use start_chat_link for iMessage, WhatsApp or Telegram. Give the host its link to send a code and confirm in the browser. Nothing is linked until they confirm. Check get_host_status for chat state.
+4. If asked to link a chat, use start_chat_link for iMessage or Telegram. Give the host its link to send a code and confirm in the browser. Nothing is linked until they confirm. Check get_host_status for chat state.
 5. Check requests only when asked. Approve or decline only on the host's clear instruction, as described above.
 
 ## Links

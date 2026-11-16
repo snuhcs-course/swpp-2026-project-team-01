@@ -25,7 +25,7 @@ import {
   TraceTitle,
 } from "@/components/ui/trace";
 import { CardActions, EditorForm, focusTrigger, QuietButton, revealCard, SourceBadge } from "./card";
-import { describeLimit, formatDay, formatMinutes, groupWindows, loadTotals, parseMinutes, topSlots } from "./format";
+import { describeGroupTrips, describeLimit, formatDay, formatMinutes, groupWindows, loadTotals, parseMinutes, topSlots } from "./format";
 import { type SetupStep, useSetup, useStepper } from "./setup-context";
 import { StepCard } from "./step-card";
 import { STEP_CARD_IDS, type StepId } from "./steps";
@@ -415,6 +415,40 @@ export function TravelBufferStep() {
   );
 }
 
+// Group trips by day (same-day-trips): a preference that offers a far in-person
+// meeting first on days the host is already out that way. It never removes a time.
+export function TripsStep() {
+  const { state } = useSetup();
+  const on = state.fields.groupTrips.proposed?.value;
+
+  return (
+    <SuggestionStep
+      editor={({ mode, onCancel, onSave, saving }) => (
+        <TripsEditor
+          initial={mode === "adjust" ? on : undefined}
+          onCancel={onCancel}
+          onSave={(groupTrips) => onSave({ groupTrips })}
+          saving={saving}
+        />
+      )}
+      fields={["groupTrips"]}
+      quick={[
+        { label: "Group trips", values: { groupTrips: true } },
+        { label: "Don't group", values: { groupTrips: false } },
+      ]}
+      step="trips"
+      title="Should far meetings go on days you're already out that way?"
+      value={
+        <div className="flex flex-col gap-1.5">
+          <ValueText>{on === undefined ? "Not set" : describeGroupTrips(on)}</ValueText>
+          <p className="text-sm text-muted-foreground">It only changes which times come first; no time is removed.</p>
+          <Provenance field="groupTrips" />
+        </div>
+      }
+    />
+  );
+}
+
 // ---------------------------------------------------------------------------
 // What the scan found, folded away in the first step as a Trace step
 
@@ -693,6 +727,56 @@ function LimitEditor({
         </fieldset>
       ) : null}
       <EditorActions disabled={!valid} onCancel={onCancel} onSubmit={submit} saving={saving} submit="Save limit" />
+    </EditorForm>
+  );
+}
+
+// On or off; `initial` undefined opens the editor neutral (Choose my own).
+function TripsEditor({
+  initial,
+  onCancel,
+  onSave,
+  saving,
+}: {
+  readonly initial: boolean | undefined;
+  readonly onCancel: () => void;
+  readonly onSave: (groupTrips: boolean) => void;
+  readonly saving: boolean;
+}) {
+  const [choice, setChoice] = useState<boolean | undefined>(initial);
+  const id = useId();
+  const submit = () => {
+    if (choice !== undefined) onSave(choice);
+  };
+  const options = [
+    { label: "Group trips by day", value: true },
+    { label: "Don't group trips", value: false },
+  ] as const;
+
+  return (
+    <EditorForm label="Save trip grouping" onSubmit={submit}>
+      <fieldset className="flex flex-col">
+        <legend className="mb-1 text-sm font-medium">Far in-person meetings</legend>
+        {options.map((option) => (
+          <label className="flex min-h-11 items-center gap-3" htmlFor={`${id}-${option.value}`} key={option.label}>
+            <input
+              checked={choice === option.value}
+              className="size-5 accent-primary"
+              id={`${id}-${option.value}`}
+              name={`${id}-trips`}
+              onChange={() => setChoice(option.value)}
+              type="radio"
+              value={String(option.value)}
+            />
+            {option.label}
+          </label>
+        ))}
+        <p className="text-sm text-muted-foreground">
+          Grouping offers a meeting far from your usual area first on days you already have something near it, and last on
+          days you stay in your area.
+        </p>
+      </fieldset>
+      <EditorActions disabled={choice === undefined} onCancel={onCancel} onSubmit={submit} saving={saving} submit="Save" />
     </EditorForm>
   );
 }

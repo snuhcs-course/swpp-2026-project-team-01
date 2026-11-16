@@ -754,6 +754,18 @@ The [design](../../openspec/changes/guest-time-place-pairs/design.md) records th
 | D4 | Another area becomes the request's place through the review card; with none feasible, the message names the place and gives no reason; the existing 10-per-hour evaluation limit covers it | A separate per-area limit; offering the host's places beside the guest's | Design 5 and 6 | `noMatchMessage` in `lib/contracts/feasibility.ts`, `agent/instructions/requester.ts` |
 | D5 | Agreement's recheck and booking revalidation check the proposal's own place | Rechecking every host place at that time | Design 7 | `EvaluateOptions.place`; `agreeCommand`, the booking job |
 
+## `same-day-trips`
+
+The [design](../../openspec/changes/same-day-trips/design.md) records these choices for issue #103. The engine decisions (1–5) shipped in PR #106; the setup decisions (6–7) were taken on 2026-11-14 in the session that implemented them and have had no teammate review yet.
+
+| # | Choice | Alternatives | Recorded in | To change it |
+|---|---|---|---|---|
+| D1 | **Group trips by day** is a host preference, off by default and on every policy confirmed before it existed; it orders in-person candidates and never removes one | A filter that drops far days; on by default | Proposal; design 1; `meeting-feasibility` delta "Same-day trip preference" | `groupTripsOf` in `lib/contracts/setup.ts` |
+| D2 | Far is more than 30 minutes from the preferred area and near is within 15 minutes, by the travel check's Routes estimates and cache with the host's travel mode; missing estimates leave a day unranked | Straight-line distance, which disagrees with the travel check and needs coordinates; a model ranking signal, which never sees locations | Design 2 | `TRIP_FAR_MINUTES`, `TRIP_NEAR_MINUTES` in `lib/server/feasibility.ts` |
+| D3 | The trip rank comes after the weekly limit and before the requester's preferences and the day spread | Before the weekly limit; after the requester's preferences | Design 3 | The weighted sort in `plan()` |
+| D4 | `groupTrips` is an optional setup field, saved only with an in-person or either mode, asked on the web as its own step after the travel buffer unless the place is decided per meeting, shown in the web review and the linked-chat settings review, and not asked in the chat setup | A required in-person answer; saving it only when the location has places | Design 6; `host-setup` delta "Same-day trip setting" | `IN_PERSON_OPTIONAL_FIELDS` in `lib/contracts/setup.ts`; `setupSteps` in `apps/web/app/_components/setup/steps.ts` |
+| D5 | The scan suggests it on when at least two days held an in-person event at a place other than the most frequent one that also appears on another day, judged by place text and stored as counts only; it is policy only after the host confirms | Route estimates during the scan, before a preferred area exists; comparing with the host's location answer | Design 7; `host-setup` delta "Same-day trip suggestion" | `tripEvidence` and `suggestFromEvidence` in `lib/server/analysis.ts` |
+
 ## `guest-telegram-link`
 
 The [proposal](../../openspec/changes/guest-telegram-link/proposal.md#decisions) records D1–D6, taken on 2026-11-16 in the session that wrote the change, from the user's request to let guests get updates in Telegram after WhatsApp was hidden (#221; tracking issue #227). They bring requester messaging over Telegram into scope, which `host-telegram-channel` left out, and supersede `guest-whatsapp-link` D4's "Telegram stays host-only". They have had no teammate review yet.

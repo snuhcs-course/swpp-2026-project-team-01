@@ -168,6 +168,8 @@ Photon의 Beta 문서 [WhatsApp](https://photon.codes/docs/beta/messaging/whatsa
 
 사용자의 승인 없이는 에이전트 세션에서 Photon 프로젝트의 플랫폼, 회선, 웹훅을 바꾸거나, 템플릿을 등록하거나, WhatsApp 메시지를 보내서는 안 됩니다.
 
+2026-11-16부터 숨김([#221](https://github.com/snuhcs-course/swpp-2026-project-team-01/issues/221)): WhatsApp 연결이 데모나 테스트를 하기에 너무 불안정해서, 화면은 iMessage와 Telegram만 제공합니다. `WHATSAPP_OFFERED=1`이 아니면 웹 서비스는 `PHOTON_WHATSAPP_NUMBER`가 설정되어 있어도 모든 화면에 빈 WhatsApp 번호를 넘깁니다. 호스트의 카드와 연결 단계, 랜딩 시작(`/?flow=whatsapp`는 Telegram으로 시작), 게스트의 **Get updates in WhatsApp**, 에이전트의 채팅 링크는 WhatsApp을 설정되지 않은 것으로 다룹니다. 이미 연결된 바인딩은 계속 메시지를 받고 보냅니다. 브라우저 테스트는 `WHATSAPP_OFFERED=1`을 설정해 WhatsApp 화면을 계속 검증합니다. WhatsApp을 다시 제공하려면 Vercel Production에 `WHATSAPP_OFFERED=1`을 설정하고 다시 배포합니다.
+
 ## Telegram
 
 Telegram은 2026-11-04에 [`host-telegram-channel` 변경](../../openspec/changes/host-telegram-channel/proposal.md#decisions)에서 제안된 호스트 Telegram 채널의 전송 수단입니다. 웹훅, 레코드, Bot API 전송(레인 A)은 구현되었고 연결과 채널의 동작(레인 B와 C)은 아직 구현되지 않았으므로, Telegram 업데이트는 저장된 뒤 무시됩니다. Photon이 아니라 Telegram Bot API를 직접 사용합니다(D1). Photon의 Telegram 공급자인 `@spectrum-ts/telegram` 12.14.0은 봇의 웹훅을 Photon의 릴레이에 등록하고 지속적인 WebSocket(`wss://fusor-ws.spectrum.photon.codes/v1/subscribe`)으로 애플리케이션에 업데이트를 전달하는데, Vercel Function은 이를 유지할 수 없습니다.

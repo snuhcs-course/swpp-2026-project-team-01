@@ -8,6 +8,7 @@ import {
   type DraftHistoryEntry,
   HOST_ANSWER_FIELDS,
   IN_PERSON_FIELDS,
+  IN_PERSON_OPTIONAL_FIELDS,
   isValidTimeZone,
   type MeetingMode,
   OPTIONAL_FIELDS,
@@ -19,6 +20,8 @@ import {
   type SetupNextAction,
   STARTER_DEFAULTS,
   type ValueSource,
+  groupTripsOf,
+  meetsInPerson,
   weeklyLimitCountsOf,
 } from "../contracts/setup";
 import {
@@ -217,10 +220,11 @@ export function withStatedAnswers(proposed: ProposedFields): ProposedFields {
 }
 
 // The values and sources confirmation would save: the required fields for the
-// answered mode plus the optional ones, so an online-only host saves no location
-// or transport.
+// answered mode plus the optional ones, so an online-only host saves no location,
+// transport or trip grouping.
 export function proposalValues(proposed: ProposedFields) {
-  const fields = [...requiredFields(answeredMode(withStatedAnswers(proposed))), ...OPTIONAL_FIELDS];
+  const mode = answeredMode(withStatedAnswers(proposed));
+  const fields = [...requiredFields(mode), ...OPTIONAL_FIELDS, ...(meetsInPerson(mode) ? IN_PERSON_OPTIONAL_FIELDS : [])];
   const values: Partial<Record<SetupFieldName, { value: unknown; source: ValueSource }>> = {};
 
   for (const field of fields) {
@@ -332,6 +336,7 @@ export function buildSuggestions(input: SuggestionInput): { [F in SetupFieldName
     travelBufferMinutes:
       evidence.travelBufferMinutes ?? starter<"travelBufferMinutes">(STARTER_DEFAULTS.travelBufferMinutes, "A starter default."),
     weeklyLimit: evidence.weeklyLimit ?? starter<"weeklyLimit">(STARTER_DEFAULTS.weeklyLimit, "No limit unless you set one."),
+    groupTrips: evidence.groupTrips ?? starter<"groupTrips">(STARTER_DEFAULTS.groupTrips, "Off unless you turn it on."),
     weeklyLimitCounts: starter<"weeklyLimitCounts">(
       STARTER_DEFAULTS.weeklyLimitCounts,
       "Only meetings booked here count unless you choose all meetings.",
@@ -389,6 +394,9 @@ export function buildFieldViews(
 function confirmedValue(settings: ConfirmedSettings, field: SetupFieldName): unknown {
   // A policy confirmed before the count choice existed counts bookings only.
   if (field === "weeklyLimitCounts") return weeklyLimitCountsOf(settings);
+  // Trip grouping is saved only with an in-person or either mode; a policy
+  // confirmed before it existed has it off.
+  if (field === "groupTrips") return meetsInPerson(settings.meetingMode) ? groupTripsOf(settings) : undefined;
   const value = (settings as unknown as Record<string, unknown>)[field];
   // In-person fields of an online-only policy are null: not a saved answer.
   return value === null && IN_PERSON_FIELDS.includes(field) ? undefined : value;

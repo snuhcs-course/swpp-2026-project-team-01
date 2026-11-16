@@ -166,6 +166,8 @@ Operator steps, all blocked on the user until the implementing pull requests lan
 
 Never change the Photon project's platforms, lines or webhook, register templates or send a WhatsApp message from an agent session without the user's approval.
 
+Hidden since 2026-11-16 ([#221](https://github.com/snuhcs-course/swpp-2026-project-team-01/issues/221)): the WhatsApp connection was too unstable to demo or test, so the screens offer only iMessage and Telegram. Unless `WHATSAPP_OFFERED=1`, the web service hands every screen an empty WhatsApp number even with `PHOTON_WHATSAPP_NUMBER` set: the host's card and link step, the landing start (`/?flow=whatsapp` starts from Telegram), the guest's **Get updates in WhatsApp** and the agents' chat links treat WhatsApp as not configured. Bindings already linked keep receiving and sending. The browser tests set `WHATSAPP_OFFERED=1` so the WhatsApp screens stay covered. To offer WhatsApp again, set `WHATSAPP_OFFERED=1` on Vercel Production and redeploy.
+
 ## Telegram
 
 Telegram is the transport of the host Telegram channel, proposed on 2026-11-04 in the [`host-telegram-channel` change](../../openspec/changes/host-telegram-channel/proposal.md#decisions). Its webhook, records and Bot API transport (Lane A) are implemented; linking and the channel's behavior (Lanes B and C) are not, so a Telegram update is stored and then ignored. It uses the Telegram Bot API directly, not Photon (D1). Photon's Telegram provider, `@spectrum-ts/telegram` 12.14.0, registers the bot's webhook at Photon's relay and delivers updates to the application over a persistent WebSocket (`wss://fusor-ws.spectrum.photon.codes/v1/subscribe`), which a Vercel Function cannot hold.

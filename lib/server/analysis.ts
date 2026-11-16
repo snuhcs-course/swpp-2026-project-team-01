@@ -225,6 +225,10 @@ export function computeEvidence(events: readonly CalendarEvent[], ctx: EvidenceC
   const notes: AnalysisEvidence["noteLike"]["entries"][number][] = [];
   const venues = new Map<string, { name: string; count: number }>();
   const areas = new Map<string, { name: string; count: number }>();
+  // Per place (the area, or the venue when there is no area), its in-person
+  // events and the local days they fall on.
+  const tripPlaces = new Map<string, { count: number; days: Set<string> }>();
+  const inPersonDays = new Set<string>();
   let placeSample = 0;
   let meetings = 0;
 
@@ -270,6 +274,15 @@ export function computeEvidence(events: readonly CalendarEvent[], ctx: EvidenceC
       placeSample += 1;
       if (venue) tally(venues, venue);
       if (area) tally(areas, area);
+      const place = (area || venue)?.toLowerCase();
+      if (place) {
+        const day = localTime(formatter, start).date;
+        const trip = tripPlaces.get(place) ?? { count: 0, days: new Set<string>() };
+        trip.count += 1;
+        trip.days.add(day);
+        tripPlaces.set(place, trip);
+        inPersonDays.add(day);
+      }
     }
 
     const present = meetingGuests(event, hostEmail);
@@ -339,7 +352,32 @@ export function computeEvidence(events: readonly CalendarEvent[], ctx: EvidenceC
     primaryTimeZone: ctx.primaryTimeZone ?? null,
     scannedCalendars: ctx.calendars.map((calendar) => ({ id: calendar.id, ok: calendar.ok, summary: calendar.summary })),
     timezone: ctx.timezone,
+    trips: tripEvidence(tripPlaces, inPersonDays),
   };
+}
+
+// Days the host went out to a place other than their most frequent one, where
+// that place also drew them out on another day: trips that could have shared a
+// day. Place text stands in for distance here, since the scan asks no route
+// estimates; with the policy on, feasibility decides far and near from them.
+function tripEvidence(places: ReadonlyMap<string, { count: number; days: ReadonlySet<string> }>, inPersonDays: ReadonlySet<string>) {
+  let home: string | null = null;
+  let homeCount = 0;
+
+  for (const [place, trip] of places) {
+    if (trip.count > homeCount) {
+      home = place;
+      homeCount = trip.count;
+    }
+  }
+
+  const repeated = new Set<string>();
+  for (const [place, trip] of places) {
+    if (place === home || trip.days.size < 2) continue;
+    for (const day of trip.days) repeated.add(day);
+  }
+
+  return { inPersonDays: inPersonDays.size, repeatedAwayDays: repeated.size };
 }
 
 // ---------------------------------------------------------------------------
@@ -431,6 +469,9 @@ export function windowsInOtherZone(countedZone: string, proposedZone: string): F
   };
 }
 
+// Away days that suggest grouping trips: two separate days at one place.
+const MIN_TRIP_DAYS = 2;
+
 // Suggestions from evidence, with starter defaults where evidence is thin
 // (design decision 5). Mode, location and transport are host answers and are
 // never suggested; display name and handle come from the Google profile, not
@@ -503,6 +544,23 @@ export function suggestFromEvidence(evidence: AnalysisEvidence, primaryTimeZone:
     source: "starter_default",
     value: STARTER_DEFAULTS.travelBufferMinutes,
   };
+  // Trip grouping (same-day-trips): suggested on only when the scan shows away
+  // trips to a place on separate days; it is policy only once the host accepts it.
+  const trips = evidence.trips;
+  suggestions.groupTrips =
+    trips && trips.repeatedAwayDays >= MIN_TRIP_DAYS
+      ? {
+          reason: `On ${trips.repeatedAwayDays} days you went out to a place away from your usual one that you also went to on another day; those trips could have shared a day.`,
+          sampleSize: trips.inPersonDays,
+          source: "inferred",
+          value: true,
+        }
+      : {
+          reason: "Off unless you turn it on.",
+          sampleSize: null,
+          source: "starter_default",
+          value: STARTER_DEFAULTS.groupTrips,
+        };
   suggestions.noteExclusions = {
     reason: "Nothing is excluded until you confirm which entries are notes.",
     sampleSize: null,
@@ -970,6 +1028,7 @@ export function analysisForModel(card: AnalysisCard): AnalysisForModel {
           places: { sampleSize: evidence.places.sampleSize },
           preferredTimes: evidence.preferredTimes,
           timezone: evidence.timezone,
+          trips: evidence.trips ?? null,
         }
       : null,
     failureCategory: card.failureCategory,

@@ -8,9 +8,9 @@
 
 ## 2. Setup and review
 
-- [ ] 2.1 Make `groupTrips` a setup field with the starter default off, through the draft, confirmation, the agent's setup tools, the web review card and the iMessage settings review.
-- [ ] 2.2 Suggest it from calendar analysis when the scan shows in-person days far from the preferred area that could share a day (Use this, Adjust, Choose my own); it becomes policy only after the host confirms.
-- [ ] 2.3 Update the PRD's calendar analysis dimensions and FR-12, the host onboarding flow and the decision log, and regenerate their `ko/` mirrors. Verify `npm run check`.
+- [x] 2.1 Make `groupTrips` a setup field with the starter default off, through the draft, confirmation, the agent's setup tools, the web review card and the iMessage settings review.
+- [x] 2.2 Suggest it from calendar analysis when the scan shows in-person days far from the preferred area that could share a day (Use this, Adjust, Choose my own); it becomes policy only after the host confirms.
+- [x] 2.3 Update the PRD's calendar analysis dimensions and FR-12, the host onboarding flow and the decision log, and regenerate their `ko/` mirrors. Verify `npm run check`.
 
 ## 3. Archive
 

@@ -756,6 +756,18 @@
 | D4 | 다른 지역은 검토 카드를 거쳐 요청의 장소가 됩니다. 가능한 곳이 없으면 메시지가 장소를 밝히되 이유는 말하지 않으며, 기존의 시간당 평가 10회 제한이 이를 포함합니다 | 지역별 별도 제한; 게스트의 장소 옆에 호스트의 장소를 함께 제시하기 | 설계 5와 6 | `lib/contracts/feasibility.ts`의 `noMatchMessage`, `agent/instructions/requester.ts` |
 | D5 | 합의 시 다시 확인과 예약 재검증은 제안 자체의 장소를 확인합니다 | 그 시간에 호스트의 모든 장소를 다시 확인하기 | 설계 7 | `EvaluateOptions.place`; `agreeCommand`, 예약 작업 |
 
+## `same-day-trips`
+
+[설계](../../openspec/changes/same-day-trips/design.md)는 이슈 #103에 대한 이 선택들을 기록합니다. 엔진 결정(1–5)은 PR #106에서 출시되었고, 설정 결정(6–7)은 이를 구현한 세션에서 2026-11-14에 정했으며 아직 팀원의 검토를 받지 않았습니다.
+
+| # | 선택 | 대안 | 기록 위치 | 바꾸려면 |
+|---|---|---|---|---|
+| D1 | **하루에 묶기(Group trips by day)**는 호스트의 선호 조건이며, 기본적으로 꺼져 있고 이 기능이 생기기 전에 확정된 모든 정책에서도 꺼져 있습니다. 대면 후보의 순서만 정하고 후보를 제거하지 않습니다 | 먼 날을 걸러 내는 필터; 기본으로 켜 두기 | 제안; 설계 1; `meeting-feasibility` 델타 "Same-day trip preference" | `lib/contracts/setup.ts`의 `groupTripsOf` |
+| D2 | 먼 곳은 선호 지역에서 30분을 넘는 곳, 가까운 곳은 15분 이내로 하며, 이동 확인이 쓰는 Routes 추정과 캐시를 호스트의 이동 수단으로 사용합니다. 추정이 없으면 그날은 순서를 정하지 않습니다 | 직선 거리: 이동 확인과 어긋나고 좌표가 필요함; 모델의 순위 신호: 장소를 전혀 보지 못함 | 설계 2 | `lib/server/feasibility.ts`의 `TRIP_FAR_MINUTES`, `TRIP_NEAR_MINUTES` |
+| D3 | 이동 순위는 주당 상한 다음, 요청자의 선호와 요일 분산 앞에 옵니다 | 주당 상한 앞; 요청자의 선호 뒤 | 설계 3 | `plan()`의 가중 정렬 |
+| D4 | `groupTrips`는 선택적 설정 필드로, 대면 또는 둘 다 방식일 때만 저장하고, 장소를 미팅마다 정하는 경우가 아니면 이동 버퍼 다음의 별도 단계로 웹에서 묻습니다. 웹 검토와 연결된 채팅의 설정 검토에 표시되며, 채팅 설정에서는 묻지 않습니다 | 대면 답변에서 필수로 받기; 장소에 후보가 있을 때만 저장 | 설계 6; `host-setup` 델타 "Same-day trip setting" | `lib/contracts/setup.ts`의 `IN_PERSON_OPTIONAL_FIELDS`; `apps/web/app/_components/setup/steps.ts`의 `setupSteps` |
+| D5 | 스캔은 가장 자주 가는 곳이 아닌 장소에서 대면 일정이 있었고 그 장소가 다른 날에도 나타난 날이 이틀 이상이면 켜는 것으로 제안합니다. 장소 텍스트로 판단하고 횟수만 저장하며, 호스트가 확인한 뒤에야 정책이 됩니다 | 선호 지역이 아직 없는 스캔 중의 경로 추정; 호스트의 장소 답변과 비교 | 설계 7; `host-setup` 델타 "Same-day trip suggestion" | `lib/server/analysis.ts`의 `tripEvidence`, `suggestFromEvidence` |
+
 ## `guest-telegram-link`
 
 [제안](../../openspec/changes/guest-telegram-link/proposal.md#decisions)은 D1–D6을 기록합니다. WhatsApp을 숨긴(#221) 뒤 게스트가 Telegram에서 업데이트를 받게 해 달라는 사용자의 요청에 따라 변경을 작성한 세션에서 2026-11-16에 정했습니다(추적 이슈 #227). 이는 `host-telegram-channel`이 제외했던 Telegram을 통한 요청자 메시징을 범위에 들이고, `guest-whatsapp-link` D4의 "Telegram은 호스트 전용으로 유지"를 대체합니다. 아직 팀원의 검토를 받지 않았습니다.
