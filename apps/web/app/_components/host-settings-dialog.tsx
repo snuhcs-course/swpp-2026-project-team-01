@@ -58,7 +58,7 @@ export function HostSettingsDialog() {
     setBusy(false);
     if (result.kind !== "ok") { setNotice(result.message); await refresh(); return; }
     setEditing(false);
-    setNotice("Windows saved as a draft. Review and confirm them to update your public schedule.");
+    setNotice("");
     await refresh();
   }
 
@@ -166,9 +166,9 @@ export function HostSettingsDialog() {
                   {displayWindows ? (
                     <div aria-label="Weekly available times" className="mt-3 grid grid-cols-1 gap-x-5 sm:grid-flow-col sm:grid-cols-2 sm:grid-rows-4">
                       {weeklyPreview(displayWindows).map((day) => (
-                        <div className="grid min-w-0 grid-cols-[2.5rem_minmax(0,1fr)] gap-2 border-t border-border py-1.5 text-sm" key={day.weekday}>
-                          <span className="font-medium">{day.label}</span>
-                          <span className={day.ranges.length ? "" : "text-muted-foreground"}>{day.ranges.length ? day.ranges.join(", ") : "Unavailable"}</span>
+                        <div className="grid min-w-0 grid-cols-[3.25rem_minmax(0,1fr)] gap-2 border-t border-border py-1.5 text-sm" key={day.weekday}>
+                          <abbr className="font-medium no-underline" title={day.label}>{day.label.slice(0, 3)}</abbr>
+                          <span className={`min-w-0 break-words ${day.ranges.length ? "" : "text-muted-foreground"}`}>{day.ranges.length ? day.ranges.join(", ") : "Unavailable"}</span>
                         </div>
                       ))}
                     </div>
@@ -205,7 +205,6 @@ export function HostSettingsDialog() {
               </label>
               <p className="text-sm text-muted-foreground">{!setup.readiness.ready ? "Complete setup or reconnect your calendar before receiving requests." : intake.accepting ? "New guests can send requests." : "New requests are paused. Existing requests remain available."}</p>
             </section>
-            {setup.pendingChanges ? <p className="text-sm text-warning">Changes are pending confirmation. Your previous settings are still public.</p> : null}
             <div className="flex items-center justify-between gap-3 px-1">
               {preferenceDirty ? <Button disabled={busy || editing} onClick={() => void savePreferences()} type="button">{busy ? "Saving..." : "Save changes"}</Button>
                 : setup.pendingChanges ? <Button disabled={busy || editing || setup.missingFields.length > 0} onClick={() => void confirmSettings()} type="button">Review and confirm changes</Button>
