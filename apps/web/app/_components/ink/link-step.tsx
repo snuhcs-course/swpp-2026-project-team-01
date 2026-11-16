@@ -186,7 +186,7 @@ export function LinkStep({ children, locale, ready }: { readonly children: React
     return (
       <InkStage locale={locale}>
         <div className="inner" data-screen="imessage-link">
-          <header className="top"><Brand /><LanguageSelect locale={locale} /></header>
+          <header className="top"><Brand /></header>
           <main className="handoff">
             <h1>{base.link.unavailableTitle}</h1>
             <p className="lede small">{base.link.unavailableLede}</p>

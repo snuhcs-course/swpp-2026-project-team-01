@@ -6,7 +6,14 @@
 
 import type { MessagingChannel } from "@lib/contracts/messaging-channel";
 
-export type Locale = "en";
+export type Locale = "en" | "ko";
+export const LOCALE_COOKIE = "lang";
+export const DEFAULT_LOCALE: Locale = "en";
+
+// Old language cookies stay harmless: service screens now always use English.
+export function localeOf(_value: string | undefined | null): Locale {
+  return DEFAULT_LOCALE;
+}
 
 export type ExampleRow = string | { readonly name: string; readonly rest: string };
 export type ExampleThread = {
@@ -297,7 +304,7 @@ const en = {
 
 export type Copy = typeof en;
 
-export const COPY: Record<Locale, Copy> = { en };
+export const COPY: Record<Locale, Copy> = { en, ko: en };
 
 // The words for a channel's screens: WhatsApp's or Telegram's laid over the iMessage ones.
 export function channelCopy(t: Copy, channel: MessagingChannel): Copy {
