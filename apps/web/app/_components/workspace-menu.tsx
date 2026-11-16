@@ -1,6 +1,6 @@
 "use client";
 
-import { InboxIcon, LayoutDashboardIcon, ListChecksIcon, LogOutIcon, MenuIcon, MessageCircleIcon, PlugIcon } from "lucide-react";
+import { InboxIcon, LayoutDashboardIcon, LogOutIcon, MenuIcon, PlugIcon } from "lucide-react";
 import { useRef, useState } from "react";
 import { ConnectedAgentsDialog, HOST_GRANT_SOURCE } from "@/app/_components/connected-agents";
 import { Button } from "@/components/ui/button";
@@ -12,30 +12,20 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 
-// The workspace's compact, keyboard-operable navigation: Setup, Requests (the
-// inbox of meeting requests), iMessage (the Connect iMessage card), Connected
-// agents (agent-access design 10, also for a suspended host, who keeps
-// revocation) and Sign out. Radix gives the menu arrow-key movement, closes it on
-// Escape and returns focus to the trigger, except after Setup and iMessage, which
-// move focus to the current setup card or the iMessage card instead. Connected
-// agents opens its dialog only once the menu has closed and returned focus:
-// opened from onSelect, the dialog took the closing menu's
-// `pointer-events: none` on <body> for the page's own and left it behind,
-// freezing the page (#207). Closing the dialog returns focus to the menu button.
+// Compact workspace navigation. Messaging connections and personal agents are
+// managed together in Connected apps. Connected apps opens its dialog only once
+// the menu has closed and returned focus: opened from onSelect, the dialog took
+// the closing menu's `pointer-events: none` on <body> for the page's own and left
+// it behind, freezing the page (#207). Closing the dialog returns focus to the
+// menu button.
 export function WorkspaceMenu({
   onSelectDashboard,
-  onSelectImessage,
   onSelectRequests,
-  onSelectSetup,
 }: {
   readonly onSelectDashboard?: () => void;
-  readonly onSelectImessage?: () => void;
   readonly onSelectRequests?: () => void;
-  readonly onSelectSetup?: () => void;
 }) {
   const signOutRef = useRef<HTMLFormElement>(null);
-  const setupSelected = useRef(false);
-  const imessageSelected = useRef(false);
   const agentsSelected = useRef(false);
   const triggerRef = useRef<HTMLButtonElement>(null);
   const [agentsOpen, setAgentsOpen] = useState(false);
@@ -51,34 +41,12 @@ export function WorkspaceMenu({
         <DropdownMenuContent
           align="end"
           className="min-w-48"
-          onCloseAutoFocus={(event) => {
-            if (agentsSelected.current) {
-              agentsSelected.current = false;
-              setAgentsOpen(true);
-              return;
-            }
-            if (imessageSelected.current) {
-              imessageSelected.current = false;
-              event.preventDefault();
-              onSelectImessage?.();
-              return;
-            }
-            if (!setupSelected.current) return;
-            setupSelected.current = false;
-            event.preventDefault();
-            onSelectSetup?.();
+          onCloseAutoFocus={() => {
+            if (!agentsSelected.current) return;
+            agentsSelected.current = false;
+            setAgentsOpen(true);
           }}
         >
-          {onSelectSetup ? (
-            <DropdownMenuItem
-              onSelect={() => {
-                setupSelected.current = true;
-              }}
-            >
-              <ListChecksIcon aria-hidden />
-              Setup
-            </DropdownMenuItem>
-          ) : null}
           {onSelectDashboard ? (
             <DropdownMenuItem onSelect={onSelectDashboard}>
               <LayoutDashboardIcon aria-hidden />
@@ -91,23 +59,13 @@ export function WorkspaceMenu({
               Requests
             </DropdownMenuItem>
           ) : null}
-          {onSelectImessage ? (
-            <DropdownMenuItem
-              onSelect={() => {
-                imessageSelected.current = true;
-              }}
-            >
-              <MessageCircleIcon aria-hidden />
-              iMessage
-            </DropdownMenuItem>
-          ) : null}
           <DropdownMenuItem
             onSelect={() => {
               agentsSelected.current = true;
             }}
           >
             <PlugIcon aria-hidden />
-            Connected agents
+            Connected apps
           </DropdownMenuItem>
           <DropdownMenuSeparator />
           <DropdownMenuItem onSelect={() => signOutRef.current?.requestSubmit()}>
@@ -117,7 +75,13 @@ export function WorkspaceMenu({
         </DropdownMenuContent>
       </DropdownMenu>
       <form action="/auth/sign-out" hidden method="post" ref={signOutRef} />
-      <ConnectedAgentsDialog onOpenChange={setAgentsOpen} open={agentsOpen} returnFocus={triggerRef} source={HOST_GRANT_SOURCE} />
+      <ConnectedAgentsDialog
+        appsMode
+        onOpenChange={setAgentsOpen}
+        open={agentsOpen}
+        returnFocus={triggerRef}
+        source={HOST_GRANT_SOURCE}
+      />
     </>
   );
 }
