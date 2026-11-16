@@ -6,7 +6,7 @@ import { awaitEvaluation, publishEvaluation } from "../../lib/server/evaluation"
 import { readHostRequest } from "../../lib/server/host-requests";
 import { closeRequest } from "../../lib/server/request-lifecycle";
 import { REQUESTER_CALENDAR_SCOPES, requesterGrantContext } from "../../lib/server/requester-calendar";
-import { decideHostProfileCommand, recordHostProfileMatch } from "../../lib/server/requester-host-profiles";
+import { decideHostProfileCommand, readHostProfileView, recordHostProfileMatch } from "../../lib/server/requester-host-profiles";
 import { sealToken } from "../../lib/server/token-encryption";
 import { createCalendarHost } from "./support/calendar-host";
 import { testDatabase } from "./support/database";
@@ -105,7 +105,7 @@ describe("matching a guest to a host account", () => {
     expect(await profileOf(request.requestId)).toEqual({ decided: false, host_account_id: other.hostAccountId, items: [] });
   });
 
-  it("does not match the request's own host, a suspended host or a host without confirmed settings", async () => {
+  it("excludes the request's own host and suspended accounts, but links an active account without settings", async () => {
     const request = await seedSchedulingRequest(db, google);
     const [own] = await db<{ google_subject: string }[]>`
       select google_subject from app.google_identities where host_account_id = ${request.hostAccountId}
@@ -123,7 +123,8 @@ describe("matching a guest to a host account", () => {
       select google_subject from app.google_identities where host_account_id = ${unready.hostAccountId}
     `;
     await match(db, request.requestId, subject!.google_subject);
-    expect(await profileOf(request.requestId)).toBeNull();
+    expect(await profileOf(request.requestId)).toEqual({ decided: false, host_account_id: unready.hostAccountId, items: [] });
+    expect(await readHostProfileView(db, request.requestId)).toBeNull();
   });
 
   it("keeps the first match and its decision on a later Google return", async () => {
@@ -233,13 +234,13 @@ describe("the guest-host's calendars in the evaluation", () => {
 });
 
 describe("closure", () => {
-  it("deletes the choice when the request closes", async () => {
+  it("clears the choice but keeps the verified account match when the request closes", async () => {
     const request = await seedSchedulingRequest(db, google);
     const other = await guestHost();
     await match(db, request.requestId, other.subject);
     await asRequester(db, request.requestId, decideHostProfileCommand(), { items: ["calendars"] });
 
     await db.begin((tx) => closeRequest(tx, request.requestId, "withdrawn"));
-    expect(await profileOf(request.requestId)).toBeNull();
+    expect(await profileOf(request.requestId)).toEqual({ decided: false, host_account_id: other.hostAccountId, items: [] });
   });
 });

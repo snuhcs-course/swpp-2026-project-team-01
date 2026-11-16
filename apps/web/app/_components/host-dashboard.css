@@ -8,3 +8,9 @@
 /* Keep the event source chip below its label and within the detail column. */
 .hd-detail-label{display:block}
 .hd-source{display:block;width:fit-content;max-width:100%;margin-top:10px;white-space:normal}
+
+/* Sent requests use the outlined blue treatment from the Requests inbox. */
+.hd-key.hd-sent{background:#fff;border:2px solid #2c3e63}
+.hd-sent.hd-event,.hd-sent.hd-month-event{background:#f7f9fc;border-color:#2c3e63;color:#2c3e63}
+.hd-agenda-item.hd-sent{border-color:#2c3e63;background:#f7f9fc}
+.hd-source.hd-sent{background:#fff;color:#2c3e63;border:1px solid #2c3e63}
