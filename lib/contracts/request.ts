@@ -54,6 +54,10 @@ export type RequestLanguage = (typeof REQUEST_LANGUAGES)[number];
 export const REQUESTER_TRAVEL_MODES = ["driving", "transit", "walking"] as const;
 export type RequesterTravelMode = (typeof REQUESTER_TRAVEL_MODES)[number];
 
+// Guests are never asked how they travel (guest-travel-default): their own
+// trips use public transit unless they named a mode themselves.
+export const DEFAULT_REQUESTER_TRAVEL_MODE: RequesterTravelMode = "transit";
+
 // How an online meeting gets its link (design decision 11): a Meet conference
 // created with the event, or an https: URL the requester supplied.
 export const LINK_PLAN_KINDS = ["google_meet", "requester_link"] as const;
