@@ -2,6 +2,7 @@ import { NUMBER_INPUT } from "./imessage-links";
 import { chatStatus, linkOptions, startAgentLink } from "./connect-link";
 import { createRequesterImessageLinkCommand, readRequesterImessageStatus } from "./requester-imessage-links";
 import { z } from "zod";
+import type { GuestChannel } from "../contracts/requester-imessage";
 import type { RequesterView } from "../contracts/requester-view";
 import { createRequestForGrant, createRequestInput } from "./agent-requests";
 import {
@@ -67,7 +68,7 @@ export function agentRequesterProjection(view: RequesterView, requestId: string)
 async function projection(context: AgentToolContext, requestId: string) {
   const view = await readRequesterView(context.deps.db, requestId);
   const options = linkOptions(context.deps);
-  return view ? { ...agentRequesterProjection(view, requestId), updates: chatStatus(await readRequesterImessageStatus(context.deps.db, options.tokenKeys, requestId, options.lineNumber, options.whatsappNumber)) } : null;
+  return view ? { ...agentRequesterProjection(view, requestId), updates: chatStatus(await readRequesterImessageStatus(context.deps.db, options.tokenKeys, requestId, options.lineNumber, options.whatsappNumber, options.telegramUsername)) } : null;
 }
 
 // A command of any input, as a tool holds it; the tool's own schema checked the input.
@@ -135,15 +136,20 @@ export const REQUESTER_TOOLS: readonly AgentTool[] = [
   {
     name: "start_updates_link",
     title: "Start an updates link",
-    description: "Start an iMessage updates link for this request. Give the person the browser link to send the code and confirm; nothing is linked yet.",
+    description:
+      "Start an iMessage or Telegram updates link for this request. iMessage needs the person's own phone number; Telegram needs none. Give the person the browser link to send the code, or start the bot, and confirm; nothing is linked yet.",
     role: "requester",
     scope: "request:write",
     readOnly: false,
-    input: z.object({ channel: z.enum(["imessage", "whatsapp"]), number: NUMBER_INPUT, retryKey: retryKeySchema }).strict(),
+    // As start_chat_link: a number for iMessage and WhatsApp, none for Telegram (guest-telegram-link D2).
+    input: z
+      .object({ channel: z.enum(["imessage", "whatsapp", "telegram"]), number: NUMBER_INPUT.optional(), retryKey: retryKeySchema })
+      .strict()
+      .refine((args) => (args.channel === "telegram" ? args.number === undefined : Boolean(args.number)), { message: "A number is required except for Telegram." }),
     async run(context, raw) {
       const requestId = requestOf(context);
       if (!requestId) return unavailable();
-      const args = raw as { channel: "imessage" | "whatsapp"; number: string; retryKey: string };
+      const args = raw as { channel: GuestChannel; number?: string; retryKey: string };
       return startAgentLink(context, createRequesterImessageLinkCommand(linkOptions(context.deps)), requestId, args);
     },
   },

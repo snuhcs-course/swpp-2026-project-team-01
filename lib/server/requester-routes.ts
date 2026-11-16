@@ -88,6 +88,7 @@ import {
   unlinkRequesterImessageCommand,
 } from "./requester-imessage-links";
 import { offeredWhatsappNumber, photonConfig } from "./photon";
+import { telegramConfig } from "./telegram";
 import { type AppOrigins, appOriginsFromEnvironment, crossSiteRefusal } from "./same-origin";
 import { sourceHash } from "./signup-limits";
 import { type TokenKey, tokenKeyFromEnvironment } from "./token-encryption";
@@ -123,6 +124,9 @@ export type RequesterRouteDependencies = ConversationDependencies &
     // The WhatsApp number Get updates in WhatsApp names (PHOTON_WHATSAPP_NUMBER,
     // as digits); empty when WhatsApp is off (guest-whatsapp-link design 2).
     readonly whatsappNumber?: string;
+    // The bot Get updates in Telegram opens (TELEGRAM_BOT_USERNAME); empty when
+    // Telegram is off (guest-telegram-link design 2).
+    readonly telegramUsername?: string;
   };
 
 export function requesterRouteDependenciesFromEnvironment(): RequesterRouteDependencies {
@@ -133,6 +137,7 @@ export function requesterRouteDependenciesFromEnvironment(): RequesterRouteDepen
     emailInbox: agentMailConfigFromEnvironment().inboxId,
     lineNumber: photonConfig().lineNumber,
     whatsappNumber: offeredWhatsappNumber(),
+    telegramUsername: telegramConfig().username,
     signingKey: internalSigningKey(),
     tokenKey: tokenKeyFromEnvironment,
     hostAuth: supabaseAuthConfigFromEnvironment(),
@@ -496,11 +501,12 @@ function registered<Input, Result>(command: CommandDefinition<Input, Result>): [
 
 // The requester commands by operation.
 export function requesterCommands(
-  deps: Pick<RequesterRouteDependencies, "appOrigin" | "confirmationLimits" | "lineNumber" | "tokenKey" | "whatsappNumber">,
+  deps: Pick<RequesterRouteDependencies, "appOrigin" | "confirmationLimits" | "lineNumber" | "telegramUsername" | "tokenKey" | "whatsappNumber">,
 ): Readonly<Record<string, RequesterCommand>> {
   const contact = { limits: deps.confirmationLimits, origin: deps.appOrigin, tokenKey: deps.tokenKey() };
   const imessage = {
     lineNumber: deps.lineNumber ?? "",
+    telegramUsername: deps.telegramUsername ?? "",
     tokenKey: contact.tokenKey,
     tokenKeys: [contact.tokenKey],
     whatsappNumber: deps.whatsappNumber ?? "",
@@ -640,6 +646,6 @@ export function createRequesterImessageStatusHandler(load: () => RequesterRouteD
     const deps = load();
     const link = await findRequestByBookingId(deps.db, (await context.params).bookingId);
     if (!link || link.expired) return requestUnavailable();
-    return requesterJson(await readRequesterImessageStatus(deps.db, [deps.tokenKey()], link.requestId, deps.lineNumber ?? "", deps.whatsappNumber ?? ""));
+    return requesterJson(await readRequesterImessageStatus(deps.db, [deps.tokenKey()], link.requestId, deps.lineNumber ?? "", deps.whatsappNumber ?? "", deps.telegramUsername ?? ""));
   };
 }

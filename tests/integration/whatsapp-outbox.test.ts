@@ -106,6 +106,19 @@ describe("imessage_send on WhatsApp", () => {
     photon.templatesUnavailable(false);
   });
 
+  it.each(["whatsapp_131031", "whatsapp_131037", "whatsapp_131042", "whatsapp_131045"])("keeps %s after clearing the message and does not retry it", async (category) => {
+    const { address, id } = await queue({ text: "Private reply" });
+    photon.nextSend({ status: 422, category });
+    expect(await run(id)).toBe("completed");
+    expect(await rowOf(id)).toMatchObject({ failure_category: category, state: "failed", provider_message_id: null });
+    const [cleared] = await db`select text_ciphertext, recipient_ciphertext from app.imessage_outbox where id = ${id}`;
+    expect(cleared).toEqual({ text_ciphertext: null, recipient_ciphertext: null });
+    expect(await run(id)).toBe("not_due");
+    expect(photon.sentTo(address)).toHaveLength(0);
+    const [job] = await db`select state, attempts from app.jobs where kind = ${IMESSAGE_SEND_JOB} and dedupe_key = ${`outbox:${id}`}`;
+    expect(job).toEqual({ state: "completed", attempts: 1 });
+  });
+
   it("returns a rate-limited row to the queue and treats a lost answer as uncertain", async () => {
     const limited = await queue({ text: "Hello" });
     photon.nextSend({ status: 429 });

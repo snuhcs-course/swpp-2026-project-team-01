@@ -1,11 +1,13 @@
 import { randomUUID } from "node:crypto";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
+import type { SlotPreview } from "../../lib/contracts/slot-preview";
+import { channelReplies } from "../../lib/server/channel-texts";
 import type { ConversationRuntime } from "../../lib/server/conversations";
 import { bindingContext } from "../../lib/server/imessage-links";
 import { createImessageSendHandler, IMESSAGE_SEND_JOB, type ImessageSendDependencies, recordOutbound } from "../../lib/server/imessage-outbox";
 import { photonConfig } from "../../lib/server/photon";
 import { channelHash } from "../../lib/server/photon-receiver";
-import { telegramConfig } from "../../lib/server/telegram";
+import { telegramClient, telegramConfig, telegramTransport } from "../../lib/server/telegram";
 import { sealToken } from "../../lib/server/token-encryption";
 import { testDatabase } from "./support/database";
 import { type FakePhoton, startFakePhoton } from "./support/fake-photon";
@@ -19,8 +21,10 @@ import { newTelegramUser } from "./support/telegram";
 // suppressing what was queued; a 400 is a final refusal; a 429 returns the row
 // and a new job sends it after retry_after without spending an attempt; a
 // refused connection is unavailable and a lost answer uncertain, never resent;
-// sends to one chat are a second apart; and a preview is refused before any
-// network access.
+// sends to one chat are a second apart; a preview is refused before any
+// network access; and the slot preview goes out with sendPhoto as the timetable
+// PNG with its caption, or as the caption alone, uncertain, when the image
+// cannot be rendered (issue #211).
 
 const db = testDatabase();
 let photon: FakePhoton;
@@ -84,6 +88,40 @@ async function queue(text: string, to?: { bindingId: string; chatId: string; hos
       recipient: { address: target.chatId, spaceId: target.chatId },
       recipientHash: channelHash(testTokenKey, "telegram", "sender", target.chatId),
       text,
+      tokenKey: testTokenKey,
+    }),
+  );
+  return { ...target, id };
+}
+
+const preview: SlotPreview = {
+  days: ["monday", "tuesday", "wednesday", "thursday", "friday", "saturday", "sunday"].map((weekday, i) => ({
+    date: `2026-11-${16 + i}`,
+    open: i < 5 ? [{ end: "12:00", start: "10:00" }] : [],
+    weekday: weekday as SlotPreview["days"][number]["weekday"],
+  })),
+  durationMinutes: 30,
+  grid: { end: "22:00", start: "09:00" },
+  meetingMode: "online",
+  place: null,
+  reviewRef: "AB12CD",
+  timezone: "Asia/Seoul",
+  travelMode: null,
+  weekStart: "2026-11-16",
+};
+
+async function queueImage() {
+  const target = await bound();
+  const { id } = await db.begin((tx) =>
+    recordOutbound(tx, {
+      bindingId: target.bindingId,
+      dedupeKey: `test:${randomUUID()}`,
+      hostAccountId: target.hostAccountId,
+      image: { language: "en", preview },
+      kind: "image",
+      recipient: { address: target.chatId, spaceId: target.chatId },
+      recipientHash: channelHash(testTokenKey, "telegram", "sender", target.chatId),
+      reviewHash: "a".repeat(64),
       tokenKey: testTokenKey,
     }),
   );
@@ -185,6 +223,39 @@ describe("imessage_send on Telegram", () => {
 
     expect(Date.now() - started).toBeGreaterThanOrEqual(950);
     expect(sentTo(first.chatId).map((call) => call.params.text).sort()).toEqual(["One", "Two"]);
+  });
+
+  it("sends the slot preview as the timetable PNG with sendPhoto and its caption", async () => {
+    const { chatId, id } = await queueImage();
+    expect(await run(id)).toBe("completed");
+    expect(await rowOf(id)).toMatchObject({ channel: "telegram", provider_message_id: expect.stringMatching(/^\d+$/), state: "accepted" });
+
+    const photos = telegram.callsOf("sendPhoto").filter((call) => call.params.chat_id === chatId);
+    expect(photos).toHaveLength(1);
+    const photo = photos[0]!.params.photo as { name: string; type: string; bytes: Buffer };
+    expect(photos[0]!.params.caption).toBe(channelReplies("en").onboarding.slotCaption(preview));
+    expect(photos[0]!.params).not.toHaveProperty("parse_mode");
+    expect({ name: photo.name, type: photo.type }).toEqual({ name: "slots-2026-11-16.png", type: "image/png" });
+    expect(photo.bytes.subarray(0, 8)).toEqual(Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]));
+    expect(sentTo(chatId)).toHaveLength(0);
+  });
+
+  it("sends the caption alone and leaves the row uncertain when the image cannot be rendered", async () => {
+    const { chatId, id } = await queueImage();
+    const client = telegramClient(telegramConfig({ TELEGRAM_API_URL: telegram.baseUrl, TELEGRAM_BOT_TOKEN: TOKEN }), {});
+    const broken = telegramTransport(client, undefined, async () => Promise.reject(new Error("no fonts")));
+
+    expect(await run(id, deps({ telegramTransport: broken }))).toBe("completed");
+    expect(await rowOf(id)).toMatchObject({ state: "uncertain" });
+    expect(sentTo(chatId).map((call) => call.params.text)).toEqual([channelReplies("en").onboarding.slotCaption(preview)]);
+    expect(telegram.callsOf("sendPhoto").filter((call) => call.params.chat_id === chatId)).toHaveLength(0);
+  });
+
+  it("fails a slot preview the host blocked the bot for", async () => {
+    const { chatId, id } = await queueImage();
+    telegram.block(chatId);
+    expect(await run(id)).toBe("completed");
+    expect(await rowOf(id)).toMatchObject({ failure_category: "blocked", state: "failed" });
   });
 
   it("refuses a preview before any network access or outbound state", async () => {

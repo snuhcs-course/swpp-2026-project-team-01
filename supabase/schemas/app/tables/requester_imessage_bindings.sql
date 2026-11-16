@@ -6,16 +6,21 @@
 -- imessage_bindings. The binding ends as unlinked (Unlink iMessage), ended (the
 -- request was booked or withdrawn, or 30 days passed) or moved (to the revised
 -- request named by moved_to_request_id, which gets its own active binding).
--- channel is the platform the guest linked, iMessage or WhatsApp
--- (guest-whatsapp-link D1); outbox rows for the binding go out on it, and a
--- moved binding keeps it. last_inbound_at starts WhatsApp's 24-hour window.
+-- channel is the platform the guest linked, iMessage, WhatsApp or Telegram
+-- (guest-whatsapp-link D1, guest-telegram-link D1); outbox rows for the binding
+-- go out on it, and a moved binding keeps it. last_inbound_at starts WhatsApp's
+-- 24-hour window. sender_name_ciphertext is a Telegram sender's first name and
+-- @username, sealed with the sender for the card (guest-telegram-link design 1);
+-- the trigger requester_imessage_bindings_clear_sender_name clears it with the
+-- sender.
 CREATE TABLE "app"."requester_imessage_bindings" (
   "id" uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   "request_id" uuid NOT NULL REFERENCES "app"."requests" ("id") ON DELETE CASCADE,
   "link_id" uuid REFERENCES "app"."imessage_links" ("id") ON DELETE SET NULL,
-  "channel" text NOT NULL DEFAULT 'imessage' CHECK ("channel" IN ('imessage', 'whatsapp')),
+  "channel" text NOT NULL DEFAULT 'imessage' CHECK ("channel" IN ('imessage', 'whatsapp', 'telegram')),
   "sender_hash" text NOT NULL CHECK ("sender_hash" ~ '^[0-9a-f]{64}$'),
   "sender_ciphertext" text,
+  "sender_name_ciphertext" text,
   "space_ciphertext" text,
   "sealed_key_id" text,
   "state" text NOT NULL DEFAULT 'active' CHECK ("state" IN ('active', 'unlinked', 'ended', 'moved')),
@@ -31,6 +36,7 @@ CREATE TABLE "app"."requester_imessage_bindings" (
   CONSTRAINT "requester_imessage_bindings_sealed" CHECK (
     "state" <> 'active' OR ("sender_ciphertext" IS NOT NULL AND "sealed_key_id" IS NOT NULL)
   ),
+  CONSTRAINT "requester_imessage_bindings_sender_name" CHECK ("sender_name_ciphertext" IS NULL OR "sender_ciphertext" IS NOT NULL),
   CONSTRAINT "requester_imessage_bindings_moved" CHECK (("state" = 'moved') = ("moved_to_request_id" IS NOT NULL))
 );
 

@@ -16,7 +16,8 @@
 -- A code attempt started from a guest's booking page belongs to that request
 -- (request_id; guest-flow-completion design 1); confirming it creates a
 -- requester_imessage_bindings row, which binding_id then names. A guest may link
--- iMessage or WhatsApp, never Telegram (guest-whatsapp-link design 1).
+-- any of the three channels (guest-whatsapp-link design 1, guest-telegram-link
+-- design 1).
 -- line_number is the shared-pool number Photon assigned when an iMessage code
 -- attempt registered the entered number as a project user; the screens address
 -- it (imessage-number-registration design 2). The entered number is not stored.
@@ -74,8 +75,6 @@ CREATE TABLE "app"."imessage_links" (
     OR ("host_account_id" IS NULL AND "request_id" IS NULL AND "method" = 'code' AND "starter_hash" IS NOT NULL AND "source_hash" IS NOT NULL)
   ),
   CONSTRAINT "imessage_links_fallback_channel" CHECK ("method" <> 'fallback' OR "channel" = 'imessage'),
-  -- Guests link iMessage or WhatsApp (guest-whatsapp-link D1).
-  CONSTRAINT "imessage_links_request_channel" CHECK ("request_id" IS NULL OR "channel" IN ('imessage', 'whatsapp')),
   CONSTRAINT "imessage_links_line_number_channel" CHECK ("line_number" IS NULL OR "channel" = 'imessage'),
   CONSTRAINT "imessage_links_sender_name" CHECK ("sender_name_ciphertext" IS NULL OR "sender_ciphertext" IS NOT NULL),
   CONSTRAINT "imessage_links_received" CHECK ("state" <> 'received' OR ("sender_hash" IS NOT NULL AND "confirm_by" IS NOT NULL))

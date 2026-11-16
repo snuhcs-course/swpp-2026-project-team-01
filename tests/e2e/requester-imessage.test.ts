@@ -5,6 +5,7 @@ import type { Database } from "../../lib/server/database";
 import { createImessageReceiptHandler } from "../../lib/server/imessage-receipts";
 import { photonConfig } from "../../lib/server/photon";
 import { IMESSAGE_RECEIPT_JOB, receivePhotonWebhook } from "../../lib/server/photon-receiver";
+import { receiveTelegramWebhook } from "../../lib/server/telegram-receiver";
 import { parseTokenKey } from "../../lib/server/token-encryption";
 import { unreachableSetup } from "../integration/support/imessage";
 import {
@@ -17,6 +18,7 @@ import {
   whatsAppEvent,
 } from "../integration/support/photon";
 import { runJob } from "../integration/support/requests";
+import { newTelegramUser, telegramDelivery, telegramMessage, TEST_TELEGRAM_SECRET } from "../integration/support/telegram";
 import { agreedReviewRequest } from "./support/host-review";
 import { readyRequestHost } from "./support/requester";
 import { expect, test } from "./support/session";
@@ -31,7 +33,8 @@ import { E2E_TOKEN_ENCRYPTION_KEY } from "./support/token-key";
 // code; the arrived message shows the masked sender, and only **Confirm and
 // link** binds it; **Unlink iMessage** returns to the start. **Get updates in
 // WhatsApp** (guest-whatsapp-link design 2) does the same with the WhatsApp
-// number and a wa.me link.
+// number and a wa.me link, and **Get updates in Telegram** (guest-telegram-link
+// design 2) with no number and the bot's t.me start link.
 
 const tokenKey = parseTokenKey(E2E_TOKEN_ENCRYPTION_KEY);
 const LINE = "+15550001111";
@@ -63,7 +66,19 @@ async function guestSends(db: Database, sender: string, text: string, channel: "
     tokenKey,
   }));
   expect(response.status).toBe(200);
-  const [receipt] = await db<{ id: string }[]>`select id from app.imessage_receipts where message_id = ${id}`;
+  await runReceipt(db, id);
+}
+
+// The guest taps Start in Telegram: /start <code> through the Telegram webhook, then the receipt job.
+async function guestStartsBot(db: Database, userId: number, code: string) {
+  const body = telegramMessage({ firstName: "Grace", text: `/start ${code}`, userId, username: "grace" });
+  const response = await receiveTelegramWebhook(telegramDelivery(body), () => ({ config: { secret: TEST_TELEGRAM_SECRET }, db, tokenKey }));
+  expect(response.status).toBe(200);
+  await runReceipt(db, `update:${(JSON.parse(body) as { update_id: number }).update_id}`);
+}
+
+async function runReceipt(db: Database, messageId: string) {
+  const [receipt] = await db<{ id: string }[]>`select id from app.imessage_receipts where message_id = ${messageId}`;
   const [job] = await db<{ id: string }[]>`select id from app.jobs where kind = ${IMESSAGE_RECEIPT_JOB} and dedupe_key = ${`receipt:${receipt!.id}`}`;
   await runJob(
     db,
@@ -201,4 +216,75 @@ test("at 1280px a guest links and unlinks WhatsApp updates", async ({ db, page }
 
   await pressByKeyboard(page, "Unlink WhatsApp");
   await expect(page.getByRole("button", { exact: true, name: "Get updates in WhatsApp" })).toBeVisible();
+});
+
+// **Get updates in Telegram** (guest-telegram-link design 2): no number, then on
+// a computer the bot, the code, a QR code and **Open Telegram** with the t.me
+// start link; the guest's Start shows their Telegram name with where Telegram
+// keeps the chat, and **Confirm and link** binds it on Telegram, with no
+// contact card.
+const BOT = "findmeatime_e2e_bot";
+
+test("at 1280px a guest links and unlinks Telegram updates by keyboard", async ({ db, page }) => {
+  await page.setViewportSize({ height: 800, width: 1280 });
+  const request = await agreedRequest(db);
+  await page.goto(`/booking/${request.bookingId}`);
+
+  await expect(page.getByRole("button", { exact: true, name: "Get updates in Telegram" })).toBeVisible({ timeout: 20_000 });
+  await expect(page.getByText("If iMessage or Telegram is linked, updates can arrive there too.")).toBeVisible();
+  await pressByKeyboard(page, "Get updates in Telegram");
+
+  // No number: the code is made at once.
+  await expect(page.getByRole("textbox", { name: "Mobile number" })).toHaveCount(0);
+  const card = page.locator('[data-guest-card="imessage-link"]');
+  await expect(card.getByRole("heading", { name: "Get updates in Telegram" })).toBeVisible({ timeout: 20_000 });
+  await expect(card.getByText(`@${BOT}`)).toBeVisible();
+  const code = (await card.locator("[data-imessage-link-message]").textContent())!.trim();
+  expect(code).toMatch(/^FMAT-[0-9A-HJKMNP-TV-Z]{10}$/);
+  await expect(card.getByRole("link", { name: "Open Telegram" })).toHaveAttribute("href", `https://t.me/${BOT}?start=${code}`);
+  await expect(card.getByRole("img", { name: /QR code/ })).toBeVisible();
+  expect(new URL(page.url()).pathname).toBe(`/booking/${request.bookingId}`);
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= document.documentElement.clientWidth)).toBe(true);
+
+  const userId = newTelegramUser();
+  await guestStartsBot(db, userId, code);
+  await expect(page.getByRole("heading", { name: "Is this your Telegram?" })).toBeVisible({ timeout: 10_000 });
+  await expect(page.getByText("Grace (@grace)")).toBeVisible();
+  await expect(page.getByText("Telegram keeps bot chats on its servers. Find Me a Time sends your request updates here.")).toBeVisible();
+  expect(await db`select 1 from app.requester_imessage_bindings where request_id = ${request.requestId}`).toHaveLength(0);
+
+  await pressByKeyboard(page, "Confirm and link");
+  await expect(page.locator('[data-imessage-link="linked"]')).toContainText("Telegram linked: updates go to Grace (@grace)");
+  await expect(page.getByRole("button", { name: "Add to contacts" })).toHaveCount(0);
+  const [binding] = await db<{ channel: string; state: string }[]>`select channel, state from app.requester_imessage_bindings where request_id = ${request.requestId}`;
+  expect(binding).toEqual({ channel: "telegram", state: "active" });
+
+  await pressByKeyboard(page, "Unlink Telegram");
+  await expect(page.getByRole("button", { exact: true, name: "Get updates in Telegram" })).toBeVisible();
+  const [ended] = await db<{ state: string }[]>`select state from app.requester_imessage_bindings where request_id = ${request.requestId}`;
+  expect(ended!.state).toBe("unlinked");
+});
+
+// On a phone, **Get updates in Telegram** opens the bot's start link at once.
+test.describe("on an Android phone", () => {
+  test.use({
+    userAgent: "Mozilla/5.0 (Linux; Android 15; Pixel 9) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/141.0.0.0 Mobile Safari/537.36",
+    viewport: { height: 800, width: 390 },
+  });
+
+  test("Get updates in Telegram opens the bot's start link", async ({ db, page }) => {
+    const request = await agreedRequest(db);
+    // Telegram's link is caught here, so the test never leaves for t.me.
+    let opened: string | null = null;
+    await page.route("https://t.me/**", async (route) => {
+      opened = route.request().url();
+      await route.fulfill({ body: "", status: 204 });
+    });
+    await page.goto(`/booking/${request.bookingId}`);
+    await expect(page.getByRole("button", { exact: true, name: "Get updates in Telegram" })).toBeVisible({ timeout: 20_000 });
+    await pressByKeyboard(page, "Get updates in Telegram");
+    await expect.poll(() => opened, { timeout: 20_000 }).toMatch(new RegExp(`^https://t\\.me/${BOT}\\?start=FMAT-[0-9A-HJKMNP-TV-Z]{10}$`));
+    const [attempt] = await db<{ channel: string }[]>`select channel from app.imessage_links where request_id = ${request.requestId} and state = 'pending'`;
+    expect(attempt).toEqual({ channel: "telegram" });
+  });
 });

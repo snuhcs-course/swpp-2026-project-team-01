@@ -170,6 +170,25 @@ Photon의 Beta 문서 [WhatsApp](https://photon.codes/docs/beta/messaging/whatsa
 
 2026-11-16부터 숨김([#221](https://github.com/snuhcs-course/swpp-2026-project-team-01/issues/221)): WhatsApp 연결이 데모나 테스트를 하기에 너무 불안정해서, 화면은 iMessage와 Telegram만 제공합니다. `WHATSAPP_OFFERED=1`이 아니면 웹 서비스는 `PHOTON_WHATSAPP_NUMBER`가 설정되어 있어도 모든 화면에 빈 WhatsApp 번호를 넘깁니다. 호스트의 카드와 연결 단계, 랜딩 시작(`/?flow=whatsapp`는 Telegram으로 시작), 게스트의 **Get updates in WhatsApp**, 에이전트의 채팅 링크는 WhatsApp을 설정되지 않은 것으로 다룹니다. 이미 연결된 바인딩은 계속 메시지를 받고 보냅니다. 브라우저 테스트는 `WHATSAPP_OFFERED=1`을 설정해 WhatsApp 화면을 계속 검증합니다. WhatsApp을 다시 제공하려면 Vercel Production에 `WHATSAPP_OFFERED=1`을 설정하고 다시 배포합니다.
 
+### WhatsApp 답장 거절 진단
+
+에이전트 턴 완료는 WhatsApp 전달 성공을 뜻하지 않는다. 수신 receipt에서 conversation input을 찾은 뒤 `app.imessage_outbox`의 `input_id`와 `imessage_send` 작업을 추적한다. 진단 snapshot의 `imessage_uncertain`에는 모든 채널의 실패가 포함된다. 권한이 있는 읽기 전용 DB 연결로 표본 행의 `channel`, `state`, `failure_category`를 확인한다. 작업이 완료되어도 outbox가 `failed`이면 거절 처리가 끝났다는 뜻이다.
+
+알려진 사업자 계정 거절은 원본 오류 없이 숫자 코드만 한정된 category로 보존한다.
+
+| 실패 category | Meta 코드 | 운영자 조치 |
+| --- | --- | --- |
+| `whatsapp_131031` | 131031 | 계정 제한과 Health Status를 확인하고 제한을 해결한다. |
+| `whatsapp_131037` | 131037 | WhatsApp Manager에서 Meta 제공 555 번호의 표시 이름 승인을 확인한다. |
+| `whatsapp_131042` | 131042 | WhatsApp Manager에서 결제와 계정 자격을 확인한다. |
+| `whatsapp_131045` | 131045 | Photon / WhatsApp Manager에서 번호 등록 실패를 해결한다. |
+
+분류와 조치는 [Meta 오류 문서](https://developers.facebook.com/documentation/business-messaging/whatsapp/support/error-codes)를 따른다. Photon의 `CONNECTED` / `VERIFIED` 상태만으로 다음 발송 허용을 입증할 수 없다. [개발자 직접 사례](https://www.reddit.com/r/WhatsappBusinessAPI/comments/1sn0qw6/131037_whatsapp_provided_number_needs_display/)에는 표시 이름이 보이는 555 번호가 처음에는 발송되다가 131037로 실패한 경험이 있다. 이는 조사 단서이며 이번 장애의 원인을 입증하지 않는다.
+
+2026-11-16 운영에서는 input 완료 후 답장 두 건과 이미지 한 건이 거절되어 모두 `provider_rejected`로 저장되었다. 원래 숫자 코드를 보존하지 않아 과거 행으로는 제한을 구분할 수 없다. 이후 사업자 거절은 위 네 category를 보존한다. 과거의 `provider_rejected`만으로 Meta 코드를 추정하지 않는다.
+
+사업자 거절은 최종 실패로 유지하며, 속도 제한은 재시도하고 응답 유실은 불확실 상태로 유지한다. 완료 작업을 초기화하거나 불확실한 메시지를 재발송하지 않는다. 공급자 제한을 해결한 뒤 새 수신 메시지와 답장을 처음부터 끝까지 검증한다. 코드만으로 이름 승인, 계정 복구, 결제 문제를 해결할 수 없다. 운영 전달 복구는 [#142](https://github.com/snuhcs-course/swpp-2026-project-team-01/issues/142)에서 추적한다.
+
 ## Telegram
 
 Telegram은 2026-11-04에 [`host-telegram-channel` 변경](../../openspec/changes/host-telegram-channel/proposal.md#decisions)에서 제안된 호스트 Telegram 채널의 전송 수단입니다. 웹훅, 레코드, Bot API 전송(레인 A)은 구현되었고 연결과 채널의 동작(레인 B와 C)은 아직 구현되지 않았으므로, Telegram 업데이트는 저장된 뒤 무시됩니다. Photon이 아니라 Telegram Bot API를 직접 사용합니다(D1). Photon의 Telegram 공급자인 `@spectrum-ts/telegram` 12.14.0은 봇의 웹훅을 Photon의 릴레이에 등록하고 지속적인 WebSocket(`wss://fusor-ws.spectrum.photon.codes/v1/subscribe`)으로 애플리케이션에 업데이트를 전달하는데, Vercel Function은 이를 유지할 수 없습니다.

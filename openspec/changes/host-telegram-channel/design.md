@@ -169,7 +169,9 @@ The outbox states, the per-recipient ordering and the never-resend rule for `unc
 
 A `my_chat_member` update with `new_chat_member.status` `kicked` ends the binding the same way. Telegram limits a bot to about one message per second in one chat, so the dispatcher spaces consecutive sends to one chat by at least one second. Text over 4,096 characters is split at paragraph boundaries into ordered rows.
 
-The loopback stand-in (`tests/integration/support/fake-photon.ts`, or a sibling `fake-telegram.ts`) answers `sendMessage`, `editMessageReplyMarkup`, `answerCallbackQuery`, `sendChatAction`, `setWebhook`, `setMyCommands` and `getWebhookInfo`. It also has switches for `403`, `429` and a dropped connection.
+The chat-onboarding slot preview ([`host-onboarding-in-chat` design 5](../host-onboarding-in-chat/design.md#5-the-slot-image-and-saving)) goes out with `sendPhoto` as on iMessage and WhatsApp: the timetable PNG, rendered at send time, uploaded as `multipart/form-data` with its one-line caption in plain text (no `parse_mode`, D10). When the image cannot be rendered, the caption alone goes out with `sendMessage` and the row is `uncertain`, since the host never saw the timetable; a refusal of that caption maps as above (issue #211).
+
+The loopback stand-in (`tests/integration/support/fake-photon.ts`, or a sibling `fake-telegram.ts`) answers `sendMessage`, `sendPhoto` (multipart, recording the photo's name, type and bytes), `editMessageReplyMarkup`, `answerCallbackQuery`, `sendChatAction`, `setWebhook`, `setMyCommands` and `getWebhookInfo`. It also has switches for `403`, `429` and a dropped connection.
 
 ### 10. Reused behavior
 

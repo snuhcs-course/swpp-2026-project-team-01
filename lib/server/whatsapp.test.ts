@@ -170,10 +170,17 @@ describe("whatsAppSendFailure", () => {
     });
     expect(
       whatsAppSendFailure(Object.assign(new Error("(#131037) WhatsApp provided number needs display name approval before message can be sent."), { code: "internalError" })),
-    ).toEqual({ category: "provider_rejected", status: "rejected" });
-    expect(whatsAppSendFailure(new Error("(#131031) Business account has been locked"))).toEqual({ category: "provider_rejected", status: "rejected" });
+    ).toEqual({ category: "whatsapp_131037", status: "rejected" });
+    expect(whatsAppSendFailure(new Error("(#131031) Business account has been locked"))).toEqual({ category: "whatsapp_131031", status: "rejected" });
     expect(whatsAppSendFailure(new Error("(#130429) Rate limit hit"))).toEqual({ status: "unavailable" });
     expect(whatsAppSendFailure(new Error("(#131056) Pair rate limit"))).toEqual({ status: "unavailable" });
+  });
+
+  it.each([131031, 131037, 131042, 131045])("preserves business refusal %i from SDK context and causes without raw error text", (code) => {
+    const context = Object.assign(new Error("private provider detail"), { context: { details: `(#${code}) private detail` } });
+    const expected = { category: `whatsapp_${code}`, status: "rejected" };
+    expect(whatsAppSendFailure(context)).toEqual(expected);
+    expect(whatsAppSendFailure(new Error("send failed", { cause: { code } }))).toEqual(expected);
   });
 
   it("maps the SDK's error classes and leaves anything else uncertain", () => {

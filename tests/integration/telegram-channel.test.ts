@@ -201,7 +201,9 @@ describe("setup over Telegram", () => {
     await db`update app.agent_sessions set current_input_id = ${input!.id} where session_id = ${host.host.sessionId}`;
     expect(await previewNextWeekForTool(setupDeps, { auth: { principalId: host.hostAccountId, principalType: "user", attributes: { audience: "host_setup" } }, sessionId: host.host.sessionId, callId: crypto.randomUUID() })).toMatchObject({ queued: true });
     const previewCalls = await tg.flush(host.userId);
-    expect(sentTexts(previewCalls).some(text => text.startsWith("Next week's open times"))).toBe(true);
+    const photos = previewCalls.filter((call) => call.method === "sendPhoto");
+    expect(photos).toHaveLength(1);
+    expect(String(photos[0]!.params.caption)).toMatch(/^Next week's open times/);
     await tg.deliver(telegramMessage({ text: "/review", userId: host.userId }));
     const [review] = (await tg.flush(host.userId)).filter((call) => call.method === "sendMessage");
     expect(review!.params.text).toContain("If these look right, tell me to save them.");
