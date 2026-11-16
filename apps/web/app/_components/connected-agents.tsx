@@ -1,7 +1,7 @@
 "use client";
 
 import type { AgentGrantView } from "@lib/contracts/agent-access";
-import { useCallback, useEffect, useState } from "react";
+import { type RefObject, useCallback, useEffect, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 
@@ -9,7 +9,9 @@ import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } f
 // of the signed-in host, or of one request on its booking page, each with its
 // client, where it returns to, its permissions and last use, and Revoke behind
 // one inline confirmation. The source decides where the list comes from and how
-// revocation runs; the dialog is the same on both surfaces.
+// revocation runs; the dialog is the same on both surfaces. It opens from a menu
+// rather than a trigger of its own, so on close it returns focus to returnFocus,
+// the menu's button.
 
 export type GrantSource = {
   readonly load: () => Promise<readonly AgentGrantView[] | null>;
@@ -32,10 +34,12 @@ const when = (iso: string) => new Date(iso).toLocaleString(undefined, { dateStyl
 export function ConnectedAgentsDialog({
   onOpenChange,
   open,
+  returnFocus,
   source,
 }: {
   readonly onOpenChange: (open: boolean) => void;
   readonly open: boolean;
+  readonly returnFocus: RefObject<HTMLElement | null>;
   readonly source: GrantSource;
 }) {
   const [grants, setGrants] = useState<readonly AgentGrantView[] | null>(null);
@@ -66,7 +70,12 @@ export function ConnectedAgentsDialog({
 
   return (
     <Dialog onOpenChange={onOpenChange} open={open}>
-      <DialogContent>
+      <DialogContent
+        onCloseAutoFocus={(event) => {
+          event.preventDefault();
+          returnFocus.current?.focus();
+        }}
+      >
         <DialogHeader>
           <DialogTitle>Connected agents</DialogTitle>
           <DialogDescription>Agents you allowed to work with Find Me a Time. Revoking one stops it at its next request.</DialogDescription>

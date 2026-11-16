@@ -1,0 +1,23 @@
+{
+  "branch": "fix/connected-agents-dialog-freeze",
+  "user": "haisung.choi@gmail.com",
+  "sessions": {
+    "claude:bbff80f6-fe63-432f-8d9c-bdd0a5d5f069": {
+      "agent": "claude-code",
+      "client": "claude-desktop",
+      "agent_ms": 0,
+      "models": {
+        "claude-opus-5-5": {
+          "input": 62,
+          "cache_read": 3333299,
+          "cache_write_5m": 0,
+          "cache_write_1h": 83538,
+          "output": 18535,
+          "reasoning": 0
+        }
+      },
+      "first": "2026-11-15T01:54:25.638Z",
+      "last": "2026-11-15T02:15:03.381Z"
+    }
+  }
+}
