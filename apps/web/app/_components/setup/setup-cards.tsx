@@ -9,7 +9,7 @@ import { CHANGE_CALENDARS_ID, IdentityStep, ReviewCard } from "./review-card";
 import { useSetup, useStepper } from "./setup-context";
 import { ShareLinksCard } from "./share-links-card";
 import type { StepTarget } from "./steps";
-import { DurationStep, TimezoneStep, TravelBufferStep, WeeklyLimitStep, WeeklyWindowsStep } from "./suggestion-cards";
+import { DurationStep, TimezoneStep, TravelBufferStep, TripsStep, WeeklyLimitStep, WeeklyWindowsStep } from "./suggestion-cards";
 
 // Exactly one open setup card, placed after the latest message and above the
 // composer: one thing to think about at once. Answered cards are not here: they
@@ -43,6 +43,8 @@ function StepView({ step }: { readonly step: StepTarget }) {
       return <TransportStep />;
     case "travelBuffer":
       return <TravelBufferStep />;
+    case "trips":
+      return <TripsStep />;
     case "identity":
       return <IdentityStep />;
     case "review":
