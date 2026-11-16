@@ -5,7 +5,7 @@ import type { MessagingChannel } from "@lib/contracts/messaging-channel";
 import { createContext, type ReactNode, useCallback, useContext, useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { appLinkFor } from "@/app/_components/imessage/imessage-card";
-import { Brand, LanguageSelect } from "./chrome";
+import { Brand } from "./chrome";
 import { channelCopy, COPY, type Locale } from "./copy";
 import { AppGlyph, ExternalIcon, StatusMark } from "./icons";
 import { GoogleStart } from "./landing-parts";
@@ -177,7 +177,6 @@ export function ImessageStart({
       <div className="inner" data-screen="imessage-number">
         <header className="top">
           <Brand />
-          <LanguageSelect locale={locale} />
         </header>
         <main className="handoff">
           <h1 ref={heading} tabIndex={-1}>
@@ -208,7 +207,6 @@ export function ImessageStart({
       <div className="inner" data-screen={takeover === "received" ? "imessage-received" : "imessage-waiting"}>
         <header className="top">
           <Brand />
-          <LanguageSelect locale={locale} />
         </header>
         <main className="handoff verify">
           {received ? (

@@ -12,7 +12,7 @@ The target origin for the routes below is **`https://release.findmeatime.com`**:
 
 Use a centered conversation with contextual cards and a reachable composer. A compact menu opens setup, request selection and settings controls inside the host chat, plus sign-out. Do not introduce a persistent sidebar, dashboard metrics, separate generic chat home, or model picker. Precise preference edits open labeled in-chat editors within the same page and restore focus on cancel or save, following the [interface contract](03_interfaces.md).
 
-Public visitors enter through `/` or a host's `/{handle}` link. The landing has two starts: Google first (`/`) and iMessage first (`/?flow=imessage`, D15), in English and Korean (a `lang` cookie). Signed-in hosts chat with their agent at `/app`. Sign-in state, setup, request review and settings are states and contextual controls of that same page. Requesters continue through a private request link without creating a product account. Email and iMessage conversations use the same application records and link to these pages when browser consent or review is needed.
+Public visitors enter through `/` or a host's `/{handle}` link. The landing has two starts: Google first (`/`) and iMessage first (`/?flow=imessage`, D15), with English-only service UX writing. Signed-in hosts chat with their agent at `/app`. Sign-in state, setup, request review and settings are states and contextual controls of that same page. Requesters continue through a private request link without creating a product account. Email and iMessage conversations use the same application records and link to these pages when browser consent or review is needed.
 
 ## Primary pages
 
