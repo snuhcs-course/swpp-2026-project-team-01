@@ -1,6 +1,5 @@
 import type { SlotPreview } from "../contracts/slot-preview";
 import { type ChannelLanguage } from "./channel-language";
-import { channelReplies } from "./channel-texts";
 import type { MessageStreamEvent } from "eve/client";
 import type { StoredChannel } from "../contracts/messaging-channel";
 import { agentUrlFromEnvironment, type ConversationRuntime, eveRuntime } from "./conversations";
@@ -800,16 +799,16 @@ const SILENT_NOTICES = ["notice:booking_confirmed:", "notice:booking_pending:"];
 // A row reaches contentOf only inside the WhatsApp window (outside it, it was
 // suppressed and a template queued), so buttons need only the switch; a template
 // never carries them. A Telegram row carries its keyboard from the row itself.
-function contentOf(
+// The slot preview is an image on every channel; each transport sends the
+// timetable with its caption.
+export function contentOf(
   row: Pick<OutboxRow, "kind" | "template_name" | "channel" | "buttons" | "dedupe_key">,
   text: string | null,
   buttonsOn: boolean,
 ): PhotonContent {
   if (row.kind === "image") {
     const image = JSON.parse(text!) as { preview: SlotPreview; language: ChannelLanguage };
-    return row.channel === "telegram"
-      ? { kind: "text", text: channelReplies(image.language).onboarding.slotCaption(image.preview) }
-      : { kind: "image", ...image };
+    return { kind: "image", ...image };
   }
   if (row.kind === "edit_markup") return { kind: "edit_markup", messageId: text ?? "" };
   if (row.kind === "callback_answer") {
