@@ -45,6 +45,9 @@ export type FakeGoogleFixture = {
   // (the last entry repeats): applied (default); lost before anything changes;
   // applied, then the response is lost; or an HTTP error, changing nothing.
   readonly patchBehavior?: Readonly<Record<string, readonly PatchBehavior[]>>;
+  // How events.delete answers, per calendar: deleted (default; the created
+  // event is removed), lost before anything is deleted, or an HTTP error.
+  readonly deleteBehavior?: Readonly<Record<string, "deleted" | "lost_before_delete" | { readonly status: number }>>;
 };
 
 export type PatchBehavior = "applied" | "lost_before_patch" | "lost_after_patch" | { readonly status: number; readonly reason?: string };
@@ -334,7 +337,30 @@ export async function startFakeGoogle(
         return;
       }
 
-      const body = JSON.parse(raw) as { transparency?: string };
+      const body = JSON.parse(raw) as { transparency?: string } & Partial<FakeEvent> & { conferenceData?: unknown };
+      // A change after booking patches a created event's details, not its transparency.
+      if (body.transparency === undefined) {
+        const store = createdIn(calendarId);
+        const index = store.findIndex((event) => event.id === eventId);
+        if (index < 0) {
+          json(response, 404, { error: { code: 404, message: "Not Found" } });
+          return;
+        }
+        const current = store[index]!;
+        const next: FakeEvent = {
+          ...current,
+          ...body,
+          hangoutLink: current.hangoutLink ?? (body.conferenceData ? `https://meet.google.com/${eventId.slice(0, 3)}-fake-link` : undefined),
+          id: current.id,
+        };
+        store[index] = next;
+        if (behavior === "lost_after_patch") {
+          request.socket.destroy();
+          return;
+        }
+        json(response, 200, next);
+        return;
+      }
       clock += 1;
       const change = { transparency: body.transparency ?? "opaque", updated: new Date(Date.now() + clock).toISOString() };
       patches.set(patchKey(calendarId, eventId), change);
@@ -343,6 +369,31 @@ export async function startFakeGoogle(
         return;
       }
       json(response, 200, { id: eventId, ...change });
+      return;
+    }
+
+    const removal = url.pathname.match(/^\/calendar\/v3\/calendars\/([^/]+)\/events\/([^/]+)$/);
+    if (request.method === "DELETE" && removal) {
+      const calendarId = decodeURIComponent(removal[1]!);
+      const eventId = decodeURIComponent(removal[2]!);
+      const behavior = fixture.deleteBehavior?.[calendarId] ?? "deleted";
+      if (typeof behavior === "object") {
+        json(response, behavior.status, { error: { code: behavior.status, errors: [{ reason: "forbidden" }], message: "Refused" } });
+        return;
+      }
+      if (behavior === "lost_before_delete") {
+        request.socket.destroy();
+        return;
+      }
+      const store = createdIn(calendarId);
+      const index = store.findIndex((event) => event.id === eventId);
+      if (index < 0) {
+        json(response, 404, { error: { code: 404, message: "Not Found" } });
+        return;
+      }
+      store.splice(index, 1);
+      response.writeHead(204);
+      response.end();
       return;
     }
 

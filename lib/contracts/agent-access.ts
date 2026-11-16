@@ -22,10 +22,10 @@ export function isAgentScope(value: string): value is AgentScope {
 export const SCOPE_DESCRIPTIONS: Readonly<Record<AgentScope, string>> = {
   "host:read": "See your setup, your requests and their booking status",
   "host:write": "Draft setup, find times, suggest and share changes, and start chat links for you to confirm",
-  "host:decide": "Approve and decline requests when you tell the agent to",
+  "host:decide": "Approve, decline and cancel meetings when you tell the agent to",
   "request:read": "See the host's public profile and your request",
   "request:write": "Create your request, change its details, find and choose times, and start an updates link for you to confirm",
-  "request:decide": "Agree to the proposed time and withdraw the request for you",
+  "request:decide": "Agree to the proposed time, withdraw the request and cancel the booked meeting for you",
 };
 
 // One connected agent as /app and the booking page list it.

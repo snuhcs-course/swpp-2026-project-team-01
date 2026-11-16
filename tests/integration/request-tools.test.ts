@@ -14,6 +14,8 @@ import {
   readRequestForTool,
   RequestToolDeniedError,
   withdrawRequestForTool,
+  cancelBookingForTool,
+  changeBookingForTool,
 } from "../../lib/server/request-tools";
 import { testDatabase } from "./support/database";
 import { type FakeGoogle, startFakeGoogle } from "./support/fake-google";
@@ -233,6 +235,22 @@ describe("a booked request (U18)", () => {
     expect(await readRequestForTool(db, r.call())).toMatchObject({ booking: null, status: { state: "booked" } });
     expect(await readBookingStatusForTool(db, r.call())).toMatchObject({ state: "booked" });
     await expect(withdrawRequestForTool(db, r.call())).rejects.toBeInstanceOf(RequestToolDeniedError);
+    // A booked state without a confirmed booking has nothing to cancel.
+    expect(await cancelBookingForTool(db, r.call())).toMatchObject({ recorded: false, message: expect.stringContaining("Nothing is booked") });
+    expect(await changeBookingForTool(db, r.call())).toMatchObject({ recorded: false, message: expect.stringContaining("Nothing is booked") });
+  });
+
+  it("stays readable once cancelled and reports a second cancellation (post-booking-changes)", async () => {
+    const r = await requester();
+    await db`update app.requests set state = 'cancelled', closed_at = now() where id = ${r.requestId}`;
+
+    expect(await readBookingStatusForTool(db, r.call())).toMatchObject({ state: "cancelled" });
+    expect(await cancelBookingForTool(db, r.call())).toMatchObject({ recorded: false, message: expect.stringContaining("already cancelled") });
+  });
+
+  it("refuses cancel_booking on an open request with the withdrawal hint", async () => {
+    const r = await requester();
+    expect(await cancelBookingForTool(db, r.call())).toMatchObject({ recorded: false, message: expect.stringContaining("withdraw") });
   });
 });
 

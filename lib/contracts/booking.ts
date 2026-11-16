@@ -26,6 +26,11 @@ export const BOOKING_FAILURES = [
   "withdrawn",
   "declined",
   "expired",
+  // Cancelled after confirmation by the host or the requester (post-booking-changes).
+  "host_cancelled",
+  "requester_cancelled",
+  // Replaced by a change after booking, whose event update succeeded.
+  "changed",
 ] as const;
 export type BookingFailure = (typeof BOOKING_FAILURES)[number];
 
@@ -55,7 +60,7 @@ export type BookingReceipt = {
 
 // The authored status lines both audiences share.
 export const BOOKING_STATUS_TEXT: Readonly<Record<BookingState, { readonly en: string; readonly ko: string }>> = {
-  cancelled: { en: "Booking was cancelled before it started.", ko: "예약이 시작되기 전에 취소되었습니다." },
+  cancelled: { en: "This booking was cancelled.", ko: "이 예약은 취소되었습니다." },
   confirmed: { en: "Booked. The event is in the calendar.", ko: "예약되었습니다. 일정이 캘린더에 있습니다." },
   dispatching: {
     en: "Booking in progress. We are confirming the event with Google Calendar.",

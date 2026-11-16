@@ -55,7 +55,8 @@ export type AgentTool = {
   readonly destructive?: boolean;
   // Whether the tool may run on an unbound bootstrap grant or a closed request.
   readonly bootstrap?: boolean;
-  readonly afterClosure?: boolean;
+  // "booked": only on a closed request that is booked (cancelling its meeting).
+  readonly afterClosure?: boolean | "booked";
   readonly run: (context: AgentToolContext, input: unknown) => Promise<ToolResult>;
 };
 

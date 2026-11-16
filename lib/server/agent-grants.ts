@@ -90,6 +90,8 @@ export type GrantAccess = {
   readonly creationRetryKey: string | null;
   // The bound request has closed: only its closed status and receipt may be read.
   readonly closed: boolean;
+  // The bound request is booked: its meeting may still be cancelled.
+  readonly booked?: boolean;
 };
 
 // The grant's current access, or null when anything no longer holds: the grant
@@ -135,6 +137,7 @@ export async function currentGrantAccess(db: Queryable, grantId: string): Promis
   }
 
   return {
+    booked: row.role === "requester" && row.request_state === "booked",
     bootstrap: row.bootstrap,
     clientId: row.client_id,
     closed,

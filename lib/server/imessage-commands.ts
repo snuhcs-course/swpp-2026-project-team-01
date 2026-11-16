@@ -120,7 +120,7 @@ export async function answerCallback(
   });
 }
 
-const CLOSED: readonly RequestState[] = ["booked", "declined", "withdrawn", "expired"];
+const CLOSED: readonly RequestState[] = ["booked", "declined", "withdrawn", "expired", "cancelled"];
 function meetingTime(start: string, end: string, zone: string, language: ChannelLanguage = "en") {
   const day = new Intl.DateTimeFormat(locale(language), { day: "numeric", month: "short", timeZone: zone, weekday: "short" }).format(new Date(start));
   const clock = new Intl.DateTimeFormat(locale(language), { hour: "numeric", minute: "2-digit", timeZone: zone });

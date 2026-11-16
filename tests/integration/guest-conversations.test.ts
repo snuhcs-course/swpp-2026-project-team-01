@@ -47,6 +47,8 @@ const REQUESTER_TOOLS = [
   "agree_to_proposal",
   "change_agreement",
   "withdraw_request",
+  "cancel_booking",
+  "change_booking",
 ];
 
 beforeAll(async () => {

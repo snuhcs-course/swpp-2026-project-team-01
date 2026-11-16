@@ -9,8 +9,8 @@ import {
 } from "./request";
 
 describe("request states", () => {
-  it("closes withdrawn, expired, booked and declined requests only", () => {
-    expect(REQUEST_STATES.filter(isClosedRequestState)).toEqual(["booked", "declined", "withdrawn", "expired"]);
+  it("closes withdrawn, expired, booked, declined and cancelled requests only", () => {
+    expect(REQUEST_STATES.filter(isClosedRequestState)).toEqual(["booked", "declined", "withdrawn", "expired", "cancelled"]);
   });
 
   it("lets withdrawal and expiry close gathering, negotiating and awaiting approval", () => {

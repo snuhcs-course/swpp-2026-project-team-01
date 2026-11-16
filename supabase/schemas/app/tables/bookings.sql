@@ -13,8 +13,17 @@
 --                organizer and status from Google
 --   failed       a conflict, an unavailable revalidation, a rejected write or a
 --                removed event (failure_category)
---   cancelled    withdrawn, declined or expired before dispatch
--- At most one live (reserved, dispatching or confirmed) booking per request.
+--   cancelled    withdrawn, declined or expired before dispatch, or cancelled
+--                by the host or the requester after confirmation
+--                (host_cancelled, requester_cancelled), keeping confirmed_at
+--                and the evidence; the booking_cancel job deletes the event
+-- replaces_booking_id names the confirmed booking a change after booking
+-- replaces (post-booking-changes design 5): such a booking carries that
+-- booking's calendar and event ID, and its job patches the event in place;
+-- on confirmation the replaced booking is cancelled (failure_category changed).
+-- So event_id is unique among original bookings only.
+-- At most one booking in progress (reserved or dispatching) and one confirmed
+-- booking per request; both exist while a change is being booked.
 CREATE TABLE "app"."bookings" (
   "id" uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   "request_id" uuid NOT NULL REFERENCES "app"."requests" ("id") ON DELETE CASCADE,
@@ -22,7 +31,7 @@ CREATE TABLE "app"."bookings" (
   "approval_id" uuid NOT NULL REFERENCES "app"."approvals" ("id") ON DELETE CASCADE,
   "host_account_id" uuid NOT NULL REFERENCES "app"."host_accounts" ("id") ON DELETE CASCADE,
   "calendar_id" text NOT NULL,
-  "event_id" text NOT NULL UNIQUE CHECK ("event_id" ~ '^[0-9a-v]{5,}$' AND char_length("event_id") <= 1024),
+  "event_id" text NOT NULL CHECK ("event_id" ~ '^[0-9a-v]{5,}$' AND char_length("event_id") <= 1024),
   "start_at" timestamptz NOT NULL,
   "end_at" timestamptz NOT NULL,
   "reserved_start" timestamptz NOT NULL,
@@ -39,14 +48,23 @@ CREATE TABLE "app"."bookings" (
   "dispatched_at" timestamptz,
   "confirmed_at" timestamptz,
   "settled_at" timestamptz,
+  "replaces_booking_id" uuid REFERENCES "app"."bookings" ("id") ON DELETE SET NULL,
   CONSTRAINT "bookings_interval" CHECK ("start_at" < "end_at" AND "reserved_start" <= "start_at" AND "end_at" <= "reserved_end"),
   CONSTRAINT "bookings_dispatched" CHECK (("state" = 'reserved' OR "state" = 'cancelled') OR "dispatched_at" IS NOT NULL OR "state" = 'failed'),
-  CONSTRAINT "bookings_confirmed" CHECK (("state" = 'confirmed') = ("confirmed_at" IS NOT NULL)),
+  CONSTRAINT "bookings_confirmed" CHECK (
+    ("state" <> 'confirmed' OR "confirmed_at" IS NOT NULL) AND ("state" IN ('confirmed', 'cancelled') OR "confirmed_at" IS NULL)
+  ),
   CONSTRAINT "bookings_payload" CHECK ("state" IN ('reserved', 'cancelled', 'failed') OR "payload" IS NOT NULL)
 );
 
-CREATE UNIQUE INDEX "bookings_one_live_idx" ON "app"."bookings" ("request_id")
-  WHERE "state" IN ('reserved', 'dispatching', 'confirmed');
+CREATE UNIQUE INDEX "bookings_event_idx" ON "app"."bookings" ("event_id")
+  WHERE "replaces_booking_id" IS NULL;
+
+CREATE UNIQUE INDEX "bookings_one_pending_idx" ON "app"."bookings" ("request_id")
+  WHERE "state" IN ('reserved', 'dispatching');
+
+CREATE UNIQUE INDEX "bookings_one_confirmed_idx" ON "app"."bookings" ("request_id")
+  WHERE "state" = 'confirmed';
 
 -- The host's in-flight and confirmed bookings, which revalidation counts as busy.
 CREATE INDEX "bookings_host_reserved_idx" ON "app"."bookings" ("host_account_id", "reserved_start")
