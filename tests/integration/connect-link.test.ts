@@ -11,6 +11,7 @@ import { imessageHarness, unreachableSetup } from "./support/imessage";
 import { newSender, TEST_LINE, TEST_WHATSAPP_NUMBER } from "./support/photon";
 import { makeHostReady } from "./support/ready-host";
 import { createTestRequest, testTokenKey } from "./support/requests";
+import { newTelegramUser, telegramMessage } from "./support/telegram";
 
 const db = testDatabase();
 let photon: FakePhoton;
@@ -126,4 +127,25 @@ it("refuses starting updates for a closed request", async () => {
   const client = await connected("requester");
   await db`update app.requests set state = 'withdrawn', closed_at = now() where id = ${client.request.requestId}`;
   expect((await client.start()).structuredContent).toMatchObject({ error: { category: "request_closed" } });
+});
+
+// guest-telegram-link task 2.1: the guest's agent starts Telegram without a
+// number; the page shows the bot and the code, and confirming binds the
+// Telegram sender by name.
+it("starts and confirms a guest Telegram link through the agent", async () => {
+  const client = await connected("requester");
+  expect((await client.call("start_updates_link", { channel: "telegram", number: newSender(), retryKey: randomUUID() })).isError).toBe(true);
+  const started = await client.call("start_updates_link", { channel: "telegram", retryKey: randomUUID() });
+  expect(started.isError).toBe(false);
+  expect(started.structuredContent).toMatchObject({ channel: "telegram" });
+  const token = tokenOf(started);
+  const pending = await (await get(token)).json();
+  expect(pending).toMatchObject({ state: "open", status: { channel: "telegram", lineNumber: "test_bot", state: "pending" } });
+  expect(pending.status.message).toBe(pending.status.code);
+
+  const userId = newTelegramUser();
+  expect((await im.deliverTelegram(telegramMessage({ firstName: "Grace", text: `/start ${pending.status.code}`, userId })))?.outcome).toBe("link_received");
+  expect(await (await get(token)).json()).toMatchObject({ state: "open", status: { channel: "telegram", sender: "Grace", state: "received" } });
+  expect((await post(token, "confirm")).status).toBe(200);
+  expect((await client.call("get_request")).structuredContent.updates).toEqual({ channel: "telegram", sender: "Grace", state: "linked" });
 });

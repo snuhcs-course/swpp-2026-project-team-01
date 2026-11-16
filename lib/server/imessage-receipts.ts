@@ -24,7 +24,7 @@ import {
   refusalSentRecently,
   telegramDisplayName,
 } from "./imessage-links";
-import { endBlockedBinding, type ImessageSignal, recordOutbound, signalText } from "./imessage-outbox";
+import { endBlockedBinding, endBlockedRequesterBindings, type ImessageSignal, recordOutbound, signalText } from "./imessage-outbox";
 import { reopenWeeklyNoteList } from "./note-weekly-store";
 import { type JobHandler, publishJob } from "./jobs";
 import { assertMessagingAdmitted } from "./messaging";
@@ -510,7 +510,9 @@ async function guestMessage(
     from app.requests r left join app.host_settings s on s.host_account_id = r.host_account_id
     where r.id = ${route.binding.request_id}
   `;
-  const text = receipt.contentType === "text" ? (receipt.text?.trim() ?? "") : "";
+  // A Telegram "/" command is text like any other (host-telegram-channel design 8).
+  const textual = receipt.contentType === "text" || (receipt.channel === "telegram" && receipt.contentType === "command");
+  const text = textual ? (receipt.text?.trim() ?? "") : "";
 
   // Revising moves the binding in its own transaction, so this one locks
   // nothing of the binding's first.
@@ -658,7 +660,7 @@ const START_COMMAND = /^\/start(?:@[A-Za-z0-9_]+)?(?:\s+(\S+))?\s*$/;
 //   - /start without a code (or with a payload that is not one) from a sender
 //     with no active Telegram binding gets the unlinked-sender reply, at most
 //     once a day per sender and counted per channel. A linked host's /start is
-//     not linking.
+//     not linking, and a linked guest's does nothing (guest-telegram-link design 3).
 // A button tap or a blocking update is never linking.
 export async function telegramLinking(tx: Transaction, deps: ImessageReceiptDependencies, receipt: OpenedReceipt): Promise<ReceiptOutcome | null> {
   if (receipt.contentType !== "text" && receipt.contentType !== "command") return null;
@@ -681,6 +683,8 @@ export async function telegramLinking(tx: Transaction, deps: ImessageReceiptDepe
   if (!START_COMMAND.test(text)) return null;
   const binding = await activeBindingOfSender(tx, receipt.senderHash);
   if (binding?.channel === "telegram") return null;
+  // The bot's Start button pressed again by a linked guest.
+  if ((await activeGuestBindings(tx, receipt.senderHash)).length > 0) return "ignored";
   if (await refusalSentRecently(tx, receipt.senderHash, "telegram")) return "ignored";
   await recordOutbound(tx, {
     channel: "telegram",
@@ -723,9 +727,16 @@ export async function processReceipt(
 
   if (receipt.spaceType !== "dm" || ["reaction", "read", "typing"].includes(receipt.contentType)) return "ignored";
 
-  // Guests write from iMessage or WhatsApp (guest-whatsapp-link); a Telegram
-  // sender is a host or no one.
-  let guest = receipt.channel === "telegram" ? null : await guestRoute(tx, receipt);
+  // A guest who blocked the bot is unlinked from every request (guest-telegram-link
+  // design 5); a host binding of the same sender ends on the host path below.
+  if (receipt.channel === "telegram" && receipt.contentType === "blocked") {
+    await endBlockedRequesterBindings(tx, { senderHash: receipt.senderHash });
+  }
+
+  // Guests write from any channel (guest-whatsapp-link, guest-telegram-link
+  // design 4); a Telegram button tap or block is never a guest's message.
+  const guestContent = receipt.channel !== "telegram" || receipt.contentType === "text" || receipt.contentType === "command";
+  let guest = guestContent ? await guestRoute(tx, receipt) : null;
   // A sender with several conversations and no current choice (#137): a
   // message that names one in words goes there; otherwise the choice is asked
   // in the message's language, answerable in words.

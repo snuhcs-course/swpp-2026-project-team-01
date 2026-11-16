@@ -210,7 +210,7 @@ for (const viewport of [
     const decision = waiting.locator("[data-guest-decision-details]");
     await expect(decision).toContainText("The request is waiting for the host’s approval. Nothing is booked yet.");
     await expect(decision).toContainText(`We’ll email the host’s decision to ${email}.`);
-    await expect(decision).toContainText("If iMessage is linked, updates can arrive there too.");
+    await expect(decision).toContainText("If iMessage or Telegram is linked, updates can arrive there too.");
     await expect(decision).not.toContainText("We sent a copy of your agreement");
     await openCardCount(page, 1);
     await expect(page.locator('[data-guest-receipt="answered"]').getByText(/You agreed to/)).toBeVisible();

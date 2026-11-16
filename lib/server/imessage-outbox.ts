@@ -1,6 +1,5 @@
 import type { SlotPreview } from "../contracts/slot-preview";
 import { type ChannelLanguage } from "./channel-language";
-import { channelReplies } from "./channel-texts";
 import type { MessageStreamEvent } from "eve/client";
 import type { StoredChannel } from "../contracts/messaging-channel";
 import { agentUrlFromEnvironment, type ConversationRuntime, eveRuntime } from "./conversations";
@@ -73,7 +72,8 @@ import { openToken, sealToken, type TokenKey, tokenKeyFromEnvironment } from "./
 // send waits for it. A 429 puts the row back and a new job sends it after the
 // delay Telegram names, spending no attempt. A 403 (the user blocked or deleted
 // the bot) fails the row as blocked and ends its binding as stop does, with
-// whatever was still queued for it suppressed.
+// whatever was still queued for it suppressed; a guest's Telegram binding ends
+// the same way (guest-telegram-link design 5).
 // A Telegram row may carry inline buttons (design 7, D8), sent on its last part
 // and kept on the row with Telegram's message ID; an edit_markup row removes
 // them again within Telegram's 48-hour edit limit (D9), and a callback_answer row
@@ -587,6 +587,10 @@ export function createImessageSendHandler(load: () => ImessageSendDependencies =
     if (result.status === "rejected") {
       await finish(tx, outboxId, "dispatching", "failed", { category: result.category });
       if (result.category === "blocked" && claim.row.binding_id) await endBlockedBinding(tx, claim.row.binding_id);
+      // A guest who blocked the bot is unlinked the same way (guest-telegram-link design 5).
+      if (result.category === "blocked" && claim.row.requester_binding_id) {
+        await endBlockedRequesterBindings(tx, { bindingId: claim.row.requester_binding_id });
+      }
       if (result.category === WINDOW_CLOSED && claim.row.kind !== "template") await queueTemplate(tx, deps, claim.row);
       return { outboxId, state: "failed" };
     }
@@ -683,6 +687,30 @@ export async function endBlockedBinding(tx: Transaction, bindingId: string) {
   `;
 }
 
+// The guest blocked the bot (guest-telegram-link design 5): each active Telegram
+// guest binding of the sender, or the one binding a refused send went to, ends
+// as unlinked, and what was still queued for it is suppressed as blocked.
+export async function endBlockedRequesterBindings(tx: Transaction, owner: { readonly senderHash: string } | { readonly bindingId: string }) {
+  const senderHash = "senderHash" in owner ? owner.senderHash : null;
+  const bindingId = "bindingId" in owner ? owner.bindingId : null;
+  const ended = await tx<{ id: string }[]>`
+    update app.requester_imessage_bindings
+    set state = 'unlinked', ended_at = now(), sender_ciphertext = null, space_ciphertext = null
+    where state = 'active' and channel = 'telegram'
+      and (${senderHash}::text is null or sender_hash = ${senderHash})
+      and (${bindingId}::uuid is null or id = ${bindingId})
+    returning id
+  `;
+  if (ended.length === 0) return false;
+  await tx`
+    update app.imessage_outbox
+    set state = 'suppressed', failure_category = 'blocked', recipient_ciphertext = null, text_ciphertext = null,
+        completed_at = now(), updated_at = now()
+    where requester_binding_id in ${tx(ended.map((row) => row.id))} and state in ('waiting', 'queued')
+  `;
+  return true;
+}
+
 // The summary a closed window stopped becomes one template (design 8): only for
 // the events that have one, only to an active WhatsApp binding, and only within
 // the per-host and per-line limits. Its one parameter is the request reference;
@@ -773,16 +801,16 @@ const SILENT_NOTICES = ["notice:booking_confirmed:", "notice:booking_pending:"];
 // A row reaches contentOf only inside the WhatsApp window (outside it, it was
 // suppressed and a template queued), so buttons need only the switch; a template
 // never carries them. A Telegram row carries its keyboard from the row itself.
-function contentOf(
+// The slot preview is an image on every channel; each transport sends the
+// timetable with its caption.
+export function contentOf(
   row: Pick<OutboxRow, "kind" | "template_name" | "channel" | "buttons" | "dedupe_key">,
   text: string | null,
   buttonsOn: boolean,
 ): PhotonContent {
   if (row.kind === "image") {
     const image = JSON.parse(text!) as { preview: SlotPreview; language: ChannelLanguage };
-    return row.channel === "telegram"
-      ? { kind: "text", text: channelReplies(image.language).onboarding.slotCaption(image.preview) }
-      : { kind: "image", ...image };
+    return { kind: "image", ...image };
   }
   if (row.kind === "edit_markup") return { kind: "edit_markup", messageId: text ?? "" };
   if (row.kind === "callback_answer") {

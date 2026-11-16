@@ -1,0 +1,23 @@
+{
+  "branch": "docs/reply-language-decision",
+  "user": "dodo41142727@gmail.com",
+  "sessions": {
+    "claude:14076c4a-2d22-459f-b1fa-81beb7f61489": {
+      "agent": "claude-code",
+      "client": "claude-desktop",
+      "agent_ms": 0,
+      "models": {
+        "claude-opus-5-5": {
+          "input": 20,
+          "cache_read": 1337174,
+          "cache_write_5m": 0,
+          "cache_write_1h": 31774,
+          "output": 7007,
+          "reasoning": 0
+        }
+      },
+      "first": "2026-11-16T06:14:57.194Z",
+      "last": "2026-11-16T06:16:10.744Z"
+    }
+  }
+}

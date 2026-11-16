@@ -3,7 +3,7 @@
 import { MAX_CALENDAR_IMAGE_BYTES, type ScreenshotMark } from "@lib/contracts/calendar-screenshot";
 import { EMAIL_LINK_CREATE_OPERATION, EMAIL_LINK_UNLINK_OPERATION, type EmailLinkStatus } from "@lib/contracts/email-link";
 import { deepLinkFor, qrDeepLink } from "@lib/contracts/imessage";
-import { channelName, displayWhatsAppNumber, whatsAppLinkFor } from "@lib/contracts/messaging-channel";
+import { channelName, displayWhatsAppNumber, telegramLinkFor, whatsAppLinkFor } from "@lib/contracts/messaging-channel";
 import { type GuestChannel, REQUESTER_IMESSAGE_OPERATIONS, type RequesterImessageStatus } from "@lib/contracts/requester-imessage";
 import type { HostProfileItem, OpenRequesterView } from "@lib/contracts/requester-view";
 import { displayTime } from "@lib/contracts/timezone";
@@ -19,7 +19,8 @@ import { Button } from "@/components/ui/button";
 // The guest thread's request cards (design decision 12; DESIGN.md: conversation
 // card): the Calendar connection and selection, the status lines with the
 // creation email, **Use verified Google email** and **Continue by email**, and
-// the waiting card with **Get updates in iMessage** and **Get updates in WhatsApp**.
+// the waiting card with **Get updates in iMessage**, **Get updates in WhatsApp**
+// and **Get updates in Telegram**.
 // **Withdraw request** and
 // **Edit details** are in the thread's menu beside the composer
 // (guest-workspace.tsx). The
@@ -631,6 +632,11 @@ export function EmailLinkLine({ context }: { readonly context: RequesterCardCont
 // same message, opened at once on a phone, and elsewhere a QR code of it with
 // **Open WhatsApp** (WhatsApp Web or the app). One link at a time: a code or
 // binding on one channel replaces the other's. WhatsApp has no contact card.
+// **Get updates in Telegram** sits beside them wherever the bot is configured
+// (guest-telegram-link design 2): no number, then the bot's t.me start link,
+// opened at once on a phone, and elsewhere a QR code of it with **Open
+// Telegram** (Telegram Desktop or Telegram Web) and Copy. The sender shows by
+// their Telegram name, and the card says where Telegram keeps the chat.
 export function ImessageUpdates({ context, onlyLinked = false }: { readonly context: Pick<RequesterCardContext, "bookingId" | "timezone" | "run">; readonly onlyLinked?: boolean }) {
   const [status, setStatus] = useState<RequesterImessageStatus | null>(null);
   const [busy, setBusy] = useState(false);
@@ -674,15 +680,32 @@ export function ImessageUpdates({ context, onlyLinked = false }: { readonly cont
   const phone = platform === "ios" || platform === "android";
   const pending = status?.state === "pending" ? status : null;
   const whatsapp = pending?.channel === "whatsapp";
-  // wa.me opens WhatsApp on a phone and WhatsApp Web or the app on a computer.
-  const waLink = pending && whatsapp ? whatsAppLinkFor(pending.lineNumber, pending.message) : null;
-  const link = pending && phone ? (whatsapp ? waLink : deepLinkFor(platform, pending.lineNumber, pending.message)) : null;
+  const telegram = pending?.channel === "telegram";
+  // wa.me opens WhatsApp on a phone and WhatsApp Web or the app on a computer;
+  // so does the bot's t.me start link for Telegram.
+  const appLink = pending ? (whatsapp ? whatsAppLinkFor(pending.lineNumber, pending.message) : telegram ? telegramLinkFor(pending.lineNumber, pending.message) : null) : null;
+  const link = pending && phone ? (appLink ?? deepLinkFor(platform, pending.lineNumber, pending.message)) : null;
   // A Mac has Messages too, offered beside the QR code and Copy as on the host's link screens (D17).
-  const macLink = pending && !whatsapp && platform === "mac" ? deepLinkFor("mac", pending.lineNumber, pending.message) : null;
+  const macLink = pending && pending.channel === "imessage" && platform === "mac" ? deepLinkFor("mac", pending.lineNumber, pending.message) : null;
   const qr = useMemo(
-    () => (pending && !phone ? renderSVG(whatsapp ? (waLink ?? "") : qrDeepLink(pending.lineNumber, pending.message), { border: 2 }) : null),
-    [pending, phone, whatsapp, waLink],
+    () => (pending && !phone ? renderSVG(appLink ?? (whatsapp || telegram ? "" : qrDeepLink(pending.lineNumber, pending.message)), { border: 2 }) : null),
+    [pending, phone, whatsapp, telegram, appLink],
   );
+
+  // Telegram needs no number: the code is made at once and the bot's start link opened on a phone.
+  async function startTelegram() {
+    setBusy(true);
+    setError(null);
+    const outcome = await run(REQUESTER_IMESSAGE_OPERATIONS.create, { channel: "telegram" });
+    setBusy(false);
+    if (!outcome.ok) {
+      setError(outcome.error.category === "rate_limited" ? "Too many codes this hour. Try again later." : outcome.error.message);
+      return;
+    }
+    const next = await check();
+    const opened = next?.state === "pending" && next.channel === "telegram" && phone ? telegramLinkFor(next.lineNumber, next.message) : null;
+    if (opened) window.location.assign(opened);
+  }
 
   if (!status || status.state === "unavailable") return null;
   if (onlyLinked && status.state !== "linked") return null;
@@ -746,6 +769,11 @@ export function ImessageUpdates({ context, onlyLinked = false }: { readonly cont
               Get updates in WhatsApp
             </Button>
           ) : null}
+          {status.telegramUsername ? (
+            <Button className="min-h-11" disabled={busy} onClick={() => void startTelegram()} type="button" variant="outline">
+              Get updates in Telegram
+            </Button>
+          ) : null}
         </GuestCardActions>
         <p className="text-muted-foreground">Optional: your email still gets every update.</p>
         <ErrorLine message={error} />
@@ -774,6 +802,7 @@ export function ImessageUpdates({ context, onlyLinked = false }: { readonly cont
   if (status.state === "received") {
     return (
       <InnerStep description={`Your message arrived from ${status.sender}. Link it only if that is you.`} title={`Is this your ${channelName(status.channel)}?`}>
+        {status.channel === "telegram" ? <p className="text-sm text-muted-foreground">{GUEST_TELEGRAM_PRIVACY}</p> : null}
         <GuestCardActions>
           <Button
             disabled={busy}
@@ -784,6 +813,50 @@ export function ImessageUpdates({ context, onlyLinked = false }: { readonly cont
           </Button>
           <Button disabled={busy} onClick={() => void command(REQUESTER_IMESSAGE_OPERATIONS.unlink, { pendingOnly: true })} type="button" variant="ghost">
             This isn't me
+          </Button>
+        </GuestCardActions>
+        <ErrorLine message={error} />
+      </InnerStep>
+    );
+  }
+
+  if (telegram) {
+    return (
+      <InnerStep
+        description={phone ? "Telegram should open at Thyme's bot. Tap Start there." : "Open Thyme's bot in Telegram on your phone or this computer, and tap Start."}
+        title="Get updates in Telegram"
+      >
+        <div className="flex min-w-0 flex-col gap-1 rounded-xl bg-secondary px-3 py-2">
+          <p className="text-xs font-medium text-muted-foreground">Bot</p>
+          <p className="font-mono text-sm">@{status.lineNumber}</p>
+          <p className="pt-1 text-xs font-medium text-muted-foreground">Code</p>
+          <p className="font-mono text-sm break-all select-all" data-imessage-link-message="">
+            {status.message}
+          </p>
+          {appLink ? <CopyButton label="Copy the Telegram link" text={appLink} /> : null}
+        </div>
+        {qr ? (
+          <div
+            aria-label="QR code that opens Thyme's bot in Telegram on your phone"
+            className="size-40 rounded-lg bg-white p-1 [&_svg]:size-full"
+            // The SVG is generated locally from the bot's start link.
+            dangerouslySetInnerHTML={{ __html: qr }}
+            role="img"
+          />
+        ) : null}
+        <p className="text-sm text-muted-foreground" role="status">
+          Waiting for you to tap Start. The code works until {displayTime(new Date(status.expiresAt), context.timezone)}.
+        </p>
+        <GuestCardActions>
+          {appLink ? (
+            <Button asChild>
+              <a href={appLink} rel={phone ? undefined : "noreferrer"} target={phone ? undefined : "_blank"}>
+                Open Telegram
+              </a>
+            </Button>
+          ) : null}
+          <Button disabled={busy} onClick={() => void command(REQUESTER_IMESSAGE_OPERATIONS.unlink, { pendingOnly: true })} type="button" variant="ghost">
+            Cancel
           </Button>
         </GuestCardActions>
         <ErrorLine message={error} />
@@ -828,9 +901,9 @@ export function ImessageUpdates({ context, onlyLinked = false }: { readonly cont
         Waiting for your message. The code works until {displayTime(new Date(status.expiresAt), context.timezone)}.
       </p>
       <GuestCardActions>
-        {link ?? waLink ? (
+        {link ?? appLink ? (
           <Button asChild>
-            <a href={link ?? waLink ?? undefined} rel={whatsapp && !phone ? "noreferrer" : undefined} target={whatsapp && !phone ? "_blank" : undefined}>
+            <a href={link ?? appLink ?? undefined} rel={whatsapp && !phone ? "noreferrer" : undefined} target={whatsapp && !phone ? "_blank" : undefined}>
               {whatsapp ? "Open WhatsApp" : "Open Messages"}
             </a>
           </Button>
@@ -848,6 +921,9 @@ export function ImessageUpdates({ context, onlyLinked = false }: { readonly cont
     </InnerStep>
   );
 }
+
+// Where Telegram keeps the chat, said before Confirm and link (guest-telegram-link design 2).
+export const GUEST_TELEGRAM_PRIVACY = "Telegram keeps bot chats on its servers. Find Me a Time sends your request updates here.";
 
 export function ClosedImessageUpdates({ bookingId, timezone }: { readonly bookingId: string; readonly timezone: string }) {
   const run = useCallback(async (operation: string, input: unknown = {}): Promise<CommandOutcome> => {
@@ -930,7 +1006,7 @@ export function AwaitingDecisionDetails({
       <p>The request is waiting for the host’s approval. Nothing is booked yet.</p>
       <p>
         We’ll email the host’s decision{email ? <> to <strong className="break-all font-medium">{email}</strong></> : null}.
-        {" "}If iMessage is linked, updates can arrive there too.
+        {" "}If iMessage or Telegram is linked, updates can arrive there too.
       </p>
       {agreementEmailSentTo ? (
         <p>

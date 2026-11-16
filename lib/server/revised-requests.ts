@@ -148,9 +148,18 @@ async function moveChannel(tx: Transaction, options: RevisedOptions, channel: Re
   }
 
   const [old] = await tx<
-    { id: string; channel: string; sender_hash: string; sender_ciphertext: string; space_ciphertext: string | null; sealed_key_id: string; link_id: string | null }[]
+    {
+      id: string;
+      channel: string;
+      sender_hash: string;
+      sender_ciphertext: string;
+      sender_name_ciphertext: string | null;
+      space_ciphertext: string | null;
+      sealed_key_id: string;
+      link_id: string | null;
+    }[]
   >`
-    select id, channel, sender_hash, sender_ciphertext, space_ciphertext, sealed_key_id, link_id from app.requester_imessage_bindings
+    select id, channel, sender_hash, sender_ciphertext, sender_name_ciphertext, space_ciphertext, sealed_key_id, link_id from app.requester_imessage_bindings
     where id = ${channel.bindingId} and request_id = ${closedRequestId} and state = 'active'
     for update
   `;
@@ -159,6 +168,8 @@ async function moveChannel(tx: Transaction, options: RevisedOptions, channel: Re
   const open = (ciphertext: string) => openToken(options.tokenKeys, { ciphertext, keyId: old.sealed_key_id }, requesterBindingContext(old.id));
   const sender = open(old.sender_ciphertext);
   const space = old.space_ciphertext ? open(old.space_ciphertext) : null;
+  // A Telegram sender's name moves with the sender (guest-telegram-link design 1).
+  const name = old.sender_name_ciphertext ? open(old.sender_name_ciphertext) : null;
   await tx`
     update app.requester_imessage_bindings
     set state = 'moved', moved_to_request_id = ${requestId}, ended_at = now(), sender_ciphertext = null, space_ciphertext = null
@@ -170,8 +181,9 @@ async function moveChannel(tx: Transaction, options: RevisedOptions, channel: Re
     -- The binding keeps its channel; the guest's message that moved it starts
     -- WhatsApp's window (guest-whatsapp-link design 3).
     insert into app.requester_imessage_bindings
-      (id, request_id, channel, link_id, sender_hash, sender_ciphertext, space_ciphertext, sealed_key_id, last_inbound_at)
+      (id, request_id, channel, link_id, sender_hash, sender_ciphertext, sender_name_ciphertext, space_ciphertext, sealed_key_id, last_inbound_at)
     values (${row!.id}, ${requestId}, ${old.channel}, ${old.link_id}, ${old.sender_hash}, ${sealToken(options.tokenKey, sender, context).ciphertext},
+            ${name === null ? null : sealToken(options.tokenKey, name, context).ciphertext},
             ${space === null ? null : sealToken(options.tokenKey, space, context).ciphertext}, ${options.tokenKey.id}, now())
   `;
   return row!.id;

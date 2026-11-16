@@ -768,6 +768,29 @@
 | D4 | `groupTrips`는 선택적 설정 필드로, 대면 또는 둘 다 방식일 때만 저장하고, 장소를 미팅마다 정하는 경우가 아니면 이동 버퍼 다음의 별도 단계로 웹에서 묻습니다. 웹 검토와 연결된 채팅의 설정 검토에 표시되며, 채팅 설정에서는 묻지 않습니다 | 대면 답변에서 필수로 받기; 장소에 후보가 있을 때만 저장 | 설계 6; `host-setup` 델타 "Same-day trip setting" | `lib/contracts/setup.ts`의 `IN_PERSON_OPTIONAL_FIELDS`; `apps/web/app/_components/setup/steps.ts`의 `setupSteps` |
 | D5 | 스캔은 가장 자주 가는 곳이 아닌 장소에서 대면 일정이 있었고 그 장소가 다른 날에도 나타난 날이 이틀 이상이면 켜는 것으로 제안합니다. 장소 텍스트로 판단하고 횟수만 저장하며, 호스트가 확인한 뒤에야 정책이 됩니다 | 선호 지역이 아직 없는 스캔 중의 경로 추정; 호스트의 장소 답변과 비교 | 설계 7; `host-setup` 델타 "Same-day trip suggestion" | `lib/server/analysis.ts`의 `tripEvidence`, `suggestFromEvidence` |
 
+## Product language
+
+Dohyeon Park이 2026-11-16에 결정했으며, 2026-11-14 UAT 회의가 [이슈 #200](https://github.com/snuhcs-course/swpp-2026-project-team-01/issues/200)에 남긴 질문, 곧 고정 문구가 영어가 되면 어시스턴트의 답장도 영어가 되는지를 정리합니다. 아직 팀원 검토를 받지 않았습니다.
+
+| # | 선택 | 대안 | 기록 위치 | 바꾸려면 |
+|---|---|---|---|---|
+| — | 고정 제품 문구와 이메일은 영어로만 제공합니다: 페이지, 카드, 영수증, 채팅의 고정 답장, 알림과 버튼 제목. 어시스턴트(웹의 Thyme, 연결된 iMessage·WhatsApp·Telegram 채팅, MCP나 CLI를 통한 에이전트)는 사용자가 쓰는 언어로 답합니다. 이슈 #178과 #179가 요구한 "영어와 한국어 사본"과 `channel-actions-in-words` D4의 한국어 고정 답장을 대체합니다 | 대화가 언어를 바꾸지 않도록 어시스턴트 답장도 영어로 하기; 요청의 언어를 따르는 고정 문구(한 스레드에서 언어가 섞였음, 이슈 #200) | PRD FR-27과 10절 "지원 언어"; 이슈 #200 | 먼저 PRD. 고정 문구: `lib/server/booking-emails.ts`, `lib/server/email-templates.ts`, `apps/web/app/_components/guest/guest-workspace.tsx`, `lib/server/channel-language.ts`, `channel-texts.ts`. 어시스턴트 답장: `agent/instructions/base.md`, `host-setup.ts`, `host-imessage.ts`, `requester.ts` |
+
+2026-11-16 기준 상태: PR #217이 랜딩과 호스트 설정을 영어 전용으로 만들었습니다. 게스트 이메일, 게스트 작업 공간의 고정 메시지, 연결된 채팅의 고정 답장은 아직 요청 또는 호스트의 언어를 따릅니다. 이슈 #200이 이 작업을 추적하며, `email-delivery`와 `meeting-requests` 명세, 에이전트 구성, 호스트 온보딩 흐름은 그 작업과 함께 바뀝니다. 어시스턴트는 이미 사용자의 언어로 답하며, `agent/instructions/base.md`는 영어 또는 한국어를 명시합니다.
+
+## `guest-telegram-link`
+
+[제안](../../openspec/changes/guest-telegram-link/proposal.md#decisions)은 D1–D6을 기록합니다. WhatsApp을 숨긴(#221) 뒤 게스트가 Telegram에서 업데이트를 받게 해 달라는 사용자의 요청에 따라 변경을 작성한 세션에서 2026-11-16에 정했습니다(추적 이슈 #227). 이는 `host-telegram-channel`이 제외했던 Telegram을 통한 요청자 메시징을 범위에 들이고, `guest-whatsapp-link` D4의 "Telegram은 호스트 전용으로 유지"를 대체합니다. 아직 팀원의 검토를 받지 않았습니다.
+
+| # | 선택 | 대안 | 기록 위치 | 바꾸려면 |
+|---|---|---|---|---|
+| D1 | `requester_imessage_bindings.channel`이 `telegram`을 허용하고, 바인딩은 봉인된 Telegram 이름을 `sender_name_ciphertext`에 보관하며 `clear_sender_name`이 발신자와 함께 지웁니다. 모든 채널이 허용되므로 `imessage_links_request_channel`은 삭제합니다 | `requester_telegram_bindings` 테이블 | 제안; 설계 1 | `supabase/schemas/app/tables/requester_imessage_bindings.sql`, `imessage_links.sql`, `triggers/imessage_clear_sender_name.sql` |
+| D2 | `TELEGRAM_BOT_USERNAME`이 설정된 곳에서는 번호도 등록도 없이 **Get updates in Telegram**을 제공하며, 대기 중 카드는 봇과 코드만 알려 줍니다 | 번호 요청: Telegram은 봇에게 번호를 알려 주지 않음 | 제안; 설계 2 | `apps/web/app/_components/requester/cards.tsx`의 `ImessageUpdates`; `createRequesterImessageLinkCommand` |
+| D3 | 비공개 대화에서 보낸 `/start <code>` 또는 코드만으로 요청의 Telegram 시도가 완료되며, **Confirm and link**를 누르기 전에는 답장하지 않습니다 | 수신 확인 답장: 게스트가 확인하기 전에 봇이 먼저 쓰게 됨 | 제안; 설계 3 | `lib/server/imessage-links.ts`의 `receiveLinkCode` |
+| D4 | 게스트와 연결된 발신자의 Telegram 텍스트와 `/` 명령은 게스트 iMessage와 똑같이 라우팅되며 `[Telegram] `이 붙습니다. 버튼 탭은 게스트에게 닿지 않고, 연결된 게스트의 단독 `/start`는 무시합니다 | Telegram을 호스트 전용으로 유지 | 제안; 설계 4 | `lib/server/imessage-receipts.ts`의 `processReceipt`와 `telegramLinking` |
+| D5 | 차단 업데이트는 발신자의 Telegram 게스트 바인딩을 끝내고, `blocked`로 거부된 전송은 그것이 향한 바인딩을 끝내며 대기 중이던 것을 보류합니다 | 게스트가 연동을 해제할 때까지 바인딩 유지 | 제안; 설계 5 | `lib/server/imessage-outbox.ts`의 `endBlockedRequesterBindings` |
+| D6 | Telegram 게스트에게는 버튼, 입력 중 표시, 반응, 연락처 카드, 창이 없습니다 | 게스트에게 호스트의 Telegram 부가 기능 제공 | 제안; 설계 6 | `lib/server/imessage-outbox.ts`, `imessage-receipts.ts` |
+
 ## `post-booking-changes`
 
 [제안서](../../openspec/changes/post-booking-changes/proposal.md#decisions)와 [설계](../../openspec/changes/post-booking-changes/design.md)는 이슈 #234(예약 후 재협상, #169)에 대한 이 선택들을 기록합니다. 사용자는 2026-11-16에 제품이 예약된 미팅의 취소와 변경을 지원하기로, 취소를 먼저 하기로 정했으며, 이 변경을 작성한 세션이 같은 날 D1–D5를 정했고 아직 팀원의 검토를 받지 않았습니다. PRD의 비목표 "예약 후 자동 일정 변경 및 취소"는 FR-43으로 대체됩니다.

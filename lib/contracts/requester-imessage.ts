@@ -6,8 +6,13 @@
 // The card links WhatsApp too (guest-whatsapp-link design 2): "none" names each
 // configured channel's number, and a code, sender or binding names its channel.
 // A WhatsApp code opens wa.me with the same message (messaging-channel.ts).
+// The card links Telegram too (guest-telegram-link design 2): "none" names the
+// bot's username, and a Telegram code carries the bot as lineNumber and the
+// bare code as message, so telegramLinkFor(lineNumber, message) is the start link.
 
-export type GuestChannel = "imessage" | "whatsapp";
+export type GuestChannel = "imessage" | "whatsapp" | "telegram";
+
+export const GUEST_CHANNELS = ["imessage", "whatsapp", "telegram"] as const satisfies readonly GuestChannel[];
 
 export const REQUESTER_IMESSAGE_OPERATIONS = {
   create: "request.imessage_link.create",
@@ -17,11 +22,13 @@ export const REQUESTER_IMESSAGE_OPERATIONS = {
 } as const;
 
 export type RequesterImessageStatus =
-  // No line is configured for this deployment.
+  // No channel is configured for this deployment.
   | { readonly state: "unavailable" }
-  // lineNumber is the iMessage line ("" without one); whatsappNumber the WhatsApp digits, or null.
-  | { readonly state: "none"; readonly lineNumber: string; readonly whatsappNumber: string | null }
-  // A link code to send from the guest's iMessage or WhatsApp, as shown, to lineNumber.
+  // lineNumber is the iMessage line ("" without one); whatsappNumber the WhatsApp
+  // digits, and telegramUsername the bot's username, each null without one.
+  | { readonly state: "none"; readonly lineNumber: string; readonly whatsappNumber: string | null; readonly telegramUsername: string | null }
+  // A link code to send from the guest's iMessage or WhatsApp, as shown, to
+  // lineNumber; on Telegram, the bot's start link carries the code.
   | {
       readonly state: "pending";
       readonly channel: GuestChannel;
@@ -30,7 +37,8 @@ export type RequesterImessageStatus =
       readonly message: string;
       readonly expiresAt: string;
     }
-  // The code's message arrived; the guest confirms the masked sender.
+  // The code's message arrived; the guest confirms the masked sender (on
+  // Telegram, the sender's name).
   | {
       readonly state: "received";
       readonly channel: GuestChannel;

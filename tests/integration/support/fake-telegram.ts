@@ -4,7 +4,8 @@ import type { AddressInfo } from "node:net";
 // A loopback stand-in for the Telegram Bot API (host-telegram-channel design 9),
 // so tests and local runs drive the real client, transport and outbox with
 // TELEGRAM_API_URL pointed here. It answers POST /bot<token>/<method> for
-// sendMessage, editMessageReplyMarkup, answerCallbackQuery, sendChatAction, setMessageReaction,
+// sendMessage, sendPhoto (multipart, the photo recorded as its name, type,
+// size and bytes), editMessageReplyMarkup, answerCallbackQuery, sendChatAction, setMessageReaction,
 // setWebhook, setMyCommands and getWebhookInfo as the Bot API does, records
 // every call with the token it named, and keeps the webhook and commands set.
 // The next call can be told to answer 403 (blocked), 429 with retry_after, 400,
@@ -28,14 +29,17 @@ export type FakeTelegram = {
   callsOf(method: string): FakeTelegramCall[];
   // The next call (of any method) is recorded and then answered as given.
   next(behavior: FakeTelegramBehavior): void;
-  // Every later sendMessage to this chat answers 403, as after the user blocked the bot.
+  // Every later sendMessage or sendPhoto to this chat answers 403, as after the user blocked the bot.
   block(chatId: string): void;
   readonly webhook: { url: string; secretToken: string | null; allowedUpdates: string[]; maxConnections: number | null };
   readonly commands: { command: string; description: string }[];
   close(): Promise<void>;
 };
 
-const METHODS = new Set(["sendMessage", "editMessageReplyMarkup", "answerCallbackQuery", "sendChatAction", "setMessageReaction", "setWebhook", "setMyCommands", "getWebhookInfo"]);
+// A file a multipart call uploaded, as the stand-in records it under its field.
+export type FakeTelegramFile = { readonly name: string; readonly type: string; readonly size: number; readonly bytes: Buffer };
+
+const METHODS = new Set(["sendMessage", "sendPhoto", "editMessageReplyMarkup", "answerCallbackQuery", "sendChatAction", "setMessageReaction", "setWebhook", "setMyCommands", "getWebhookInfo"]);
 
 function json(response: ServerResponse, status: number, body: unknown) {
   response.writeHead(status, { "content-type": "application/json" });
@@ -44,6 +48,19 @@ function json(response: ServerResponse, status: number, body: unknown) {
 
 function refusal(response: ServerResponse, status: number, description: string, parameters?: Record<string, unknown>) {
   json(response, status, { description, error_code: status, ok: false, ...(parameters ? { parameters } : {}) });
+}
+
+// A JSON body as its object; a multipart one with each text field as a string
+// and each file as a FakeTelegramFile.
+async function paramsOf(contentType: string, raw: Buffer): Promise<Record<string, unknown>> {
+  if (!contentType.startsWith("multipart/form-data")) return raw.length ? (JSON.parse(raw.toString("utf8")) as Record<string, unknown>) : {};
+  const form = await new Request("http://fake-telegram", { body: new Uint8Array(raw), headers: { "content-type": contentType }, method: "POST" }).formData();
+  const params: Record<string, unknown> = {};
+  for (const [name, value] of form.entries()) {
+    params[name] =
+      typeof value === "string" ? value : { bytes: Buffer.from(await value.arrayBuffer()), name: value.name, size: value.size, type: value.type };
+  }
+  return params;
 }
 
 export async function startFakeTelegram(options: { readonly port?: number } = {}): Promise<FakeTelegram> {
@@ -55,8 +72,9 @@ export async function startFakeTelegram(options: { readonly port?: number } = {}
   let messageId = 100;
 
   const server = createServer(async (request, response) => {
-    let raw = "";
-    for await (const chunk of request) raw += chunk;
+    const chunks: Buffer[] = [];
+    for await (const chunk of request) chunks.push(chunk as Buffer);
+    const raw = Buffer.concat(chunks);
     const url = new URL(request.url ?? "/", "http://fake-telegram");
 
     // Test control from another process.
@@ -72,7 +90,7 @@ export async function startFakeTelegram(options: { readonly port?: number } = {}
     }
 
     const [, token, method] = match as unknown as [string, string, string];
-    const params = (raw ? JSON.parse(raw) : {}) as Record<string, unknown>;
+    const params = await paramsOf(request.headers["content-type"] ?? "", raw);
     calls.push({ method, params, token });
     const behavior = behaviors.shift();
 
@@ -80,7 +98,7 @@ export async function startFakeTelegram(options: { readonly port?: number } = {}
       request.socket.destroy();
       return;
     }
-    if (behavior === "blocked" || (method === "sendMessage" && blocked.has(String(params.chat_id)))) {
+    if (behavior === "blocked" || ((method === "sendMessage" || method === "sendPhoto") && blocked.has(String(params.chat_id)))) {
       refusal(response, 403, "Forbidden: bot was blocked by the user");
       return;
     }
@@ -99,6 +117,23 @@ export async function startFakeTelegram(options: { readonly port?: number } = {}
         json(response, 200, {
           ok: true,
           result: { chat: { id: Number(params.chat_id), type: "private" }, date: Math.floor(Date.now() / 1000), message_id: messageId, text: params.text },
+        });
+        return;
+      case "sendPhoto":
+        if (!params.photo || typeof params.photo !== "object") {
+          refusal(response, 400, "Bad Request: there is no photo in the request");
+          return;
+        }
+        messageId += 1;
+        json(response, 200, {
+          ok: true,
+          result: {
+            caption: params.caption,
+            chat: { id: Number(params.chat_id), type: "private" },
+            date: Math.floor(Date.now() / 1000),
+            message_id: messageId,
+            photo: [{ file_id: `photo-${messageId}`, file_unique_id: `p${messageId}`, height: 900, width: 1600 }],
+          },
         });
         return;
       case "setWebhook":
