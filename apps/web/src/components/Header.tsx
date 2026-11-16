@@ -20,7 +20,6 @@ const NAV: NavGroup[] = [
   {
     label: "설정",
     items: [
-      { href: "/settings/availability", label: "내 시간 프로필" },
       { href: "/settings/calendars", label: "Calendar 연결" },
       { href: "/settings/host", label: "호스트 설정" },
     ],
