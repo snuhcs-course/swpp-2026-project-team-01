@@ -54,6 +54,7 @@ export function ConnectedAgentsDialog({
   const [messagingStatus, setMessagingStatus] = useState<ImessageStatus | null>(null);
   const [messagingFailed, setMessagingFailed] = useState(false);
   const [manageMessaging, setManageMessaging] = useState(false);
+  const listedChannels = listedMessagingChannels(messagingStatus);
   const { load, revoke } = source;
 
   const reload = useCallback(async () => {
@@ -122,9 +123,11 @@ export function ConnectedAgentsDialog({
               <h3 className="text-sm font-semibold" id="messaging-apps-heading">Messaging app</h3>
             </div>
             {messagingFailed ? <p className="text-destructive text-sm" role="alert">Messaging status could not be loaded.</p> : null}
-            <ul aria-label="Messaging app connections" className="grid gap-2 sm:grid-cols-3">
-              {MESSAGING_CHANNELS.map((channel) => {
-                const result = messagingChannelState(messagingStatus, channel);
+            {messagingStatus ? null : <p className="text-muted-foreground text-sm">Loading status…</p>}
+            {messagingStatus?.state === "unavailable" ? <p className="text-muted-foreground text-sm">Messaging is unavailable right now.</p> : null}
+            <ul aria-label="Messaging app connections" className={`grid gap-2 ${listedChannels.length >= 3 ? "sm:grid-cols-3" : listedChannels.length === 2 ? "sm:grid-cols-2" : ""}`}>
+              {listedChannels.map((channel) => {
+                const result = messagingChannelState(messagingStatus!, channel);
                 return (
                   <li className="min-w-0 rounded-xl border p-3" key={channel}>
                     <p className="font-medium">{channelName(channel)}</p>
@@ -211,8 +214,16 @@ export const HOST_GRANT_SOURCE: GrantSource = {
   },
 };
 
-function messagingChannelState(status: ImessageStatus | null, channel: MessagingChannel) {
-  if (!status) return { connected: false, label: "Loading status…" };
+// The channels the list shows: those this deployment can link, and the one the host's link or attempt
+// uses even if it is no longer offered. A channel the deployment does not offer, such as WhatsApp while
+// it is hidden (issue #221), is left out rather than shown as "Not configured". Nothing before the
+// status loads.
+export function listedMessagingChannels(status: ImessageStatus | null): MessagingChannel[] {
+  if (!status || status.state === "unavailable") return [];
+  return MESSAGING_CHANNELS.filter((channel) => Boolean(status.channels[channel]) || ("channel" in status && status.channel === channel));
+}
+
+function messagingChannelState(status: ImessageStatus, channel: MessagingChannel) {
   if (status.state === "unavailable") return { connected: false, label: "Unavailable" };
   if (status.state === "linked" && status.channel === channel) {
     return { connected: true, label: `Connected · ${status.sender}` };
@@ -222,7 +233,7 @@ function messagingChannelState(status: ImessageStatus | null, channel: Messaging
   }
   return {
     connected: false,
-    label: status.channels[channel] ? (status.state === "linked" ? "Available to switch" : "Available") : "Not configured",
+    label: status.state === "linked" ? "Available to switch" : "Available",
   };
 }
 
