@@ -13,6 +13,7 @@ import {
 } from "./cloudflare-email";
 import { CommandError } from "./commands";
 import { database, type Database, type Transaction } from "./database";
+import { type AccountEmailParameters, isAccountEmailTemplate } from "./account-emails";
 import { type EmailParameters, type EmailSecrets, type EmailTemplate, isEmailTemplate, renderEmail } from "./email-templates";
 import { publishJob, type ClaimedJob, type JobHandler } from "./jobs";
 import { assertMessagingAdmitted, gateTransport, type MessagingTransport } from "./messaging";
@@ -42,7 +43,9 @@ export type DeliveryState = "queued" | "dispatching" | "accepted" | "rejected" |
 
 export type EnqueueEmail = {
   readonly kind: EmailKind;
-  readonly requestId: string;
+  // Null only on an account email (self-service-account-deletion D5), which
+  // must outlive the deletion of the host's requests.
+  readonly requestId: string | null;
   // One delivery per (kind, dedupeKey): a concurrent or retried publication
   // returns the existing delivery, and changed input cannot replace it.
   readonly dedupeKey: string;
@@ -123,6 +126,7 @@ type DeliveryRow = {
 // open request; a decline or expiry notice that closed state; a pending notice
 // its booking still unconfirmed and dispatched.
 async function recipientCurrent(tx: Transaction, delivery: DeliveryRow) {
+  if (isAccountEmailTemplate(delivery.kind)) return accountEmailCurrent(tx, delivery);
   if (!delivery.request_id || delivery.recipients.length !== 1) return false;
 
   const recipient = delivery.recipients[0]!.toLowerCase();
@@ -154,10 +158,27 @@ async function recipientCurrent(tx: Transaction, delivery: DeliveryRow) {
       `;
       return row?.current ?? false;
     }
-    case "status_declined":
-    case "status_expired": {
+    case "status_change_dropped": {
+      // Current while the meeting it names still stands and the request is booked.
       const [row] = await tx<{ current: boolean }[]>`
-        select (r.state = ${delivery.kind === "status_declined" ? "declined" : "expired"}
+        select (r.state = 'booked' and l.expires_at > now() and lower(r.contact_email) = ${recipient}
+                and exists (select 1 from app.bookings b where b.id = ${parameters.bookingId ?? null}::uuid and b.state = 'confirmed')) as current
+        from app.requests r join app.booking_links l on l.request_id = r.id
+        where r.id = ${delivery.request_id}
+      `;
+      return row?.current ?? false;
+    }
+    case "booking_cancelled": {
+      const [row] = await tx<{ current: boolean }[]>`
+        select (r.state = 'cancelled') as current from app.requests r where r.id = ${delivery.request_id}
+      `;
+      return row?.current ?? false;
+    }
+    case "status_declined":
+    case "status_expired":
+    case "status_cancelled": {
+      const [row] = await tx<{ current: boolean }[]>`
+        select (r.state = ${delivery.kind === "status_declined" ? "declined" : delivery.kind === "status_expired" ? "expired" : "cancelled"}
                 and l.expires_at > now() and lower(r.contact_email) = ${recipient}) as current
         from app.requests r join app.booking_links l on l.request_id = r.id
         where r.id = ${delivery.request_id}
@@ -196,6 +217,33 @@ async function recipientCurrent(tx: Transaction, delivery: DeliveryRow) {
       `;
       return row?.current ?? false;
     }
+  }
+}
+
+// Whether an account email's purpose still holds (self-service-account-deletion
+// D5): a scheduled email its due time still set, a cancellation no schedule on a
+// live account, and a completion or guest notice the account deleted.
+async function accountEmailCurrent(tx: Transaction, delivery: DeliveryRow) {
+  const parameters = delivery.parameters as Partial<AccountEmailParameters>;
+  if (delivery.request_id || delivery.recipients.length !== 1 || typeof parameters.hostAccountId !== "string") return false;
+
+  const [account] = await tx<{ deletion_due_at: Date | null; deleted_at: Date | null }[]>`
+    select deletion_due_at, deleted_at from app.host_accounts where id = ${parameters.hostAccountId}::uuid
+  `;
+  if (!account) return false;
+
+  switch (delivery.kind) {
+    case "account_deletion_scheduled":
+      return (
+        account.deleted_at === null &&
+        account.deletion_due_at !== null &&
+        typeof parameters.dueAt === "string" &&
+        account.deletion_due_at.getTime() === new Date(parameters.dueAt).getTime()
+      );
+    case "account_deletion_cancelled":
+      return account.deleted_at === null && account.deletion_due_at === null;
+    default:
+      return account.deleted_at !== null;
   }
 }
 

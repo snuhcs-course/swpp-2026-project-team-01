@@ -19,6 +19,7 @@ import { errorMessage, useHostDiscussion } from "@/lib/chat/use-host-discussion"
 import {
   BookingCard,
   type HostCardContext,
+  isChangingBooking,
   nextHostStep,
   ProposalReviewCard,
   RuleTravelCard,
@@ -38,6 +39,7 @@ const STATE_LABELS: Readonly<Record<RequestState, string>> = {
   awaiting_host_approval: "Waiting for your approval",
   booked: "Booked",
   booking: "Booking in progress",
+  cancelled: "Cancelled",
   declined: "Declined",
   draft: "Draft",
   expired: "Expired",
@@ -278,14 +280,30 @@ function RequestView({ onBack, onUnavailable, requestId }: { readonly onBack: ()
 function OpenCard({ context, editing, setEditing }: { readonly context: HostCardContext; readonly editing: boolean; readonly setEditing: (value: boolean) => void }) {
   const step = nextHostStep(context.view, editing);
   const requestChanges = () => setEditing(true);
+  const card = stepCard(step, context, requestChanges, () => setEditing(false));
+  if (!isChangingBooking(context.view) || step === "booking") return card;
 
+  // A change after booking: the booked meeting stands until a new version is approved.
+  const receipt = context.view.booking!.receipt;
+  return (
+    <div className="flex flex-col gap-3">
+      <p className="text-muted-foreground" role="note">
+        Changing a booked meeting{receipt ? ` (${displayTime(new Date(receipt.start), context.view.hostTimezone)})` : ""}. It stays booked as it is until you approve a
+        new version.
+      </p>
+      {card}
+    </div>
+  );
+}
+
+function stepCard(step: ReturnType<typeof nextHostStep>, context: HostCardContext, requestChanges: () => void, closeEditor: () => void) {
   switch (step) {
     case "editor":
-      return <SuggestionEditor context={context} onClose={() => setEditing(false)} />;
+      return <SuggestionEditor context={context} onClose={closeEditor} />;
     case "suggestion":
       return <SuggestionCard context={context} onRequestChanges={requestChanges} />;
     case "booking":
-      return <BookingCard context={context} />;
+      return <BookingCard context={context} onRequestChanges={requestChanges} />;
     case "rules":
       return <RuleTravelCard context={context} />;
     case "proposal":
@@ -297,7 +315,7 @@ function OpenCard({ context, editing, setEditing }: { readonly context: HostCard
 
 // No proposal yet: the requester is still gathering details or choosing.
 function FindCard({ context, onRequestChanges }: { readonly context: HostCardContext; readonly onRequestChanges: () => void }) {
-  const closed = ["booked", "declined", "withdrawn", "expired"].includes(context.view.state);
+  const closed = ["booked", "declined", "withdrawn", "expired", "cancelled"].includes(context.view.state);
   const [error, setError] = useState<string | null>(null);
 
   return (

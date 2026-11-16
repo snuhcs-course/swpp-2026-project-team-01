@@ -44,6 +44,22 @@ describe("host decision tools", () => {
     expect(decline.safeParse({ ...declineBase, onlyIf: "they can't move it" }).success).toBe(false);
   });
 
+  it("offer cancel_booking under host:decide with the host's words, destructive", () => {
+    const cancel = tool("cancel_booking");
+    expect(cancel.scope).toBe("host:decide");
+    expect(toolDefinition(cancel).annotations.destructiveHint).toBe(true);
+    expect(cancel.input.safeParse({ expectedRevision: 3, hostInstruction: "Cancel the meeting", requestId, retryKey: "cancel-0001" }).success).toBe(true);
+    expect(cancel.input.safeParse({ expectedRevision: 3, requestId, retryKey: "cancel-0001" }).success).toBe(false);
+    expect(cancel.description).toMatch(/clearly told you, in their own words/);
+  });
+
+  it("offer change_booking under host:decide with the host's words", () => {
+    const change = tool("change_booking");
+    expect(change.scope).toBe("host:decide");
+    expect(change.input.safeParse({ expectedRevision: 3, hostInstruction: "Move it to Thursday", requestId, retryKey: "change-0001" }).success).toBe(true);
+    expect(change.input.safeParse({ expectedRevision: 3, requestId, retryKey: "change-0001" }).success).toBe(false);
+  });
+
   it("mark the decline destructive and tell the agent when it may decide", () => {
     expect(toolDefinition(tool("decline_request")).annotations.destructiveHint).toBe(true);
     expect(toolDefinition(tool("approve_proposal")).annotations.readOnlyHint).toBe(false);

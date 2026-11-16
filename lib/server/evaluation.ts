@@ -656,6 +656,13 @@ async function evaluate(
 
   const range = readRange(windows, settings.timezone);
 
+  // A change after booking (post-booking-changes design 5): the meeting being
+  // changed is not busy time for its own new time, on either calendar.
+  const [standing] = await tx<{ event_id: string }[]>`
+    select event_id from app.bookings where request_id = ${evaluation.requestId} and state = 'confirmed'
+  `;
+  const notOwnEvent = (event: CalendarEvent) => !standing || (event.id !== standing.event_id && event.iCalUID !== `${standing.event_id}@google.com`);
+
   // Host busy time from the confirmed conflict calendars, the grant refresh included.
   const hostEvents: CalendarEvent[] = [];
   let meetAvailable: boolean | null = null;
@@ -664,7 +671,7 @@ async function evaluate(
     const calendar = await openHostCalendar({ config: deps.calendar, db: tx, tokenKeys: deps.tokenKeys }, loaded.request.hostAccountId);
 
     for (const entry of settings.conflictCalendars) {
-      hostEvents.push(...(await deadline.run((signal) => calendar.listEvents(entry.id, range, { signal }))));
+      hostEvents.push(...(await deadline.run((signal) => calendar.listEvents(entry.id, range, { signal }))).filter(notOwnEvent));
     }
 
     if (mode === "online" && !details.linkPlan) {
@@ -690,7 +697,7 @@ async function evaluate(
   try {
     if (grant) {
       const events = await deadline.run((signal) => readRequesterEvents(deps.requesterCalendar, grant, range, { signal }));
-      requesterBusy = normalizeBusy(events, { endpointKey: hash, selfEmail: grant.email, timezone: requesterZone });
+      requesterBusy = normalizeBusy(events.filter(notOwnEvent), { endpointKey: hash, selfEmail: grant.email, timezone: requesterZone });
     }
   } catch (error) {
     if (error instanceof EvaluationDeadlineError) throw error;

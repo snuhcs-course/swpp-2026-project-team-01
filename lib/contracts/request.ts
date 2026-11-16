@@ -21,6 +21,8 @@ export const REQUEST_STATES = [
   "declined",
   "withdrawn",
   "expired",
+  // A booked meeting either side cancelled before it started (post-booking-changes).
+  "cancelled",
 ] as const;
 export type RequestState = (typeof REQUEST_STATES)[number];
 
@@ -30,7 +32,7 @@ export const ACTIONABLE_REQUEST_STATES = ["gathering", "negotiating", "awaiting_
 export type ActionableRequestState = (typeof ACTIONABLE_REQUEST_STATES)[number];
 
 // The states that set closed_at.
-export const CLOSED_REQUEST_STATES = ["booked", "declined", "withdrawn", "expired"] as const;
+export const CLOSED_REQUEST_STATES = ["booked", "declined", "withdrawn", "expired", "cancelled"] as const;
 export type ClosedRequestState = (typeof CLOSED_REQUEST_STATES)[number];
 
 export function isActionableRequestState(state: RequestState): state is ActionableRequestState {

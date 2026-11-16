@@ -4,11 +4,15 @@ import { GoogleLogo } from "@/app/_components/ink/icons";
 import { LiveThread } from "@/app/_components/ink/landing-parts";
 import "@/app/_components/ink/landing.css";
 
-export type SignInNotice = "failed" | "limited" | null;
+export type SignInNotice = "failed" | "limited" | "deletion_scheduled" | null;
 
 const NOTICES: Readonly<Record<Exclude<SignInNotice, null>, string>> = {
   failed: "Sign-in did not complete. Try again.",
   limited: "New sign-ups are temporarily limited. Try again later; existing hosts can still sign in.",
+  // After the host scheduled their own deletion from Settings
+  // (self-service-account-deletion D2).
+  deletion_scheduled:
+    "Your account will be deleted in 7 days, and we emailed you the date. Signing in again before then cancels the deletion.",
 };
 
 // The landing's spread at sign-in: the way in on paper, and Thyme's example
@@ -62,7 +66,7 @@ export function SignInCard({
         <Heading className="ld-sign-title">Find Me a Time</Heading>
         <p className="ld-lede">Sign in to set up how people book time with you.</p>
         {notice ? (
-          <p className={`ld-notice ${notice === "limited" ? "warning" : "error"}`} role="alert">
+          <p className={`ld-notice ${notice === "failed" ? "error" : "warning"}`} role={notice === "deletion_scheduled" ? "status" : "alert"}>
             {NOTICES[notice]}
           </p>
         ) : null}

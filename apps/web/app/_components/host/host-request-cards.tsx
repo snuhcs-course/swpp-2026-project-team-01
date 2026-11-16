@@ -34,6 +34,7 @@ const DURATIONS = [15, 30, 45, 60, 90, 120];
 
 function failureText(error: CommandFailure) {
   if (error.reason === "start_passed") return "That time has already started. Suggest a later one.";
+  if (error.reason === "not_booked") return "Nothing is booked for this request.";
   if (error.reason === "proposal_superseded") return "A newer proposal replaced this one. The current one is shown.";
   if (error.category === "stale_revision") return "This request changed since you last saw it. Check it and try again.";
   if (error.category === "invalid_input") return "This cannot be done with the current details.";
@@ -498,6 +499,9 @@ const FAILURE_TEXT: Readonly<Record<BookingFailure, string>> = {
   declined: "You declined before booking started.",
   event_removed: "The event was removed from your calendar.",
   expired: "The request expired before booking started.",
+  changed: "This meeting was moved; the new time is booked.",
+  host_cancelled: "You cancelled this meeting. The requester was told, and the event is removed from your calendar.",
+  requester_cancelled: "The requester cancelled this meeting. The event is removed from your calendar.",
   revalidation_unavailable: "Your calendar could not be checked just before booking, so nothing was booked. Retry when ready.",
   stale_decision: "The proposal changed before booking started, so nothing was booked.",
   withdrawn: "The requester withdrew before booking started.",
@@ -505,35 +509,76 @@ const FAILURE_TEXT: Readonly<Record<BookingFailure, string>> = {
 
 const RETRYABLE: readonly BookingFailure[] = ["calendar_access_revoked", "calendar_rejected", "revalidation_unavailable", "stale_decision"];
 
-export function BookingCard({ context }: { readonly context: HostCardContext }) {
+export function BookingCard({ context, onRequestChanges }: { readonly context: HostCardContext; readonly onRequestChanges?: () => void }) {
   const { view } = context;
   const booking = view.booking!;
   const { act, busy, error } = useAction(context);
+  const [confirmCancel, setConfirmCancel] = useState(false);
+
+  // Reopens the booked meeting for a change and opens the editor for the new details.
+  async function change() {
+    const outcome = await act("booking.change", {});
+    if (outcome.ok) onRequestChanges?.();
+  }
   const retry = booking.state === "failed" && booking.failure && RETRYABLE.includes(booking.failure) && view.state === "awaiting_host_approval" && view.proposal;
+  // A booked meeting can be cancelled until it starts (post-booking-changes).
+  const cancellable = view.state === "booked" && booking.state === "confirmed" && booking.receipt !== null && Date.parse(booking.receipt.start) > Date.now();
 
   return (
     <GuestCard
-      description={booking.state === "failed" && booking.failure ? FAILURE_TEXT[booking.failure] : BOOKING_STATUS_TEXT[booking.state].en}
+      description={(booking.state === "failed" || booking.state === "cancelled") && booking.failure ? FAILURE_TEXT[booking.failure] : BOOKING_STATUS_TEXT[booking.state].en}
       id="booking"
       label="Booking"
       title={
         booking.state === "confirmed"
           ? "Booked"
-          : booking.state === "failed" || booking.state === "cancelled"
-            ? "Not booked"
-            : "Booking in progress"
+          : view.state === "cancelled"
+            ? "Cancelled"
+            : booking.state === "failed" || booking.state === "cancelled"
+              ? "Not booked"
+              : "Booking in progress"
       }
     >
       {booking.receipt ? <Receipt receipt={booking.receipt} timeZone={view.hostTimezone} /> : null}
+      {confirmCancel ? (
+        <div aria-label="Confirm cancellation" className="flex flex-col gap-2" role="group">
+          <p>Cancel this meeting? {view.requester.name} is told, and the event is removed from your calendar. This cannot be undone.</p>
+          <GuestCardActions>
+            <Button
+              disabled={busy}
+              onClick={() => void act("booking.cancel", {}).then((outcome) => outcome.ok && setConfirmCancel(false))}
+              type="button"
+              variant="destructive"
+            >
+              Cancel meeting
+            </Button>
+            <Button onClick={() => setConfirmCancel(false)} type="button" variant="ghost">
+              Keep it
+            </Button>
+          </GuestCardActions>
+        </div>
+      ) : null}
       <GuestCardActions>
         {retry ? (
           <Button disabled={busy} onClick={() => void act("request.approve", { version: view.proposal!.version })} type="button">
             Retry booking
           </Button>
         ) : null}
-        <Button disabled={busy} onClick={() => void act("booking.check", {}, null)} type="button" variant="outline">
-          Check booking status
-        </Button>
+        {booking.state === "confirmed" || booking.state === "cancelled" ? null : (
+          <Button disabled={busy} onClick={() => void act("booking.check", {}, null)} type="button" variant="outline">
+            Check booking status
+          </Button>
+        )}
+        {cancellable && !confirmCancel ? (
+          <>
+            <Button disabled={busy} onClick={() => void change()} type="button" variant="outline">
+              Change meeting
+            </Button>
+            <Button disabled={busy} onClick={() => setConfirmCancel(true)} type="button" variant="ghost">
+              Cancel meeting
+            </Button>
+          </>
+        ) : null}
       </GuestCardActions>
       <StatusLine message={error} />
     </GuestCard>
@@ -542,6 +587,12 @@ export function BookingCard({ context }: { readonly context: HostCardContext }) 
 
 // ---------------------------------------------------------------------------
 // The next step
+
+// A booked meeting reopened for a change: it stays confirmed while the
+// request is open again (post-booking-changes design 5).
+export function isChangingBooking(view: HostRequestView) {
+  return view.booking?.state === "confirmed" && view.state !== "booked";
+}
 
 export type HostStep = "suggestion" | "editor" | "rules" | "proposal" | "booking" | "find";
 
@@ -553,7 +604,9 @@ export function nextHostStep(view: HostRequestView, editing: boolean): HostStep 
   if (view.suggestion && ["pending", "checking"].includes(view.suggestion.state)) return "suggestion";
 
   const booking = view.booking;
-  if (booking && ["reserved", "dispatching", "confirmed"].includes(booking.state)) return "booking";
+  if (booking && ["reserved", "dispatching"].includes(booking.state)) return "booking";
+  if (booking?.state === "confirmed" && !isChangingBooking(view)) return "booking";
+  if (view.state === "cancelled" && booking?.state === "cancelled") return "booking";
   if (booking?.state === "failed" && booking.failure && RETRYABLE.includes(booking.failure) && view.state === "awaiting_host_approval") {
     return "booking";
   }

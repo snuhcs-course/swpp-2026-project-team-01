@@ -14,6 +14,12 @@ export const BOOKING_EMAIL_TEMPLATES = [
   "status_declined",
   "status_expired",
   "status_pending",
+  // The host cancelled a booked meeting: the requester's notice.
+  "status_cancelled",
+  // The requester cancelled a booked meeting: the host's notice.
+  "booking_cancelled",
+  // A change after booking was declined or expired; the meeting stands.
+  "status_change_dropped",
 ] as const;
 export type BookingEmailTemplate = (typeof BOOKING_EMAIL_TEMPLATES)[number];
 
@@ -53,6 +59,10 @@ export type BookingEmailParameters = MeetingParameters & {
   // The proposal a new-version notice replaces, frozen with it, so the notice
   // can say what the host changed (#198). Absent on notices recorded before.
   readonly previous?: MeetingTerms;
+  // A confirmation of a change after booking: the existing event was updated.
+  readonly changed?: boolean;
+  // Why a change after booking was dropped.
+  readonly reason?: "declined" | "expired";
 };
 
 // The parts of a proposal the host can change.
@@ -259,8 +269,11 @@ function page(language: RequestLanguage, title: string, body: readonly string[])
 function renderConfirmation(language: RequestLanguage, parameters: BookingEmailParameters, viewUrl: string): RenderedBookingEmail {
   const labels = LABELS[language];
   const subject = confirmationSubject(parameters, language);
-  const lead =
-    language === "ko"
+  const lead = parameters.changed
+    ? language === "ko"
+      ? "미팅이 변경되었고 캘린더 일정도 바뀌었습니다."
+      : "Your meeting was changed, and the calendar event is updated."
+    : language === "ko"
       ? "미팅이 확정되어 캘린더에 추가되었습니다."
       : "Your meeting is confirmed and in the calendar.";
   const meeting = blocks(parameters, language);
@@ -293,6 +306,35 @@ function renderConfirmation(language: RequestLanguage, parameters: BookingEmailP
   return { html, subject, text };
 }
 
+// The host's notice that the requester cancelled a booked meeting
+// (post-booking-changes design 4): the meeting as it was, and the request in /app.
+function renderHostCancellation(language: RequestLanguage, parameters: BookingEmailParameters, viewUrl: string): RenderedBookingEmail {
+  const when = whenLine(parameters.start, parameters.end, parameters.timezone, language);
+  const name = parameters.requesterName;
+  const copy =
+    language === "ko"
+      ? {
+          action: "요청 보기",
+          lead: `${name}님이 예약된 미팅(${when})을 취소했습니다.`,
+          rest: "Google Calendar에서 일정을 지우고 있습니다. 일정이 남아 있으면 직접 삭제해 주세요.",
+          subject: `${name}님이 미팅을 취소했습니다: ${parameters.title}`,
+        }
+      : {
+          action: "View request",
+          lead: `${name} cancelled your booked meeting (${when}).`,
+          rest: "We are removing the event from your Google Calendar. If it is still there later, delete it yourself.",
+          subject: `${name} cancelled: ${parameters.title}`,
+        };
+
+  const html = page(language, copy.subject, [
+    `<p>${escapeHtml(copy.lead)}</p>`,
+    `<p>${escapeHtml(copy.rest)}</p>`,
+    button(viewUrl, copy.action),
+  ]);
+  const text = [copy.lead, "", copy.rest, "", `${copy.action}: ${viewUrl}`, "", "Find Me a Time"].join("\n");
+  return { html, subject: copy.subject, text };
+}
+
 // changes: the "what changed" block a new-version notice shows after its first
 // paragraph, when it knows the version it replaces.
 type StatusCopy = {
@@ -311,7 +353,7 @@ function newVersionChanges(parameters: BookingEmailParameters, language: Request
 
 // byReply: the product inbox's notice, answered by replying (U15).
 function statusCopy(
-  template: Exclude<BookingEmailTemplate, "booking_confirmation">,
+  template: Exclude<BookingEmailTemplate, "booking_confirmation" | "booking_cancelled">,
   language: RequestLanguage,
   parameters: BookingEmailParameters,
   byReply: boolean,
@@ -357,6 +399,25 @@ function statusCopy(
           ],
           subject: `${host}님과의 미팅 예약이 진행 중입니다`,
         };
+      case "status_change_dropped":
+        return {
+          action: "예약 보기",
+          paragraphs: [
+            parameters.reason === "declined"
+              ? `${host}님이 요청하신 변경을 받아들이지 않았습니다. 미팅은 원래대로 ${when}에 진행됩니다.`
+              : `미팅 변경 요청이 기한 안에 마무리되지 않았습니다. 미팅은 원래대로 ${when}에 진행됩니다.`,
+          ],
+          subject: `${host}님과의 미팅은 원래 시간 그대로입니다`,
+        };
+      case "status_cancelled":
+        return {
+          action: "예약 보기",
+          paragraphs: [
+            `${host}님이 예약된 미팅(${when})을 취소했습니다. Google Calendar 초대도 취소됩니다.`,
+            byReply ? "새로 시간을 잡고 싶으시면 이 메일에 답장해 주세요." : "다시 만나고 싶으시면 새 요청을 시작해 주세요.",
+          ],
+          subject: `${host}님과의 미팅이 취소되었습니다`,
+        };
     }
   }
 
@@ -396,6 +457,25 @@ function statusCopy(
         ],
         subject: `Your meeting with ${host} is still being booked`,
       };
+    case "status_change_dropped":
+      return {
+        action: "View booking",
+        paragraphs: [
+          parameters.reason === "declined"
+            ? `${host} kept your meeting as it was, so the change you asked for was not made. It stays at ${when}.`
+            : `Your change to the meeting wasn't settled in time, so it stays as it was: ${when}.`,
+        ],
+        subject: `Your meeting with ${host} stays as booked`,
+      };
+    case "status_cancelled":
+      return {
+        action: "View booking",
+        paragraphs: [
+          `${host} cancelled your meeting (${when}). The Google Calendar invitation is cancelled too.`,
+          byReply ? "Reply if you'd like to find a new time." : "Start a new request if you'd still like to meet.",
+        ],
+        subject: `Your meeting with ${host} was cancelled`,
+      };
   }
 }
 
@@ -403,7 +483,7 @@ function statusCopy(
 // product inbox (guest-flow-completion U15): no booking link, and the guest
 // answers by replying.
 function renderStatus(
-  template: Exclude<BookingEmailTemplate, "booking_confirmation">,
+  template: Exclude<BookingEmailTemplate, "booking_confirmation" | "booking_cancelled">,
   language: RequestLanguage,
   parameters: BookingEmailParameters,
   viewUrl: string | null,
@@ -462,6 +542,10 @@ export function renderBookingEmail(
   if (template === "booking_confirmation") {
     if (!viewUrl) throw new Error("A booking email needs its view link.");
     return renderConfirmation(language, parameters, viewUrl);
+  }
+  if (template === "booking_cancelled") {
+    if (!viewUrl) throw new Error("A booking email needs its view link.");
+    return renderHostCancellation(language, parameters, viewUrl);
   }
   return renderStatus(template, language, parameters, viewUrl ?? null);
 }

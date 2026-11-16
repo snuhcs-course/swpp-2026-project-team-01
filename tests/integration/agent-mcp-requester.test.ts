@@ -8,7 +8,10 @@ import { fakeGoogleConfig } from "./support/calendar-host";
 import { testDatabase } from "./support/database";
 import { type FakeGoogle, startFakeGoogle } from "./support/fake-google";
 import { makeHostReady, newHostAccount, uniqueHandle } from "./support/ready-host";
-import { calendarKey, evaluationDeps, runEvaluation, seedSchedulingRequest, seoul } from "./support/scheduling";
+import { calendarKey, evaluationDeps, revisionOf, runEvaluation, seedSchedulingRequest, seoul } from "./support/scheduling";
+import { approveCommand } from "../../lib/server/bookings";
+import { agreedRequest, asHost, bookingDeps, runBooking } from "./support/booking";
+import { testNotices } from "./support/requests";
 
 // The requester MCP endpoint and the one-future-request grant (agent-access
 // task 5.2; design 8): consent without an account for the displayed host,
@@ -34,6 +37,7 @@ function mcp(agent: ReturnType<typeof agentDependencies>) {
     appOrigin: ORIGIN,
     db,
     evaluationWaitMs: 200,
+    notices: () => testNotices,
     setup: { appOrigin: ORIGIN, calendar: { config: fakeGoogleConfig(google), db, tokenKeys: [calendarKey] }, db },
     signingKey: agent.signingKey,
     tokenKey: agent.tokenKey,
@@ -265,6 +269,32 @@ describe("an existing request within delegation", () => {
     await db`update app.booking_links set expires_at = now() where request_id = ${request.requestId}`;
     const expired = await mcp(agent)(mcpRequest(`/${handle}/mcp`, { method: "tools/list", token: tokens.access_token }), { params: Promise.resolve({ handle }) });
     expect(expired.status).toBe(401);
+  });
+
+  it("cancels a booked meeting, and offers cancel_booking and change_booking only while it is booked", async () => {
+    const agent = agentDependencies(db);
+    const request = await agreedRequest(db, google);
+    const [settings] = await db<{ handle: string }[]>`select settings ->> 'handle' as handle from app.host_settings where host_account_id = ${request.hostAccountId}`;
+    const handle = settings!.handle;
+    await db.begin((tx) => assignHandle(tx, request.hostAccountId, handle));
+    const { tokens } = await connect(agent, handle, { bookingLink: `${ORIGIN}/booking/${request.bookingId}`, choice: "existing" });
+
+    const approved = await asHost(db, request.hostAccountId, request.requestId, approveCommand, { version: 1 }, {
+      expectedRevision: await revisionOf(db, request.requestId),
+    });
+    if (!approved.ok) throw new Error("approve failed");
+    expect(await runBooking(db, bookingDeps(db, google), approved.result.bookingId)).toBe("completed");
+    const names = async () =>
+      ((await (await mcp(agent)(mcpRequest(`/${handle}/mcp`, { method: "tools/list", token: tokens.access_token }), { params: Promise.resolve({ handle }) })).json()) as {
+        result: { tools: { name: string }[] };
+      }).result.tools.map((tool) => tool.name).sort();
+
+    expect(await names()).toEqual(["cancel_booking", "change_booking", "get_host", "get_request"]);
+    const read = await call(agent, tokens.access_token, handle, "get_request");
+    const cancelled = await call(agent, tokens.access_token, handle, "cancel_booking", { expectedRevision: read.structuredContent.revision, retryKey: "cancel-0001" });
+    expect(cancelled.structuredContent.error).toBeUndefined();
+    expect(cancelled.structuredContent.outcome).toMatchObject({ state: "cancelled" });
+    expect(await names()).toEqual(["get_host", "get_request"]);
   });
 
   it("lists and revokes the request's agents from the booking page", async () => {

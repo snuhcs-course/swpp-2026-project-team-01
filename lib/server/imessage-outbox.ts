@@ -102,6 +102,8 @@ export const TEMPLATE_FOR_NOTICE: Readonly<Record<string, string>> = {
   awaiting_approval: "fmat_proposal_waiting",
   booking_confirmed: "fmat_booking_update",
   booking_failed: "fmat_booking_update",
+  booking_cancelled: "fmat_booking_update",
+  booking_event_left: "fmat_booking_update",
   new_request: "fmat_request_received",
 };
 

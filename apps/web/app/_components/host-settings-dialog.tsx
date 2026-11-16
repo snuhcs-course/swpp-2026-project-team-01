@@ -3,6 +3,7 @@
 import type { LocationAnswer, WeeklyWindow } from "@lib/contracts/setup";
 import { SettingsIcon } from "lucide-react";
 import { useEffect, useState } from "react";
+import { DeleteAccountCard } from "@/app/_components/delete-account-card";
 import { describeLocation, weeklyPreview } from "@/app/_components/setup/format";
 import { WeeklyWindowsEditor } from "@/app/_components/setup/weekly-windows-editor";
 import { Button } from "@/components/ui/button";
@@ -10,7 +11,12 @@ import { Input } from "@/components/ui/input";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { browserTimeZone, readSetupState, runSetupCommand, type SetupState } from "@/lib/setup/client";
 
-type Intake = { accepting: boolean; revision: number; confirmedWindows?: WeeklyWindow[] | null; confirmedTimezone?: string | null };
+type Intake = { accepting: boolean; revision: number; confirmedWindows?: WeeklyWindow[] | null; confirmedTimezone?: string | null; handle?: string | null };
+
+// /app?settings=account opens the dialog at the Delete account card, the link
+// Thyme sends when a host asks to delete their account
+// (self-service-account-deletion D6).
+const SETTINGS_PARAM = "settings";
 
 function editableLocation(answer: LocationAnswer | null | undefined) {
   return answer?.kind === "places" && answer.areas.length === 1 && answer.venue === null ? answer.areas[0] ?? "" : "";
@@ -26,6 +32,16 @@ export function HostSettingsDialog() {
   const [limitRaw, setLimitRaw] = useState("");
   const [locationRaw, setLocationRaw] = useState("");
   const [initialLocation, setInitialLocation] = useState("");
+  const [focusDeletion, setFocusDeletion] = useState(false);
+
+  useEffect(() => {
+    const url = new URL(window.location.href);
+    if (url.searchParams.get(SETTINGS_PARAM) !== "account") return;
+    url.searchParams.delete(SETTINGS_PARAM);
+    window.history.replaceState(window.history.state, "", url);
+    setFocusDeletion(true);
+    setOpen(true);
+  }, []);
 
   async function refresh() {
     const [nextSetup, response] = await Promise.all([
@@ -143,7 +159,7 @@ export function HostSettingsDialog() {
   const preferenceDirty = Boolean(setup && (limitRaw.trim() !== (setup.fields.weeklyLimit.proposed?.value?.toString() ?? "") || locationRaw.trim() !== initialLocation));
 
   return (
-    <Dialog onOpenChange={(next) => { if (!next && editing && !window.confirm("Discard your unsaved window edits?")) return; if (!next) setEditing(false); setOpen(next); }} open={open}>
+    <Dialog onOpenChange={(next) => { if (!next && editing && !window.confirm("Discard your unsaved window edits?")) return; if (!next) { setEditing(false); setFocusDeletion(false); } setOpen(next); }} open={open}>
       <DialogTrigger asChild>
         <Button aria-label="Open settings" size="icon" type="button" variant="ghost"><SettingsIcon aria-hidden className="size-5" /></Button>
       </DialogTrigger>
@@ -205,12 +221,13 @@ export function HostSettingsDialog() {
               </label>
               <p className="text-sm text-muted-foreground">{!setup.readiness.ready ? "Complete setup or reconnect your calendar before receiving requests." : intake.accepting ? "New guests can send requests." : "New requests are paused. Existing requests remain available."}</p>
             </section>
-            <div className="flex items-center justify-between gap-3 px-1">
-              {preferenceDirty ? <Button disabled={busy || editing} onClick={() => void savePreferences()} type="button">{busy ? "Saving..." : "Save changes"}</Button>
-                : setup.pendingChanges ? <Button disabled={busy || editing || setup.missingFields.length > 0} onClick={() => void confirmSettings()} type="button">Review and confirm changes</Button>
-                  : <span />}
-              <a className="py-2 text-xs text-muted-foreground underline underline-offset-2 hover:text-foreground" href="/privacy#deletion">Delete account</a>
-            </div>
+            {preferenceDirty || setup.pendingChanges ? (
+              <div className="flex items-center justify-between gap-3 px-1">
+                {preferenceDirty ? <Button disabled={busy || editing} onClick={() => void savePreferences()} type="button">{busy ? "Saving..." : "Save changes"}</Button>
+                  : <Button disabled={busy || editing || setup.missingFields.length > 0} onClick={() => void confirmSettings()} type="button">Review and confirm changes</Button>}
+              </div>
+            ) : null}
+            <DeleteAccountCard focus={focusDeletion} handle={intake.handle ?? null} />
           </div>
         ) : <p role="status">Loading settings…</p>}
         {notice ? <p role="status" className="text-sm">{notice}</p> : null}

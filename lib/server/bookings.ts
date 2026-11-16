@@ -3,7 +3,7 @@ import { z } from "zod";
 import type { BookingFailure, BookingReceipt, BookingState, BookingStatusView } from "../contracts/booking";
 import type { LinkPlan, RequestDetails, RequestState } from "../contracts/request";
 import type { ConfirmedSettings } from "../contracts/setup";
-import { type NoticeDependencies, enqueueConfirmations, enqueueStatusNotice, noticeDependenciesFromEnvironment } from "./booking-notices";
+import { type NoticeDependencies, enqueueChangeDropped, enqueueConfirmations, enqueueStatusNotice, noticeDependenciesFromEnvironment } from "./booking-notices";
 import { buildEventPayload, eventIdFor } from "./calendar-events";
 import { type Actor, assertRevision, type CommandDefinition, CommandError } from "./commands";
 import { database, type Database, type Transaction } from "./database";
@@ -19,7 +19,7 @@ import {
 } from "./google-calendar";
 import { enqueueButtonRetirement, enqueueHostNotice } from "./imessage-notices";
 import { type ClaimedJob, type JobHandler, publishJob } from "./jobs";
-import { cancelReservedBooking, closeRequest } from "./request-lifecycle";
+import { cancelReservedBooking, closeRequest, dropChange, standingBookingOf } from "./request-lifecycle";
 import { endpointHasher } from "./routes-client";
 import { type TokenKey, tokenKeyFromEnvironment } from "./token-encryption";
 
@@ -62,7 +62,7 @@ function hostLockKey(hostAccountId: string) {
   return `app.booking_host:${hostAccountId}`;
 }
 
-async function lockHost(tx: Transaction, hostAccountId: string) {
+export async function lockHost(tx: Transaction, hostAccountId: string) {
   await tx`select pg_advisory_xact_lock(hashtextextended(${hostLockKey(hostAccountId)}, 0))`;
 }
 
@@ -157,11 +157,15 @@ export const approveCommand: CommandDefinition<z.infer<typeof approveInput>, App
 
     // A second approval of the same version, from any interface and with any
     // retry key, observes the live booking instead of making another (AC-06).
-    const [live] = await tx<{ booking_id: string; state: BookingState; version: number }[]>`
-      select b.id as booking_id, b.state, p.version
+    // A confirmed booking of an earlier version is a change after booking
+    // (post-booking-changes design 5): it stands while the change is booked.
+    const lives = await tx<{ booking_id: string; state: BookingState; version: number; calendar_id: string; event_id: string }[]>`
+      select b.id as booking_id, b.state, p.version, b.calendar_id, b.event_id
       from app.bookings b join app.proposals p on p.id = b.proposal_id
       where b.request_id = ${request.id} and b.state in ('reserved', 'dispatching', 'confirmed')
     `;
+    const standing = lives.find((row) => row.state === "confirmed" && row.version !== context.input.version) ?? null;
+    const live = lives.find((row) => row !== standing) ?? null;
     if (live) {
       if (live.version !== context.input.version) throw new CommandError("stale_revision", { reason: "proposal_superseded" });
       return { bookingId: live.booking_id, repeated: true, revision: request.revision, state: live.state };
@@ -192,14 +196,15 @@ export const approveCommand: CommandDefinition<z.infer<typeof approveInput>, App
     const before = (settings.bufferBeforeMinutes ?? 0) * 60_000;
     const after = (settings.bufferAfterMinutes ?? 0) * 60_000;
 
+    // A change keeps the standing booking's calendar and event, which its job patches.
     await tx`
       insert into app.bookings
         (id, request_id, proposal_id, approval_id, host_account_id, calendar_id, event_id,
-         start_at, end_at, reserved_start, reserved_end)
+         start_at, end_at, reserved_start, reserved_end, replaces_booking_id)
       values
         (${bookingId}, ${request.id}, ${latest.id}, ${approval!.id}, ${request.host_account_id},
-         ${settings.bookingCalendar.id}, ${eventIdFor(bookingId)}, ${latest.start_at}, ${latest.end_at},
-         ${new Date(latest.start_at.getTime() - before)}, ${new Date(latest.end_at.getTime() + after)})
+         ${standing?.calendar_id ?? settings.bookingCalendar.id}, ${standing?.event_id ?? eventIdFor(bookingId)}, ${latest.start_at}, ${latest.end_at},
+         ${new Date(latest.start_at.getTime() - before)}, ${new Date(latest.end_at.getTime() + after)}, ${standing?.booking_id ?? null})
     `;
     await tx`
       update app.requests set state = 'booking', revision = revision + 1, updated_at = now()
@@ -220,7 +225,7 @@ export const approveCommand: CommandDefinition<z.infer<typeof approveInput>, App
 // ---------------------------------------------------------------------------
 // request.decline
 
-export type DeclineResult = { readonly state: "declined"; readonly revision: number };
+export type DeclineResult = { readonly state: "declined" | "booked"; readonly revision: number };
 
 export function declineCommand(loadNotices: () => NoticeDependencies = noticeDependenciesFromEnvironment): CommandDefinition<
   Record<string, never>,
@@ -233,6 +238,13 @@ export function declineCommand(loadNotices: () => NoticeDependencies = noticeDep
       const request = await lockHostRequest(tx, context.actor, context.resourceId);
       if (!request.open) throw new CommandError("request_closed");
       assertRevision(request.revision, context.expectedRevision);
+
+      // Declining a change after booking keeps the booked meeting as it was.
+      if (await standingBookingOf(tx, request.id)) {
+        await dropChange(tx, request.id, "declined");
+        await enqueueChangeDropped(tx, loadNotices(), request.id, "declined");
+        return { revision: request.revision + 1, state: "booked" };
+      }
 
       if (request.state === "booking") await cancelReservedBooking(tx, request.id, "declined");
 
@@ -267,7 +279,8 @@ async function latestBooking(db: Transaction | Database, requestId: string) {
     join app.proposals p on p.id = b.proposal_id
     join app.requests r on r.id = b.request_id
     where b.request_id = ${requestId}
-    order by b.created_at desc
+    -- A change in progress shows first, then the meeting that stands, then the latest attempt.
+    order by case b.state when 'reserved' then 0 when 'dispatching' then 0 when 'confirmed' then 1 else 2 end, b.created_at desc
     limit 1
   `;
   return row ?? null;
@@ -398,6 +411,8 @@ type JobBooking = {
   readonly start_at: Date;
   readonly end_at: Date;
   readonly payload: Record<string, unknown> | null;
+  // The confirmed booking this change replaces, whose event is patched.
+  readonly replaces_booking_id: string | null;
 };
 
 // Settles a booking that never dispatched or failed definitively, under the
@@ -438,7 +453,7 @@ async function otherBookingsBusy(tx: Transaction, booking: JobBooking, hash: (te
   const rows = await tx<{ details: LatestProposal["details"]; reserved_end: Date; reserved_start: Date }[]>`
     select b.reserved_start, b.reserved_end, p.details
     from app.bookings b join app.proposals p on p.id = b.proposal_id
-    where b.host_account_id = ${booking.host_account_id} and b.id <> ${booking.id}
+    where b.host_account_id = ${booking.host_account_id} and b.request_id <> ${booking.request_id}
       and b.state in ('dispatching', 'confirmed')
       and b.reserved_end > ${new Date(booking.start_at.getTime() - 86_400_000)}
       and b.reserved_start < ${new Date(booking.end_at.getTime() + 86_400_000)}
@@ -475,7 +490,8 @@ async function claimBooking(deps: BookingDependencies, bookingId: string): Promi
       for update of r
     `;
     const [booking] = await tx<JobBooking[]>`
-      select id, request_id, approval_id, proposal_id, host_account_id, calendar_id, event_id, state, start_at, end_at, payload
+      select id, request_id, approval_id, proposal_id, host_account_id, calendar_id, event_id, state, start_at, end_at, payload,
+             replaces_booking_id
       from app.bookings where id = ${bookingId}
       for update
     `;
@@ -494,6 +510,12 @@ async function claimBooking(deps: BookingDependencies, bookingId: string): Promi
     }
     if (request.expired) {
       await cancelForClosure(tx, booking, "expired");
+      // A change that ran out of time leaves the booked meeting as it was.
+      if (booking.replaces_booking_id) {
+        await closeRequest(tx, booking.request_id, "booked", { fromBooking: true });
+        await enqueueChangeDropped(tx, deps.notices, booking.request_id, "expired");
+        return { kind: "done", outcome: "expired" };
+      }
       await closeRequest(tx, booking.request_id, "expired", { fromBooking: true });
       await enqueueStatusNotice(tx, deps.notices, booking.request_id, { kind: "status_expired" });
       return { kind: "done", outcome: "expired" };
@@ -592,7 +614,7 @@ async function framePayload(tx: Transaction, booking: JobBooking) {
 
 type Written = { readonly kind: "confirmed"; readonly event: CreatedEvent } | { readonly kind: "rejected"; readonly failure: BookingFailure } | { readonly kind: "unknown" };
 
-async function openCalendar(deps: BookingDependencies, hostAccountId: string) {
+export async function openCalendar(deps: BookingDependencies, hostAccountId: string) {
   return deps.openCalendar
     ? deps.openCalendar(hostAccountId)
     : openHostCalendar({ config: deps.calendar, db: deps.db, tokenKeys: deps.tokenKeys }, hostAccountId);
@@ -623,9 +645,32 @@ async function reconcile(calendar: HostCalendar, booking: JobBooking): Promise<W
   return insertOnce(calendar, booking, booking.payload);
 }
 
+// A change patches the standing event with the frozen payload, again on every
+// attempt: the same body twice is harmless. The event's ID, attendees and an
+// existing conference are left as they are.
+async function patchChange(calendar: HostCalendar, booking: JobBooking, payload: Record<string, unknown> | null): Promise<Written> {
+  if (!payload) return { kind: "unknown" };
+  const { id: _id, attendees: _attendees, conferenceData, ...rest } = payload as Record<string, unknown> & { conferenceData?: unknown };
+  let body: Record<string, unknown> = rest;
+  if (conferenceData) {
+    const read = await calendar.getEvent(booking.calendar_id, booking.event_id);
+    if (read.outcome === "uncertain") return { kind: "unknown" };
+    // Keep a Meet the event already has; create one only when it has none.
+    if (!(read.outcome === "found" && read.event.joinUrl)) body = { ...rest, conferenceData };
+  }
+  const patched = await calendar.patchEvent(booking.calendar_id, booking.event_id, body);
+  if (patched.outcome === "patched") return patched.event.status === "cancelled" ? { failure: "event_removed", kind: "rejected" } : { event: patched.event, kind: "confirmed" };
+  if (patched.outcome === "absent") return { failure: "event_removed", kind: "rejected" };
+  if (patched.outcome === "rejected") return { failure: "calendar_rejected", kind: "rejected" };
+  return { kind: "unknown" };
+}
+
 async function write(deps: BookingDependencies, claim: Extract<Claim, { kind: "dispatch" | "reconcile" }>): Promise<Written> {
   try {
     const calendar = await openCalendar(deps, claim.booking.host_account_id);
+    if (claim.booking.replaces_booking_id) {
+      return await patchChange(calendar, claim.booking, claim.kind === "dispatch" ? claim.payload : claim.booking.payload);
+    }
     return claim.kind === "dispatch" ? await insertOnce(calendar, claim.booking, claim.payload) : await reconcile(calendar, claim.booking);
   } catch (error) {
     if (error instanceof CalendarAccessError && error.category !== "calendar_unavailable") {
@@ -639,6 +684,13 @@ async function write(deps: BookingDependencies, claim: Extract<Claim, { kind: "d
 
 async function confirm(tx: Transaction, deps: BookingDependencies, booking: JobBooking, event: CreatedEvent) {
   await tx`select id from app.requests where id = ${booking.request_id} for update`;
+  // The replaced booking gives way first: one confirmed booking per request.
+  if (booking.replaces_booking_id) {
+    await tx`
+      update app.bookings set state = 'cancelled', failure_category = 'changed', settled_at = now(), updated_at = now()
+      where id = ${booking.replaces_booking_id} and state = 'confirmed'
+    `;
+  }
   const confirmed = await tx<{ confirmed_at: Date }[]>`
     update app.bookings
     set state = 'confirmed', evidence = ${tx.json(event as unknown as Parameters<typeof tx.json>[0])},
@@ -655,6 +707,7 @@ async function confirm(tx: Transaction, deps: BookingDependencies, booking: JobB
 
   await enqueueConfirmations(tx, deps.notices, booking.request_id, {
     bookingId: booking.id,
+    changed: booking.replaces_booking_id !== null,
     confirmedAt: confirmed[0]!.confirmed_at.toISOString(),
     end: booking.end_at.toISOString(),
     iCalUID: event.iCalUID,

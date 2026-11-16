@@ -119,7 +119,8 @@ export type OpenRequesterView = {
 // booked, the confirmed receipt in the requester's timezone.
 export type ClosedRequesterView = {
   readonly open: false;
-  readonly request: { readonly state: RequestState };
+  // The revision a booked meeting's cancellation is made at (post-booking-changes).
+  readonly request: { readonly state: RequestState; readonly revision?: number };
   readonly host: { readonly displayName: string; readonly handle: string | null };
   readonly booking: BookingStatusView | null;
   readonly timezone: string;
@@ -160,5 +161,7 @@ export const REQUESTER_OPERATIONS = [
   "request.set_manual_availability",
   "request.host_profile.decide",
   "booking.check",
+  "booking.cancel",
+  "booking.change",
 ] as const;
 export type RequesterOperation = (typeof REQUESTER_OPERATIONS)[number];

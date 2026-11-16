@@ -44,6 +44,7 @@ import { createEmailLinkCommand, readEmailLinkStatus, unlinkEmailCommand } from 
 import { internalSigningKey } from "./internal-bearer";
 import { findReadyHostByHandle } from "./readiness";
 import { withdrawRequestCommand } from "./request-lifecycle";
+import { cancelBookingCommand, changeBookingCommand } from "./booking-cancellation";
 import {
   agreeCommand,
   allowTripCommand,
@@ -209,7 +210,7 @@ export async function readRequesterView(
       booking,
       host,
       open: false,
-      request: { state: isActionableRequestState(row.state) ? "expired" : row.state },
+      request: { ...(row.state === "booked" ? { revision: row.revision } : {}), state: isActionableRequestState(row.state) ? "expired" : row.state },
       timezone: row.details.timezone && isValidTimeZone(row.details.timezone) ? row.details.timezone : "UTC",
     };
   }
@@ -530,6 +531,8 @@ export function requesterCommands(
     registered(selectCalendarsCommand({ tokenKey: contact.tokenKey })),
     registered(resendConfirmationCommand(contact)),
     registered(checkBookingCommand),
+    registered(cancelBookingCommand()),
+    registered(changeBookingCommand),
     registered(createEmailLinkCommand({ tokenKey: contact.tokenKey })),
     registered(unlinkEmailCommand()),
     registered(createRequesterImessageLinkCommand(imessage)),
