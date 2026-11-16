@@ -168,7 +168,7 @@ Never change the Photon project's platforms, lines or webhook, register template
 
 ### Diagnosing refused WhatsApp replies
 
-A completed agent turn does not prove WhatsApp delivery. Trace the inbound receipt to its conversation input, then the `input_id` in `app.imessage_outbox` and its `imessage_send` job. The diagnostics snapshot includes failed sends across all channels under `imessage_failed`; inspect the sampled row's `channel`, `state` and `failure_category` using an authorized read-only database connection. A completed send job with outbox state `failed` means the worker handled the refusal, not that the reply arrived.
+A completed agent turn does not prove WhatsApp delivery. Trace the inbound receipt to its conversation input, then the `input_id` in `app.imessage_outbox` and its `imessage_send` job. The diagnostics snapshot includes failed sends across all channels under `imessage_uncertain`; inspect the sampled row's `channel`, `state` and `failure_category` using an authorized read-only database connection. A completed send job with outbox state `failed` means the worker handled the refusal, not that the reply arrived.
 
 Known business refusals retain only the numeric code in a bounded category (no raw error payload):
 

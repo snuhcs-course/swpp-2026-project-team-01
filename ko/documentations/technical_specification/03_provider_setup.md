@@ -170,7 +170,7 @@ Photon의 Beta 문서 [WhatsApp](https://photon.codes/docs/beta/messaging/whatsa
 
 ### WhatsApp 답장 거절 진단
 
-에이전트 턴 완료는 WhatsApp 전달 성공을 뜻하지 않는다. 수신 receipt에서 conversation input을 찾은 뒤 `app.imessage_outbox`의 `input_id`와 `imessage_send` 작업을 추적한다. 진단 snapshot의 `imessage_failed`에는 모든 채널의 실패가 포함된다. 권한이 있는 읽기 전용 DB 연결로 표본 행의 `channel`, `state`, `failure_category`를 확인한다. 작업이 완료되어도 outbox가 `failed`이면 거절 처리가 끝났다는 뜻이다.
+에이전트 턴 완료는 WhatsApp 전달 성공을 뜻하지 않는다. 수신 receipt에서 conversation input을 찾은 뒤 `app.imessage_outbox`의 `input_id`와 `imessage_send` 작업을 추적한다. 진단 snapshot의 `imessage_uncertain`에는 모든 채널의 실패가 포함된다. 권한이 있는 읽기 전용 DB 연결로 표본 행의 `channel`, `state`, `failure_category`를 확인한다. 작업이 완료되어도 outbox가 `failed`이면 거절 처리가 끝났다는 뜻이다.
 
 알려진 사업자 계정 거절은 원본 오류 없이 숫자 코드만 한정된 category로 보존한다.
 
