@@ -229,6 +229,8 @@ export function confirmSettingsCommand(
         conflictCalendars: roles.conflictCalendars.map(toRef),
         displayName: parsed.displayName,
         durationMinutes: parsed.durationMinutes,
+        // Saved off for an online-only policy, which proposes no trip grouping.
+        groupTrips: parsed.groupTrips ?? STARTER_DEFAULTS.groupTrips,
         handle,
         // An online-only policy saves no location or transport.
         location: parsed.location ?? null,

@@ -1,6 +1,6 @@
 "use client";
 
-import { EVALUATION_FAILURE_MESSAGES, NO_MATCH_MESSAGE, TIMES_SHOWN } from "@lib/contracts/feasibility";
+import { EVALUATION_FAILURE_MESSAGES, noMatchMessage, TIMES_SHOWN } from "@lib/contracts/feasibility";
 import type { LinkPlan, RequesterCandidate, RequestLanguage, RequestWindow, ReviewPatch } from "@lib/contracts/request";
 import { displayTime, zoneLabel } from "@lib/contracts/timezone";
 import { type FormEvent, type ReactNode, useEffect, useId, useState } from "react";
@@ -326,7 +326,6 @@ export function DetailsCard({ context }: { readonly context: RequesterCardContex
   const [mode, setMode] = useState<string>(details.mode ?? "");
   const [location, setLocation] = useState(details.location ?? "");
   const [link, setLink] = useState(details.linkPlan?.kind === "requester_link" ? details.linkPlan.url : "");
-  const [travel, setTravel] = useState<string>(details.travelMode ?? "");
   const [windows, setWindows] = useState<WindowRow[]>(() => windowRows(details.windows, context.timezone));
   const [editingPreferences, setEditingPreferences] = useState(false);
   const { act, busy, error, setError } = useAction(context);
@@ -358,7 +357,6 @@ export function DetailsCard({ context }: { readonly context: RequesterCardContex
     if (duration && Number(duration) !== details.durationMinutes) changes.durationMinutes = Number(duration);
     if (mode && mode !== details.mode) changes.mode = mode;
     if (mode === "in_person" && location.trim() && location.trim() !== (details.location ?? "")) changes.location = location.trim();
-    if (mode === "in_person" && travel && travel !== details.travelMode) changes.travelMode = travel;
     if (mode === "online" && link.trim() && !(details.linkPlan?.kind === "requester_link" && details.linkPlan.url === link.trim())) {
       if (!link.trim().startsWith("https://")) {
         setError("A meeting link must start with https://.");
@@ -425,27 +423,12 @@ export function DetailsCard({ context }: { readonly context: RequesterCardContex
           </div>
         </fieldset>
         {mode === "in_person" ? (
-          <>
-            <div className={field}>
-              <label className="font-medium" htmlFor={`${id}-location`}>
-                Place
-              </label>
-              <Input className="min-h-11" id={`${id}-location`} onChange={(event) => setLocation(event.target.value)} value={location} />
-            </div>
-            <div className={field}>
-              <label className="font-medium" htmlFor={`${id}-travel`}>
-                How you will travel
-              </label>
-              <select className={select} id={`${id}-travel`} onChange={(event) => setTravel(event.target.value)} value={travel}>
-                <option value="">Not set</option>
-                {(["driving", "transit", "walking"] as const).map((value) => (
-                  <option key={value} value={value}>
-                    {TRAVEL_LABELS[value]}
-                  </option>
-                ))}
-              </select>
-            </div>
-          </>
+          <div className={field}>
+            <label className="font-medium" htmlFor={`${id}-location`}>
+              Place
+            </label>
+            <Input className="min-h-11" id={`${id}-location`} onChange={(event) => setLocation(event.target.value)} value={location} />
+          </div>
         ) : null}
         {mode === "online" ? (
           <div className={field}>
@@ -797,7 +780,7 @@ export function CandidatesCard({ context }: { readonly context: RequesterCardCon
   const message = evaluation.failure
     ? EVALUATION_FAILURE_MESSAGES[evaluation.failure][lang]
     : offered.length === 0 && trips.length === 0
-      ? NO_MATCH_MESSAGE[lang]
+      ? noMatchMessage(lang, request.details.mode === "in_person" ? (request.details.location ?? null) : null)
       : null;
 
   async function choose(candidate: RequesterCandidate) {

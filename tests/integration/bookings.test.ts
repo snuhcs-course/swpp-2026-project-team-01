@@ -376,3 +376,45 @@ async function sameSlotRequest(first: AgreedRequest) {
   await db`insert into app.agreements (proposal_id, request_revision, retry_key) values (${proposal!.id}, 1, 'copy')`;
   return { ...first, bookingId, requestId: request!.id };
 }
+
+describe("a time and place pair", () => {
+  // guest-time-place-pairs design 7: the booked pair is revalidated and written
+  // at its own place, never at another host place free at that time.
+  async function agreedPair() {
+    const tag = randomUUID().slice(0, 8);
+    const venue = `AA Cafe ${tag}`;
+    const area = `Seolleung Station ${tag}`;
+    // Distinct times first: 10:00, 10:15 and 10:30 at the venue, then 10:00 in the area.
+    const request = await agreedRequest(db, google, {
+      candidateIndex: 3,
+      details: { location: null, mode: "in_person", travelMode: "transit" },
+      settings: { location: { areas: [area], kind: "places", venue } },
+    });
+    return { area, request, venue };
+  }
+
+  it("writes the chosen place to the event", async () => {
+    const { area, request } = await agreedPair();
+    const bookingId = await approved(request);
+
+    expect(await runBooking(db, bookingDeps(db, google), bookingId)).toBe("completed");
+    const [event] = google.createdEvents(request.calendarId);
+    expect(event).toMatchObject({ location: area });
+  });
+
+  it("revalidates the chosen place, not another place free at that time", async () => {
+    const { request, venue } = await agreedPair();
+    const bookingId = await approved(request);
+    // A commitment at the venue right after the time: the venue would need no
+    // trip, but the trip from the area cannot be estimated, so the pair fails.
+    const after = new Date(new Date(request.end).getTime() + 30 * 60_000).toISOString();
+    request.setCalendar({
+      events: { [request.calendarId]: [{ end: { dateTime: after }, id: "at-venue", location: venue, start: { dateTime: request.end }, status: "confirmed" }] },
+    });
+
+    await runBooking(db, bookingDeps(db, google), bookingId);
+
+    expect((await bookingOf(db, bookingId)).state).toBe("failed");
+    expect(google.createdEvents(request.calendarId)).toHaveLength(0);
+  });
+});

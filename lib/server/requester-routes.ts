@@ -77,7 +77,9 @@ import {
   setManualAvailabilityCommand,
   useGoogleEmailCommand,
 } from "./requester-grants";
-import { decideHostProfileCommand, readHostProfileView } from "./requester-host-profiles";
+import { IDENTIFY_ACCOUNT_OPERATION, identifyAccountCommand } from "./guest-account";
+import { decideHostProfileCommand, readHostProfileView, recordHostSessionMatch } from "./requester-host-profiles";
+import { supabaseAuthConfigFromEnvironment, type SupabaseAuthConfig, verifiedUserId } from "./supabase-auth";
 import {
   confirmRequesterImessageLinkCommand,
   createRequesterImessageLinkCommand,
@@ -85,7 +87,7 @@ import {
   shareRequesterContactCardCommand,
   unlinkRequesterImessageCommand,
 } from "./requester-imessage-links";
-import { photonConfig } from "./photon";
+import { offeredWhatsappNumber, photonConfig } from "./photon";
 import { type AppOrigins, appOriginsFromEnvironment, crossSiteRefusal } from "./same-origin";
 import { sourceHash } from "./signup-limits";
 import { type TokenKey, tokenKeyFromEnvironment } from "./token-encryption";
@@ -108,6 +110,7 @@ export type RequesterRouteDependencies = ConversationDependencies &
   GuestConversationDependencies &
   AppOrigins & {
     readonly tokenKey: () => TokenKey;
+    readonly hostAuth?: SupabaseAuthConfig;
     readonly confirmationLimits?: Partial<ConfirmationLimits>;
     readonly creationLimits?: Partial<CreationLimits>;
     readonly followIdleMs?: number;
@@ -129,9 +132,10 @@ export function requesterRouteDependenciesFromEnvironment(): RequesterRouteDepen
     runtime: eveRuntime(agentUrlFromEnvironment()),
     emailInbox: agentMailConfigFromEnvironment().inboxId,
     lineNumber: photonConfig().lineNumber,
-    whatsappNumber: photonConfig().whatsappNumber,
+    whatsappNumber: offeredWhatsappNumber(),
     signingKey: internalSigningKey(),
     tokenKey: tokenKeyFromEnvironment,
+    hostAuth: supabaseAuthConfigFromEnvironment(),
   };
 }
 
@@ -554,7 +558,15 @@ export function createRequesterCommandHandler(load: () => RequesterRouteDependen
 
     if (!body.success) return requesterJson({ code: "invalid_request", error: "Send an operation and a retry key." }, 400);
 
-    const command = requesterCommands(deps)[body.data.operation];
+    let command = requesterCommands(deps)[body.data.operation];
+
+    // **Continue as {name}** (host-as-guest-session): built only for a verified
+    // account session, which grants nothing on the request beyond it.
+    if (body.data.operation === IDENTIFY_ACCOUNT_OPERATION) {
+      const userId = deps.hostAuth ? await verifiedUserId(request, deps.hostAuth) : null;
+      if (!userId) return requesterJson({ code: "authentication_required", error: "Sign in to continue as your account." }, 401);
+      command = registered(identifyAccountCommand({ authUserId: userId, origin: deps.appOrigin, tokenKey: deps.tokenKey() }))[1];
+    }
 
     if (!command) return requesterJson({ code: "invalid_request", error: "This action is not available." }, 400);
 
@@ -576,6 +588,11 @@ export function createRequesterCommandHandler(load: () => RequesterRouteDependen
         view ? { ...outcome, status: view.request.state } : outcome,
         COMMAND_STATUS[outcome.error.category],
       );
+    }
+
+    if (body.data.operation === "request.identify" && deps.hostAuth) {
+      const userId = await verifiedUserId(request, deps.hostAuth);
+      if (userId) await deps.db.begin((tx) => recordHostSessionMatch(tx, link.requestId, userId));
     }
 
     return requesterJson(outcome, 200);

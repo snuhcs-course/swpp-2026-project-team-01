@@ -125,7 +125,13 @@ describe("shared changes", () => {
     const view = await readHostRequest(db, request.hostAccountId, request.requestId);
     expect(view?.suggestion).toMatchObject({ proposalVersion: 2, state: "shared" });
     expect(view?.proposal).toMatchObject({ agreedAt: null, durationMinutes: 45, start: new Date(later).toISOString(), version: 2 });
-    expect((await deliveriesOf(db, request.requestId)).map((email) => email.kind)).toEqual(["status_new_version"]);
+    const deliveries = await deliveriesOf(db, request.requestId);
+    expect(deliveries.map((email) => email.kind)).toEqual(["status_new_version"]);
+    // The notice carries the version it replaces, so it can say what changed (#198).
+    const [first] = await db<{ start_at: Date; end_at: Date }[]>`
+      select start_at, end_at from app.proposals where request_id = ${request.requestId} and version = 1
+    `;
+    expect(deliveries[0]!.parameters.previous).toMatchObject({ end: first!.end_at.toISOString(), start: first!.start_at.toISOString() });
 
     // The old version cannot be approved; the requester agrees to the new one.
     const stale = await asHost(db, request.hostAccountId, request.requestId, approveCommand, { version: 1 }, {

@@ -6,7 +6,7 @@ import { commandError, runAsGrant } from "./agent-tools";
 import type { CommandDefinition } from "./commands";
 import type { Queryable } from "./database";
 import type { LinkOptions } from "./imessage-links";
-import { photonConfig } from "./photon";
+import { offeredWhatsappNumber, photonConfig } from "./photon";
 import { telegramConfig } from "./telegram";
 import { openToken, sealToken, type TokenKey } from "./token-encryption";
 
@@ -27,7 +27,8 @@ export function openConnectLink(keys: readonly TokenKey[], token: string) {
 export function linkOptions(deps: AgentToolDependencies): LinkOptions {
   if (deps.chatLinkOptions) return deps.chatLinkOptions;
   const key = deps.tokenKey();
-  return { ...photonConfig(), telegramUsername: telegramConfig().username, tokenKey: key, tokenKeys: [key], origin: deps.origin };
+  const photon = photonConfig();
+  return { ...photon, whatsappNumber: offeredWhatsappNumber(photon), telegramUsername: telegramConfig().username, tokenKey: key, tokenKeys: [key], origin: deps.origin };
 }
 
 export function chatStatus(status: ImessageStatus | RequesterImessageStatus) {

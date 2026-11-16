@@ -34,6 +34,16 @@ export const NO_MATCH_MESSAGE = {
   ko: "말씀하신 시간대에서는 아직 맞는 시간이 없어요. 시간대를 넓히거나 다른 날짜, 더 짧은 미팅으로 다시 찾아보세요.",
 } as const;
 
+// The no-match message when the request names its own place, such as another
+// area the guest asked for (guest-time-place-pairs design 5): like every
+// requester message it gives no reason.
+export function noMatchMessage(language: "en" | "ko", place: string | null) {
+  if (!place) return NO_MATCH_MESSAGE[language];
+  return language === "ko"
+    ? `${place}에서는 아직 맞는 시간이 없어요. 다른 지역이나 다른 날짜, 또는 호스트가 안내한 장소로 다시 찾아보세요.`
+    : `No time works at ${place} yet. Try another area, other days or one of the host's places.`;
+}
+
 export const EVALUATION_FAILURE_MESSAGES: Readonly<Record<RequesterEvaluationFailure, { readonly en: string; readonly ko: string }>> = {
   needs_details: {
     en: "Add when you are free, and the meeting length and mode, to find times.",

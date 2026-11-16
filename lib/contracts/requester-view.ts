@@ -144,6 +144,7 @@ export type RequesterHostProfileView = {
 // lib/server/requester-routes.ts.
 export const REQUESTER_OPERATIONS = [
   "request.identify",
+  "request.identify_account",
   "request.apply_review",
   "request.dismiss_review",
   "request.update_details",

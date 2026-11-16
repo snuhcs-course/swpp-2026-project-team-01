@@ -1,5 +1,5 @@
 import type { ReactNode } from "react";
-import { Brand, LanguageSelect } from "./chrome";
+import { Brand } from "./chrome";
 import { COPY, type Locale } from "./copy";
 import { ScatterCards } from "./landing-float-tidy";
 import { LiveThread } from "./landing-parts";
@@ -18,7 +18,7 @@ export function FloatHero({ locale, start }: { readonly locale: Locale; readonly
   const copy = COPY[locale];
   const t = copy.landing;
   const f = t.frag;
-  const tag = locale === "ko" ? "ko-KR" : "en-US";
+  const tag = "en-US";
   const day = new Intl.DateTimeFormat(tag, {
     timeZone: "UTC",
     weekday: "short",
@@ -44,7 +44,6 @@ export function FloatHero({ locale, start }: { readonly locale: Locale; readonly
           <header className="ld-top lg-top">
             <Brand />
             <div className="ld-actions">
-              <LanguageSelect locale={locale} />
               <a className="ld-signin" href="/auth/sign-in">
                 {t.signIn}
               </a>
@@ -119,7 +118,7 @@ const GRID_BLOCKS: readonly (readonly [number, number, number])[] = [
   [6, 4.5, 1.5],
 ];
 function GridWash({ locale }: { readonly locale: Locale }) {
-  const tag = locale === "ko" ? "ko-KR" : "en-US";
+  const tag = "en-US";
   const day = new Intl.DateTimeFormat(tag, {
     timeZone: "UTC",
     weekday: "short",
@@ -203,7 +202,7 @@ function GridWash({ locale }: { readonly locale: Locale }) {
 
 // Phones: Thursday from noon to 6 PM under the card heap, 60 px an hour.
 function DayGrid({ locale }: { readonly locale: Locale }) {
-  const hour = new Intl.DateTimeFormat(locale === "ko" ? "ko-KR" : "en-US", {
+  const hour = new Intl.DateTimeFormat("en-US", {
     hour: "numeric",
     timeZone: "UTC",
   });

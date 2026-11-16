@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { EvaluationDeadlineError, startDeadline, validateRanking } from "./evaluation";
+import { EvaluationDeadlineError, hostPlaces, startDeadline, validateRanking } from "./evaluation";
 import { requesterCalendarConfigFromEnvironment } from "./requester-calendar";
 
 afterEach(() => {
@@ -106,5 +106,20 @@ describe("requesterCalendarConfigFromEnvironment", () => {
       });
     }
     expect(requesterCalendarConfigFromEnvironment({})).toMatchObject({ clientId: "", clientSecret: "" });
+  });
+});
+
+describe("the host's places for time and place pairs", () => {
+  it("lists the venue first, then the areas in order, without repeats", () => {
+    expect(hostPlaces({ location: { areas: ["Seolleung Station", "AA Cafe", "Yeoksam"], kind: "places", venue: "AA Cafe" } })).toEqual([
+      "AA Cafe",
+      "Seolleung Station",
+      "Yeoksam",
+    ]);
+  });
+
+  it("lists nothing when the host decides per meeting or gave no answer", () => {
+    expect(hostPlaces({ location: { kind: "decide_per_meeting" } })).toEqual([]);
+    expect(hostPlaces({ location: null })).toEqual([]);
   });
 });

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { type BookingEmailParameters, calendarInvitation, renderBookingEmail, whenLine } from "./booking-emails";
+import { type BookingEmailParameters, calendarInvitation, meetingChanges, renderBookingEmail, whenLine } from "./booking-emails";
 
 // The booking confirmation and status emails (email-delivery: booking
 // confirmation message, requester status notifications; design 9).
@@ -97,6 +97,74 @@ describe("the status notifications", () => {
     expect(`${email.subject} ${email.text}`).toContain(phrase);
     expect(email.text).toContain(secrets.bookingUrl);
     expect(email.text).not.toMatch(/is booked\b|is confirmed/);
+  });
+});
+
+describe("the new-version notice says what the host changed (#198)", () => {
+  const inPerson: BookingEmailParameters = { ...meeting, joinUrl: null, location: "Seoul Station", mode: "in_person", version: 2 };
+  const terms = (parameters: BookingEmailParameters) => ({
+    end: parameters.end,
+    location: parameters.location,
+    mode: parameters.mode,
+    start: parameters.start,
+  });
+
+  it("lists only the place when only the place changed", () => {
+    const email = renderBookingEmail("status_new_version", "en", { ...inPerson, location: "Cafe Onion, Seongsu", previous: terms(inPerson) }, secrets);
+
+    for (const text of [email.text, email.html]) {
+      expect(text).toContain("What changed");
+      expect(text).toContain("Place: Cafe Onion, Seongsu (was: Seoul Station)");
+      expect(text).not.toContain("Time:");
+      expect(text).not.toContain("Length:");
+      expect(text).not.toContain("Meeting type:");
+    }
+    expect(email.text).toContain("Ada Lovelace sent back changed meeting details.\n");
+  });
+
+  it("lists only the time when only the time changed", () => {
+    const moved = { ...inPerson, end: "2026-11-03T06:30:00.000Z", previous: terms(inPerson), start: "2026-11-03T06:00:00.000Z" };
+    const email = renderBookingEmail("status_new_version", "en", moved, secrets);
+
+    expect(email.text).toContain(
+      "Time: Tuesday, 3 November 2026, 15:00–15:30 (Asia/Seoul, GMT+9) (was: Monday, 2 November 2026, 10:00–10:30 (Asia/Seoul, GMT+9))",
+    );
+    expect(email.text).not.toContain("Place:");
+    expect(email.text).not.toContain("Length:");
+    expect(email.text).not.toContain("Meeting type:");
+  });
+
+  it("names a new meeting type, place and length together, in Korean", () => {
+    const online = { ...meeting, version: 2 };
+    const email = renderBookingEmail(
+      "status_new_version",
+      "ko",
+      { ...inPerson, end: "2026-11-02T02:00:00.000Z", previous: terms(online) },
+      secrets,
+    );
+
+    expect(email.text).toContain("바뀐 내용:");
+    expect(email.text).toContain("소요 시간: 60분 (이전: 30분)");
+    expect(email.text).toContain("미팅 방식: 대면 (이전: 온라인)");
+    expect(email.text).toContain("장소: Seoul Station (이전: 없음)");
+    expect(email.text).not.toContain("시간: 2026");
+  });
+
+  it("escapes a changed place in the HTML", () => {
+    const email = renderBookingEmail("status_new_version", "en", { ...inPerson, location: "<b>Lab</b>", previous: terms(inPerson) }, secrets);
+    expect(email.html).not.toContain("<b>Lab</b>");
+  });
+
+  it("keeps the new time in the sentence when it does not know the earlier version", () => {
+    const email = renderBookingEmail("status_new_version", "en", inPerson, secrets);
+
+    expect(email.text).toContain("sent back changed meeting details: Monday, 2 November 2026, 10:00–10:30");
+    expect(email.text).not.toContain("What changed");
+  });
+
+  it("finds no change between equal versions", () => {
+    expect(meetingChanges(terms(inPerson), { ...terms(inPerson), location: " Seoul Station " })).toEqual([]);
+    expect(meetingChanges(terms(meeting), { ...terms(meeting), end: "2026-11-02T01:45:00.000Z" })).toEqual(["duration"]);
   });
 });
 

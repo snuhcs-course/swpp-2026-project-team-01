@@ -135,7 +135,7 @@ export const REQUESTER_TOOLS: readonly AgentTool[] = [
   {
     name: "start_updates_link",
     title: "Start an updates link",
-    description: "Start an iMessage or WhatsApp updates link for this request. Give the person the browser link to send the code and confirm; nothing is linked yet.",
+    description: "Start an iMessage updates link for this request. Give the person the browser link to send the code and confirm; nothing is linked yet.",
     role: "requester",
     scope: "request:write",
     readOnly: false,

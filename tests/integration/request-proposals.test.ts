@@ -6,8 +6,9 @@ import { EVALUATION_JOB } from "../../lib/server/evaluation";
 import { agreeCommand, allowTripCommand, chooseCandidateCommand } from "../../lib/server/request-proposals";
 import { createRequesterCommandHandler, createRequesterStateHandler } from "../../lib/server/requester-routes";
 import { testDatabase } from "./support/database";
-import { type FakeGoogle, startFakeGoogle } from "./support/fake-google";
+import { type FakeEvent, type FakeGoogle, startFakeGoogle } from "./support/fake-google";
 import { fakeGoogleConfig } from "./support/calendar-host";
+import { FAKE_ROUTES_API_KEY, type FakeRoutes, startFakeRoutes } from "./support/fake-routes";
 import { call, guestDependencies } from "./support/guests";
 import {
   asRequester,
@@ -28,6 +29,7 @@ import {
 
 const db = testDatabase();
 let google: FakeGoogle;
+let routes: FakeRoutes;
 
 // The model and the agent are unavailable: nothing here may need them.
 const unavailableRuntime: ConversationRuntime = {
@@ -48,10 +50,12 @@ const deps = guestDependencies(db, { runtime: unavailableRuntime });
 
 beforeAll(async () => {
   google = await startFakeGoogle();
+  routes = await startFakeRoutes();
 });
 
 afterAll(async () => {
   await google.close();
+  await routes.close();
   await db.end();
 });
 
@@ -358,5 +362,81 @@ describe("a requester trip allowance", () => {
     `;
     expect(job!.count).toBe(1);
     expect(await revisionOf(db, r.requestId)).toBe(1);
+  });
+});
+
+describe("time and place pairs", () => {
+  // guest-time-place-pairs: an in-person request with no place is paired with
+  // the host's venue and area; the chosen pair is proposed, rechecked at its
+  // own place on agreement, and never swapped for another place at that time.
+  const atPlace = (start: string, end: string, location: string): FakeEvent => ({ ...busy(start, end), location });
+
+  async function pairedRequest() {
+    const tag = randomUUID().slice(0, 8);
+    const office = `Gangnam office ${tag}`;
+    const venue = `AA Cafe ${tag}`;
+    const area = `Seolleung Station ${tag}`;
+    routes.setRoute(office, venue, "TRANSIT", 40);
+    routes.setRoute(office, area, "TRANSIT", 10);
+    routes.setRoute(area, venue, "TRANSIT", 10);
+    const r = await seedSchedulingRequest(db, google, {
+      details: { location: null, mode: "in_person", travelMode: "transit", windows: [{ end: seoul("12:00"), start: seoul("10:00") }] },
+      events: [atPlace("10:00", "10:30", office)],
+      settings: { location: { areas: [area], kind: "places", venue } },
+    });
+    const withRoutes = evaluationDeps(db, google, { routes: { apiKey: FAKE_ROUTES_API_KEY, baseUrl: routes.baseUrl, timeoutMs: 5_000 } });
+    const found = await command(r.bookingId, "request.evaluate", {}, null);
+    const evaluationId = found.result!.evaluationId as string;
+    await runEvaluation(db, withRoutes, evaluationId);
+    return { ...r, area, evaluationId, office, venue, withRoutes };
+  }
+
+  it("offers each feasible time with its own place, distinct times first", async () => {
+    const r = await pairedRequest();
+    const current = await view(r.bookingId);
+
+    // 10:30 fits neither trip; the area fits from 10:45 and the venue from 11:15.
+    expect(current.evaluation!.candidates.map((candidate) => [candidate.start, candidate.location])).toEqual([
+      [seoul("10:45"), r.area],
+      [seoul("11:00"), r.area],
+      [seoul("11:15"), r.venue],
+      [seoul("11:30"), r.venue],
+      [seoul("11:15"), r.area],
+      [seoul("11:30"), r.area],
+    ]);
+    expect(JSON.stringify(current.evaluation)).not.toContain(r.office);
+  });
+
+  it("proposes the chosen pair unchanged and rechecks agreement at its own place", async () => {
+    const r = await pairedRequest();
+    const current = await view(r.bookingId);
+    const chosen = current.evaluation!.candidates.find((candidate) => candidate.start === seoul("11:15") && candidate.location === r.area)!;
+
+    const proposed = await command(r.bookingId, "request.choose_candidate", { candidateId: chosen.id, evaluationId: r.evaluationId }, 1);
+    expect(proposed).toMatchObject({ ok: true, result: { outcome: "proposed", version: 1 } });
+    expect((await view(r.bookingId)).proposal).toMatchObject({ location: r.area, mode: "in_person", start: seoul("11:15") });
+
+    // A new commitment at the venue right after the time: the venue pair still
+    // fits (no trip), the area pair does not, so agreement must not go ahead.
+    r.setCalendar({ events: { [r.calendarId]: [atPlace("10:00", "10:30", r.office), atPlace("11:45", "12:30", r.venue)] } });
+    const agreed = await asRequester(db, r.requestId, agreeCommand(() => r.withRoutes), { version: 1 }, { expectedRevision: 1 });
+
+    expect(agreed).toMatchObject({ ok: true, result: { outcome: "time_unavailable", version: 1 } });
+    expect(await agreements(r.requestId)).toEqual([]);
+  });
+
+  it("agrees to a pair that still fits, keeping its place for the host's approval", async () => {
+    const r = await pairedRequest();
+    const current = await view(r.bookingId);
+    const chosen = current.evaluation!.candidates.find((candidate) => candidate.location === r.area)!;
+
+    await command(r.bookingId, "request.choose_candidate", { candidateId: chosen.id, evaluationId: r.evaluationId }, 1);
+    const agreed = await asRequester(db, r.requestId, agreeCommand(() => r.withRoutes), { version: 1 }, { expectedRevision: 1 });
+
+    expect(agreed).toMatchObject({ ok: true, result: { outcome: "agreed", state: "awaiting_host_approval", version: 1 } });
+    const [proposal] = await db<{ details: { location: string | null }; start_at: Date }[]>`
+      select details, start_at from app.proposals where request_id = ${r.requestId} and version = 1
+    `;
+    expect(proposal).toMatchObject({ details: { location: r.area }, start_at: new Date(chosen.start) });
   });
 });

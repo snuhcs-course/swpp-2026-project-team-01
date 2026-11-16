@@ -741,3 +741,37 @@ The [proposal](../../openspec/changes/agent-decisions-in-words/proposal.md#decis
 | D2 | A required `hostInstruction` (1–500 characters after trimming, not stored) carries the host's words; `expectedRevision` is required on both tools; descriptions, server instructions and `/SKILL.md` say: only when the host clearly says so, never on the agent's judgment or a requester's say, never with conditions | MCP elicitation; storing the words; a boolean `confirmed` | Proposal; design 2 | `hostInstructionSchema` in `agent-host-tools.ts`; `INSTRUCTIONS` in `lib/server/agent-mcp.ts`; `hostEntryDocument` in `lib/server/entry-documents.ts` |
 | D3 | `host:decide` permits the two tools; its consent words become "Approve and decline requests when you tell the agent to"; existing grants with it gain them | A new scope; only grants made after the change | Proposal; design 3; `agent-client-authorization` delta "Role-bound permission scopes" | `SCOPE_DESCRIPTIONS` in `lib/contracts/agent-access.ts`, the consent page, `connected-agents.tsx` |
 | D4 | The CLI reaches them with `fmat call approve_proposal` and `fmat call decline_request`; no new subcommands | `fmat approve` and `fmat decline` | Proposal; design 4 | `cli/src/app.ts` |
+
+## `guest-time-place-pairs`
+
+The [design](../../openspec/changes/guest-time-place-pairs/design.md) records these choices, taken on 2026-11-14 in the session that wrote the change, for issue #182 from the Iteration 4 kickoff (2026-11-08). They have had no teammate review yet.
+
+| # | Choice | Alternatives | Recorded in | To change it |
+|---|---|---|---|---|
+| D1 | An in-person request with no place is paired with the host's confirmed venue, then areas, at most six; a requested place, Decide per meeting and online meetings keep one place or none | Pairing a guest's place with the host's too; places from calendar analysis | Design 1 | `hostPlaces` in `lib/server/evaluation.ts` |
+| D2 | Each free time is checked once for busy time, then once per place for travel; the 40-candidate cut counts pairs, ordered by start and then place; the same-day trip rank does not apply to pairs | Checking every place for 40 times; place-major order | Design 2 | `plan()` in `lib/server/feasibility.ts` |
+| D3 | Pair IDs add the place index (`-p<index>`); the guest sees each time's first pair before any time's second | Separate time and place choices; a pair per time only | Design 3 and 4 | `candidateId`, `requesterProjection` |
+| D4 | Another area becomes the request's place through the review card; with none feasible, the message names the place and gives no reason; the existing 10-per-hour evaluation limit covers it | A separate per-area limit; offering the host's places beside the guest's | Design 5 and 6 | `noMatchMessage` in `lib/contracts/feasibility.ts`, `agent/instructions/requester.ts` |
+| D5 | Agreement's recheck and booking revalidation check the proposal's own place | Rechecking every host place at that time | Design 7 | `EvaluateOptions.place`; `agreeCommand`, the booking job |
+
+## `same-day-trips`
+
+The [design](../../openspec/changes/same-day-trips/design.md) records these choices for issue #103. The engine decisions (1–5) shipped in PR #106; the setup decisions (6–7) were taken on 2026-11-14 in the session that implemented them and have had no teammate review yet.
+
+| # | Choice | Alternatives | Recorded in | To change it |
+|---|---|---|---|---|
+| D1 | **Group trips by day** is a host preference, off by default and on every policy confirmed before it existed; it orders in-person candidates and never removes one | A filter that drops far days; on by default | Proposal; design 1; `meeting-feasibility` delta "Same-day trip preference" | `groupTripsOf` in `lib/contracts/setup.ts` |
+| D2 | Far is more than 30 minutes from the preferred area and near is within 15 minutes, by the travel check's Routes estimates and cache with the host's travel mode; missing estimates leave a day unranked | Straight-line distance, which disagrees with the travel check and needs coordinates; a model ranking signal, which never sees locations | Design 2 | `TRIP_FAR_MINUTES`, `TRIP_NEAR_MINUTES` in `lib/server/feasibility.ts` |
+| D3 | The trip rank comes after the weekly limit and before the requester's preferences and the day spread | Before the weekly limit; after the requester's preferences | Design 3 | The weighted sort in `plan()` |
+| D4 | `groupTrips` is an optional setup field, saved only with an in-person or either mode, asked on the web as its own step after the travel buffer unless the place is decided per meeting, shown in the web review and the linked-chat settings review, and not asked in the chat setup | A required in-person answer; saving it only when the location has places | Design 6; `host-setup` delta "Same-day trip setting" | `IN_PERSON_OPTIONAL_FIELDS` in `lib/contracts/setup.ts`; `setupSteps` in `apps/web/app/_components/setup/steps.ts` |
+| D5 | The scan suggests it on when at least two days held an in-person event at a place other than the most frequent one that also appears on another day, judged by place text and stored as counts only; it is policy only after the host confirms | Route estimates during the scan, before a preferred area exists; comparing with the host's location answer | Design 7; `host-setup` delta "Same-day trip suggestion" | `tripEvidence` and `suggestFromEvidence` in `lib/server/analysis.ts` |
+
+## Product language
+
+Dohyeon Park decided this on 2026-11-16, closing the question the 2026-11-14 UAT meeting left open in [issue #200](https://github.com/snuhcs-course/swpp-2026-project-team-01/issues/200): whether the assistant's replies also become English once fixed copy does. It has had no teammate review yet.
+
+| # | Choice | Alternatives | Recorded in | To change it |
+|---|---|---|---|---|
+| — | Fixed product copy and emails are in English only: pages, cards, receipts, fixed chat replies, notices and button titles. The assistants (Thyme on the web, the linked iMessage, WhatsApp and Telegram chats, and agents through MCP or the CLI) reply in the language the person writes in. It replaces the "English and Korean copies" asked in issues #178 and #179 and `channel-actions-in-words` D4's Korean fixed replies | English for the assistant's replies too, so a conversation never switches language; fixed copy following the request's language, which mixed languages in one thread (issue #200) | PRD FR-27 and section 10 "Supported languages"; issue #200 | The PRD first. Fixed copy: `lib/server/booking-emails.ts`, `lib/server/email-templates.ts`, `apps/web/app/_components/guest/guest-workspace.tsx`, `lib/server/channel-language.ts`, `channel-texts.ts`. Assistant replies: `agent/instructions/base.md`, `host-setup.ts`, `host-imessage.ts`, `requester.ts` |
+
+Status on 2026-11-16: PR #217 made the landing and host setup English-only. Guest emails, the guest workspace's fixed messages and the linked chats' fixed replies still follow the request's or the host's language; issue #200 tracks that work, and the `email-delivery` and `meeting-requests` specs, the agent configuration and the host onboarding flow change with it. The assistants already reply in the person's language; `agent/instructions/base.md` names English or Korean.

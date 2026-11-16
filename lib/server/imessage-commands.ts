@@ -5,6 +5,7 @@ import {
   SETUP_FIELD_NAMES,
   type SetupFieldName,
   TRAVEL_MODE_LABELS,
+  meetsInPerson,
   WEEKLY_LIMIT_COUNT_LABELS,
   type WeeklyWindow,
 } from "../contracts/setup";
@@ -188,6 +189,8 @@ function fieldText(field: SetupFieldName, value: unknown, language: ChannelLangu
       return value === null ? texts.none : texts.perWeek(value as number);
     case "weeklyLimitCounts":
       return WEEKLY_LIMIT_COUNT_LABELS[value as keyof typeof WEEKLY_LIMIT_COUNT_LABELS] ?? String(value);
+    case "groupTrips":
+      return texts.groupTrips(value === true);
     case "travelMode":
       return TRAVEL_MODE_LABELS[value as keyof typeof TRAVEL_MODE_LABELS] ?? String(value);
     case "location": {
@@ -223,6 +226,8 @@ export async function settingsReview(db: Database, hostAccountId: string, origin
     const entry = proposal.proposed[field];
     if (!entry) continue;
     if (field === "weeklyLimitCounts" && proposal.proposed.weeklyLimit?.value == null) continue;
+    // Trip grouping applies only to in-person meetings.
+    if (field === "groupTrips" && !meetsInPerson(proposal.proposed.meetingMode?.value)) continue;
     const source = entry.source === "starter_default" ? texts.starterDefault : entry.source === "inferred" ? texts.suggested : "";
     lines.push(`${FIELD_LABELS[language][field]}: ${fieldText(field, entry.value, language)}${source}`);
   }

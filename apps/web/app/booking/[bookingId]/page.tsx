@@ -3,8 +3,10 @@ import type { RequestState } from "@lib/contracts/request";
 import { findRequestByBookingId } from "@lib/server/booking-links";
 import { database } from "@lib/server/database";
 import { openGuestSession } from "@lib/server/guest-conversations";
+import { signedInGuestAccount } from "@lib/server/guest-account-session";
 import { readRequesterView, requesterRouteDependenciesFromEnvironment } from "@lib/server/requester-routes";
 import type { Metadata } from "next";
+import { cookies } from "next/headers";
 import { connection } from "next/server";
 import { Suspense } from "react";
 import { Receipt } from "@/app/_components/booking-receipt";
@@ -64,7 +66,11 @@ async function Booking({ params }: { readonly params: Params }) {
     console.error(JSON.stringify({ error: error instanceof Error ? error.name : typeof error, event: "requester_session_unavailable" }));
   }
 
-  return <GuestWorkspace bookingId={bookingId.toLowerCase()} host={view.host} initialView={view} />;
+  // A signed-in account on its own linked request gets the way back to /app;
+  // the session adds no authority here, the link stays the credential.
+  const account = await signedInGuestAccount(await cookies(), { requestId: link.requestId });
+
+  return <GuestWorkspace bookingId={bookingId.toLowerCase()} host={view.host} initialView={view} workspaceLink={account?.linked ?? false} />;
 }
 
 function Unavailable() {

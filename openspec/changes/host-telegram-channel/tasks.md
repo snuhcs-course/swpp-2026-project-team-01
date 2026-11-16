@@ -29,11 +29,11 @@ Before each group, read the [Phase 10 reference files](../../../documentations/t
 
 ## 5. Join
 
-- [ ] 5.1 Capture one real Telegram update on the production webhook and update the parser's fixture from it (blocked on the user: it needs the webhook registered and a message sent to the bot).
+- [x] 5.1 Capture one real Telegram update on the production webhook and update the parser's fixture from it (blocked on the user: it needs the webhook registered and a message sent to the bot).
 - [ ] 5.2 On a controlled Android phone and an iPhone against the production deployment: link, select a request, revise, approve with a button, decline, tap a stale button, replay after restart, and block and unblock the bot. Record AC-32, AC-33 and AC-34 with device, Telegram and browser versions.
 
 ## 6. Release (blocked on the user)
 
-- [ ] 6.1 Set the bot's name, description and picture in @BotFather; set `TELEGRAM_BOT_TOKEN`, `TELEGRAM_BOT_USERNAME` and `TELEGRAM_WEBHOOK_SECRET` on Vercel Production.
-- [ ] 6.2 Apply the migration through the shared-project workflow; deploy; run `npm run telegram:webhook` against production.
+- [x] 6.1 Set the bot's name, description and picture in @BotFather; set `TELEGRAM_BOT_TOKEN`, `TELEGRAM_BOT_USERNAME` and `TELEGRAM_WEBHOOK_SECRET` on Vercel Production.
+- [x] 6.2 Apply the migration through the shared-project workflow; deploy; run `npm run telegram:webhook` against production.
 - [ ] 6.3 Archive the change after `host-imessage-channel` and `host-whatsapp-channel` with `openspec archive host-telegram-channel`, closing #111.

@@ -1,15 +1,17 @@
 import { readCalendarRoles } from "./calendar-roles";
+import type { RequestState } from "../contracts/request";
 import type { Queryable } from "./database";
 import { CalendarAccessError, openHostCalendar, type GoogleCalendarDependencies } from "./google-calendar";
 
 export type DashboardEvent = {
   readonly id: string;
-  readonly source: "google" | "thyme";
+  readonly source: "google" | "thyme" | "sent";
   readonly title: string;
   readonly start: string;
   readonly end: string;
   readonly allDay: boolean;
   readonly location: string | null;
+  readonly state?: RequestState;
 };
 
 export type DashboardData = {
@@ -25,6 +27,17 @@ type BookingRow = {
   start_at: Date;
   end_at: Date;
   payload: { summary?: unknown; location?: unknown } | null;
+  evidence: { iCalUID?: unknown } | null;
+};
+
+type SentRow = {
+  id: string;
+  state: RequestState;
+  host_name: string | null;
+  start_at: Date;
+  end_at: Date;
+  calendar_id: string | null;
+  event_id: string | null;
   evidence: { iCalUID?: unknown } | null;
 };
 
@@ -48,8 +61,34 @@ export async function readHostDashboard(
       and start_at < ${range.end} and end_at > ${range.start}
     order by start_at
   `;
-  const bookedIds = new Set(bookings.map((booking) => `${booking.calendar_id}:${booking.event_id}`));
-  const bookedUids = new Set(bookings.map((booking) => booking.evidence?.iCalUID).filter((uid): uid is string => typeof uid === "string"));
+  const sent = await db<SentRow[]>`
+    select r.id, r.state,
+           coalesce(s.settings ->> 'displayName', h.display_name, 'Host') as host_name,
+           coalesce(b.start_at, p.start_at) as start_at,
+           coalesce(b.end_at, p.end_at) as end_at,
+           b.calendar_id, b.event_id, b.evidence
+    from app.requester_host_profiles match
+    join app.requests r on r.id = match.request_id
+    join app.host_accounts h on h.id = r.host_account_id
+    left join app.host_settings s on s.host_account_id = r.host_account_id
+    left join lateral (
+      select start_at, end_at from app.proposals where request_id = r.id order by version desc limit 1
+    ) p on true
+    left join lateral (
+      select start_at, end_at, calendar_id, event_id, evidence from app.bookings
+      where request_id = r.id and state = 'confirmed' order by updated_at desc limit 1
+    ) b on true
+    where match.host_account_id = ${hostAccountId}
+      and r.state in ('gathering', 'negotiating', 'awaiting_host_approval', 'booking', 'booked')
+      and coalesce(b.start_at, p.start_at) < ${range.end}
+      and coalesce(b.end_at, p.end_at) > ${range.start}
+    order by start_at
+  `;
+  const bookedIds = new Set([
+    ...bookings.map((booking) => `${booking.calendar_id}:${booking.event_id}`),
+    ...sent.filter((request) => request.calendar_id && request.event_id).map((request) => `${request.calendar_id}:${request.event_id}`),
+  ]);
+  const bookedUids = new Set([...bookings, ...sent].map((booking) => booking.evidence?.iCalUID).filter((uid): uid is string => typeof uid === "string"));
   const events: DashboardEvent[] = bookings.map((booking) => ({
     id: `thyme:${booking.id}`,
     source: "thyme",
@@ -59,6 +98,16 @@ export async function readHostDashboard(
     allDay: false,
     location: typeof booking.payload?.location === "string" ? booking.payload.location : null,
   }));
+  events.push(...sent.map((request) => ({
+    allDay: false,
+    end: request.end_at.toISOString(),
+    id: `sent:${request.id}`,
+    location: null,
+    source: "sent" as const,
+    start: request.start_at.toISOString(),
+    state: request.state,
+    title: `With ${request.host_name ?? "Host"}`,
+  })));
 
   let googleWarning: string | null = null;
   try {

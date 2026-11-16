@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
 import {
   MAX_INTERACTIVE_BODY,
+  offeredWhatsappNumber,
   photonConfig,
   photonRegistrar,
   photonTransport,
@@ -21,6 +22,16 @@ const request = { channel: "imessage" as const, content: { kind: "text" as const
 function answering(status: number, body: unknown = {}) {
   return vi.fn(async () => new Response(JSON.stringify(body), { status })) as unknown as typeof fetch;
 }
+
+describe("offeredWhatsappNumber", () => {
+  it("hides the WhatsApp number from the screens unless WhatsApp is offered (issue #221)", () => {
+    const env = { PHOTON_WHATSAPP_NUMBER: "+15550002222" };
+    expect(photonConfig(env).whatsappNumber).toBe("15550002222");
+    expect(offeredWhatsappNumber(photonConfig(env), env)).toBe("");
+    expect(offeredWhatsappNumber(photonConfig(env), { ...env, WHATSAPP_OFFERED: "0" })).toBe("");
+    expect(offeredWhatsappNumber(photonConfig(env), { ...env, WHATSAPP_OFFERED: "1" })).toBe("15550002222");
+  });
+});
 
 describe("standInTransport", () => {
   it("maps answers to outcomes", async () => {
