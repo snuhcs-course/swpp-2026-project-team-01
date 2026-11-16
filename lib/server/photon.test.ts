@@ -132,6 +132,10 @@ describe("WhatsApp sends", () => {
     expect(await standInTransport("http://127.0.0.1:9", "s", answering(429)).send(whatsapp)).toEqual({ status: "unavailable" });
   });
 
+  it.each(["whatsapp_131031", "whatsapp_131037", "whatsapp_131042", "whatsapp_131045"])("preserves %s through the stand-in", async (category) => {
+    expect(await standInTransport("http://127.0.0.1:9", "s", answering(422, { category })).send(whatsapp)).toEqual({ category, status: "rejected" });
+  });
+
   it("refuses WhatsApp in a preview before any network access", async () => {
     const preview = { PHOTON_API_URL: "http://127.0.0.1:4100", VERCEL: "1", VERCEL_ENV: "preview", VERCEL_TARGET_ENV: "preview" };
     await expect(photonTransport(photonConfig(preview), preview).send(whatsapp)).rejects.toMatchObject({ category: "unavailable_configuration" });

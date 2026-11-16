@@ -157,10 +157,12 @@ export function inboundWhatsAppMessage(payload: unknown): InboundMessage | null 
 // ---------------------------------------------------------------------------
 // Meta's refusals (design 9, D10)
 
+export type WhatsAppBusinessRejection = "whatsapp_131031" | "whatsapp_131037" | "whatsapp_131042" | "whatsapp_131045";
+
 export type WhatsAppSendFailure =
   | {
       readonly status: "rejected";
-      readonly category: "window_closed" | "undeliverable" | "template_unavailable" | "provider_authentication" | "provider_rejected";
+      readonly category: WhatsAppBusinessRejection | "window_closed" | "undeliverable" | "template_unavailable" | "provider_authentication" | "provider_rejected";
     }
   | { readonly status: "unavailable" }
   | { readonly status: "uncertain" };
@@ -187,7 +189,12 @@ export function metaErrorCode(error: unknown): number | null {
   return null;
 }
 
-const BUSINESS_ACCOUNT_REFUSALS = new Set([131031, 131037, 131042, 131045]);
+const BUSINESS_ACCOUNT_REFUSALS: Readonly<Record<number, WhatsAppBusinessRejection | undefined>> = {
+  131031: "whatsapp_131031",
+  131037: "whatsapp_131037",
+  131042: "whatsapp_131042",
+  131045: "whatsapp_131045",
+};
 
 // A failure once the send began: Meta's refusals are final, its rate limits
 // mean nothing was sent, and anything else may have gone out.
@@ -197,10 +204,10 @@ export function whatsAppSendFailure(error: unknown): WhatsAppSendFailure {
   if (code === 131026) return { category: "undeliverable", status: "rejected" };
   if (code !== null && code >= 132000 && code <= 132999) return { category: "template_unavailable", status: "rejected" };
   if (code === 130429 || code === 131056) return { status: "unavailable" };
-  // The business account cannot send at all until an operator acts in WhatsApp
-  // Manager: the account is locked (131031), the display name awaits approval
-  // (131037), payment failed (131042) or the certificate is wrong (131045).
-  if (code !== null && BUSINESS_ACCOUNT_REFUSALS.has(code)) return { category: "provider_rejected", status: "rejected" };
+  // Keep only the known numeric reason, never the provider's private details.
+  // These refusals need an operator action, not another automatic send.
+  const businessRefusal = code === null ? undefined : BUSINESS_ACCOUNT_REFUSALS[code];
+  if (businessRefusal) return { category: businessRefusal, status: "rejected" };
 
   const name = (error as { name?: unknown } | null)?.name;
   if (name === "RateLimitError") return { status: "unavailable" };
