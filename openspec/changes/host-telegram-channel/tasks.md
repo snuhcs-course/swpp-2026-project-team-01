@@ -34,6 +34,6 @@ Before each group, read the [Phase 10 reference files](../../../documentations/t
 
 ## 6. Release (blocked on the user)
 
-- [ ] 6.1 Set the bot's name, description and picture in @BotFather; set `TELEGRAM_BOT_TOKEN`, `TELEGRAM_BOT_USERNAME` and `TELEGRAM_WEBHOOK_SECRET` on Vercel Production.
+- [x] 6.1 Set the bot's name, description and picture in @BotFather; set `TELEGRAM_BOT_TOKEN`, `TELEGRAM_BOT_USERNAME` and `TELEGRAM_WEBHOOK_SECRET` on Vercel Production.
 - [x] 6.2 Apply the migration through the shared-project workflow; deploy; run `npm run telegram:webhook` against production.
 - [ ] 6.3 Archive the change after `host-imessage-channel` and `host-whatsapp-channel` with `openspec archive host-telegram-channel`, closing #111.

@@ -527,11 +527,11 @@
 | 공유 프로젝트 마이그레이션 | 2026-11-14 | `34b9bc47` | `20261104050046_telegram_channel.sql`, `20261104054324_telegram_sender_name.sql`, `20261104054627_telegram_buttons.sql`은 `Deploy production` 워크플로가 `main`에 병합될 때마다 푸시하는 체인에 들어 있으며, 실행은 성공했습니다 |
 | `TELEGRAM_BOT_TOKEN`, `TELEGRAM_BOT_USERNAME`, `TELEGRAM_WEBHOOK_SECRET` | 2026-11-14 | — | 사용자가 `findmeatime-release` Production에 UTC 11:51경 설정했습니다. 시크릿은 URL 안전 문자 48자이며 메인 체크아웃의 `.env`와 일치합니다 |
 | `Deploy production`(`workflow_dispatch`) | 2026-11-14 | `34b9bc47` | UTC 11:47 실행은 변수가 생기기 전에 배포되어 웹훅이 `401`로 응답했고, UTC 12:01과 12:02 실행은 변수와 함께 배포되었습니다. `/eve/v1/health`는 `ready`로 응답합니다 |
+| 봇 프로필 | 2026-11-16 | — | 사용자가 @BotFather에서 이름, 설명, 사진을 설정함 |
 | `npm run telegram:webhook` | 2026-11-14 | `f9e09e2a` | `message`, `callback_query`, `my_chat_member`와 함께 `https://findmeatime.com/telegram/webhook`에 `setWebhook`, 연결 10개; 명령 `/requests`, `/review`, `/help`, `/stop` |
 | 실제 업데이트 캡처(작업 5.1) | 2026-11-14 | `da375c1c` | 웹훅을 잠시 제거한 상태에서 `getUpdates`가 비공개 채팅의 `/start`와 일반 메시지를 반환했습니다. 픽스처와의 차이: `chat`이 발신자의 이름과 사용자명을 반복하고, 앞쪽 명령에는 `bot_command` 엔터티가 붙습니다. 픽스처와 가림 처리한 단위 테스트가 이를 따르며, 원본 사본은 삭제했습니다. 웹훅을 다시 등록하고 프로덕션을 다시 배포한 뒤 두 업데이트가 모두 전달되었고(`pending_update_count` 0, UTC 12:01:43 이후 오류 없음) 봇이 휴대폰에서 응답했습니다 |
 
 ### 알려진 공백
 
 - **통제된 기기 실행 없음**: AC-32부터 AC-34까지(작업 5.2). 연결, 버튼 승인과 거절, 오래된 탭, 재시작 후 재생, 봇 차단과 차단 해제를 Android 휴대폰과 iPhone에서 확인해야 합니다.
-- **봇 프로필**(@BotFather의 이름, 설명, 사진)은 사용자의 단계이며 여기에 기록하지 않았습니다.
 - **D1–D13에 대한 팀원 검토**(작업 1.2)와 보관(작업 6.3, `host-imessage-channel`과 `host-whatsapp-channel` 이후)이 남아 있습니다.
