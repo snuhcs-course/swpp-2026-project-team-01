@@ -513,6 +513,8 @@ async function claimBooking(deps: BookingDependencies, bookingId: string): Promi
     }
 
     const hash = endpointHasher(deps.tokenKeys[0]!);
+    // The booked pair's own place (guest-time-place-pairs design 7).
+    const [booked] = await tx<{ details: LatestProposal["details"] }[]>`select details from app.proposals where id = ${booking.proposal_id}`;
     const check: IntervalCheck = await checkInterval(
       tx,
       deps.evaluation,
@@ -520,6 +522,7 @@ async function claimBooking(deps: BookingDependencies, bookingId: string): Promi
       { end: booking.end_at, start: booking.start_at },
       {
         extraHostBusy: await otherBookingsBusy(tx, booking, hash),
+        place: booked?.details.mode === "in_person" ? (booked.details.location ?? null) : null,
         requesterCalendar: false,
         routeMaxAgeHours: BOOKING_ROUTE_MAX_AGE_HOURS,
       },

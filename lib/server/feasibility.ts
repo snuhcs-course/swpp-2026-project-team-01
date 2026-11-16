@@ -289,6 +289,10 @@ export type RequestTerms = {
   readonly mode: MeetingMode | null;
   // The in-person meeting place, keyed like event places.
   readonly location: { readonly text: string; readonly key: string } | null;
+  // The host's confirmed places, venue first, keyed like event places. With no
+  // location and an in-person meeting, each free time is paired with each of
+  // them (guest-time-place-pairs design 2).
+  readonly places?: readonly { readonly text: string; readonly key: string }[];
   readonly linkPlan: LinkPlan | null;
   readonly windows: readonly { readonly start: Date; readonly end: Date }[];
   // The windows are the default search range, not the requester's own: keep
@@ -560,6 +564,10 @@ type TripDay = {
 type Planned = {
   readonly start: number;
   readonly end: number;
+  // The pair's place index among request.places, or null when the request has
+  // one place or none.
+  readonly placeIndex: number | null;
+  readonly place: { readonly text: string; readonly key: string } | null;
   readonly window: Window;
   readonly weekStart: string;
   readonly weekCount: number;
@@ -768,7 +776,7 @@ function plan(input: FeasibilityInput): Plan {
     weekCounts.set(week, (weekCounts.get(week) ?? 0) + 1);
   }
 
-  const open: Omit<Planned, "legs" | "trip">[] = [];
+  const open: Omit<Planned, "legs" | "trip" | "place" | "placeIndex">[] = [];
 
   for (const interval of intervals) {
     if (overlaps(input.hostBusy, interval.start - before, interval.end + after)) {
@@ -812,17 +820,24 @@ function plan(input: FeasibilityInput): Plan {
       perDay.set(day, (perDay.get(day) ?? 0) + 1);
     }
   }
-  free.sort(
+  // An in-person request without a place pairs each free time with each of the
+  // host's places (guest-time-place-pairs design 2); the cut below counts pairs.
+  const pairPlaces = mode === "in_person" && !request.location && request.places?.length ? request.places : null;
+  const paired = pairPlaces
+    ? free.flatMap((entry) => pairPlaces.map((place, placeIndex) => ({ ...entry, place, placeIndex })))
+    : free.map((entry) => ({ ...entry, place: mode === "in_person" ? request.location : null, placeIndex: null }));
+  paired.sort(
     (a, b) =>
       Number(b.belowLimit) - Number(a.belowLimit) ||
       tripScore(b) - tripScore(a) ||
       (dayRank.get(a.start) ?? 0) - (dayRank.get(b.start) ?? 0) ||
-      a.start - b.start,
+      a.start - b.start ||
+      (a.placeIndex ?? 0) - (b.placeIndex ?? 0),
   );
   const preferred = request.preferredWindows ?? [];
   const weekly = request.preferredWeeklyWindows ?? [];
   const lessPreferred = request.lessPreferredWindows ?? [];
-  const dates = new Set(weekly.length ? free.flatMap((entry) => {
+  const dates = new Set(weekly.length ? paired.flatMap((entry) => {
     const date = localParts(entry.start, request.timezone).date;
     return [date, addDays(date, -1)];
   }) : []);
@@ -836,15 +851,15 @@ function plan(input: FeasibilityInput): Plan {
       if (starts.length === 1 && ends.length === 1 && ends[0]! > starts[0]!) recurring.push({ start: starts[0]!, end: ends[0]! });
     }
   }
-  const score = (entry: (typeof free)[number]) =>
+  const score = (entry: (typeof paired)[number]) =>
     Number(preferred.some((window) => entry.start >= window.start.getTime() && entry.end <= window.end.getTime())) +
     Number(recurring.some((window) => entry.start >= window.start && entry.end <= window.end)) -
     3 * Number(lessPreferred.some((window) => entry.start < window.end.getTime() && entry.end > window.start.getTime()));
   // The host's weekly-limit preference, then their trip preference, outweigh
   // all guest preference signals (score is within [-3, 2]).
-  const hostWeight = (entry: (typeof free)[number]) => 20 * Number(entry.belowLimit) + 6 * tripScore(entry);
-  const weighted = (entry: (typeof free)[number]) => hostWeight(entry) + score(entry);
-  const ranked = [...free].sort((a, b) => weighted(b) - weighted(a));
+  const hostWeight = (entry: (typeof paired)[number]) => 20 * Number(entry.belowLimit) + 6 * tripScore(entry);
+  const weighted = (entry: (typeof paired)[number]) => hostWeight(entry) + score(entry);
+  const ranked = [...paired].sort((a, b) => weighted(b) - weighted(a));
   const kept = ranked.slice(0, CANDIDATE_LIMIT);
   // Retain some non-preferred alternatives when doing so preserves host priority.
   if (preferred.length || weekly.length || lessPreferred.length) {
@@ -869,11 +884,11 @@ function plan(input: FeasibilityInput): Plan {
     };
   }
 
-  const meeting = endpointOfLocation(request.location);
   const hostExtra = { inbound: host.bufferBeforeMinutes, outbound: host.bufferAfterMinutes };
   const travelBuffer = host.travelBufferMinutes ?? 0;
   const planned: Planned[] = kept.map((entry) => {
     const legs: LegPlan[] = [];
+    const meeting = endpointOfLocation(entry.place);
     // An overnight window's candidates belong to the window's starting day
     // through the window's end.
     const hostSpan = {
@@ -1078,8 +1093,8 @@ function basisFor(input: FeasibilityInput, entry: Planned, mode: "online" | "in_
   return sentences;
 }
 
-export function candidateId(start: number, end: number) {
-  return `c${start / MINUTE}-${(end - start) / MINUTE}`;
+export function candidateId(start: number, end: number, placeIndex: number | null = null) {
+  return `c${start / MINUTE}-${(end - start) / MINUTE}${placeIndex === null ? "" : `-p${placeIndex}`}`;
 }
 
 // Runs the engine over the inputs. Candidates whose legs are all known and fit
@@ -1126,10 +1141,10 @@ export function evaluateFeasibility(input: FeasibilityInput): FeasibilityResult 
       belowWeeklyLimit: entry.belowLimit,
       durationMinutes: input.request.durationMinutes,
       end,
-      id: candidateId(entry.start, entry.end),
+      id: candidateId(entry.start, entry.end, entry.placeIndex),
       legs,
       linkPlan: planned.linkPlan,
-      location: planned.mode === "in_person" ? (input.request.location?.text ?? null) : null,
+      location: planned.mode === "in_person" ? (entry.place?.text ?? null) : null,
       mode: planned.mode!,
       start,
       status,
@@ -1168,9 +1183,21 @@ export function requesterProjection(
   options: { readonly id: string; readonly state: EvaluationState; readonly displayTimezone: string },
 ): RequesterEvaluation {
   const visible = candidates.filter((candidate) => candidate.status !== "host_unresolved");
+  // Each time's first pair before any time's second (guest-time-place-pairs
+  // design 4); with one place per time the order is unchanged.
+  const distinctFirst = (list: readonly EvaluatedCandidate[]) => {
+    const seen = new Set<string>();
+    const first: EvaluatedCandidate[] = [];
+    const rest: EvaluatedCandidate[] = [];
+    for (const candidate of list) {
+      (seen.has(candidate.start) ? rest : first).push(candidate);
+      seen.add(candidate.start);
+    }
+    return [...first, ...rest];
+  };
   const ordered = [
-    ...visible.filter((candidate) => candidate.status === "offered"),
-    ...visible.filter((candidate) => candidate.status === "requester_unresolved"),
+    ...distinctFirst(visible.filter((candidate) => candidate.status === "offered")),
+    ...distinctFirst(visible.filter((candidate) => candidate.status === "requester_unresolved")),
   ];
 
   return {

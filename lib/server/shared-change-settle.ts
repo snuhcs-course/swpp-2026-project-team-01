@@ -1,5 +1,5 @@
 import type { RequesterProposal } from "../contracts/request";
-import { enqueueStatusNotice, type NoticeDependencies, noticeDependenciesFromEnvironment } from "./booking-notices";
+import { enqueueStatusNotice, type NoticeDependencies, noticeDependenciesFromEnvironment, type ProposalTermsRow, proposalTerms } from "./booking-notices";
 import type { Transaction } from "./database";
 import type { IntervalCheck } from "./evaluation";
 
@@ -53,6 +53,11 @@ export async function settleSharedChange(
   const [next] = await tx<{ version: number }[]>`
     select coalesce(max(version), 0) + 1 as version from app.proposals where request_id = ${draft.request_id}
   `;
+  // The version this one replaces, so the notice can say what changed (#198).
+  const [current] = await tx<ProposalTermsRow[]>`
+    select start_at, end_at, details ->> 'mode' as mode, details ->> 'location' as location
+    from app.proposals where request_id = ${draft.request_id} and version = ${next!.version - 1}
+  `;
   const displayTimezones = [...new Set([names?.timezone, names?.host_timezone].filter((zone): zone is string => Boolean(zone)))];
   const details: Omit<RequesterProposal, "version"> = {
     displayTimezones,
@@ -81,6 +86,7 @@ export async function settleSharedChange(
   await enqueueStatusNotice(tx, notices ?? noticeDependenciesFromEnvironment(), draft.request_id, {
     kind: "status_new_version",
     meeting: { end: candidate.end, joinUrl: null, location: details.location, mode: candidate.mode, start: candidate.start },
+    ...(current ? { previous: proposalTerms(current) } : {}),
     version: next!.version,
   });
 }

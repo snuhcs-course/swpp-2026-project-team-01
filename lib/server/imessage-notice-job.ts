@@ -1,4 +1,5 @@
-import { hostRequestUrl } from "./booking-notices";
+import { changeLines } from "./booking-emails";
+import { hostRequestUrl, type ProposalTermsRow, proposalTerms } from "./booking-notices";
 import { type ChannelLanguage, hostConversationLanguage } from "./channel-language";
 import { channelReplies, locale } from "./channel-texts";
 import { database, type Database, type Transaction } from "./database";
@@ -46,10 +47,16 @@ function meetingTime(start: Date, end: Date, zone: string, locale = "en-US") {
   return `${day}, ${clock.format(start)}–${clock.format(end)} (${zone})`;
 }
 
+function bullets(lines: readonly string[]) {
+  return lines.map((line) => `- ${line}`);
+}
+
 export const GUEST_NOTICE_TEXTS = {
   en: {
-    status_new_version: (host: string, when: string) =>
-      `${host} sent back changed meeting details: ${when}. Nothing is agreed yet. Reply here to agree or to ask for something else.`,
+    status_new_version: (host: string, when: string, changes: readonly string[] = []) =>
+      changes.length > 0
+        ? [`${host} sent back changed meeting details:`, ...bullets(changes), "Nothing is agreed yet. Reply here to agree or to ask for something else."].join("\n")
+        : `${host} sent back changed meeting details: ${when}. Nothing is agreed yet. Reply here to agree or to ask for something else.`,
     status_declined: (host: string) => `${host} declined this meeting request, so it is closed. Reply here if you'd like to ask again.`,
     status_expired: (host: string) => `Your meeting request with ${host} expired. Reply here if you'd like to try again.`,
     status_pending: (host: string, when: string) =>
@@ -58,8 +65,10 @@ export const GUEST_NOTICE_TEXTS = {
       `Booked with ${host}: ${when}. The invitation is in your email. Ask here anytime about the time or place.`,
   },
   ko: {
-    status_new_version: (host: string, when: string) =>
-      `${host}님이 미팅 세부 정보를 바꾸어 다시 보냈습니다: ${when}. 아직 합의된 것은 없습니다. 동의하시거나 다른 것을 원하시면 여기에 답장해 주세요.`,
+    status_new_version: (host: string, when: string, changes: readonly string[] = []) =>
+      changes.length > 0
+        ? [`${host}님이 미팅 세부 정보를 바꾸어 다시 보냈습니다:`, ...bullets(changes), "아직 합의된 것은 없습니다. 동의하시거나 다른 것을 원하시면 여기에 답장해 주세요."].join("\n")
+        : `${host}님이 미팅 세부 정보를 바꾸어 다시 보냈습니다: ${when}. 아직 합의된 것은 없습니다. 동의하시거나 다른 것을 원하시면 여기에 답장해 주세요.`,
     status_declined: (host: string) => `${host}님이 이번 미팅 요청을 거절해 요청이 종료되었습니다. 다시 요청하려면 여기에 답장해 주세요.`,
     status_expired: (host: string) => `${host}님과의 미팅 요청이 기한이 지나 종료되었습니다. 다시 시도하려면 여기에 답장해 주세요.`,
     status_pending: (host: string, when: string) =>
@@ -83,17 +92,30 @@ async function guestNoticeText(q: Transaction, requestId: string, notice: GuestN
 
   if (notice.kind === "status_declined" || notice.kind === "status_expired") return texts[notice.kind](host);
 
-  const [meeting] =
-    notice.kind === "status_new_version"
-      ? await q<{ start_at: Date; end_at: Date }[]>`
-          select start_at, end_at from app.proposals where request_id = ${requestId} and version = ${notice.version}
-        `
-      : await q<{ start_at: Date; end_at: Date }[]>`
-          select start_at, end_at from app.bookings where id = ${notice.bookingId} and request_id = ${requestId}
-        `;
-  if (!meeting) return null;
   const zone = request.timezone && isValidTimeZone(request.timezone) ? request.timezone : "UTC";
-  return texts[notice.kind](host, meetingTime(meeting.start_at, meeting.end_at, zone, language === "ko" ? "ko-KR" : "en-US"));
+  const timeOf = (start: Date, end: Date) => meetingTime(start, end, zone, language === "ko" ? "ko-KR" : "en-US");
+
+  // A new version names what changed from the version it replaces, as its
+  // email does (#198).
+  if (notice.kind === "status_new_version") {
+    const versions = await q<(ProposalTermsRow & { version: number })[]>`
+      select version, start_at, end_at, details ->> 'mode' as mode, details ->> 'location' as location
+      from app.proposals where request_id = ${requestId} and version in (${notice.version}, ${notice.version - 1})
+    `;
+    const next = versions.find((row) => row.version === notice.version);
+    if (!next) return null;
+    const previous = versions.find((row) => row.version === notice.version - 1);
+    const changes = previous
+      ? changeLines(proposalTerms(previous), proposalTerms(next), language, (terms) => timeOf(new Date(terms.start), new Date(terms.end)))
+      : [];
+    return texts.status_new_version(host, timeOf(next.start_at, next.end_at), changes);
+  }
+
+  const [meeting] = await q<{ start_at: Date; end_at: Date }[]>`
+    select start_at, end_at from app.bookings where id = ${notice.bookingId} and request_id = ${requestId}
+  `;
+  if (!meeting) return null;
+  return texts[notice.kind](host, timeOf(meeting.start_at, meeting.end_at));
 }
 
 async function recordGuestNotice(tx: Transaction, deps: NoticeJobDependencies, requestId: string, notice: GuestNotice) {

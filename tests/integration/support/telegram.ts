@@ -1,6 +1,8 @@
 // Telegram Bot API update fixtures (host-telegram-channel design 2 and 3), shaped
 // as the Bot API documents them, so tests drive the real webhook receiver. The
-// fixture is confirmed against a real update at the join (task 5.1).
+// shape was confirmed against real updates on the production bot on 2026-11-14
+// (task 5.1): the private chat repeats the sender's names and username, and a
+// leading command carries a bot_command entity.
 
 export const TEST_TELEGRAM_SECRET = "tg_webhook_test_secret_0123456789abcdef";
 
@@ -21,14 +23,21 @@ function from(fixture: From) {
   return { first_name: fixture.firstName ?? "Host", id: fixture.userId, is_bot: fixture.isBot ?? false, language_code: "en", username: fixture.username };
 }
 
+// A bot_command entity for text that starts with a command, as Telegram adds one.
+function entities(text: string) {
+  const command = /^\/\S+/.exec(text);
+  return command ? { entities: [{ length: command[0].length, offset: 0, type: "bot_command" }] } : {};
+}
+
 export function telegramMessage(fixture: From & { readonly updateId?: number; readonly text?: string; readonly chat?: { id: number; type: string } }) {
   return JSON.stringify({
     message: {
-      chat: fixture.chat ?? { first_name: fixture.firstName ?? "Host", id: fixture.userId, type: "private" },
+      chat: fixture.chat ?? { first_name: fixture.firstName ?? "Host", id: fixture.userId, type: "private", username: fixture.username },
       date: 1_793_000_000,
       from: from(fixture),
       message_id: 10,
       text: fixture.text ?? "requests",
+      ...entities(fixture.text ?? "requests"),
     },
     update_id: fixture.updateId ?? newTelegramUpdateId(),
   });

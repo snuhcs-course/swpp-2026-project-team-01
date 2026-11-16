@@ -1,4 +1,7 @@
 import { execFile } from "node:child_process";
+import { mkdtempSync, readFileSync, rmSync, statSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { promisify } from "node:util";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
@@ -63,6 +66,32 @@ describe("npm run telegram:webhook", () => {
       await expect(setUpTelegramWebhook({ ...refusal, log: () => undefined })).rejects.toThrow();
     }
     expect(telegram.calls.length).toBe(before);
+  });
+
+  it("generates a missing secret into the env file without printing it, and stops before calling Telegram", async () => {
+    const dir = mkdtempSync(join(tmpdir(), "telegram-webhook-"));
+    const envFile = join(dir, ".env");
+    writeFileSync(envFile, "TELEGRAM_BOT_USERNAME=findmeatime_bot");
+    const before = telegram.calls.length;
+    const lines: string[] = [];
+    try {
+      const result = await setUpTelegramWebhook({ env: env({ TELEGRAM_WEBHOOK_SECRET: "" }), envFile, log: (line: string) => lines.push(line) });
+      const saved = readFileSync(envFile, "utf8");
+      const secret = /^TELEGRAM_WEBHOOK_SECRET=(.+)$/m.exec(saved)?.[1] ?? "";
+
+      expect(result).toEqual({ generated: true });
+      expect(saved.startsWith("TELEGRAM_BOT_USERNAME=findmeatime_bot\nTELEGRAM_WEBHOOK_SECRET=")).toBe(true);
+      expect(secret).toMatch(/^[A-Za-z0-9_-]{48}$/);
+      expect(lines.join("\n")).not.toContain(secret);
+      expect(telegram.calls.length).toBe(before);
+
+      // A second run with the line present but not loaded refuses to add another.
+      await expect(setUpTelegramWebhook({ env: env({ TELEGRAM_WEBHOOK_SECRET: "" }), envFile, log: () => undefined })).rejects.toThrow(/already has/);
+      expect(readFileSync(envFile, "utf8")).toBe(saved);
+      expect(statSync(envFile).isFile()).toBe(true);
+    } finally {
+      rmSync(dir, { force: true, recursive: true });
+    }
   });
 
   it("exits 1 with the token scrubbed when Telegram refuses", async () => {
