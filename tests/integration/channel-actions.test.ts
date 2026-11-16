@@ -1,13 +1,15 @@
 import { randomUUID } from "node:crypto";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
-import { declineRequestForTool, resolveChangesForTool } from "../../lib/server/host-review-tools";
+import { cancelBookingForHostTool, changeBookingForHostTool, declineRequestForTool, resolveChangesForTool } from "../../lib/server/host-review-tools";
+import { approveCommand } from "../../lib/server/bookings";
+import { revisionOf } from "./support/scheduling";
 import { requestRef } from "../../lib/server/imessage-commands";
 import { sessionIdHash } from "../../lib/server/model-limits";
 import { readSetupState } from "../../lib/server/setup";
 import { confirmSettingsForTool, previewNextWeekForTool, listHostRequestsForSetupTool } from "../../lib/server/setup-channel-tools";
 import { settingsRef } from "../../lib/server/request-ref";
 import { suggestChangesCommand } from "../../lib/server/shared-changes";
-import { agreedRequest, asHost } from "./support/booking";
+import { agreedRequest, asHost, bookingDeps, runBooking } from "./support/booking";
 import { testDatabase } from "./support/database";
 import { type FakeGoogle, startFakeGoogle } from "./support/fake-google";
 import { type FakePhoton, startFakePhoton } from "./support/fake-photon";
@@ -148,6 +150,55 @@ describe("declining in words", () => {
 
     expect(await declineRequestForTool(db, call, { version: 1 }, notices)).toMatchObject({ declined: false, problem: expect.stringContaining("closed") });
     expect(await stateOf(request.requestId)).toBe("withdrawn");
+  });
+});
+
+describe("cancelling a booked meeting in words (post-booking-changes)", () => {
+  async function bookedAndWrote(text: string) {
+    const wrote = await reviewerWrote(text);
+    const approved = await asHost(db, wrote.request.hostAccountId, wrote.request.requestId, approveCommand, { version: 1 }, {
+      expectedRevision: await revisionOf(db, wrote.request.requestId),
+    });
+    if (!approved.ok) throw new Error("approve failed");
+    expect(await runBooking(db, bookingDeps(db, google), approved.result.bookingId)).toBe("completed");
+    return wrote;
+  }
+
+  it("cancels the booked meeting for a message from iMessage, once", async () => {
+    const { call, request } = await bookedAndWrote("Please cancel the meeting");
+
+    expect(await cancelBookingForHostTool(db, call, notices)).toMatchObject({ cancelled: true, message: expect.stringContaining("Cancelled") });
+    expect(await stateOf(request.requestId)).toBe("cancelled");
+
+    const again = await cancelBookingForHostTool(db, { ...call, callId: randomUUID() }, notices);
+    expect(again).toMatchObject({ cancelled: true, message: expect.stringContaining("already cancelled") });
+  });
+
+  it("cancels nothing for a message typed on the web, or before anything is booked", async () => {
+    const booked = await bookedAndWrote("Cancel it");
+    await typedOnTheWeb(booked.inputId, "Cancel it");
+    expect(await cancelBookingForHostTool(db, booked.call, notices)).toMatchObject({ cancelled: false, problem: expect.stringContaining("Cancel meeting") });
+    expect(await stateOf(booked.request.requestId)).toBe("booked");
+
+    const open = await reviewerWrote("Cancel it");
+    expect(await cancelBookingForHostTool(db, open.call, notices)).toMatchObject({ cancelled: false, problem: expect.stringContaining("decline it instead") });
+    expect(await stateOf(open.request.requestId)).toBe("awaiting_host_approval");
+  });
+});
+
+describe("changing a booked meeting in words (post-booking-changes)", () => {
+  it("reopens the booked meeting for a message from iMessage, keeping it booked", async () => {
+    const { call, request } = await reviewerWrote("Can we move the meeting?");
+    const approved = await asHost(db, request.hostAccountId, request.requestId, approveCommand, { version: 1 }, {
+      expectedRevision: await revisionOf(db, request.requestId),
+    });
+    if (!approved.ok) throw new Error("approve failed");
+    expect(await runBooking(db, bookingDeps(db, google), approved.result.bookingId)).toBe("completed");
+
+    expect(await changeBookingForHostTool(db, call)).toMatchObject({ opened: true, message: expect.stringContaining("propose_shared_changes") });
+    expect(await stateOf(request.requestId)).toBe("negotiating");
+    const [booking] = await db<{ state: string }[]>`select state from app.bookings where id = ${approved.result.bookingId}`;
+    expect(booking!.state).toBe("confirmed");
   });
 });
 

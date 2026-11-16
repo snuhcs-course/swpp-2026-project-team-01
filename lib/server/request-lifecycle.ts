@@ -7,10 +7,10 @@ import {
 } from "../contracts/request";
 import { assertRevision, type CommandDefinition, CommandError } from "./commands";
 import { supersedeConfirmations } from "./contact-confirmation";
-import type { Transaction } from "./database";
+import type { Database, Transaction } from "./database";
 import { enqueueButtonRetirement } from "./imessage-notices";
 import { type JobHandler, publishJob } from "./jobs";
-import { enqueueStatusNotice, type NoticeDependencies, noticeDependenciesFromEnvironment } from "./booking-notices";
+import { enqueueChangeDropped, enqueueStatusNotice, type NoticeDependencies, noticeDependenciesFromEnvironment } from "./booking-notices";
 import { lockOpenRequest } from "./request-guard";
 import { revokeRequestGrants } from "./requester-grants";
 
@@ -95,7 +95,7 @@ export async function closeRequest(
 export async function cancelReservedBooking(tx: Transaction, requestId: string, reason: "withdrawn" | "declined" | "expired") {
   const [booking] = await tx<{ approval_id: string; id: string; state: string }[]>`
     select id, approval_id, state from app.bookings
-    where request_id = ${requestId} and state in ('reserved', 'dispatching', 'confirmed')
+    where request_id = ${requestId} and state in ('reserved', 'dispatching')
     for update
   `;
 
@@ -110,7 +110,22 @@ export async function cancelReservedBooking(tx: Transaction, requestId: string, 
   return true;
 }
 
-export type WithdrawResult = { readonly state: "withdrawn"; readonly revision: number };
+// Whether the request is changing a meeting that stays booked meanwhile
+// (post-booking-changes design 5): it has a confirmed booking while open.
+export async function standingBookingOf(tx: Transaction | Database, requestId: string) {
+  const [row] = await tx<{ id: string }[]>`select id from app.bookings where request_id = ${requestId} and state = 'confirmed'`;
+  return row?.id ?? null;
+}
+
+// Drops a change after booking: an in-progress booking of the change is
+// cancelled (or booking_pending once dispatched) and the request is booked
+// again with the meeting that stood.
+export async function dropChange(tx: Transaction, requestId: string, reason: "withdrawn" | "declined" | "expired") {
+  await cancelReservedBooking(tx, requestId, reason);
+  return closeRequest(tx, requestId, "booked", { fromBooking: true });
+}
+
+export type WithdrawResult = { readonly state: "withdrawn" | "booked"; readonly revision: number };
 
 // request.withdraw (**Withdraw request**): from any actionable state, at the
 // expected revision. A closed or expired request is rejected with
@@ -128,6 +143,12 @@ export const withdrawRequestCommand: CommandDefinition<Record<string, never>, Wi
 
     // A draft is left, not withdrawn: it is deleted after 24 hours.
     if (request.state === "draft") throw new CommandError("invalid_input");
+
+    // Withdrawing a change after booking keeps the booked meeting.
+    if (await standingBookingOf(tx, request.id)) {
+      await dropChange(tx, request.id, "withdrawn");
+      return { revision: request.revision + 1, state: "booked" };
+    }
 
     // While booking, only a reserved booking can still be cancelled; once its
     // dispatch may have begun, booking_pending reports the pending outcome and
@@ -163,6 +184,11 @@ export function createRequestExpiryHandler(
     `;
 
     for (const request of due) {
+      // A change after booking that ran out of time leaves the meeting booked.
+      if (await standingBookingOf(tx, request.id)) {
+        if (await dropChange(tx, request.id, "expired")) await enqueueChangeDropped(tx, loadNotices(), request.id, "expired");
+        continue;
+      }
       if (await closeRequest(tx, request.id, "expired")) {
         await enqueueStatusNotice(tx, loadNotices(), request.id, { kind: "status_expired" });
       }

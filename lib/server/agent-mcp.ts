@@ -98,7 +98,7 @@ export function visibleTools(access: GrantAccess): readonly AgentTool[] {
     if (!access.scopes.includes(tool.scope)) return false;
     if (access.role === "requester" && access.requestId === null) return tool.bootstrap === true;
     if (access.role === "requester" && tool.name === "create_request") return false;
-    if (access.closed) return tool.afterClosure === true;
+    if (access.closed) return tool.afterClosure === true || (tool.afterClosure === "booked" && access.booked === true);
     return true;
   });
 }

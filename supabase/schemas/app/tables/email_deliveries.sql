@@ -16,7 +16,8 @@ CREATE TABLE "app"."email_deliveries" (
   "kind" text NOT NULL CHECK (
     "kind" IN (
       'request_creation', 'link_resend', 'booking_confirmation', 'status_new_version', 'status_declined',
-      'status_expired', 'status_pending', 'account_deletion_scheduled', 'account_deletion_cancelled',
+      'status_expired', 'status_pending', 'status_cancelled', 'booking_cancelled',
+      'status_change_dropped', 'account_deletion_scheduled', 'account_deletion_cancelled',
       'account_deletion_completed', 'host_account_closed'
     )
   ),

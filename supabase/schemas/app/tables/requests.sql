@@ -6,7 +6,7 @@
 -- confirmed (by the creation email's link or a verified Google address), and is
 -- what link resend matches. expires_at is the earlier of creation plus seven days
 -- and the end of the latest requested window. A closed request (booked, declined,
--- withdrawn or expired) has closed_at; gathering, negotiating and
+-- withdrawn, expired, or cancelled after booking) has closed_at; gathering, negotiating and
 -- awaiting_host_approval are the actionable states the expiry sweep closes.
 -- A draft (design decision 2, D13) is the guest's conversation before they
 -- give a name and email: it has neither, is invisible to every host projection,
@@ -25,7 +25,8 @@ CREATE TABLE "app"."requests" (
   "host_account_id" uuid NOT NULL REFERENCES "app"."host_accounts" ("id") ON DELETE CASCADE,
   "state" text NOT NULL DEFAULT 'gathering' CHECK (
     "state" IN (
-      'draft', 'gathering', 'negotiating', 'awaiting_host_approval', 'booking', 'booked', 'declined', 'withdrawn', 'expired'
+      'draft', 'gathering', 'negotiating', 'awaiting_host_approval', 'booking', 'booked', 'declined', 'withdrawn', 'expired',
+      'cancelled'
     )
   ),
   "revision" integer NOT NULL DEFAULT 1 CHECK ("revision" >= 1),
@@ -42,7 +43,7 @@ CREATE TABLE "app"."requests" (
   "calendar_settled_at" timestamptz,
   "revised_from_request_id" uuid UNIQUE REFERENCES "app"."requests" ("id") ON DELETE SET NULL,
   CONSTRAINT "requests_closed" CHECK (
-    ("state" IN ('booked', 'declined', 'withdrawn', 'expired')) = ("closed_at" IS NOT NULL)
+    ("state" IN ('booked', 'declined', 'withdrawn', 'expired', 'cancelled')) = ("closed_at" IS NOT NULL)
   ),
   CONSTRAINT "requests_identified_contact" CHECK (
     "state" = 'draft' OR ("requester_name" IS NOT NULL AND "contact_email" IS NOT NULL)

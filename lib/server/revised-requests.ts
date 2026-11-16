@@ -58,13 +58,14 @@ type ClosedRequest = {
 };
 
 export function isRevisable(state: string) {
-  return state === "declined" || state === "expired" || state === "withdrawn";
+  return state === "declined" || state === "expired" || state === "withdrawn" || state === "cancelled";
 }
 
 const ENDINGS: Readonly<Record<string, string>> = {
   declined: "was declined by the host",
   expired: "expired",
   withdrawn: "was withdrawn by the guest",
+  cancelled: "was booked and then cancelled",
 };
 
 type Interval = { readonly start: string; readonly end: string };

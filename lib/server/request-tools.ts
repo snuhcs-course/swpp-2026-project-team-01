@@ -22,7 +22,8 @@ import type { Database, Queryable, Transaction } from "./database";
 import { encodeDisplayName } from "./entry-documents";
 import { awaitEvaluation } from "./evaluation";
 import { REQUESTER_AUDIENCE } from "./eve-auth";
-import { detailsComplete, withdrawRequestCommand } from "./request-lifecycle";
+import { detailsComplete, standingBookingOf, withdrawRequestCommand } from "./request-lifecycle";
+import { cancelBookingCommand, changeBookingCommand } from "./booking-cancellation";
 import {
   agreeCommand,
   changeAgreementCommand,
@@ -103,7 +104,7 @@ async function fenced(q: Queryable, id: string, sessionId: string, options: { re
     join app.agent_sessions s on s.principal_type = 'requester_request' and s.principal_id = r.id
     join app.discussions d on d.id = s.discussion_id and d.principal_type = 'requester_request' and d.principal_id = r.id
       and d.audience = ${REQUESTER_AUDIENCE}
-    where r.id = ${id} and ((r.closed_at is null and r.expires_at > now()) or (${booked} and r.state = 'booked'))
+    where r.id = ${id} and ((r.closed_at is null and r.expires_at > now()) or (${booked} and r.state in ('booked', 'cancelled')))
       and l.expires_at > now()
       and s.session_id = ${sessionId} and s.state = 'active'
       and s.generation = (select max(generation) from app.agent_sessions where discussion_id = s.discussion_id)
@@ -243,14 +244,18 @@ const STATUS_TEXT: Readonly<Record<RequestState, string>> = {
   draft: "Not yet a request: the guest has not given a name and email. The host cannot see it.",
   awaiting_host_approval: "The requester agreed to the proposal; it waits for the host's approval. Nothing is booked.",
   booked:
-    "Booked: the meeting is confirmed. Answer questions about it from booking; nothing can change here. To change or cancel it, the guest contacts the host directly.",
+    "Booked: the meeting is confirmed. Answer questions about it from booking. Until it starts, the guest can cancel it with cancel_booking after confirming once, or change its time or place: change_booking reopens it, and the meeting stays booked until the host approves the change.",
   booking: "Booking is in progress.",
+  cancelled: "The booked meeting was cancelled and the request is closed. The calendar event is removed. The guest can write again later to ask for a new meeting.",
   declined: "The host declined. The request is closed.",
   expired: "The request expired and is closed.",
   gathering: "Gathering meeting details. Nothing is proposed or booked.",
   negotiating: "Choosing a time. Nothing is agreed or booked.",
   withdrawn: "The requester withdrew. The request is closed.",
 };
+
+const CHANGE_NOTE =
+  "A change to the booked meeting is open: booking holds the meeting that stands until the host approves the new version. If the guest no longer wants the change, withdraw_request drops it and keeps the booked meeting; cancel_booking cancels the meeting itself.";
 
 const NEXT_STEPS =
   "The guest decides on the booking page's cards or in words: apply_request_review applies the pending review and finds times, choose_time chooses one of the current candidate times, agree_to_proposal agrees to the current proposal, change_agreement reopens an agreed request until the host approves, and withdraw_request withdraws it. Record a decision only when the guest clearly made it, about the exact time or version they named; when it is unclear, ask.";
@@ -303,6 +308,7 @@ export async function readRequestForTool(db: Database, call: RequestToolCall) {
   const row = await requestRow(db, id);
   const timezone = zoneOf(row.details);
   const language = requestLanguage(row.details);
+  const changing = row.state !== "booked" && (await standingBookingOf(db, id)) !== null;
   const [review] = await db<{ base_revision: number; clarifications: string[]; id: string; intent: string; patch: ReviewPatch | null }[]>`
     select id, base_revision, intent, patch, clarifications from app.request_reviews where request_id = ${id} and state = 'pending'
   `;
@@ -339,8 +345,8 @@ export async function readRequestForTool(db: Database, call: RequestToolCall) {
     next: NEXT_STEPS,
     pendingReview: review ? minimizedReview(storedReview(review, language), timezone) : null,
     readyForTimes: identified && detailsComplete(details),
-    status: { expiresAt: displayTime(row.expires_at, timezone), state: row.state, text: STATUS_TEXT[row.state] },
-    booking: row.state === "booked" ? await minimizedBooking(db, id, timezone) : null,
+    status: { expiresAt: displayTime(row.expires_at, timezone), state: row.state, text: STATUS_TEXT[row.state], ...(changing ? { change: CHANGE_NOTE } : {}) },
+    booking: row.state === "booked" || changing ? await minimizedBooking(db, id, timezone) : null,
     today: today(timezone),
   };
 }
@@ -527,13 +533,14 @@ export async function readBookingStatusForTool(db: Database, call: RequestToolCa
   const id = await authorizeRequestTool(db, call, { booked: true });
   const row = await requestRow(db, id);
   const current = await readCurrentProposal(db, id);
+  const changing = row.state !== "booked" && (await standingBookingOf(db, id)) !== null;
 
   return {
     agreedVersion: current?.agreement?.proposalVersion ?? null,
-    booking: row.state === "booked" ? await minimizedBooking(db, id, zoneOf(row.details)) : null,
+    booking: row.state === "booked" || changing ? await minimizedBooking(db, id, zoneOf(row.details)) : null,
     proposalVersion: current?.proposal.version ?? null,
     state: row.state,
-    text: STATUS_TEXT[row.state],
+    text: changing ? `${STATUS_TEXT[row.state]} ${CHANGE_NOTE}` : STATUS_TEXT[row.state],
   };
 }
 
@@ -687,7 +694,67 @@ export async function withdrawRequestForTool(db: Database, call: RequestToolCall
   const { outcome } = await decide(db, call, withdrawRequestCommand, {} as Record<string, never>);
   if (!outcome.ok) return refused(outcome.error.category);
   return {
-    message: "Withdrawn. The guest can write here again later to ask for a new request with the same host.",
+    message:
+      outcome.result.state === "booked"
+        ? "The change was dropped. The meeting stays booked as it was."
+        : "Withdrawn. The guest can write here again later to ask for a new request with the same host.",
+    recorded: true,
+    state: outcome.result.state,
+  };
+}
+
+// Cancelling the booked meeting in the guest's words (post-booking-changes
+// design 1): only after the guest confirmed once, until the meeting starts.
+// The host is told by email and in their linked chat; Google sends the guest
+// its own cancellation.
+export async function cancelBookingForTool(db: Database, call: RequestToolCall): Promise<DecisionResult> {
+  const id = await authorizeRequestTool(db, call, { booked: true });
+  const { revision } = await requestRow(db, id);
+  const outcome = await runCommand({ authenticate: async () => actorOf(id), db }, cancelBookingCommand(), {
+    expectedRevision: revision,
+    input: {},
+    resourceId: id,
+    retryKey: `tool:${call.callId}`,
+  });
+
+  if (!outcome.ok) {
+    if (outcome.error.category === "request_closed") return { message: "The meeting was already cancelled; nothing else changed.", recorded: false };
+    if (outcome.error.reason === "start_passed") return { message: "The meeting has already started, so it cannot be cancelled here.", recorded: false };
+    if (outcome.error.reason === "not_booked") {
+      return { message: "Nothing is booked yet. To stop this request, ask whether the guest wants to withdraw it.", recorded: false };
+    }
+    return refused(outcome.error.category);
+  }
+  return {
+    message: "Cancelled. The host is told, the calendar event is being removed, and Google sends the guest its cancellation.",
+    recorded: true,
+    state: "cancelled",
+  };
+}
+
+// Reopening the booked meeting for a change in the guest's words
+// (post-booking-changes design 5): the meeting stays booked while the new
+// time or place goes through the usual review, choice, agreement and the
+// host's approval.
+export async function changeBookingForTool(db: Database, call: RequestToolCall): Promise<DecisionResult> {
+  const id = await authorizeRequestTool(db, call, { booked: true });
+  const { revision } = await requestRow(db, id);
+  const outcome = await runCommand({ authenticate: async () => actorOf(id), db }, changeBookingCommand, {
+    expectedRevision: revision,
+    input: {},
+    resourceId: id,
+    retryKey: `tool:${call.callId}`,
+  });
+
+  if (!outcome.ok) {
+    if (outcome.error.category === "request_closed") return { message: "The meeting was cancelled, so there is nothing to change.", recorded: false };
+    if (outcome.error.reason === "start_passed") return { message: "The meeting has already started, so it cannot be changed.", recorded: false };
+    if (outcome.error.reason === "not_booked") return { message: "Nothing is booked yet: change the details as usual.", recorded: false };
+    return refused(outcome.error.category);
+  }
+  return {
+    message:
+      "Open for a change. The booked meeting stays as it is until the host approves a new one. Draft what the guest wants changed with draft_request_review (new times as availability, or a new place or meeting type as details), find times, and have the guest choose and agree as usual. If the guest drops the change, withdraw_request keeps the booked meeting.",
     recorded: true,
     state: outcome.result.state,
   };

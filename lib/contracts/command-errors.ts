@@ -29,8 +29,9 @@ export type CommandErrorCategory = keyof typeof COMMAND_ERROR_MESSAGES;
 // A fixed, audience-safe refinement of a category, for a failure the caller can
 // act on differently: the booking destination can no longer take events, so the
 // host must choose a writable one; a newer proposal version replaced the one
-// named; a proposed or reviewed time has already started.
-export const COMMAND_ERROR_REASONS = ["destination_not_writable", "proposal_superseded", "start_passed"] as const;
+// named; a proposed or reviewed time has already started; a cancellation named
+// a request with no booked meeting.
+export const COMMAND_ERROR_REASONS = ["destination_not_writable", "proposal_superseded", "start_passed", "not_booked"] as const;
 export type CommandErrorReason = (typeof COMMAND_ERROR_REASONS)[number];
 
 export type CommandFailure = {
