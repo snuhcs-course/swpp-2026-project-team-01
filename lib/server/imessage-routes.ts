@@ -10,7 +10,7 @@ import { readHostStanding } from "./host-eligibility";
 import { fallbackDailyLimit, imessageCommands, linkChannels, readImessageStatus } from "./imessage-links";
 import { readStartStatus, startCookieFor, startImessageLink, startSecretOf } from "./imessage-start";
 import { CONTINUATION_SECONDS, continuationCookie, readReceivedContinuation } from "./imessage-continuation";
-import { photonConfig } from "./photon";
+import { offeredWhatsappNumber, photonConfig } from "./photon";
 import { telegramConfig } from "./telegram";
 import { type AppOrigins, appOriginsFromEnvironment, crossSiteRefusal, requestAppOrigin, unknownHost } from "./same-origin";
 import { sourceHash } from "./signup-limits";
@@ -50,7 +50,7 @@ export function imessageRouteDependenciesFromEnvironment(): ImessageRouteDepende
     db: database(),
     lineDayLimit: fallbackDailyLimit(),
     lineNumber: photon.lineNumber,
-    whatsappNumber: photon.whatsappNumber,
+    whatsappNumber: offeredWhatsappNumber(photon),
     telegramUsername: telegramConfig().username,
     tokenKey,
     tokenKeys: [tokenKey],

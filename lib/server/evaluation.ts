@@ -555,6 +555,17 @@ function preferredArea(settings: ConfirmedSettings, hash: (text: string) => stri
   return text ? { key: hash(text), text } : null;
 }
 
+// The host's confirmed places a request without a place is paired with
+// (guest-time-place-pairs design 1): the venue first, then the areas in the
+// host's order, without repeats.
+export const PAIR_PLACE_LIMIT = 6;
+
+export function hostPlaces(settings: Pick<ConfirmedSettings, "location">) {
+  if (settings.location?.kind !== "places") return [];
+  const texts = [...(settings.location.venue ? [settings.location.venue] : []), ...settings.location.areas];
+  return [...new Set(texts.map((text) => text.trim()).filter(Boolean))].slice(0, PAIR_PLACE_LIMIT);
+}
+
 // How an evaluation differs from the ordinary search over the requested windows
 // (host-review-and-booking design 4 and 6): a fixed interval checks exactly one
 // candidate (a shared change, or booking revalidation); extra busy time adds the
@@ -566,6 +577,9 @@ export type EvaluateOptions = {
   readonly rank?: boolean;
   readonly requesterCalendar?: boolean;
   readonly routeMaxAgeHours?: number;
+  // A fixed-interval check of a chosen pair checks its place only
+  // (guest-time-place-pairs design 7); null checks no place.
+  readonly place?: string | null;
 };
 
 async function evaluate(
@@ -593,7 +607,8 @@ async function evaluate(
   const durationMinutes = options.interval
     ? Math.round((options.interval.end.getTime() - options.interval.start.getTime()) / 60_000)
     : (details.durationMinutes ?? settings.durationMinutes);
-  const mode = resolveMeetingMode(settings.meetingMode, details.mode ?? null, Boolean(details.location));
+  const location = options.place !== undefined ? options.place : (details.location ?? null);
+  const mode = resolveMeetingMode(settings.meetingMode, details.mode ?? null, Boolean(location));
 
   const emptyResult = (failure: "needs_details" | null, input: FeasibilityInput): Outcome => ({
     candidates: [],
@@ -623,8 +638,9 @@ async function evaluate(
     request: {
       durationMinutes,
       linkPlan: details.linkPlan ?? null,
-      location: details.location ? { key: hash(details.location), text: details.location } : null,
+      location: location ? { key: hash(location), text: location } : null,
       mode: details.mode ?? null,
+      places: options.place !== undefined ? [] : hostPlaces(settings).map((text) => ({ key: hash(text), text })),
       spreadDays: searchDefault,
       preferredWindows: (details.preferredWindows ?? []).map((window) => ({ start: new Date(window.start), end: new Date(window.end) })),
       lessPreferredWindows: (details.lessPreferredWindows ?? []).map((window) => ({ start: new Date(window.start), end: new Date(window.end) })),

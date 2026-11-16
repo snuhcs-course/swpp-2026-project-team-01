@@ -152,6 +152,11 @@ export function NoteReviewPanel({
           {done ? t.doneTitle : t.title}
         </h1>
       ) : null}
+      {done ? null : (
+        <p className="text-sm text-muted-foreground" data-reason="noteReview">
+          {t.why}
+        </p>
+      )}
       {notice ? (
         <p className="rounded-2xl bg-destructive/10 px-4 py-3 text-sm text-destructive" role="alert">
           {notice}

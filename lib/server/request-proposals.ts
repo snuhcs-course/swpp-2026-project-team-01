@@ -334,7 +334,8 @@ export function agreeCommand(
         loadEvaluation(),
         request.id,
         { end: latest.end_at, start: latest.start_at },
-        { requesterCalendar: false },
+        // The chosen pair's own place (guest-time-place-pairs design 7).
+        { place: latest.details.mode === "in_person" ? (latest.details.location ?? null) : null, requesterCalendar: false },
       );
 
       if (!check.ok && check.problem !== "unavailable") {

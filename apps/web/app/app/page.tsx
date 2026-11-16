@@ -4,7 +4,6 @@ import { connection } from "next/server";
 import { Suspense } from "react";
 import { HostWorkspace } from "@/app/_components/host-workspace";
 import { HostDashboard } from "@/app/_components/host-dashboard";
-import { LOCALE_COOKIE, localeOf } from "@/app/_components/ink/copy";
 import { LinkStep } from "@/app/_components/ink/link-step";
 import { WorkspaceMenu } from "@/app/_components/workspace-menu";
 import { SignInCard, WorkspaceLoading } from "@/app/_components/sign-in-card";
@@ -59,7 +58,7 @@ async function Workspace({ searchParams }: { readonly searchParams: SearchParams
     return <HostDashboard />;
   }
   return (
-    <LinkStep locale={localeOf(jar.get(LOCALE_COOKIE)?.value)} ready={standing.ready}>
+    <LinkStep locale="en" ready={standing.ready}>
       <HostWorkspace dashboardAvailable={standing.ready} />
     </LinkStep>
   );

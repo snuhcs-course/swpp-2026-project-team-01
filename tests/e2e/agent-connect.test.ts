@@ -73,8 +73,8 @@ for (const width of [390, 1280]) {
     await app.setViewportSize({ height: 900, width });
     await app.goto("/app");
     await app.getByRole("button", { name: "Open menu" }).click();
-    await app.getByRole("menuitem", { name: "Connected agents" }).click();
-    const dialog = app.getByRole("dialog", { name: "Connected agents" });
+    await app.getByRole("menuitem", { name: "Connected apps" }).click();
+    const dialog = app.getByRole("dialog", { name: "Connected apps" });
     // The list route compiles on first use under next dev.
     await expect(dialog.getByText("Browser Test Agent", { exact: true })).toBeVisible({ timeout: 20_000 });
     await expect(dialog.getByText("Can read, change.")).toBeVisible();
@@ -82,6 +82,13 @@ for (const width of [390, 1280]) {
     await dialog.getByRole("button", { name: "Revoke Browser Test Agent" }).click();
     await dialog.getByRole("button", { name: "Revoke", exact: true }).click();
     await expect(dialog.getByText(/No agents are connected/)).toBeVisible({ timeout: 20_000 });
+
+    // Closing the dialog leaves the page usable (#207): the menu opens again by pointer.
+    await dialog.getByRole("button", { name: "Close" }).click();
+    await expect(dialog).toBeHidden();
+    await expect(app.getByRole("button", { name: "Open menu" })).toBeFocused();
+    await app.getByRole("button", { name: "Open menu" }).click({ timeout: 5_000 });
+    await expect(app.getByRole("menuitem", { name: "Connected apps" })).toBeVisible();
   });
 }
 

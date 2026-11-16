@@ -7,6 +7,8 @@ import { readHostStanding } from "./host-eligibility";
 import { hostRequestCommands, listHostRequests, readHostRequest } from "./host-requests";
 import { crossSiteRefusal } from "./same-origin";
 import { verifiedUserId } from "./supabase-auth";
+import { tokenKeyFromEnvironment, type TokenKey } from "./token-encryption";
+import { listWorkspaceRequests } from "./workspace-requests";
 
 // Web routes for the host's requests in /app (host-review-and-booking design 3):
 //   GET  /api/host/requests                          the inbox
@@ -58,6 +60,19 @@ export function createHostRequestListHandler(load: () => ChatRouteDependencies =
     if (!host.hostAccountId) return host.refusal!;
 
     return json({ requests: await listHostRequests(deps.db, host.hostAccountId) });
+  };
+}
+
+export function createWorkspaceRequestListHandler(
+  load: () => ChatRouteDependencies = chatDependenciesFromEnvironment,
+  tokenKeys: () => readonly TokenKey[] = () => [tokenKeyFromEnvironment()],
+) {
+  return async (request: Request) => {
+    const deps = load();
+    const host = await hostOf(deps, request);
+    if (!host.hostAccountId) return host.refusal!;
+
+    return json({ requests: await listWorkspaceRequests(deps.db, host.hostAccountId, tokenKeys()) });
   };
 }
 

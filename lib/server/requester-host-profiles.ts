@@ -8,10 +8,11 @@ import { assertIdentified, type LockedRequest, lockOpenRequest } from "./request
 
 // A guest who is a host (guest-flow-completion design 6, D7 and D8). On the
 // requester Google return, the verified Google subject is compared with host
-// accounts' Google identities; an active host with confirmed settings that is
-// not the request's host is recorded, and the thread offers **Use your host
-// settings for this request**. Nothing is used before the guest decides, and
-// the choice lives with the request until it closes. Nothing here reaches the
+// accounts' Google identities; an active account that is not the request's
+// host is recorded. Only an account with confirmed settings gets **Use your
+// host settings for this request**. Nothing is used before the guest decides, and
+// the choice lives with the request until it closes, while the verified match
+// remains for the signed-in account's request history. Nothing here reaches the
 // request's host: the host projection and host model context never read it.
 
 // Records the match for a request on its Google return. The card is offered
@@ -23,8 +24,22 @@ export async function recordHostProfileMatch(tx: Transaction, requestId: string,
     from app.requests r
     join app.google_identities g on g.google_subject = ${googleSubject}
     join app.host_accounts a on a.id = g.host_account_id and a.status = 'active'
-    join app.host_settings s on s.host_account_id = g.host_account_id
     where r.id = ${requestId} and g.host_account_id <> r.host_account_id
+    on conflict (request_id) do nothing
+  `;
+}
+
+// Manual guest identification may still carry an already signed-in account
+// session. Link that account after request.identify succeeds; the session's
+// verified Auth user ID, never the typed contact email, supplies authority.
+export async function recordHostSessionMatch(tx: Transaction, requestId: string, authUserId: string) {
+  await tx`
+    insert into app.requester_host_profiles (request_id, host_account_id)
+    select r.id, g.host_account_id
+    from app.requests r
+    join app.google_identities g on g.auth_user_id = ${authUserId}
+    join app.host_accounts a on a.id = g.host_account_id and a.status = 'active'
+    where r.id = ${requestId} and r.state <> 'draft' and g.host_account_id <> r.host_account_id
     on conflict (request_id) do nothing
   `;
 }
@@ -34,10 +49,16 @@ type ProfileRow = { host_account_id: string; items: HostProfileItem[]; decided_a
 async function profileOf(q: Queryable, requestId: string, lock = false) {
   const [row] = lock
     ? await q<ProfileRow[]>`
-        select host_account_id, items, decided_at from app.requester_host_profiles where request_id = ${requestId} for update
+        select p.host_account_id, p.items, p.decided_at
+        from app.requester_host_profiles p
+        join app.host_settings s on s.host_account_id = p.host_account_id
+        where p.request_id = ${requestId} for update of p
       `
     : await q<ProfileRow[]>`
-        select host_account_id, items, decided_at from app.requester_host_profiles where request_id = ${requestId}
+        select p.host_account_id, p.items, p.decided_at
+        from app.requester_host_profiles p
+        join app.host_settings s on s.host_account_id = p.host_account_id
+        where p.request_id = ${requestId}
       `;
   return row ?? null;
 }

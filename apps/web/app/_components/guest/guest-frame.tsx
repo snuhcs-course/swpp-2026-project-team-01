@@ -54,15 +54,18 @@ export function RequestPanel({
 // screens, with the conversation filling the rest of the viewport. The request
 // panel, when there is one, stays closed: **Request details** in the top bar
 // opens it over the right side of the conversation (over all of it on a phone)
-// and closes it again.
+// and closes it again. A signed-in account on its own guest request also gets
+// **Back to your workspace** (host-as-guest-session), a plain link to /app.
 export function GuestFrame({
   aside,
   asideLabel,
   children,
+  workspaceLink = false,
 }: {
   readonly aside?: ReactNode;
   readonly asideLabel?: string;
   readonly children: ReactNode;
+  readonly workspaceLink?: boolean;
 }) {
   const [open, setOpen] = useState(false);
 
@@ -71,11 +74,18 @@ export function GuestFrame({
       <div className="chat-frame">
         <header className="top">
           <Brand />
-          {aside ? (
-            <button aria-controls="request-panel" aria-expanded={open} className="secondary-btn" onClick={() => setOpen((value) => !value)} type="button">
-              {open ? "Close details" : "Request details"}
-            </button>
-          ) : null}
+          <div className="flex items-center gap-3">
+            {workspaceLink ? (
+              <a className="whitespace-nowrap text-sm underline underline-offset-4" href="/app">
+                <span className="max-sm:hidden">Back to your </span>workspace
+              </a>
+            ) : null}
+            {aside ? (
+              <button aria-controls="request-panel" aria-expanded={open} className="secondary-btn" onClick={() => setOpen((value) => !value)} type="button">
+                {open ? "Close details" : "Request details"}
+              </button>
+            ) : null}
+          </div>
         </header>
         <div className="relative flex min-h-0 flex-1">
           <div className={cn("flex min-h-0 min-w-0 flex-1 flex-col", open && "max-sm:invisible")}>{children}</div>

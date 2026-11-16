@@ -73,7 +73,7 @@ Rejected: reopening the closed request (breaks the closure guard and replay safe
 
 ### 6. Host profile for a guest who is a host
 
-**Match (D7).** `createGoogleCallbackHandler` in `requester-google.ts` already verifies the ID token. With the raw `sub`, it looks up `google_identities`. The match counts only when the account is `active`, has confirmed `host_settings`, and is not the request's host. Only the host account's ID is kept for the next step; the subject itself is not stored with the request.
+**Match (D7).** `createGoogleCallbackHandler` in `requester-google.ts` already verifies the ID token. With the raw `sub`, it looks up `google_identities`. The request is linked when the account is `active` and is not the request's host; confirmed `host_settings` are required only for the settings card. This also links signed-up accounts with incomplete setup to their sent request history (#204). Only the host account's ID is kept for the next step; the subject itself is not stored with the request.
 
 **Card.** On a match the thread's next open card is **Use your host settings for this request**. It lists two checked items with one line each, followed by **Use these settings** and **Not now**:
 
@@ -84,7 +84,7 @@ An iMessage item (the request's notices in the guest's host conversation) and a 
 
 It is one card, consistent with "one thing at a time". **Not now** records the choice so the card does not return; **Change** on its receipt reopens it.
 
-**Record.** `requester_host_profiles`: `request_id` (primary key), `host_account_id`, `items text[]`, `decided_at`. It is deleted when the request closes or is deleted, in the same transaction that deletes requester grants. Nothing about the guest-host reaches the request's host, their projection or their model context; the requester projection says only which items are in use.
+**Record.** `requester_host_profiles`: `request_id` (primary key), `host_account_id`, `items text[]`, `decided_at`. At closure its selected items and decision are cleared in the same transaction that deletes requester grants; the verified account match remains for the signed-in guest request history (#204). The row is deleted with the request or account. Nothing about the guest-host reaches the request's host, their projection or their model context; the requester projection says only which items are in use.
 
 **Calendars (D8).** `evaluation.ts` reads busy intervals for the requester side from the guest-host's calendars with the conflict role (`calendar_roles`), using the guest-host's provider grant, inside the evaluation. Events are never stored or shown, as for requester calendars today. A failed or revoked grant clears the item, shows **Connect Google Calendar** and pauses dependent evaluation. Busy time from a Calendar connected for the request counts as well: the two sources are combined, so the item still matters after a Google consent that included Calendar (user, 2026-11-02; it replaces "a request-bound grant wins").
 
@@ -122,7 +122,7 @@ The cards themselves are the shared `GuestCard`; U11 (1) styled the two guest sc
   - a declined request's email reply and iMessage reply each creating one revised request, with a retried receipt creating none;
   - the bounds and an unavailable host refusing;
   - a host profile's calendars feeding evaluation with no stored event;
-  - deletion at closure.
+  - clearing the settings choice at closure while retaining the verified match.
 - **E2E:**
   - **Continue with Google** and **Connect Google Calendar** against the fake consent server (PR #37's fix);
   - the host-profile card;
@@ -143,7 +143,7 @@ Today agreement locks the request: in `awaiting_host_approval` a details review 
 
 - **Shared line volume.** Guests are inbound-first, so they spend no new-conversation allowance, but replies and notices add outbound volume on one line. Photon publishes no rate, so watch it in the outbox counts.
 - **A host's conversation now carries guest notices.** Section 3's separate heading and references keep host-private and guest views apart. A misrouted message is the main risk, covered by the routing tests.
-- **Reading the host grant for guest busy time** widens what that grant is used for. Mitigation: opt-in per request, the conflict role only, nothing stored, and deletion at closure. The team agreed to this use.
+- **Reading the host grant for guest busy time** widens what that grant is used for. Mitigation: opt-in per request, the conflict role only, nothing stored, and clearing the settings choice at closure. The verified account match remains only for the guest account request history (#204). The team agreed to this use.
 - **Revised requests could pressure a host who declined.** Mitigation: each needs a closed predecessor, the chain stops at 10, plus the creation bounds. The user chose no host block for now (U19).
 - **Change and agree again repeatedly** sends the host one approval notice per agreement. No limit is set now; watch the counts and add one if needed.
 - **Routing depends on the host-side conversational selection**, which is not written yet. Until it lands, `request <ref>` is the switch.

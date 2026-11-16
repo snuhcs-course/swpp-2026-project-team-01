@@ -46,11 +46,11 @@
 
 ## 6. Host profile (design 6)
 
-- [x] 6.1 The host match on the requester Google return, the `requester_host_profiles` record and its deletion at closure.
+- [x] 6.1 The host match on the requester Google return, the `requester_host_profiles` record; its settings choice is cleared at closure while the verified account match remains (#204).
 - [x] 6.2 The guest-host's conflict calendars as the requester busy source in `evaluation.ts`, with fallback to **Connect Google Calendar** on a failed grant. Combined with a Calendar connected for the request (user, 2026-11-02).
 - [ ] 6.3 Moved to #61 (user, 2026-11-02: host-side). The iMessage item: notices to the host binding's conversation and `request <ref>` for that host's guest requests.
 - [x] 6.4 Basic details as a pending review.
-- [x] 6.5 Tests: subject match only; not the request's own host; partial opt-in; revoked grant pauses evaluation; nothing in the host projection or host model context; deletion at closure. Verified by CI on `e2e5d65a` (`tests/integration/requester-host-profiles.test.ts`, 11 tests).
+- [x] 6.5 Tests: subject match only; not the request's own host; partial opt-in; revoked grant pauses evaluation; nothing in the host projection or host model context; choice clearing at closure, with the account match retained (#204). Verified by CI on `e2e5d65a` (`tests/integration/requester-host-profiles.test.ts`, 11 tests).
 - [x] 6.6 The host-profile card and its receipt in the booking page thread (two items: Calendars, Basic details). Covered by the Google guest host-profile E2E, including the saved choice and drafted basic details.
 
 ## 7. Soft preferences (design 7)

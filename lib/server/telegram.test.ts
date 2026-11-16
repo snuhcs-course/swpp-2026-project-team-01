@@ -62,6 +62,30 @@ describe("inboundTelegramUpdate", () => {
     });
   });
 
+  it("reads updates in the shape the production bot received on 2026-11-14 (task 5.1)", () => {
+    // Two real updates (/start, then a plain message), with every ID, name and
+    // timestamp replaced; the fields and their nesting are as Telegram sent them.
+    const person = { first_name: "Example", last_name: "Host", username: "examplehost" };
+    const chat = { id: 1234567890, ...person, type: "private" };
+    const sender = { id: 1234567890, is_bot: false, ...person, language_code: "ko" };
+    const start = {
+      message: { chat, date: 1_794_657_500, entities: [{ length: 6, offset: 0, type: "bot_command" }], from: sender, message_id: 1, text: "/start" },
+      update_id: 123456789,
+    };
+    const plain = { message: { chat, date: 1_794_657_510, from: sender, message_id: 2, text: "hello" }, update_id: 123456790 };
+
+    expect(inboundTelegramUpdate(start)).toMatchObject({
+      contentType: "command",
+      messageId: "update:123456789",
+      sender: "1234567890",
+      spaceId: "1234567890",
+      spaceType: "dm",
+      telegram: { firstName: "Example", messageId: "1", username: "examplehost" },
+      text: "/start",
+    });
+    expect(inboundTelegramUpdate(plain)).toMatchObject({ contentType: "text", messageId: "update:123456790", text: "hello" });
+  });
+
   it("marks a leading slash as a command and a message without text by what it carries", () => {
     expect(inboundTelegramUpdate(messageUpdate({ text: "/start FMAT-ABCD-1234" }))?.contentType).toBe("command");
     expect(inboundTelegramUpdate(messageUpdate({ photo: [{}], text: undefined }))).toMatchObject({ contentType: "attachment", text: null });

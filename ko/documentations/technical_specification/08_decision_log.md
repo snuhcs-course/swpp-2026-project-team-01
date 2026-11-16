@@ -743,3 +743,37 @@
 | D2 | 필수인 `hostInstruction`(다듬은 뒤 1–500자, 저장하지 않음)이 호스트의 말을 전달하며, 두 도구 모두 `expectedRevision`이 필수입니다. 설명, 서버 지침, `/SKILL.md`는 호스트가 분명히 말할 때만, 에이전트의 판단이나 요청자의 말로는 결코, 조건을 붙여서도 결코 하지 말라고 안내합니다 | MCP 엘리싯테이션; 말을 저장; 불리언 `confirmed` | 제안; 설계 2 | `agent-host-tools.ts`의 `hostInstructionSchema`; `lib/server/agent-mcp.ts`의 `INSTRUCTIONS`; `lib/server/entry-documents.ts`의 `hostEntryDocument` |
 | D3 | `host:decide`가 두 도구를 허용하며, 동의 문구는 "에이전트에게 말할 때 요청을 승인하고 거절합니다"가 됩니다. 이 권한이 있는 기존 부여도 두 도구를 얻습니다 | 새 권한; 변경 이후에 만든 부여만 | 제안; 설계 3; `agent-client-authorization` 델타 "Role-bound permission scopes" | `lib/contracts/agent-access.ts`의 `SCOPE_DESCRIPTIONS`, 동의 페이지, `connected-agents.tsx` |
 | D4 | CLI는 `fmat call approve_proposal`과 `fmat call decline_request`로 이들에 닿으며, 새 하위 명령은 없습니다 | `fmat approve`와 `fmat decline` | 제안; 설계 4 | `cli/src/app.ts` |
+
+## `guest-time-place-pairs`
+
+[설계](../../openspec/changes/guest-time-place-pairs/design.md)는 다음 선택을 기록합니다. 이슈 #182(반복 4 킥오프, 2026-11-08)를 위해 변경을 작성한 세션에서 2026-11-14에 정했습니다. 아직 팀원의 검토를 받지 않았습니다.
+
+| # | 선택 | 대안 | 기록 위치 | 바꾸려면 |
+|---|---|---|---|---|
+| D1 | 장소가 없는 대면 요청은 호스트가 확인한 장소, 그다음 지역과 짝지으며 최대 여섯 개입니다. 요청된 장소, 회의마다 결정(Decide per meeting), 온라인 회의는 하나의 장소 또는 장소 없음을 유지합니다 | 게스트의 장소도 호스트의 장소와 짝짓기; 캘린더 분석에서 가져온 장소 | 설계 1 | `lib/server/evaluation.ts`의 `hostPlaces` |
+| D2 | 각 빈 시간은 바쁜 시간에 대해 한 번, 이후 장소마다 이동에 대해 한 번 확인합니다. 후보 40개 제한은 짝의 수를 세며 시작 시간, 그다음 장소 순으로 정렬합니다. 같은 날 이동 순위는 짝에 적용되지 않습니다 | 모든 시간에 대해 모든 장소 확인하기; 장소 우선 순서 | 설계 2 | `lib/server/feasibility.ts`의 `plan()` |
+| D3 | 짝 ID에 장소 인덱스를 더합니다(`-p<index>`). 게스트는 어느 시간의 두 번째 짝보다 모든 시간의 첫 번째 짝을 먼저 봅니다 | 시간과 장소를 따로 선택하기; 시간당 짝 하나 | 설계 3과 4 | `candidateId`, `requesterProjection` |
+| D4 | 다른 지역은 검토 카드를 거쳐 요청의 장소가 됩니다. 가능한 곳이 없으면 메시지가 장소를 밝히되 이유는 말하지 않으며, 기존의 시간당 평가 10회 제한이 이를 포함합니다 | 지역별 별도 제한; 게스트의 장소 옆에 호스트의 장소를 함께 제시하기 | 설계 5와 6 | `lib/contracts/feasibility.ts`의 `noMatchMessage`, `agent/instructions/requester.ts` |
+| D5 | 합의 시 다시 확인과 예약 재검증은 제안 자체의 장소를 확인합니다 | 그 시간에 호스트의 모든 장소를 다시 확인하기 | 설계 7 | `EvaluateOptions.place`; `agreeCommand`, 예약 작업 |
+
+## `same-day-trips`
+
+[설계](../../openspec/changes/same-day-trips/design.md)는 이슈 #103에 대한 이 선택들을 기록합니다. 엔진 결정(1–5)은 PR #106에서 출시되었고, 설정 결정(6–7)은 이를 구현한 세션에서 2026-11-14에 정했으며 아직 팀원의 검토를 받지 않았습니다.
+
+| # | 선택 | 대안 | 기록 위치 | 바꾸려면 |
+|---|---|---|---|---|
+| D1 | **하루에 묶기(Group trips by day)**는 호스트의 선호 조건이며, 기본적으로 꺼져 있고 이 기능이 생기기 전에 확정된 모든 정책에서도 꺼져 있습니다. 대면 후보의 순서만 정하고 후보를 제거하지 않습니다 | 먼 날을 걸러 내는 필터; 기본으로 켜 두기 | 제안; 설계 1; `meeting-feasibility` 델타 "Same-day trip preference" | `lib/contracts/setup.ts`의 `groupTripsOf` |
+| D2 | 먼 곳은 선호 지역에서 30분을 넘는 곳, 가까운 곳은 15분 이내로 하며, 이동 확인이 쓰는 Routes 추정과 캐시를 호스트의 이동 수단으로 사용합니다. 추정이 없으면 그날은 순서를 정하지 않습니다 | 직선 거리: 이동 확인과 어긋나고 좌표가 필요함; 모델의 순위 신호: 장소를 전혀 보지 못함 | 설계 2 | `lib/server/feasibility.ts`의 `TRIP_FAR_MINUTES`, `TRIP_NEAR_MINUTES` |
+| D3 | 이동 순위는 주당 상한 다음, 요청자의 선호와 요일 분산 앞에 옵니다 | 주당 상한 앞; 요청자의 선호 뒤 | 설계 3 | `plan()`의 가중 정렬 |
+| D4 | `groupTrips`는 선택적 설정 필드로, 대면 또는 둘 다 방식일 때만 저장하고, 장소를 미팅마다 정하는 경우가 아니면 이동 버퍼 다음의 별도 단계로 웹에서 묻습니다. 웹 검토와 연결된 채팅의 설정 검토에 표시되며, 채팅 설정에서는 묻지 않습니다 | 대면 답변에서 필수로 받기; 장소에 후보가 있을 때만 저장 | 설계 6; `host-setup` 델타 "Same-day trip setting" | `lib/contracts/setup.ts`의 `IN_PERSON_OPTIONAL_FIELDS`; `apps/web/app/_components/setup/steps.ts`의 `setupSteps` |
+| D5 | 스캔은 가장 자주 가는 곳이 아닌 장소에서 대면 일정이 있었고 그 장소가 다른 날에도 나타난 날이 이틀 이상이면 켜는 것으로 제안합니다. 장소 텍스트로 판단하고 횟수만 저장하며, 호스트가 확인한 뒤에야 정책이 됩니다 | 선호 지역이 아직 없는 스캔 중의 경로 추정; 호스트의 장소 답변과 비교 | 설계 7; `host-setup` 델타 "Same-day trip suggestion" | `lib/server/analysis.ts`의 `tripEvidence`, `suggestFromEvidence` |
+
+## Product language
+
+Dohyeon Park이 2026-11-16에 결정했으며, 2026-11-14 UAT 회의가 [이슈 #200](https://github.com/snuhcs-course/swpp-2026-project-team-01/issues/200)에 남긴 질문, 곧 고정 문구가 영어가 되면 어시스턴트의 답장도 영어가 되는지를 정리합니다. 아직 팀원 검토를 받지 않았습니다.
+
+| # | 선택 | 대안 | 기록 위치 | 바꾸려면 |
+|---|---|---|---|---|
+| — | 고정 제품 문구와 이메일은 영어로만 제공합니다: 페이지, 카드, 영수증, 채팅의 고정 답장, 알림과 버튼 제목. 어시스턴트(웹의 Thyme, 연결된 iMessage·WhatsApp·Telegram 채팅, MCP나 CLI를 통한 에이전트)는 사용자가 쓰는 언어로 답합니다. 이슈 #178과 #179가 요구한 "영어와 한국어 사본"과 `channel-actions-in-words` D4의 한국어 고정 답장을 대체합니다 | 대화가 언어를 바꾸지 않도록 어시스턴트 답장도 영어로 하기; 요청의 언어를 따르는 고정 문구(한 스레드에서 언어가 섞였음, 이슈 #200) | PRD FR-27과 10절 "지원 언어"; 이슈 #200 | 먼저 PRD. 고정 문구: `lib/server/booking-emails.ts`, `lib/server/email-templates.ts`, `apps/web/app/_components/guest/guest-workspace.tsx`, `lib/server/channel-language.ts`, `channel-texts.ts`. 어시스턴트 답장: `agent/instructions/base.md`, `host-setup.ts`, `host-imessage.ts`, `requester.ts` |
+
+2026-11-16 기준 상태: PR #217이 랜딩과 호스트 설정을 영어 전용으로 만들었습니다. 게스트 이메일, 게스트 작업 공간의 고정 메시지, 연결된 채팅의 고정 답장은 아직 요청 또는 호스트의 언어를 따릅니다. 이슈 #200이 이 작업을 추적하며, `email-delivery`와 `meeting-requests` 명세, 에이전트 구성, 호스트 온보딩 흐름은 그 작업과 함께 바뀝니다. 어시스턴트는 이미 사용자의 언어로 답하며, `agent/instructions/base.md`는 영어 또는 한국어를 명시합니다.

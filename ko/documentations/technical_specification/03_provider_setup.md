@@ -168,13 +168,15 @@ Photon의 Beta 문서 [WhatsApp](https://photon.codes/docs/beta/messaging/whatsa
 
 사용자의 승인 없이는 에이전트 세션에서 Photon 프로젝트의 플랫폼, 회선, 웹훅을 바꾸거나, 템플릿을 등록하거나, WhatsApp 메시지를 보내서는 안 됩니다.
 
+2026-11-16부터 숨김([#221](https://github.com/snuhcs-course/swpp-2026-project-team-01/issues/221)): WhatsApp 연결이 데모나 테스트를 하기에 너무 불안정해서, 화면은 iMessage와 Telegram만 제공합니다. `WHATSAPP_OFFERED=1`이 아니면 웹 서비스는 `PHOTON_WHATSAPP_NUMBER`가 설정되어 있어도 모든 화면에 빈 WhatsApp 번호를 넘깁니다. 호스트의 카드와 연결 단계, 랜딩 시작(`/?flow=whatsapp`는 Telegram으로 시작), 게스트의 **Get updates in WhatsApp**, 에이전트의 채팅 링크는 WhatsApp을 설정되지 않은 것으로 다룹니다. 이미 연결된 바인딩은 계속 메시지를 받고 보냅니다. 브라우저 테스트는 `WHATSAPP_OFFERED=1`을 설정해 WhatsApp 화면을 계속 검증합니다. WhatsApp을 다시 제공하려면 Vercel Production에 `WHATSAPP_OFFERED=1`을 설정하고 다시 배포합니다.
+
 ## Telegram
 
 Telegram은 2026-11-04에 [`host-telegram-channel` 변경](../../openspec/changes/host-telegram-channel/proposal.md#decisions)에서 제안된 호스트 Telegram 채널의 전송 수단입니다. 웹훅, 레코드, Bot API 전송(레인 A)은 구현되었고 연결과 채널의 동작(레인 B와 C)은 아직 구현되지 않았으므로, Telegram 업데이트는 저장된 뒤 무시됩니다. Photon이 아니라 Telegram Bot API를 직접 사용합니다(D1). Photon의 Telegram 공급자인 `@spectrum-ts/telegram` 12.14.0은 봇의 웹훅을 Photon의 릴레이에 등록하고 지속적인 WebSocket(`wss://fusor-ws.spectrum.photon.codes/v1/subscribe`)으로 애플리케이션에 업데이트를 전달하는데, Vercel Function은 이를 유지할 수 없습니다.
 
 - **봇.** `@findmeatime_bot`, 사용자가 2026-11-04에 [@BotFather](https://t.me/BotFather)로 만들었습니다. 토큰이 봇의 유일한 자격 증명이며, @BotFather의 `/revoke`로 교체합니다.
 - **변수.** 메시징 게이트 아래 Vercel Production에만 `TELEGRAM_BOT_TOKEN`, `TELEGRAM_BOT_USERNAME`(`findmeatime_bot`), `TELEGRAM_WEBHOOK_SECRET`(무작위 URL 안전 문자 32자 이상)을 둡니다. 테스트는 `TELEGRAM_API_URL`을 루프백 대역으로 지정합니다. 사용자는 로컬 실행을 위해 토큰과 사용자 이름을 메인 체크아웃의 `.env`에 보관합니다.
-- **웹훅.** `https://findmeatime.com/telegram/webhook`, `npm run telegram:webhook`이 `setWebhook`(`secret_token`, `allowed_updates`는 `message`, `callback_query`, `my_chat_member`, `max_connections` 10)과 `setMyCommands`로 등록한 뒤 `getWebhookInfo`로 확인하며, 토큰은 출력하지 않습니다. 이 스크립트는 `TELEGRAM_BOT_TOKEN`과 `TELEGRAM_WEBHOOK_SECRET`을 환경 또는 루트 env 파일에서 읽고, `https://findmeatime.com` 이외의 출처와 루프백 대역이 아닌 `TELEGRAM_API_URL`을 거부합니다. Telegram은 `X-Telegram-Bot-Api-Secret-Token`으로 시크릿을 보내며 그 밖에는 아무것도 서명하지 않습니다. 응답하지 않은 업데이트는 최대 24시간 동안 다시 보냅니다.
+- **웹훅.** `https://findmeatime.com/telegram/webhook`, `npm run telegram:webhook`이 `setWebhook`(`secret_token`, `allowed_updates`는 `message`, `callback_query`, `my_chat_member`, `max_connections` 10)과 `setMyCommands`로 등록한 뒤 `getWebhookInfo`로 확인하며, 토큰은 출력하지 않습니다. 이 스크립트는 `TELEGRAM_BOT_TOKEN`과 `TELEGRAM_WEBHOOK_SECRET`을 환경 또는 루트 env 파일에서 읽습니다. 시크릿이 없으면 URL-safe 문자 48자를 생성해 출력하지 않고 체크아웃의 `.env`에 덧붙인 뒤 멈추므로, 웹훅을 등록하기 전에 같은 값을 Vercel Production에 설정하고 배포할 수 있습니다. 또한 `https://findmeatime.com` 이외의 출처와 루프백 대역이 아닌 `TELEGRAM_API_URL`을 거부합니다. Telegram은 `X-Telegram-Bot-Api-Secret-Token`으로 시크릿을 보내며 그 밖에는 아무것도 서명하지 않습니다. 응답하지 않은 업데이트는 최대 24시간 동안 다시 보냅니다.
 - **한도.** 한 대화에는 초당 약 1건, 전체적으로는 초당 30건; 메시지당 4,096자; `callback_data`는 64바이트; 메시지는 48시간 동안 편집할 수 있습니다. 봇은 사용자가 시작한 뒤에만 사용자에게 메시지를 보낼 수 있고, 사용자가 차단하면 `403`을 받습니다.
 - **프라이버시.** 봇 대화는 종단 간 암호화되지 않으며 Telegram의 서버에 남습니다. 카드와 개인정보 처리방침이 이를 안내합니다.
 

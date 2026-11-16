@@ -2,9 +2,10 @@
 -- whose verified Google subject matched the guest's on the requester Google
 -- return, and the items of their host settings the guest chose for this
 -- request. decided_at is null until **Use these settings** or **Not now**
--- (items empty); the card is offered while it is null. The row is deleted when
--- the request closes, with its requester grants, or with the request. Nothing
--- here reaches the request's host.
+-- (items empty); the card is offered while it is null. At closure the items and
+-- decision are cleared with the requester grants, while the verified account
+-- match remains for the guest's signed-in request history. The row is deleted
+-- with the request or account. Nothing here reaches the request's host.
 CREATE TABLE "app"."requester_host_profiles" (
   "request_id" uuid PRIMARY KEY REFERENCES "app"."requests" ("id") ON DELETE CASCADE,
   "host_account_id" uuid NOT NULL REFERENCES "app"."host_accounts" ("id") ON DELETE CASCADE,

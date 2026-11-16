@@ -11,7 +11,7 @@ import {
 } from "@lib/contracts/messaging-channel";
 import { type ReactNode, useCallback, useEffect, useRef, useState } from "react";
 import { appLinkFor, readStatus, rememberedLater, sendCommand } from "@/app/_components/imessage/imessage-card";
-import { Brand, InkStage, LanguageSelect } from "./chrome";
+import { Brand, InkStage } from "./chrome";
 import { channelCopy, COPY, type Locale, replacesText } from "./copy";
 import { AppGlyph, ExternalIcon, StatusMark } from "./icons";
 import { NumberForm } from "./number-form";
@@ -186,7 +186,7 @@ export function LinkStep({ children, locale, ready }: { readonly children: React
     return (
       <InkStage locale={locale}>
         <div className="inner" data-screen="imessage-link">
-          <header className="top"><Brand /><LanguageSelect locale={locale} /></header>
+          <header className="top"><Brand /></header>
           <main className="handoff">
             <h1>{base.link.unavailableTitle}</h1>
             <p className="lede small">{base.link.unavailableLede}</p>
@@ -213,6 +213,7 @@ export function LinkStep({ children, locale, ready }: { readonly children: React
         ? (wanted ?? "imessage")
         : (code?.channel ?? wanted ?? "imessage");
   const c = channelCopy(base, channel);
+  const availableChannels = askChannels(status.channels).filter((option) => device !== "android" || option !== "imessage");
   const others =
     screen === "number"
       ? switchChannels(device, status.channels, channel)
@@ -257,7 +258,6 @@ export function LinkStep({ children, locale, ready }: { readonly children: React
           <div className="inner" data-screen="imessage-link">
             <header className="top">
               <Brand />
-              <LanguageSelect locale={locale} />
             </header>
             <main className="panel-page">
               <section aria-labelledby="connect-h" className="modal">
@@ -300,18 +300,23 @@ export function LinkStep({ children, locale, ready }: { readonly children: React
             {c.link.askTitle}
           </h1>
           <p className="lede small">{c.link.askLede}</p>
-          <div className="choices">
-            {askChannels(status.channels).filter((option) => device !== "android" || option !== "imessage").map((option) => (
-              <button
-                aria-disabled={busy !== null}
-                className="secondary-btn"
-                key={option}
-                onClick={() => busy === null && void newCode(option)}
-                type="button"
-              >
-                <AppGlyph channel={option} />
-                {channelName(option)}
-              </button>
+          <div className={`choices choices-${availableChannels.length}`}>
+            {availableChannels.map((option) => (
+              <div className="choice-wrap" key={option}>
+                {option === "imessage" ? (
+                  <span className="choice-badge" id="imessage-recommended">Recommended</span>
+                ) : null}
+                <button
+                  aria-describedby={option === "imessage" ? "imessage-recommended" : undefined}
+                  aria-disabled={busy !== null}
+                  className="secondary-btn choice-btn"
+                  onClick={() => busy === null && void newCode(option)}
+                  type="button"
+                >
+                  <AppGlyph channel={option} />
+                  {channelName(option)}
+                </button>
+              </div>
             ))}
           </div>
           {notice}
@@ -499,7 +504,6 @@ export function LinkStep({ children, locale, ready }: { readonly children: React
       <div className="inner" data-screen="imessage-link">
         <header className="top">
           <Brand />
-          <LanguageSelect locale={locale} />
         </header>
         {body}
       </div>
