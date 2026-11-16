@@ -30,6 +30,7 @@ body:has(.ld) { background: var(--canvas); }
 .ink:lang(ko) .ld-pitch h1 span:nth-child(2) { font-style: normal; }
 .ink .ld-lede { max-width: 40ch; font-size: 19px; line-height: 1.6; color: var(--ld-body); text-wrap: pretty; }
 .ink .ld-start { gap: 14px; }
+.ink .ld-start .why { text-align: center; }
 .ink .ld-to-agent { font-size: 15px; font-weight: 500; color: var(--primary); text-decoration: underline; text-decoration-thickness: 1px; text-underline-offset: 4px; }
 
 /* the sign-in screen (sign-in-card.tsx) on the same spread: one heading, one line and the Google start */

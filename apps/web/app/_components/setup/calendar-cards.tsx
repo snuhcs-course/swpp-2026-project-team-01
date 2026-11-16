@@ -3,6 +3,7 @@
 import { ExternalLinkIcon, RefreshCwIcon } from "lucide-react";
 import { useEffect, useId, useRef, useState } from "react";
 import { MAX_CALENDAR_IMAGE_BYTES } from "@lib/contracts/calendar-screenshot";
+import { PERMISSION_REASONS } from "@lib/contracts/permission-reasons";
 import type { WeeklyWindow } from "@lib/contracts/setup";
 import { Button } from "@/components/ui/button";
 import { Field, FieldContent, FieldDescription, FieldLabel, FieldLegend, FieldSet, FieldTitle } from "@/components/ui/field";
@@ -97,6 +98,7 @@ export function ConnectCalendarCard({ onSetOtherPreferences }: { readonly onSetO
       title="Connect Google Calendar"
     >
       <p>One Google screen asks to read the calendars you choose and add bookings to one of them.</p>
+      <p className="text-sm text-muted-foreground" data-reason="googleSignIn">{PERMISSION_REASONS.en.googleSignIn}</p>
       <CardActions>
         <Button asChild>
           <a href={CONSENT_HREF}>Connect Google Calendar</a>
@@ -162,6 +164,7 @@ export function CalendarRolesCard({ onClose }: { readonly onClose?: (saved: bool
       label="Calendars"
       title="Choose your calendars"
     >
+      <p className="text-sm text-muted-foreground" data-reason="calendarRoles">{PERMISSION_REASONS.en.calendarRoles}</p>
       {error ? (
         <div className="flex flex-col gap-2" role="status">
           <p>{calendarErrorText(error)}</p>

@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import { PERMISSION_REASONS } from "@lib/contracts/permission-reasons";
 import { CopyButton } from "./chrome";
 import { COPY, type ExampleRow, type Locale } from "./copy";
 import { GoogleLogo } from "./icons";
@@ -8,14 +9,20 @@ import { GoogleLogo } from "./icons";
 // The landing's interactive parts: the Google start, the agent section and the live example conversation.
 
 // Sign-in always returns to /app, and the same Google consent also grants Calendar access (main's default). The
-// iMessage start's handoff screen reuses it.
+// iMessage start's handoff screen reuses it. The line under the button says why Google is asked and how far the
+// access reaches, in the same words the linked chats use (issue #203).
 export function GoogleStart({ locale }: { readonly locale: Locale }) {
   const t = COPY[locale].landing;
   return (
-    <a className="gbtn" href="/auth/sign-in">
-      <GoogleLogo />
-      <span>{t.google}</span>
-    </a>
+    <>
+      <a className="gbtn" href="/auth/sign-in">
+        <GoogleLogo />
+        <span>{t.google}</span>
+      </a>
+      <p className="fine why" data-reason="googleSignIn">
+        {PERMISSION_REASONS[locale].googleSignIn}
+      </p>
+    </>
   );
 }
 
