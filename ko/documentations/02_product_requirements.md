@@ -189,7 +189,7 @@ AI 에이전트는 접근/로그인, Google 연결, 캘린더 선택, 선호 조
 
 호스트는 미팅 세부 정보가 담긴 비공개 요청 요약을 받으며, 질문하거나, “Make it next week”와 같은 변경을 제안하거나, 표시된 제안을 승인 또는 거절할 수 있습니다. 대화형 답장은 연결된 호스트 신원, 명시적 의도, 정확한 현재 제안이 모두 확인될 때에만 승인으로 기록될 수 있습니다. 대기 중인 제안이 여러 개일 때의 수식어 없는 “yes”나 오래된 메시지에 대한 답장은 예약을 승인할 수 없습니다. 채널이 이러한 조건을 확인할 수 없으면, 호스트는 인증된 웹 링크로 결정을 완료합니다.
 
-이 범위에서 iMessage는 호스트 상호작용 채널이며, 예약 페이지에서 iMessage나 WhatsApp을 연결한 요청자는 그곳에서 요청을 이어갈 수 있습니다([`guest-flow-completion`](../openspec/changes/guest-flow-completion/proposal.md), [`guest-whatsapp-link`](../openspec/changes/guest-whatsapp-link/proposal.md)). WhatsApp에서는 요청자가 그곳에서 마지막으로 보낸 메시지로부터 24시간 이내에만 업데이트를 받으며, 요청자 에이전트 위임은 예약 링크를 통해 계속 이용할 수 있습니다. 메시징 채널은 동일한 요청 상태를 공유하며 별도의 승인이나 예약 워크플로를 만들지 않습니다.
+이 범위에서 iMessage는 호스트 상호작용 채널이며, 예약 페이지에서 iMessage, WhatsApp 또는 Telegram을 연결한 요청자는 그곳에서 요청을 이어갈 수 있습니다([`guest-flow-completion`](../openspec/changes/guest-flow-completion/proposal.md), [`guest-whatsapp-link`](../openspec/changes/guest-whatsapp-link/proposal.md), [`guest-telegram-link`](../openspec/changes/guest-telegram-link/proposal.md)). 게스트 Telegram 결정(2026-11-16): WhatsApp을 숨긴 상태(#221)에서 iMessage가 없는 요청자는 전화번호 없이 호스트 채널의 봇을 통해 Telegram을 연결합니다(추적 이슈 #227). WhatsApp에서는 요청자가 그곳에서 마지막으로 보낸 메시지로부터 24시간 이내에만 업데이트를 받으며, 요청자 에이전트 위임은 예약 링크를 통해 계속 이용할 수 있습니다. 메시징 채널은 동일한 요청 상태를 공유하며 별도의 승인이나 예약 워크플로를 만들지 않습니다.
 
 ### WhatsApp을 통한 호스트 상호작용
 

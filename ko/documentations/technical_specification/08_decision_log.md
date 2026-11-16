@@ -755,3 +755,16 @@
 | D3 | 짝 ID에 장소 인덱스를 더합니다(`-p<index>`). 게스트는 어느 시간의 두 번째 짝보다 모든 시간의 첫 번째 짝을 먼저 봅니다 | 시간과 장소를 따로 선택하기; 시간당 짝 하나 | 설계 3과 4 | `candidateId`, `requesterProjection` |
 | D4 | 다른 지역은 검토 카드를 거쳐 요청의 장소가 됩니다. 가능한 곳이 없으면 메시지가 장소를 밝히되 이유는 말하지 않으며, 기존의 시간당 평가 10회 제한이 이를 포함합니다 | 지역별 별도 제한; 게스트의 장소 옆에 호스트의 장소를 함께 제시하기 | 설계 5와 6 | `lib/contracts/feasibility.ts`의 `noMatchMessage`, `agent/instructions/requester.ts` |
 | D5 | 합의 시 다시 확인과 예약 재검증은 제안 자체의 장소를 확인합니다 | 그 시간에 호스트의 모든 장소를 다시 확인하기 | 설계 7 | `EvaluateOptions.place`; `agreeCommand`, 예약 작업 |
+
+## `guest-telegram-link`
+
+[제안](../../openspec/changes/guest-telegram-link/proposal.md#decisions)은 D1–D6을 기록합니다. WhatsApp을 숨긴(#221) 뒤 게스트가 Telegram에서 업데이트를 받게 해 달라는 사용자의 요청에 따라 변경을 작성한 세션에서 2026-11-16에 정했습니다(추적 이슈 #227). 이는 `host-telegram-channel`이 제외했던 Telegram을 통한 요청자 메시징을 범위에 들이고, `guest-whatsapp-link` D4의 "Telegram은 호스트 전용으로 유지"를 대체합니다. 아직 팀원의 검토를 받지 않았습니다.
+
+| # | 선택 | 대안 | 기록 위치 | 바꾸려면 |
+|---|---|---|---|---|
+| D1 | `requester_imessage_bindings.channel`이 `telegram`을 허용하고, 바인딩은 봉인된 Telegram 이름을 `sender_name_ciphertext`에 보관하며 `clear_sender_name`이 발신자와 함께 지웁니다. 모든 채널이 허용되므로 `imessage_links_request_channel`은 삭제합니다 | `requester_telegram_bindings` 테이블 | 제안; 설계 1 | `supabase/schemas/app/tables/requester_imessage_bindings.sql`, `imessage_links.sql`, `triggers/imessage_clear_sender_name.sql` |
+| D2 | `TELEGRAM_BOT_USERNAME`이 설정된 곳에서는 번호도 등록도 없이 **Get updates in Telegram**을 제공하며, 대기 중 카드는 봇과 코드만 알려 줍니다 | 번호 요청: Telegram은 봇에게 번호를 알려 주지 않음 | 제안; 설계 2 | `apps/web/app/_components/requester/cards.tsx`의 `ImessageUpdates`; `createRequesterImessageLinkCommand` |
+| D3 | 비공개 대화에서 보낸 `/start <code>` 또는 코드만으로 요청의 Telegram 시도가 완료되며, **Confirm and link**를 누르기 전에는 답장하지 않습니다 | 수신 확인 답장: 게스트가 확인하기 전에 봇이 먼저 쓰게 됨 | 제안; 설계 3 | `lib/server/imessage-links.ts`의 `receiveLinkCode` |
+| D4 | 게스트와 연결된 발신자의 Telegram 텍스트와 `/` 명령은 게스트 iMessage와 똑같이 라우팅되며 `[Telegram] `이 붙습니다. 버튼 탭은 게스트에게 닿지 않고, 연결된 게스트의 단독 `/start`는 무시합니다 | Telegram을 호스트 전용으로 유지 | 제안; 설계 4 | `lib/server/imessage-receipts.ts`의 `processReceipt`와 `telegramLinking` |
+| D5 | 차단 업데이트는 발신자의 Telegram 게스트 바인딩을 끝내고, `blocked`로 거부된 전송은 그것이 향한 바인딩을 끝내며 대기 중이던 것을 보류합니다 | 게스트가 연동을 해제할 때까지 바인딩 유지 | 제안; 설계 5 | `lib/server/imessage-outbox.ts`의 `endBlockedRequesterBindings` |
+| D6 | Telegram 게스트에게는 버튼, 입력 중 표시, 반응, 연락처 카드, 창이 없습니다 | 게스트에게 호스트의 Telegram 부가 기능 제공 | 제안; 설계 6 | `lib/server/imessage-outbox.ts`, `imessage-receipts.ts` |
