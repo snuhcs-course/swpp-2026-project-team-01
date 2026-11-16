@@ -102,7 +102,7 @@ export function ConnectedAgentsDialog({
           <DialogTitle>{appsMode ? "Connected apps" : "Connected agents"}</DialogTitle>
           <DialogDescription>
             {appsMode
-              ? "Review your connected agents and messaging app. Link one messaging app at a time."
+              ? "Review your connected agents and messaging app."
               : "Agents you allowed to work with Find Me a Time. Revoking one stops it at its next request."}
           </DialogDescription>
         </DialogHeader>
@@ -110,7 +110,6 @@ export function ConnectedAgentsDialog({
           <section aria-labelledby="messaging-apps-heading" className="space-y-3">
             <div>
               <h3 className="text-sm font-semibold" id="messaging-apps-heading">Messaging app</h3>
-              <p className="text-muted-foreground mt-1 text-sm">Only one of iMessage, Telegram, or WhatsApp can be connected at a time.</p>
             </div>
             {messagingFailed ? <p className="text-destructive text-sm" role="alert">Messaging status could not be loaded.</p> : null}
             <ul aria-label="Messaging app connections" className="grid gap-2 sm:grid-cols-3">
