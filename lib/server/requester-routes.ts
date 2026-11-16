@@ -77,6 +77,7 @@ import {
   setManualAvailabilityCommand,
   useGoogleEmailCommand,
 } from "./requester-grants";
+import { IDENTIFY_ACCOUNT_OPERATION, identifyAccountCommand } from "./guest-account";
 import { decideHostProfileCommand, readHostProfileView, recordHostSessionMatch } from "./requester-host-profiles";
 import { supabaseAuthConfigFromEnvironment, type SupabaseAuthConfig, verifiedUserId } from "./supabase-auth";
 import {
@@ -557,7 +558,15 @@ export function createRequesterCommandHandler(load: () => RequesterRouteDependen
 
     if (!body.success) return requesterJson({ code: "invalid_request", error: "Send an operation and a retry key." }, 400);
 
-    const command = requesterCommands(deps)[body.data.operation];
+    let command = requesterCommands(deps)[body.data.operation];
+
+    // **Continue as {name}** (host-as-guest-session): built only for a verified
+    // account session, which grants nothing on the request beyond it.
+    if (body.data.operation === IDENTIFY_ACCOUNT_OPERATION) {
+      const userId = deps.hostAuth ? await verifiedUserId(request, deps.hostAuth) : null;
+      if (!userId) return requesterJson({ code: "authentication_required", error: "Sign in to continue as your account." }, 401);
+      command = registered(identifyAccountCommand({ authUserId: userId, origin: deps.appOrigin, tokenKey: deps.tokenKey() }))[1];
+    }
 
     if (!command) return requesterJson({ code: "invalid_request", error: "This action is not available." }, 400);
 
