@@ -10,7 +10,7 @@ describe("AwaitingDecisionDetails", () => {
     expect(html).toContain("Nothing is booked yet");
     expect(html).toContain("We’ll email the host’s decision to");
     expect(html).toContain("grace@example.test");
-    expect(html).toContain("If iMessage is linked");
+    expect(html).toContain("iMessage or Telegram");
     expect(html).not.toContain("We sent a copy of your agreement");
   });
 

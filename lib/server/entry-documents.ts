@@ -112,7 +112,7 @@ Connecting opens a browser page that names this host; the person allows one new 
 3. Use find_times and choose_time within what the person allowed, and agree_to_proposal only when they accept that exact time.
 4. The host must still approve, nothing is booked yet, and the outcome arrives by email. The person can ask you to check again with get_request. Report a meeting as booked only when get_request shows the state booked.
 
-5. Once the request exists, use start_updates_link if asked for iMessage updates. Give the person the returned browser link to send the code from their phone and confirm. Never ask for the booking link. Nothing is linked until they confirm; get_request reports updates state.
+5. Once the request exists, use start_updates_link if asked for iMessage or Telegram updates. iMessage needs the person's own phone number; Telegram needs none. Give the person the returned browser link to send the code from their phone, or to start the bot in Telegram, and confirm. Never ask for the booking link. Nothing is linked until they confirm; get_request reports updates state.
 
 ## Connect from your client
 
