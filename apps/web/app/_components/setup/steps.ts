@@ -1,4 +1,4 @@
-import type { SetupFieldName } from "@lib/contracts/setup";
+import { meetsInPerson, type SetupFieldName } from "@lib/contracts/setup";
 import { FIELD_LABELS } from "./format";
 import type { SetupState } from "@/lib/setup/client";
 
@@ -18,6 +18,7 @@ export const STEP_IDS = [
   "location",
   "transport",
   "travelBuffer",
+  "trips",
   "identity",
 ] as const;
 
@@ -34,6 +35,7 @@ export const STEP_FIELDS: Readonly<Record<StepId, readonly SetupFieldName[]>> = 
   timezone: ["timezone"],
   transport: ["travelMode"],
   travelBuffer: ["travelBufferMinutes"],
+  trips: ["groupTrips"],
   windows: ["weeklyWindows"],
 };
 
@@ -48,6 +50,7 @@ export const STEP_CARD_IDS: Readonly<Record<StepTarget, string>> = {
   timezone: "setup-timezone",
   transport: "setup-transport",
   travelBuffer: "setup-travel-buffer",
+  trips: "setup-trips",
   windows: "setup-windows",
 };
 
@@ -64,13 +67,19 @@ export function noteEntries(state: Pick<SetupState, "analysis">) {
   return state.analysis?.state === "completed" ? (state.analysis.evidence?.noteLike.entries ?? []) : [];
 }
 
+// Whether grouping trips by day can apply: an in-person mode with places, not a
+// place decided per meeting (same-day-trips).
+export function tripsApply(state: Pick<SetupState, "fields">) {
+  return meetsInPerson(acceptedMode(state)) && state.fields.location.proposed?.value?.kind !== "decide_per_meeting";
+}
+
 // The steps this host walks through, in order.
 export function setupSteps(state: StepState): StepId[] {
-  const mode = acceptedMode(state);
-  const inPerson = mode === "in_person" || mode === "either";
+  const inPerson = meetsInPerson(acceptedMode(state));
   return STEP_IDS.filter((step) => {
     if (step === "notes") return noteEntries(state).length > 0;
     if (step === "location" || step === "transport" || step === "travelBuffer") return inPerson;
+    if (step === "trips") return tripsApply(state);
     return true;
   });
 }
@@ -109,5 +118,6 @@ export const STEP_LABELS: Readonly<Record<StepId, string>> = {
   timezone: FIELD_LABELS.timezone,
   transport: FIELD_LABELS.travelMode,
   travelBuffer: FIELD_LABELS.travelBufferMinutes,
+  trips: FIELD_LABELS.groupTrips,
   windows: FIELD_LABELS.weeklyWindows,
 };

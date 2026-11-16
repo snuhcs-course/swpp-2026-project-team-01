@@ -1,6 +1,6 @@
 "use client";
 
-import { displayNameSchema, type SetupFieldName } from "@lib/contracts/setup";
+import { displayNameSchema, meetsInPerson, type SetupFieldName } from "@lib/contracts/setup";
 import type { HandleAvailability } from "@lib/server/handles";
 import { CircleCheckIcon, CircleIcon, ListChecksIcon, ShieldCheckIcon } from "lucide-react";
 import { type ReactNode, useEffect, useId, useState } from "react";
@@ -14,6 +14,7 @@ import { cn } from "@/lib/utils";
 import { CALENDARS_CARD_ID } from "./calendar-cards";
 import { CardActions, EditorForm, focusCard, QuietButton, SetupCard, SourceBadge } from "./card";
 import {
+  describeGroupTrips,
   describeLimit,
   describeLocation,
   describeTravelMode,
@@ -25,7 +26,7 @@ import {
 } from "./format";
 import { type SetupStep, useSetup, useStepper } from "./setup-context";
 import { StepCard } from "./step-card";
-import { acceptedMode, noteEntries, STEP_CARD_IDS, STEP_FIELDS, STEP_LABELS, type StepId, stepAccepted, stepForField } from "./steps";
+import { acceptedMode, noteEntries, tripsApply, STEP_CARD_IDS, STEP_FIELDS, STEP_LABELS, type StepId, stepAccepted, stepForField } from "./steps";
 
 // The setup review (H8, H9): the exact settings confirmation would save in one
 // compact list, each with its source and an Edit link that asks its step again
@@ -44,7 +45,7 @@ export function ReviewCard({ pending = false }: { readonly pending?: boolean }) 
   const stepper = useStepper();
   const { fields } = state;
   const mode = acceptedMode(state);
-  const inPerson = mode === "in_person" || mode === "either";
+  const inPerson = meetsInPerson(mode);
   const missing = state.missingFields;
   const saving = busy === REVIEW_CARD_ID;
   const exclusions = fields.noteExclusions.proposed?.value.length ?? 0;
@@ -141,6 +142,11 @@ export function ReviewCard({ pending = false }: { readonly pending?: boolean }) 
             <Row label={FIELD_LABELS.travelBufferMinutes} step="travelBuffer">
               {fields.travelBufferMinutes.proposed ? formatMinutes(fields.travelBufferMinutes.proposed.value) : null}
             </Row>
+            {tripsApply(state) ? (
+              <Row label={FIELD_LABELS.groupTrips} step="trips">
+                {fields.groupTrips.proposed ? describeGroupTrips(fields.groupTrips.proposed.value) : null}
+              </Row>
+            ) : null}
           </>
         ) : null}
         <Row label={FIELD_LABELS.displayName} step="identity" field="displayName">
