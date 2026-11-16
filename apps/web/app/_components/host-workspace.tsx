@@ -86,10 +86,6 @@ function SetupWorkspace({ initialImessageOpen, onOpenDashboard, onOpenRequests }
   const setupValue = setup.value;
   const showSetup = setupValue !== null && reveal.done;
   const showImessage = imessageOpened || (showSetup && setupState?.nextAction === "ready" && !imessageLater);
-  const openImessage = useCallback(() => {
-    setImessageOpened(true);
-    setImessageFocus((count) => count + 1);
-  }, []);
   // Answered setup cards, as receipts placed among the messages by time.
   const receipts = useMemo(
     () => (showSetup && setupValue ? deriveReceipts(setupValue.state, setupValue.skipped) : []),
@@ -118,7 +114,7 @@ function SetupWorkspace({ initialImessageOpen, onOpenDashboard, onOpenRequests }
     <div className="flex h-dvh min-h-0 flex-col bg-background text-foreground">
       <header className="flex shrink-0 items-center justify-between gap-3 px-5 py-3 sm:px-8">
         <h1 className="wordmark-lockup min-w-0">Find Me a Time</h1>
-        <div className="flex items-center"><HostSettingsDialog /><WorkspaceMenu onSelectDashboard={onOpenDashboard} onSelectImessage={openImessage} onSelectRequests={onOpenRequests} /></div>
+        <div className="flex items-center"><HostSettingsDialog /><WorkspaceMenu onSelectDashboard={onOpenDashboard} onSelectRequests={onOpenRequests} /></div>
       </header>
 
       <main aria-label="Setup conversation with Thyme" className="flex min-h-0 flex-1 flex-col">

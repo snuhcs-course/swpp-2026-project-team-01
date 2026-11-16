@@ -99,7 +99,7 @@ export function HostDashboard() {
   return <div className="hd">
     <header className="hd-header">
       <h1 className="wordmark-lockup min-w-0">Find Me a Time</h1>
-      <div className="hd-header-actions"><HostSettingsDialog /><WorkspaceMenu onSelectDashboard={() => router.push("/app")} onSelectRequests={() => router.push("/app?view=requests")} onSelectImessage={() => router.push("/app?view=imessage")} /></div>
+      <div className="hd-header-actions"><HostSettingsDialog /><WorkspaceMenu onSelectDashboard={() => router.push("/app")} onSelectRequests={() => router.push("/app?view=requests")} /></div>
     </header>
     <div className="hd-layout">
       <main className="hd-main">
