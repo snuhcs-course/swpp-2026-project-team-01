@@ -115,6 +115,7 @@ test.describe("on Android", () => {
     const host = await signedInHost(db, context, baseURL!, { imessageStep: true });
     await page.goto("/app");
 
+    await page.getByRole("button", { exact: true, name: "WhatsApp" }).click();
     // WhatsApp asks for the number first (guest-whatsapp-link D3); Telegram needs none.
     await expect(page.getByRole("heading", { level: 1, name: "Which number do you use for WhatsApp?" })).toBeVisible({ timeout: 45_000 });
     await expect(page.getByRole("button", { name: "Use iMessage instead" })).toHaveCount(0);
@@ -138,20 +139,17 @@ test.describe("on Android", () => {
     await expect(page.getByRole("heading", { name: "Your Telegram is connected." })).toBeVisible();
     expect(await activeChannel(db, host.hostAccountId)).toEqual([{ channel: "telegram" }]);
 
-    await page.getByRole("button", { name: "Go to Home" }).click();
-    const card = await openCard(page);
-    // Linked, the card folds into a small status pill that opens the full card.
-    await card.getByRole("button", { name: "Telegram linked Dohyeon (@dohyeon)" }).click();
-    await expect(card.getByRole("heading", { name: "Telegram is linked" })).toBeVisible();
-    await expect(card).toContainText("Linked on Telegram Dohyeon (@dohyeon)");
-    await expect(card.getByRole("button", { name: "Add to contacts" })).toHaveCount(0);
+    await expect(page.getByRole("link", { name: "Open Telegram" })).toHaveAttribute("href", `https://t.me/${BOT}`);
+    await page.getByRole("link", { name: "Go to Home" }).click();
+    await expect(page).toHaveURL("/");
   });
 
-  test("without WhatsApp, the link step goes straight to Telegram", async ({ baseURL, context, db, page }) => {
+  test("without WhatsApp, the link step offers Telegram", async ({ baseURL, context, db, page }) => {
     await signedInHost(db, context, baseURL!, { imessageStep: true });
     await withoutWhatsApp(page);
     await page.goto("/app");
 
+    await page.getByRole("button", { exact: true, name: "Telegram" }).click();
     await expect(page.getByRole("heading", { level: 1, name: "Connect Thyme to your Telegram" })).toBeVisible({ timeout: 45_000 });
     await expect(page.getByRole("button", { name: /instead/ })).toHaveCount(0);
     const code = (await page.getByTestId("imessage-link-message").textContent())!.trim().replace(/^\/start /, "");
@@ -185,6 +183,7 @@ test.describe("on an iPhone", () => {
   }) => {
     await signedInHost(db, context, baseURL!, { imessageStep: true });
     await page.goto("/app");
+    await page.getByRole("button", { exact: true, name: "iMessage" }).click();
     await expect(page.getByRole("heading", { level: 1, name: "Which number do you use for iMessage?" })).toBeVisible({ timeout: 45_000 });
     await expect(page.getByRole("button", { name: "Use WhatsApp instead" })).toBeVisible();
 
@@ -199,6 +198,7 @@ test.describe("on an iPhone", () => {
     await signedInHost(db, context, baseURL!, { imessageStep: true });
     await withoutWhatsApp(page);
     await page.goto("/app");
+    await page.getByRole("button", { exact: true, name: "iMessage" }).click();
     await expect(page.getByRole("heading", { level: 1, name: "Which number do you use for iMessage?" })).toBeVisible({ timeout: 45_000 });
     await expect(page.getByRole("button", { name: "Use Telegram instead" })).toBeVisible();
     await expect(page.getByRole("button", { name: "Use WhatsApp instead" })).toHaveCount(0);
@@ -212,7 +212,7 @@ test.describe("on a Windows computer", () => {
     await signedInHost(db, context, baseURL!, { imessageStep: true });
     await page.goto("/app");
 
-    await expect(page.getByRole("heading", { level: 1, name: "Which app do you use on your phone?" })).toBeVisible({ timeout: 45_000 });
+    await expect(page.getByRole("heading", { level: 1, name: "You're signed in. Continue in your messages." })).toBeVisible({ timeout: 45_000 });
     for (const name of ["iMessage", "WhatsApp", "Telegram"]) await expect(page.getByRole("button", { exact: true, name })).toBeVisible();
     await page.getByRole("button", { exact: true, name: "Telegram" }).click();
 
@@ -229,7 +229,7 @@ test.describe("on a Windows computer", () => {
     await signedInHost(db, context, baseURL!, { imessageStep: true });
     await withoutWhatsApp(page);
     await page.goto("/app");
-    await expect(page.getByRole("heading", { level: 1, name: "Which app do you use on your phone?" })).toBeVisible({ timeout: 45_000 });
+    await expect(page.getByRole("heading", { level: 1, name: "You're signed in. Continue in your messages." })).toBeVisible({ timeout: 45_000 });
     await expect(page.getByRole("button", { exact: true, name: "Telegram" })).toBeVisible();
     await expect(page.getByRole("button", { exact: true, name: "iMessage" })).toBeVisible();
     await expect(page.getByRole("button", { exact: true, name: "WhatsApp" })).toHaveCount(0);
