@@ -1,5 +1,11 @@
 import type { RequestLanguage } from "../contracts/request";
 import {
+  ACCOUNT_EMAIL_TEMPLATES,
+  type AccountEmailParameters,
+  isAccountEmailTemplate,
+  renderAccountEmail,
+} from "./account-emails";
+import {
   BOOKING_EMAIL_TEMPLATES,
   type BookingEmailParameters,
   isBookingEmailTemplate,
@@ -11,20 +17,28 @@ import {
 // delivery's frozen non-secret parameters and its sealed secret parameters (the
 // booking link and the confirmation link), so neither link is stored usable.
 
-export const EMAIL_TEMPLATES = ["request_creation", "link_resend", ...BOOKING_EMAIL_TEMPLATES] as const;
+export const EMAIL_TEMPLATES = [
+  "request_creation",
+  "link_resend",
+  ...BOOKING_EMAIL_TEMPLATES,
+  ...ACCOUNT_EMAIL_TEMPLATES,
+] as const;
 export type EmailTemplate = (typeof EMAIL_TEMPLATES)[number];
 
 export function isEmailTemplate(value: string): value is EmailTemplate {
   return (EMAIL_TEMPLATES as readonly string[]).includes(value);
 }
 
+type RequestEmailParameters = {
+  // The host's public display name.
+  readonly hostName?: string;
+  readonly requesterName?: string;
+};
+
 export type EmailParameters =
-  | {
-      // The host's public display name.
-      readonly hostName?: string;
-      readonly requesterName?: string;
-    }
-  | BookingEmailParameters;
+  | RequestEmailParameters
+  | BookingEmailParameters
+  | AccountEmailParameters;
 
 export type EmailSecrets = {
   // Absent only on the host's copy of a booking email, which links to /app.
@@ -59,7 +73,7 @@ type Copy = {
 
 const FALLBACK_HOST = { en: "your host", ko: "호스트" } as const;
 
-function creationCopy(language: RequestLanguage, parameters: EmailParameters, confirm: boolean): Copy {
+function creationCopy(language: RequestLanguage, parameters: RequestEmailParameters, confirm: boolean): Copy {
   const host = parameters.hostName || FALLBACK_HOST[language];
   const name = parameters.requesterName;
 
@@ -92,7 +106,7 @@ function creationCopy(language: RequestLanguage, parameters: EmailParameters, co
   };
 }
 
-function resendCopy(language: RequestLanguage, parameters: EmailParameters): Copy {
+function resendCopy(language: RequestLanguage, parameters: RequestEmailParameters): Copy {
   const host = parameters.hostName || FALLBACK_HOST[language];
 
   if (language === "ko") {
@@ -154,14 +168,19 @@ export function renderEmail(
   parameters: EmailParameters,
   secrets: EmailSecrets,
 ): RenderedEmail {
+  if (isAccountEmailTemplate(template)) {
+    return renderAccountEmail(template, language, parameters as AccountEmailParameters);
+  }
+
   if (isBookingEmailTemplate(template)) {
     return renderBookingEmail(template, language, parameters as BookingEmailParameters, secrets);
   }
 
+  const request = parameters as RequestEmailParameters;
   const copy =
     template === "request_creation"
-      ? creationCopy(language, parameters, Boolean(secrets.confirmUrl))
-      : resendCopy(language, parameters);
+      ? creationCopy(language, request, Boolean(secrets.confirmUrl))
+      : resendCopy(language, request);
 
   if (!secrets.bookingUrl) throw new Error("A request email needs its booking link.");
   return render(language, copy, { ...secrets, bookingUrl: secrets.bookingUrl });

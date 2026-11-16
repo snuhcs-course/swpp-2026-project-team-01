@@ -67,22 +67,32 @@ export function createRequestAuthClient(request: Request, config: SupabaseAuthCo
     },
   });
 
+  // Only the last write of each cookie, so a session created and then signed
+  // out never reaches the browser.
+  function appendPending(headers: Headers) {
+    const latest = new Map(pending.map((cookie) => [cookie.name, cookie]));
+
+    for (const cookie of latest.values()) {
+      headers.append("set-cookie", serializeCookieHeader(cookie.name, cookie.value, cookie.options));
+    }
+  }
+
   return {
     client,
+    // A JSON answer carrying the cookies this client wrote, such as the cleared
+    // session after a sign-out.
+    json(body: unknown, status = 200) {
+      const headers = new Headers({ "cache-control": "private, no-store", "content-type": "application/json" });
+      appendPending(headers);
+      return new Response(JSON.stringify(body), { headers, status });
+    },
     // `cookies` are further Set-Cookie values of the caller's own, such as the
     // sign-in return to an agent consent transaction.
     redirect(location: string, cookies: readonly string[] = []) {
       const headers = new Headers({ "cache-control": "private, no-store", location });
 
       for (const cookie of cookies) headers.append("set-cookie", cookie);
-
-      // Only the last write of each cookie, so a session created and then
-      // signed out never reaches the browser.
-      const latest = new Map(pending.map((cookie) => [cookie.name, cookie]));
-
-      for (const cookie of latest.values()) {
-        headers.append("set-cookie", serializeCookieHeader(cookie.name, cookie.value, cookie.options));
-      }
+      appendPending(headers);
 
       return new Response(null, { headers, status: 303 });
     },

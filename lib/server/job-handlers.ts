@@ -1,3 +1,4 @@
+import { createHostDeletionHandler, HOST_DELETION_JOB } from "./account-deletion";
 import { EMAIL_RECEIPT_JOB } from "./agentmail-receiver";
 import { CALENDAR_ANALYSIS_JOB, createCalendarAnalysisHandler } from "./analysis";
 import { BOOKING_JOB, BOOKING_PENDING_JOB, createBookingHandler, createBookingPendingHandler } from "./bookings";
@@ -30,6 +31,7 @@ export const JOB_HANDLERS: Readonly<Record<string, JobHandler>> = {
   [EMAIL_RECEIPT_JOB]: createEmailReceiptHandler(),
   [EMAIL_REPLY_JOB]: createEmailReplyHandler(),
   [EVALUATION_JOB]: createEvaluationHandler(),
+  [HOST_DELETION_JOB]: createHostDeletionHandler(),
   [IMESSAGE_NOTICE_JOB]: createImessageNoticeHandler(),
   [IMESSAGE_RECEIPT_JOB]: createImessageReceiptHandler(),
   [IMESSAGE_SEND_JOB]: createImessageSendHandler(),

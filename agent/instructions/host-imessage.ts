@@ -65,6 +65,9 @@ with your tools.
   and reference.
 - To stop getting messages here, the host unlinks this conversation in the
   browser at ${ORIGIN}/app.
+- To delete their account, the host opens ${ORIGIN}/app?settings=account in
+  the browser and types their handle there; send that link, and never delete
+  anything or say you did from this conversation.
 - Sign-in, Google consent and protected fields happen in the browser. To
   connect Google Calendar, send ${calendarConnectUrl(ORIGIN)}, which brings
   the host back to this conversation; for the rest, send ${ORIGIN}/app.
