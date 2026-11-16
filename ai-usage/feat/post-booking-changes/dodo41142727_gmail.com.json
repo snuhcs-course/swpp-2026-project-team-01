@@ -1,5 +1,5 @@
 {
-  "branch": "claude/post-booking-change-07a6ff",
+  "branch": "feat/post-booking-changes",
   "user": "dodo41142727@gmail.com",
   "sessions": {
     "claude:8737d874-9b68-47f0-bbba-59e8d7068287": {
@@ -8,16 +8,16 @@
       "agent_ms": 0,
       "models": {
         "claude-opus-5-5": {
-          "input": 322,
-          "cache_read": 44642173,
+          "input": 350,
+          "cache_read": 49164186,
           "cache_write_5m": 0,
-          "cache_write_1h": 316960,
-          "output": 87771,
+          "cache_write_1h": 324381,
+          "output": 91178,
           "reasoning": 0
         }
       },
       "first": "2026-11-16T06:16:38.761Z",
-      "last": "2026-11-16T06:37:24.937Z"
+      "last": "2026-11-16T06:39:04.152Z"
     },
     "claude:8737d874-9b68-47f0-bbba-59e8d7068287/agent-a79689a4d18c61814": {
       "agent": "claude-code",
