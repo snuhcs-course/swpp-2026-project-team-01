@@ -56,6 +56,7 @@ export const REQUESTER_TOOLS = [
   "agree_to_proposal",
   "change_agreement",
   "withdraw_request",
+  "cancel_booking",
 ] as const;
 
 const HOST_TOOL_NAMES = [

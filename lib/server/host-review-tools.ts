@@ -1,3 +1,4 @@
+import { cancelBookingCommand } from "./booking-cancellation";
 import { z } from "zod";
 import { BOOKING_STATUS_TEXT } from "../contracts/booking";
 import type { HostRequestItem, HostRequestView, HostSuggestion } from "../contracts/host-request";
@@ -372,7 +373,35 @@ export async function declineRequestForTool(
   return { declined: false as const, problem: "The request changed meanwhile; nothing was declined. Read the request again." };
 }
 
-const CLOSED_STATES = new Set(["booked", "declined", "withdrawn", "expired"]);
+// Cancelling the booked meeting in the host's own words (post-booking-changes
+// design 1): as decline_request, only for a message from the linked
+// conversation, through the command **Cancel meeting** runs. The requester is
+// told as from the web.
+export async function cancelBookingForHostTool(db: Database, call: HostReviewToolCall, loadNotices?: () => NoticeDependencies) {
+  const { hostAccountId, requestId } = await authorizeHostReviewTool(db, call);
+  if (!(await channelOfTurn(db, call.sessionId, hostAccountId))) {
+    return { cancelled: false as const, problem: "Cancelling in words works only from the host's linked iMessage, WhatsApp or Telegram. On the web, the host presses Cancel meeting on the booking." };
+  }
+
+  const view = await readHostRequest(db, hostAccountId, requestId);
+  if (!view) throw new HostReviewToolDeniedError();
+  if (view.state === "cancelled") return { cancelled: true as const, message: "The meeting was already cancelled; nothing else changed." };
+
+  const outcome = await runCommand({ authenticate: async () => hostActor(hostAccountId), db }, cancelBookingCommand(loadNotices), {
+    expectedRevision: view.revision,
+    input: {},
+    resourceId: requestId,
+    retryKey: `tool:${call.callId}`,
+  });
+
+  if (outcome.ok) return { cancelled: true as const, message: "Cancelled. The requester is told, and the event is being removed from your calendar." };
+  if (outcome.error.reason === "start_passed") return { cancelled: false as const, problem: "The meeting has already started; nothing changed." };
+  if (outcome.error.reason === "not_booked") return { cancelled: false as const, problem: "Nothing is booked for this request. To close it, decline it instead." };
+  if (outcome.error.category === "booking_pending") return { cancelled: false as const, problem: "The booking is still being confirmed; nothing changed. Try again once it is booked." };
+  return { cancelled: false as const, problem: "The request changed meanwhile; nothing was cancelled. Read the request again." };
+}
+
+const CLOSED_STATES = new Set(["booked", "declined", "withdrawn", "expired", "cancelled"]);
 
 export const suggestionToolInput = z
   .object({

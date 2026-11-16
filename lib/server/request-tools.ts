@@ -23,6 +23,7 @@ import { encodeDisplayName } from "./entry-documents";
 import { awaitEvaluation } from "./evaluation";
 import { REQUESTER_AUDIENCE } from "./eve-auth";
 import { detailsComplete, withdrawRequestCommand } from "./request-lifecycle";
+import { cancelBookingCommand } from "./booking-cancellation";
 import {
   agreeCommand,
   changeAgreementCommand,
@@ -103,7 +104,7 @@ async function fenced(q: Queryable, id: string, sessionId: string, options: { re
     join app.agent_sessions s on s.principal_type = 'requester_request' and s.principal_id = r.id
     join app.discussions d on d.id = s.discussion_id and d.principal_type = 'requester_request' and d.principal_id = r.id
       and d.audience = ${REQUESTER_AUDIENCE}
-    where r.id = ${id} and ((r.closed_at is null and r.expires_at > now()) or (${booked} and r.state = 'booked'))
+    where r.id = ${id} and ((r.closed_at is null and r.expires_at > now()) or (${booked} and r.state in ('booked', 'cancelled')))
       and l.expires_at > now()
       and s.session_id = ${sessionId} and s.state = 'active'
       and s.generation = (select max(generation) from app.agent_sessions where discussion_id = s.discussion_id)
@@ -243,8 +244,9 @@ const STATUS_TEXT: Readonly<Record<RequestState, string>> = {
   draft: "Not yet a request: the guest has not given a name and email. The host cannot see it.",
   awaiting_host_approval: "The requester agreed to the proposal; it waits for the host's approval. Nothing is booked.",
   booked:
-    "Booked: the meeting is confirmed. Answer questions about it from booking; nothing can change here. To change or cancel it, the guest contacts the host directly.",
+    "Booked: the meeting is confirmed. Answer questions about it from booking. Until it starts, the guest can cancel it with cancel_booking after confirming once; to change the time or place, the guest contacts the host directly for now.",
   booking: "Booking is in progress.",
+  cancelled: "The booked meeting was cancelled and the request is closed. The calendar event is removed. The guest can write again later to ask for a new meeting.",
   declined: "The host declined. The request is closed.",
   expired: "The request expired and is closed.",
   gathering: "Gathering meeting details. Nothing is proposed or booked.",
@@ -690,5 +692,34 @@ export async function withdrawRequestForTool(db: Database, call: RequestToolCall
     message: "Withdrawn. The guest can write here again later to ask for a new request with the same host.",
     recorded: true,
     state: outcome.result.state,
+  };
+}
+
+// Cancelling the booked meeting in the guest's words (post-booking-changes
+// design 1): only after the guest confirmed once, until the meeting starts.
+// The host is told by email and in their linked chat; Google sends the guest
+// its own cancellation.
+export async function cancelBookingForTool(db: Database, call: RequestToolCall): Promise<DecisionResult> {
+  const id = await authorizeRequestTool(db, call, { booked: true });
+  const { revision } = await requestRow(db, id);
+  const outcome = await runCommand({ authenticate: async () => actorOf(id), db }, cancelBookingCommand(), {
+    expectedRevision: revision,
+    input: {},
+    resourceId: id,
+    retryKey: `tool:${call.callId}`,
+  });
+
+  if (!outcome.ok) {
+    if (outcome.error.category === "request_closed") return { message: "The meeting was already cancelled; nothing else changed.", recorded: false };
+    if (outcome.error.reason === "start_passed") return { message: "The meeting has already started, so it cannot be cancelled here.", recorded: false };
+    if (outcome.error.reason === "not_booked") {
+      return { message: "Nothing is booked yet. To stop this request, ask whether the guest wants to withdraw it.", recorded: false };
+    }
+    return refused(outcome.error.category);
+  }
+  return {
+    message: "Cancelled. The host is told, the calendar event is being removed, and Google sends the guest its cancellation.",
+    recorded: true,
+    state: "cancelled",
   };
 }

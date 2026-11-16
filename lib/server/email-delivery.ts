@@ -154,10 +154,17 @@ async function recipientCurrent(tx: Transaction, delivery: DeliveryRow) {
       `;
       return row?.current ?? false;
     }
-    case "status_declined":
-    case "status_expired": {
+    case "booking_cancelled": {
       const [row] = await tx<{ current: boolean }[]>`
-        select (r.state = ${delivery.kind === "status_declined" ? "declined" : "expired"}
+        select (r.state = 'cancelled') as current from app.requests r where r.id = ${delivery.request_id}
+      `;
+      return row?.current ?? false;
+    }
+    case "status_declined":
+    case "status_expired":
+    case "status_cancelled": {
+      const [row] = await tx<{ current: boolean }[]>`
+        select (r.state = ${delivery.kind === "status_declined" ? "declined" : delivery.kind === "status_expired" ? "expired" : "cancelled"}
                 and l.expires_at > now() and lower(r.contact_email) = ${recipient}) as current
         from app.requests r join app.booking_links l on l.request_id = r.id
         where r.id = ${delivery.request_id}

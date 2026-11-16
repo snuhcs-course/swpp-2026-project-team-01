@@ -1,3 +1,4 @@
+import { cancelBookingCommand } from "./booking-cancellation";
 import type { HostCandidate, HostEvaluationSummary, HostRequestItem, HostRequestOperation, HostRequestView, HostSuggestion } from "../contracts/host-request";
 import type { LinkPlan, RequestDetails, RequestState } from "../contracts/request";
 import { isValidTimeZone } from "../contracts/setup";
@@ -214,6 +215,7 @@ export async function readHostRequest(db: Database | Transaction, hostAccountId:
 // The host request view's card commands, by operation.
 export function hostRequestCommands(): Readonly<Record<HostRequestOperation, CommandDefinition<unknown, unknown>>> {
   return {
+    "booking.cancel": cancelBookingCommand(),
     "booking.check": checkBookingCommand,
     "request.allow_host_trip": allowHostTripCommand(),
     "request.approve": approveCommand,

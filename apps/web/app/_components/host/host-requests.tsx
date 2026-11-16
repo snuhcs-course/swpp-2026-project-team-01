@@ -38,6 +38,7 @@ const STATE_LABELS: Readonly<Record<RequestState, string>> = {
   awaiting_host_approval: "Waiting for your approval",
   booked: "Booked",
   booking: "Booking in progress",
+  cancelled: "Cancelled",
   declined: "Declined",
   draft: "Draft",
   expired: "Expired",
@@ -297,7 +298,7 @@ function OpenCard({ context, editing, setEditing }: { readonly context: HostCard
 
 // No proposal yet: the requester is still gathering details or choosing.
 function FindCard({ context, onRequestChanges }: { readonly context: HostCardContext; readonly onRequestChanges: () => void }) {
-  const closed = ["booked", "declined", "withdrawn", "expired"].includes(context.view.state);
+  const closed = ["booked", "declined", "withdrawn", "expired", "cancelled"].includes(context.view.state);
   const [error, setError] = useState<string | null>(null);
 
   return (

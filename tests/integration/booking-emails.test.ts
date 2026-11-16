@@ -97,6 +97,7 @@ describe("the confirmation", () => {
     await runBooking(db, bookingDeps(db, google, {
       openCalendar: async () => ({
         conferenceSolutionTypes: async () => [],
+        deleteEvent: async () => ({ outcome: "deleted" }),
         getEvent: async () => ({ outcome: "absent" }),
         patchTransparency: async () => ({ httpStatus: null, outcome: "uncertain" }),
         insertEvent: async (_calendar, event) => ({

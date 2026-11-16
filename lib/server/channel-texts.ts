@@ -22,6 +22,7 @@ export const STATE_WORDS: Texts<Readonly<Record<RequestState, string>>> = {
     awaiting_host_approval: "awaiting your approval",
     booked: "booked",
     booking: "booking",
+    cancelled: "cancelled",
     declined: "declined",
     draft: "draft",
     expired: "expired",
@@ -33,6 +34,7 @@ export const STATE_WORDS: Texts<Readonly<Record<RequestState, string>>> = {
     awaiting_host_approval: "승인 대기 중",
     booked: "예약됨",
     booking: "예약 중",
+    cancelled: "취소됨",
     declined: "거절됨",
     draft: "작성 중",
     expired: "만료됨",
@@ -498,6 +500,9 @@ export const CHANNEL_REPLIES = {
     booked: (name: string, when: string) => `Booked with ${name}: ${when}. It's on your calendar.`,
     bookingFailed: (ref: string, when: string, link: string) => `The booking for request ${ref} (${when}) wasn't confirmed. Check it in Find Me a Time: ${link}`,
     bookingSlow: (ref: string, when: string, link: string) => `The booking for request ${ref} (${when}) is taking longer than usual to confirm. Check it in Find Me a Time: ${link}`,
+    bookingCancelled: (name: string, when: string) => `${name} cancelled your meeting (${when}). It's being removed from your calendar.`,
+    bookingEventLeft: (ref: string, when: string, link: string) =>
+      `The meeting for request ${ref} (${when}) is cancelled, but its event couldn't be removed from Google Calendar. Please delete it there yourself: ${link}`,
   },
   ko: {
     help: (origin: string) =>
@@ -657,6 +662,9 @@ export const CHANNEL_REPLIES = {
     booked: (name: string, when: string) => `${name}님과 예약됐어요: ${when}. 캘린더에 들어가 있어요.`,
     bookingFailed: (ref: string, when: string, link: string) => `요청 ${ref}(${when})의 예약이 확정되지 않았어요. Find Me a Time에서 확인해 주세요: ${link}`,
     bookingSlow: (ref: string, when: string, link: string) => `요청 ${ref}(${when})의 예약 확정이 평소보다 오래 걸리고 있어요. Find Me a Time에서 확인해 주세요: ${link}`,
+    bookingCancelled: (name: string, when: string) => `${name}님이 미팅(${when})을 취소했어요. 캘린더에서 지우고 있어요.`,
+    bookingEventLeft: (ref: string, when: string, link: string) =>
+      `요청 ${ref}(${when})의 미팅은 취소됐지만 Google Calendar 일정을 지우지 못했어요. 직접 삭제해 주세요: ${link}`,
   },
 } as const;
 

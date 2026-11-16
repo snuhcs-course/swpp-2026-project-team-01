@@ -62,7 +62,7 @@ function hostLockKey(hostAccountId: string) {
   return `app.booking_host:${hostAccountId}`;
 }
 
-async function lockHost(tx: Transaction, hostAccountId: string) {
+export async function lockHost(tx: Transaction, hostAccountId: string) {
   await tx`select pg_advisory_xact_lock(hashtextextended(${hostLockKey(hostAccountId)}, 0))`;
 }
 
@@ -592,7 +592,7 @@ async function framePayload(tx: Transaction, booking: JobBooking) {
 
 type Written = { readonly kind: "confirmed"; readonly event: CreatedEvent } | { readonly kind: "rejected"; readonly failure: BookingFailure } | { readonly kind: "unknown" };
 
-async function openCalendar(deps: BookingDependencies, hostAccountId: string) {
+export async function openCalendar(deps: BookingDependencies, hostAccountId: string) {
   return deps.openCalendar
     ? deps.openCalendar(hostAccountId)
     : openHostCalendar({ config: deps.calendar, db: deps.db, tokenKeys: deps.tokenKeys }, hostAccountId);

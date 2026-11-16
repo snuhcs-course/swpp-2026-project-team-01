@@ -59,6 +59,13 @@ for (const width of [390, 1280]) {
     await expect(guest.getByRole("link", { name: "Join meeting" })).toHaveAttribute("href", /^https:\/\/meet\.google\.com\//);
     await expect(guest.getByRole("link", { name: "Open in Google Calendar" })).toHaveCount(0);
     await guest.close();
+
+    // The host cancels the booked meeting after confirming once (post-booking-changes).
+    await page.getByRole("button", { name: "Cancel meeting" }).click();
+    await expect(page.getByRole("group", { name: "Confirm cancellation" })).toBeVisible();
+    await page.getByRole("group", { name: "Confirm cancellation" }).getByRole("button", { name: "Cancel meeting" }).click();
+    await expect(page.getByRole("heading", { name: "Cancelled" })).toBeVisible();
+    await expect(page.getByRole("button", { name: "Cancel meeting" })).toHaveCount(0);
   });
 }
 

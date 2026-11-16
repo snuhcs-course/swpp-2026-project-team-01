@@ -116,5 +116,6 @@ export const HOST_REQUEST_OPERATIONS = [
   "request.waive_weekly_limit",
   "request.host_evaluate",
   "booking.check",
+  "booking.cancel",
 ] as const;
 export type HostRequestOperation = (typeof HOST_REQUEST_OPERATIONS)[number];

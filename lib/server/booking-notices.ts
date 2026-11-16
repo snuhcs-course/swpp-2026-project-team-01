@@ -216,13 +216,15 @@ export type StatusNotice =
   | { readonly kind: "status_new_version"; readonly version: number; readonly meeting: Meeting; readonly previous?: MeetingTerms }
   | { readonly kind: "status_declined" }
   | { readonly kind: "status_expired" }
-  | { readonly kind: "status_pending"; readonly bookingId: string; readonly meeting: Meeting };
+  | { readonly kind: "status_pending"; readonly bookingId: string; readonly meeting: Meeting }
+  | { readonly kind: "status_cancelled"; readonly bookingId: string; readonly meeting: Meeting };
 
 function dedupeKeyOf(requestId: string, notice: StatusNotice) {
   switch (notice.kind) {
     case "status_new_version":
       return `${requestId}:v${notice.version}`;
     case "status_pending":
+    case "status_cancelled":
       return `${notice.bookingId}`;
     default:
       return requestId;
@@ -234,6 +236,7 @@ function guestNoticeOf(notice: StatusNotice): GuestNotice {
     case "status_new_version":
       return { kind: notice.kind, version: notice.version };
     case "status_pending":
+    case "status_cancelled":
       return { bookingId: notice.bookingId, kind: notice.kind };
     default:
       return { kind: notice.kind };
@@ -254,7 +257,7 @@ export async function enqueueStatusNotice(tx: Transaction, deps: NoticeDependenc
     ...meeting,
     audience: "requester",
     ...(notice.kind === "status_new_version" ? { version: notice.version, ...(notice.previous ? { previous: notice.previous } : {}) } : {}),
-    ...(notice.kind === "status_pending" ? { bookingId: notice.bookingId } : {}),
+    ...(notice.kind === "status_pending" || notice.kind === "status_cancelled" ? { bookingId: notice.bookingId } : {}),
   };
 
   // The notice goes from the product inbox so the guest can answer it by
@@ -293,6 +296,37 @@ export async function enqueueStatusNotice(tx: Transaction, deps: NoticeDependenc
     requestId,
     secrets: {},
     template: notice.kind,
+    tokenKey: deps.tokenKey,
+  });
+}
+
+// The host's email when the requester cancels a booked meeting
+// (post-booking-changes design 4), in the host's timezone, with the request's
+// /app link. One per booking.
+export async function enqueueHostCancellation(
+  tx: Transaction,
+  deps: NoticeDependencies,
+  requestId: string,
+  meeting: Meeting & { readonly bookingId: string },
+) {
+  const parties = await partiesOf(tx, requestId);
+  if (!parties?.hostEmail) return;
+
+  const parameters: BookingEmailParameters = {
+    ...meetingFor(parties, meeting, parties.hostTimezone),
+    audience: "host",
+    bookingId: meeting.bookingId,
+    viewUrl: hostRequestUrl(deps.origin, requestId),
+  };
+  await enqueueEmail(tx, {
+    dedupeKey: `${meeting.bookingId}:host`,
+    kind: "booking_cancelled",
+    language: "en",
+    parameters,
+    recipient: parties.hostEmail,
+    replyTo: parties.requesterEmail,
+    requestId,
+    secrets: {},
     tokenKey: deps.tokenKey,
   });
 }

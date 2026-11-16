@@ -110,6 +110,10 @@ export type HostCalendar = {
   insertEvent(calendarId: string, event: Record<string, unknown>, options?: { readonly signal?: AbortSignal }): Promise<EventWriteOutcome>;
   // events.get by ID, for reconciliation.
   getEvent(calendarId: string, eventId: string, options?: { readonly signal?: AbortSignal }): Promise<EventReadOutcome>;
+  // events.delete with sendUpdates=all (post-booking-changes design 3): Google
+  // sends attendees its cancellation. The outcome is classified, never thrown,
+  // except a revoked grant (calendar_access_revoked).
+  deleteEvent(calendarId: string, eventId: string, options?: { readonly signal?: AbortSignal }): Promise<EventDeleteOutcome>;
   // events.patch of the event's transparency only (calendar-note-review design 4),
   // with sendUpdates=none: the calendar.events scope allows it, and for an event
   // the host was invited to only the host's copy changes. The outcome is
@@ -121,6 +125,14 @@ export type HostCalendar = {
     options?: { readonly signal?: AbortSignal },
   ): Promise<EventPatchOutcome>;
 };
+
+export type EventDeleteOutcome =
+  // 2xx, or 404 and 410: the event is gone.
+  | { readonly outcome: "deleted" }
+  // 400 or 403 (not a rate limit): Google refused the deletion.
+  | { readonly outcome: "rejected"; readonly httpStatus: number }
+  // A network failure, a timeout, a rate limit or a 5xx: deleting again is harmless.
+  | { readonly outcome: "uncertain"; readonly httpStatus: number | null };
 
 export type EventPatchOutcome =
   // Google's updated time after the change, the decision's new fingerprint.
@@ -438,6 +450,23 @@ export function createGoogleCalendarClient(
       const read = await body<RawWrittenEvent>(response);
       if (!read) return { httpStatus: response.status, outcome: "uncertain" };
       return { event: toCreatedEvent(read, eventId), outcome: "found" };
+    },
+
+    async deleteEvent(calendarId, eventId, options) {
+      const url = `${config.apiBaseUrl}/calendars/${encodeURIComponent(calendarId)}/events/${encodeURIComponent(eventId)}?${new URLSearchParams({
+        sendUpdates: "all",
+      })}`;
+      const response = await exchange(url, { method: "DELETE" }, options?.signal);
+
+      if (!response) return { httpStatus: null, outcome: "uncertain" };
+      if (response.ok || response.status === 404 || response.status === 410) return { outcome: "deleted" };
+      if (response.status === 403) {
+        const refusal = await body<{ error?: { errors?: { reason?: string }[] } }>(response);
+        const reason = refusal?.error?.errors?.[0]?.reason ?? "";
+        return /rateLimitExceeded/i.test(reason) ? { httpStatus: 403, outcome: "uncertain" } : { httpStatus: 403, outcome: "rejected" };
+      }
+      if (response.status === 400) return { httpStatus: 400, outcome: "rejected" };
+      return { httpStatus: response.status, outcome: "uncertain" };
     },
 
     async patchTransparency(calendarId, eventId, transparency, options) {

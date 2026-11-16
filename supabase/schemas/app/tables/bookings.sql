@@ -13,7 +13,10 @@
 --                organizer and status from Google
 --   failed       a conflict, an unavailable revalidation, a rejected write or a
 --                removed event (failure_category)
---   cancelled    withdrawn, declined or expired before dispatch
+--   cancelled    withdrawn, declined or expired before dispatch, or cancelled
+--                by the host or the requester after confirmation
+--                (host_cancelled, requester_cancelled), keeping confirmed_at
+--                and the evidence; the booking_cancel job deletes the event
 -- At most one live (reserved, dispatching or confirmed) booking per request.
 CREATE TABLE "app"."bookings" (
   "id" uuid PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -41,7 +44,9 @@ CREATE TABLE "app"."bookings" (
   "settled_at" timestamptz,
   CONSTRAINT "bookings_interval" CHECK ("start_at" < "end_at" AND "reserved_start" <= "start_at" AND "end_at" <= "reserved_end"),
   CONSTRAINT "bookings_dispatched" CHECK (("state" = 'reserved' OR "state" = 'cancelled') OR "dispatched_at" IS NOT NULL OR "state" = 'failed'),
-  CONSTRAINT "bookings_confirmed" CHECK (("state" = 'confirmed') = ("confirmed_at" IS NOT NULL)),
+  CONSTRAINT "bookings_confirmed" CHECK (
+    ("state" <> 'confirmed' OR "confirmed_at" IS NOT NULL) AND ("state" IN ('confirmed', 'cancelled') OR "confirmed_at" IS NULL)
+  ),
   CONSTRAINT "bookings_payload" CHECK ("state" IN ('reserved', 'cancelled', 'failed') OR "payload" IS NOT NULL)
 );
 

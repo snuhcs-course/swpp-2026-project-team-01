@@ -15,7 +15,11 @@ export type HostNotice =
   | { readonly kind: "awaiting_approval"; readonly version: number }
   | { readonly kind: "booking_confirmed"; readonly bookingId: string }
   | { readonly kind: "booking_failed"; readonly bookingId: string }
-  | { readonly kind: "booking_pending"; readonly bookingId: string };
+  | { readonly kind: "booking_pending"; readonly bookingId: string }
+  // The guest cancelled a booked meeting; the event could not be deleted
+  // (post-booking-changes design 3 and 4).
+  | { readonly kind: "booking_cancelled"; readonly bookingId: string }
+  | { readonly kind: "booking_event_left"; readonly bookingId: string };
 
 export function noticeKey(requestId: string, notice: HostNotice) {
   switch (notice.kind) {
@@ -52,6 +56,7 @@ export type GuestNotice =
   | { readonly kind: "status_declined" }
   | { readonly kind: "status_expired" }
   | { readonly kind: "status_pending"; readonly bookingId: string }
+  | { readonly kind: "status_cancelled"; readonly bookingId: string }
   | { readonly kind: "booking_confirmation"; readonly bookingId: string };
 
 export function guestNoticeKey(requestId: string, notice: GuestNotice) {
@@ -59,6 +64,7 @@ export function guestNoticeKey(requestId: string, notice: GuestNotice) {
     case "status_new_version":
       return `guest-notice:${notice.kind}:${requestId}:v${notice.version}`;
     case "status_pending":
+    case "status_cancelled":
     case "booking_confirmation":
       return `guest-notice:${notice.kind}:${requestId}:${notice.bookingId}`;
     default:

@@ -17,6 +17,7 @@ import {
 import { encodeDisplayName } from "./entry-documents";
 import { awaitEvaluation } from "./evaluation";
 import { checkBookingCommand } from "./bookings";
+import { cancelBookingCommand } from "./booking-cancellation";
 import type { CommandDefinition } from "./commands";
 import { readReadiness } from "./readiness";
 import { withdrawRequestCommand } from "./request-lifecycle";
@@ -43,7 +44,7 @@ function ok(result: unknown): ToolResult {
 // the conversation plumbing.
 export function agentRequesterProjection(view: RequesterView, requestId: string) {
   if (!view.open) {
-    return { booking: view.booking, host: { displayName: encodeDisplayName(view.host.displayName), handle: view.host.handle }, open: false, requestId, state: view.request.state, timezone: view.timezone };
+    return { booking: view.booking, host: { displayName: encodeDisplayName(view.host.displayName), handle: view.host.handle }, open: false, requestId, ...(view.request.state === "booked" ? { revision: view.request.revision } : {}), state: view.request.state, timezone: view.timezone };
   }
 
   return {
@@ -89,11 +90,14 @@ function requestCommandTool(spec: {
   readonly commandInput: z.ZodType | null;
   readonly scope: "request:write" | "request:decide";
   readonly destructive?: boolean;
+  // Whether it may run on a closed request (a booked meeting's cancellation).
+  readonly afterClosure?: "booked";
   readonly afterCommand?: (context: AgentToolContext, result: unknown) => Promise<unknown>;
 }): AgentTool {
   const commandInput = spec.commandInput;
 
   return {
+    ...(spec.afterClosure ? { afterClosure: spec.afterClosure } : {}),
     description: spec.description,
     destructive: spec.destructive,
     input: z
@@ -270,6 +274,17 @@ export const REQUESTER_TOOLS: readonly AgentTool[] = [
     commandInput: null,
     scope: "request:decide",
     title: "Withdraw the request",
+  }),
+  requestCommandTool({
+    afterClosure: "booked",
+    description:
+      "Cancel the booked meeting for good, until it starts. Only when the person asked to cancel the booked meeting and confirmed once. The host is told, the calendar event is removed and Google sends the person its cancellation. It cannot change the time or place.",
+    destructive: true,
+    name: "cancel_booking",
+    command: (context) => loose(cancelBookingCommand(context.deps.notices)),
+    commandInput: null,
+    scope: "request:decide",
+    title: "Cancel the booked meeting",
   }),
   requestCommandTool({
     description: "Check a booking whose calendar write is still uncertain.",

@@ -41,6 +41,8 @@ with your tools.
     link and the requester;
   - decline: decline_request with the current version, or null without one
     ("decline it", "거절할게요");
+  - cancel a booked meeting before it starts: cancel_booking ("cancel the
+    meeting", "미팅 취소해 주세요"); say the requester is told;
   - suggested changes: share_changes or dismiss_changes with the pending
     suggestion's id ("send it to them", "never mind, drop it");
   - settings: confirm_settings with read_setup_state's reviewRef, only

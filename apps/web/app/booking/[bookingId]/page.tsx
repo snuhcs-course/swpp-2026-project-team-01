@@ -89,6 +89,7 @@ function Unavailable() {
 
 const CLOSED_TEXT: Readonly<Partial<Record<RequestState, string>>> = {
   booked: "This meeting is booked. Check your calendar for the details.",
+  cancelled: "This meeting was cancelled.",
   declined: "The host declined this request.",
   expired: "This request expired before a time was agreed and booked.",
   withdrawn: "You withdrew this request.",

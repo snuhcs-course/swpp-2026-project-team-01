@@ -767,3 +767,15 @@
 | D3 | 이동 순위는 주당 상한 다음, 요청자의 선호와 요일 분산 앞에 옵니다 | 주당 상한 앞; 요청자의 선호 뒤 | 설계 3 | `plan()`의 가중 정렬 |
 | D4 | `groupTrips`는 선택적 설정 필드로, 대면 또는 둘 다 방식일 때만 저장하고, 장소를 미팅마다 정하는 경우가 아니면 이동 버퍼 다음의 별도 단계로 웹에서 묻습니다. 웹 검토와 연결된 채팅의 설정 검토에 표시되며, 채팅 설정에서는 묻지 않습니다 | 대면 답변에서 필수로 받기; 장소에 후보가 있을 때만 저장 | 설계 6; `host-setup` 델타 "Same-day trip setting" | `lib/contracts/setup.ts`의 `IN_PERSON_OPTIONAL_FIELDS`; `apps/web/app/_components/setup/steps.ts`의 `setupSteps` |
 | D5 | 스캔은 가장 자주 가는 곳이 아닌 장소에서 대면 일정이 있었고 그 장소가 다른 날에도 나타난 날이 이틀 이상이면 켜는 것으로 제안합니다. 장소 텍스트로 판단하고 횟수만 저장하며, 호스트가 확인한 뒤에야 정책이 됩니다 | 선호 지역이 아직 없는 스캔 중의 경로 추정; 호스트의 장소 답변과 비교 | 설계 7; `host-setup` 델타 "Same-day trip suggestion" | `lib/server/analysis.ts`의 `tripEvidence`, `suggestFromEvidence` |
+
+## `post-booking-changes`
+
+[제안서](../../openspec/changes/post-booking-changes/proposal.md#decisions)와 [설계](../../openspec/changes/post-booking-changes/design.md)는 이슈 #234(예약 후 재협상, #169)에 대한 이 선택들을 기록합니다. 사용자는 2026-11-16에 제품이 예약된 미팅의 취소와 변경을 지원하기로, 취소를 먼저 하기로 정했으며, 이 변경을 작성한 세션이 같은 날 D1–D5를 정했고 아직 팀원의 검토를 받지 않았습니다. PRD의 비목표 "예약 후 자동 일정 변경 및 취소"는 FR-43으로 대체됩니다.
+
+| # | 선택 | 대안 | 기록 위치 | 바꾸려면 |
+|---|---|---|---|---|
+| D1 | 어느 쪽이든 시작 시간 전까지 예약된 미팅을 취소할 수 있습니다. 게스트는 어시스턴트에게 말하거나 자신의 에이전트를 통해, 호스트는 `/app`의 **Cancel meeting**, 연결된 채팅의 말, 또는 `hostInstruction`을 쓰는 자신의 에이전트를 통해 취소합니다 | 시작 몇 시간 전의 마감 시한; 호스트만 | 설계 1; `meeting-requests` 델타 "Cancelling a booked meeting" | `lib/server/booking-cancellation.ts`의 `cancelBookingCommand`; `lib/server/request-tools.ts`, `host-review-tools.ts`, `agent-requester-tools.ts`, `agent-host-tools.ts`의 도구 |
+| D2 | 새로운 닫힌 요청 상태 `cancelled`; 예약은 `host_cancelled` 또는 `requester_cancelled`로 취소되며 `confirmed_at`과 증거를 유지합니다 | 요청을 `booked`로 유지; 다시 여는 것 | 설계 2; `requests.sql`, `bookings.sql` | 스키마 파일과 새 마이그레이션; `lib/contracts/`의 `REQUEST_STATES`와 `BOOKING_FAILURES` |
+| D3 | 명령이 커밋하고, `booking_cancel` 작업이 이벤트를 삭제하며(`sendUpdates=all`), 불확실한 결과는 최대 8번 재시도하고, 거부되거나 권한을 잃으면 호스트에게 직접 삭제하라고 알립니다 | 명령 안에서 삭제; `cancelling` 상태 | 설계 3 | `createBookingCancelHandler`, `BOOKING_CANCEL_ATTEMPTS` |
+| D4 | 취소하지 않은 쪽만 우리의 알림을 받습니다. 게스트는 `status_cancelled` 이메일과 채팅 메시지, 호스트는 `booking_cancelled` 이메일과 채팅 메시지를 받으며, Google의 취소 알림은 어느 쪽이든 게스트에게 닿습니다. 게스트가 이메일이나 iMessage로 다시 쓰면 취소된 요청은 새 요청으로 이어집니다 | 양쪽 모두에게 알림 | 설계 4; `email-delivery` 델타 | `lib/server/booking-notices.ts`, `booking-emails.ts`, `imessage-notice-job.ts`; `revised-requests.ts`의 `isRevisable` |
+| D5 | 예약 후 변경은 예약된 미팅이 유지된 채로 제안 흐름을 다시 열고, 승인되면 같은 이벤트를 패치합니다(아직 구현되지 않음) | 취소 후 다시 예약; 별도의 일정 변경 흐름 | 설계 5; 남은 작업 | 이 변경의 두 번째 작업 목록 |

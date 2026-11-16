@@ -100,6 +100,30 @@ describe("the status notifications", () => {
   });
 });
 
+describe("the cancellation notices (post-booking-changes)", () => {
+  it("tells the requester the host cancelled, with the time in their zone", () => {
+    const email = renderBookingEmail("status_cancelled", "en", { ...meeting, bookingId: "b1" }, secrets);
+    expect(email.subject).toBe("Your meeting with Ada Lovelace was cancelled");
+    expect(email.text).toContain("Monday, 2 November 2026, 10:00–10:30 (Asia/Seoul, GMT+9)");
+    expect(email.text).toContain(secrets.bookingUrl);
+
+    const inbox = renderBookingEmail("status_cancelled", "ko", { ...meeting, bookingId: "b1" }, {});
+    expect(inbox.subject).toBe("Ada Lovelace님과의 미팅이 취소되었습니다");
+    expect(inbox.text).toContain("답장");
+    expect(inbox.text).not.toContain("/booking/");
+  });
+
+  it("tells the host the requester cancelled and links the request in /app", () => {
+    const viewUrl = "https://findmeatime.com/app?request=7d5f4a8e-6b1c-4f7e-9a2d-3c8b1e0f5a6d";
+    const email = renderBookingEmail("booking_cancelled", "en", { ...meeting, audience: "host", viewUrl }, {});
+    expect(email.subject).toBe("Grace Hopper cancelled: Talk about compilers");
+    expect(email.text).toContain("Grace Hopper cancelled your booked meeting");
+    expect(email.text).toContain(`View request: ${viewUrl}`);
+    expect(email.html).toContain(viewUrl);
+    expect(() => renderBookingEmail("booking_cancelled", "en", { ...meeting, audience: "host" }, {})).toThrow();
+  });
+});
+
 describe("the new-version notice says what the host changed (#198)", () => {
   const inPerson: BookingEmailParameters = { ...meeting, joinUrl: null, location: "Seoul Station", mode: "in_person", version: 2 };
   const terms = (parameters: BookingEmailParameters) => ({

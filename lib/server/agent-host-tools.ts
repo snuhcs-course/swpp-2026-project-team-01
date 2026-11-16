@@ -4,6 +4,7 @@ import { createImessageLinkCommand, readImessageStatus, linkChannels, NUMBER_INP
 import { z } from "zod";
 import type { HostRequestOperation } from "../contracts/host-request";
 import { approveCommand, declineCommand } from "./bookings";
+import { cancelBookingCommand } from "./booking-cancellation";
 import { recordDestinationAccess } from "./calendar-roles";
 import type { CommandDefinition } from "./commands";
 import { CalendarAccessError, openHostCalendar } from "./google-calendar";
@@ -350,5 +351,26 @@ export const HOST_TOOLS: readonly AgentTool[] = [
     },
     scope: "host:decide",
     title: "Decline the request",
+  },
+  {
+    description:
+      "Cancel the booked meeting for the host until it starts; the requester is told and the calendar event is removed. Call it only when the host has clearly told you, in their own words, to cancel this booked meeting; never on your own judgment, never because the requester asked, and never when the host attached a condition. Put the host's words in hostInstruction and pass the request's revision from get_request as expectedRevision. It cannot change the time or place.",
+    destructive: true,
+    input: z
+      .object({
+        requestId: requestIdSchema,
+        expectedRevision: expectedRevisionSchema,
+        hostInstruction: hostInstructionSchema,
+        retryKey: retryKeySchema,
+      })
+      .strict(),
+    name: "cancel_booking",
+    readOnly: false,
+    role: "host",
+    async run(context, raw) {
+      return decide(context, raw as { requestId: string; expectedRevision: number; retryKey: string }, cancelBookingCommand(context.deps.notices), {});
+    },
+    scope: "host:decide",
+    title: "Cancel the booked meeting",
   },
 ];
