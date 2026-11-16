@@ -64,7 +64,10 @@ select throws_ok(
   '23505', null, 'still one setup discussion per host'
 );
 
-select col_is_unique('app', 'bookings', array['event_id'], 'a provider event ID belongs to one booking');
+-- Since post-booking-changes (#238), a change after booking carries the
+-- event ID of the booking it replaces, so the ID is unique among original
+-- bookings only (bookings_event_idx, where replaces_booking_id is null).
+select index_is_unique('app', 'bookings', 'bookings_event_idx', 'a provider event ID belongs to one original booking');
 
 select * from finish();
 rollback;
