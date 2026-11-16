@@ -51,8 +51,11 @@ describe("link tools", () => {
     expect(guest.scope).toBe("request:write");
     for (const channel of ["imessage", "whatsapp", "telegram"]) {
       expect(host.input.safeParse({ channel, ...(channel === "telegram" ? {} : { number: "+821012345678" }), retryKey: "link-0001" }).success).toBe(true);
-      expect(guest.input.safeParse({ channel, number: "+821012345678", retryKey: "link-0001" }).success).toBe(channel !== "telegram");
+      expect(guest.input.safeParse({ channel, ...(channel === "telegram" ? {} : { number: "+821012345678" }), retryKey: "link-0001" }).success).toBe(true);
     }
+    // A guest's Telegram link takes no number, and iMessage needs one (guest-telegram-link D2).
+    expect(guest.input.safeParse({ channel: "telegram", number: "+821012345678", retryKey: "link-0001" }).success).toBe(false);
+    expect(guest.input.safeParse({ channel: "imessage", retryKey: "link-0001" }).success).toBe(false);
     expect(host.input.safeParse({ channel: "imessage", retryKey: "link-0001" }).success).toBe(false);
     expect(host.input.safeParse({ channel: "telegram", number: "+821012345678", retryKey: "link-0001" }).success).toBe(false);
     expect([...HOST_TOOLS, ...REQUESTER_TOOLS].some(tool => /confirm.*link/.test(tool.name))).toBe(false);

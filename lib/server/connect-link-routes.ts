@@ -37,7 +37,7 @@ export async function readConnectLink(deps: ImessageRouteDependencies, request: 
     if (!(await readConnectAttempt(tx, deps.tokenKeys, token))) return { state: "closed" as const };
     const status = attempt.role === "host"
       ? await readImessageStatus(tx, deps.tokenKeys, attempt.host_account_id!, linkChannels(deps))
-      : await readRequesterImessageStatus(tx, deps.tokenKeys, attempt.request_id!, deps.lineNumber, deps.whatsappNumber);
+      : await readRequesterImessageStatus(tx, deps.tokenKeys, attempt.request_id!, deps.lineNumber, deps.whatsappNumber, deps.telegramUsername);
     if (status.state !== "pending" && status.state !== "received") return { state: "closed" as const };
     return { state: "open" as const, status };
   });

@@ -7,3 +7,8 @@ CREATE TRIGGER "imessage_bindings_clear_sender_name"
 BEFORE INSERT OR UPDATE ON "app"."imessage_bindings"
 FOR EACH ROW
 EXECUTE FUNCTION "app"."clear_sender_name"();
+
+CREATE TRIGGER "requester_imessage_bindings_clear_sender_name"
+BEFORE INSERT OR UPDATE ON "app"."requester_imessage_bindings"
+FOR EACH ROW
+EXECUTE FUNCTION "app"."clear_sender_name"();

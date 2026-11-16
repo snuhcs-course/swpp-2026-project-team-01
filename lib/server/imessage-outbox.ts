@@ -73,7 +73,8 @@ import { openToken, sealToken, type TokenKey, tokenKeyFromEnvironment } from "./
 // send waits for it. A 429 puts the row back and a new job sends it after the
 // delay Telegram names, spending no attempt. A 403 (the user blocked or deleted
 // the bot) fails the row as blocked and ends its binding as stop does, with
-// whatever was still queued for it suppressed.
+// whatever was still queued for it suppressed; a guest's Telegram binding ends
+// the same way (guest-telegram-link design 5).
 // A Telegram row may carry inline buttons (design 7, D8), sent on its last part
 // and kept on the row with Telegram's message ID; an edit_markup row removes
 // them again within Telegram's 48-hour edit limit (D9), and a callback_answer row
@@ -585,6 +586,10 @@ export function createImessageSendHandler(load: () => ImessageSendDependencies =
     if (result.status === "rejected") {
       await finish(tx, outboxId, "dispatching", "failed", { category: result.category });
       if (result.category === "blocked" && claim.row.binding_id) await endBlockedBinding(tx, claim.row.binding_id);
+      // A guest who blocked the bot is unlinked the same way (guest-telegram-link design 5).
+      if (result.category === "blocked" && claim.row.requester_binding_id) {
+        await endBlockedRequesterBindings(tx, { bindingId: claim.row.requester_binding_id });
+      }
       if (result.category === WINDOW_CLOSED && claim.row.kind !== "template") await queueTemplate(tx, deps, claim.row);
       return { outboxId, state: "failed" };
     }
@@ -679,6 +684,30 @@ export async function endBlockedBinding(tx: Transaction, bindingId: string) {
         completed_at = now(), updated_at = now()
     where binding_id = ${bindingId} and state in ('waiting', 'queued')
   `;
+}
+
+// The guest blocked the bot (guest-telegram-link design 5): each active Telegram
+// guest binding of the sender, or the one binding a refused send went to, ends
+// as unlinked, and what was still queued for it is suppressed as blocked.
+export async function endBlockedRequesterBindings(tx: Transaction, owner: { readonly senderHash: string } | { readonly bindingId: string }) {
+  const senderHash = "senderHash" in owner ? owner.senderHash : null;
+  const bindingId = "bindingId" in owner ? owner.bindingId : null;
+  const ended = await tx<{ id: string }[]>`
+    update app.requester_imessage_bindings
+    set state = 'unlinked', ended_at = now(), sender_ciphertext = null, space_ciphertext = null
+    where state = 'active' and channel = 'telegram'
+      and (${senderHash}::text is null or sender_hash = ${senderHash})
+      and (${bindingId}::uuid is null or id = ${bindingId})
+    returning id
+  `;
+  if (ended.length === 0) return false;
+  await tx`
+    update app.imessage_outbox
+    set state = 'suppressed', failure_category = 'blocked', recipient_ciphertext = null, text_ciphertext = null,
+        completed_at = now(), updated_at = now()
+    where requester_binding_id in ${tx(ended.map((row) => row.id))} and state in ('waiting', 'queued')
+  `;
+  return true;
 }
 
 // The summary a closed window stopped becomes one template (design 8): only for

@@ -262,7 +262,7 @@ async function guestNotice(requestId: string, notice: { readonly kind: "status_d
 describe("linking a guest's WhatsApp", () => {
   it("offers WhatsApp where it is configured and refuses it where it is not", async () => {
     const request = await createTestRequest(db);
-    expect(await status(request.requestId)).toEqual({ lineNumber: TEST_LINE, state: "none", whatsappNumber: TEST_WHATSAPP_NUMBER });
+    expect(await status(request.requestId)).toEqual({ lineNumber: TEST_LINE, state: "none", telegramUsername: null, whatsappNumber: TEST_WHATSAPP_NUMBER });
     expect(await readRequesterImessageStatus(db, [testTokenKey], request.requestId, "", TEST_WHATSAPP_NUMBER)).toMatchObject({ lineNumber: "", state: "none" });
 
     const imessageOnly = createRequesterImessageLinkCommand({ ...options, whatsappNumber: "" });

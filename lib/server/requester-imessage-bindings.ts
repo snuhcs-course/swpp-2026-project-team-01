@@ -1,3 +1,4 @@
+import type { GuestChannel } from "../contracts/requester-imessage";
 import type { Queryable, Transaction } from "./database";
 import { recordOutbound } from "./imessage-outbox";
 import { openToken, sealToken, type TokenKey } from "./token-encryption";
@@ -12,9 +13,11 @@ import { openToken, sealToken, type TokenKey } from "./token-encryption";
 // conversation. Closing never ends it: a declined, expired or withdrawn request
 // continues as a revised request (U16), and a booked one answers questions
 // about its meeting (U18).
-// A binding records its channel, iMessage or WhatsApp (guest-whatsapp-link
-// design 1): outbox rows naming it go out there, and on WhatsApp its
-// last_inbound_at starts the 24-hour window, from the link message on.
+// A binding records its channel, iMessage, WhatsApp or Telegram
+// (guest-whatsapp-link design 1, guest-telegram-link design 1): outbox rows
+// naming it go out there, and on WhatsApp its last_inbound_at starts the
+// 24-hour window, from the link message on. A Telegram binding keeps the
+// sender's first name and @username sealed beside the sender, for the card.
 
 export function requesterBindingContext(bindingId: string) {
   return `requester_imessage_binding:${bindingId}`;
@@ -23,9 +26,10 @@ export function requesterBindingContext(bindingId: string) {
 export type RequesterBinding = {
   readonly id: string;
   readonly request_id: string;
-  readonly channel: "imessage" | "whatsapp";
+  readonly channel: GuestChannel;
   readonly sender_hash: string;
   readonly sender_ciphertext: string;
+  readonly sender_name_ciphertext: string | null;
   readonly space_ciphertext: string | null;
   readonly sealed_key_id: string;
   readonly created_at: Date;
@@ -33,7 +37,7 @@ export type RequesterBinding = {
 
 export async function activeRequesterBinding(q: Queryable, requestId: string) {
   const [row] = await q<RequesterBinding[]>`
-    select id, request_id, channel, sender_hash, sender_ciphertext, space_ciphertext, sealed_key_id, created_at
+    select id, request_id, channel, sender_hash, sender_ciphertext, sender_name_ciphertext, space_ciphertext, sealed_key_id, created_at
     from app.requester_imessage_bindings where request_id = ${requestId} and state = 'active'
   `;
   return row ?? null;
@@ -46,6 +50,12 @@ export function requesterBindingRecipient(
 ) {
   const open = (ciphertext: string) => openToken(keys, { ciphertext, keyId: binding.sealed_key_id }, requesterBindingContext(binding.id));
   return { address: open(binding.sender_ciphertext), spaceId: binding.space_ciphertext ? open(binding.space_ciphertext) : null };
+}
+
+// A Telegram binding's sealed sender name, or null on other channels.
+export function requesterBindingName(keys: readonly TokenKey[], binding: Pick<RequesterBinding, "id" | "sender_name_ciphertext" | "sealed_key_id">) {
+  if (!binding.sender_name_ciphertext) return null;
+  return openToken(keys, { ciphertext: binding.sender_name_ciphertext, keyId: binding.sealed_key_id }, requesterBindingContext(binding.id));
 }
 
 export const REQUESTER_LINK_TEXTS = {
@@ -61,10 +71,12 @@ export async function bindRequester(
   tokenKey: TokenKey,
   binding: {
     readonly requestId: string;
-    readonly channel?: "imessage" | "whatsapp";
+    readonly channel?: GuestChannel;
     // Null when the guest-host's own host conversation is bound (design 6).
     readonly linkId: string | null;
     readonly sender: string;
+    // A Telegram sender's display name, sealed beside the sender.
+    readonly senderName?: string | null;
     readonly senderHash: string;
     readonly spaceId: string | null;
     readonly hostName: string;
@@ -76,11 +88,12 @@ export async function bindRequester(
   const context = requesterBindingContext(bindingId);
   const sealedSender = sealToken(tokenKey, binding.sender, context);
   const sealedSpace = binding.spaceId === null ? null : sealToken(tokenKey, binding.spaceId, context);
+  const sealedName = binding.senderName ? sealToken(tokenKey, binding.senderName, context) : null;
   await tx`
     insert into app.requester_imessage_bindings
-      (id, request_id, channel, link_id, sender_hash, sender_ciphertext, space_ciphertext, sealed_key_id, last_inbound_at)
+      (id, request_id, channel, link_id, sender_hash, sender_ciphertext, sender_name_ciphertext, space_ciphertext, sealed_key_id, last_inbound_at)
     values (${bindingId}, ${binding.requestId}, ${binding.channel ?? "imessage"}, ${binding.linkId}, ${binding.senderHash}, ${sealedSender.ciphertext},
-            ${sealedSpace?.ciphertext ?? null}, ${tokenKey.id},
+            ${sealedName?.ciphertext ?? null}, ${sealedSpace?.ciphertext ?? null}, ${tokenKey.id},
             -- The link message is the guest's last message so far; WhatsApp's window starts there.
             (select r.received_at from app.imessage_links l join app.imessage_receipts r on r.id = l.received_by_receipt_id
              where l.id = ${binding.linkId}))
