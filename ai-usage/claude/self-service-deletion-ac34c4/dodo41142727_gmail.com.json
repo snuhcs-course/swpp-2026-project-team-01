@@ -1,0 +1,40 @@
+{
+  "branch": "claude/self-service-deletion-ac34c4",
+  "user": "dodo41142727@gmail.com",
+  "sessions": {
+    "claude:41954358-6694-495e-b6aa-5073cbbc9118": {
+      "agent": "claude-code",
+      "client": "claude-desktop",
+      "agent_ms": 0,
+      "models": {
+        "claude-opus-5-5": {
+          "input": 76,
+          "cache_read": 5558599,
+          "cache_write_5m": 0,
+          "cache_write_1h": 148528,
+          "output": 21721,
+          "reasoning": 0
+        }
+      },
+      "first": "2026-11-16T06:15:12.156Z",
+      "last": "2026-11-16T06:22:22.005Z"
+    },
+    "claude:41954358-6694-495e-b6aa-5073cbbc9118/agent-a0272865df6e6a657": {
+      "agent": "claude-code",
+      "client": "claude-desktop",
+      "agent_ms": 0,
+      "models": {
+        "claude-opus-5-5": {
+          "input": 72,
+          "cache_read": 4171942,
+          "cache_write_5m": 161950,
+          "cache_write_1h": 0,
+          "output": 20699,
+          "reasoning": 0
+        }
+      },
+      "first": "2026-11-16T06:16:10.571Z",
+      "last": "2026-11-16T06:18:50.075Z"
+    }
+  }
+}
