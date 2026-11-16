@@ -13,7 +13,11 @@ import {
 } from "@/components/ui/dropdown-menu";
 
 // Compact workspace navigation. Messaging connections and personal agents are
-// managed together in Connected apps.
+// managed together in Connected apps. Connected apps opens its dialog only once
+// the menu has closed and returned focus: opened from onSelect, the dialog took
+// the closing menu's `pointer-events: none` on <body> for the page's own and left
+// it behind, freezing the page (#207). Closing the dialog returns focus to the
+// menu button.
 export function WorkspaceMenu({
   onSelectDashboard,
   onSelectRequests,
@@ -22,19 +26,26 @@ export function WorkspaceMenu({
   readonly onSelectRequests?: () => void;
 }) {
   const signOutRef = useRef<HTMLFormElement>(null);
+  const agentsSelected = useRef(false);
+  const triggerRef = useRef<HTMLButtonElement>(null);
   const [agentsOpen, setAgentsOpen] = useState(false);
 
   return (
     <>
       <DropdownMenu>
         <DropdownMenuTrigger asChild>
-          <Button aria-label="Open menu" size="icon" type="button" variant="ghost">
+          <Button aria-label="Open menu" ref={triggerRef} size="icon" type="button" variant="ghost">
             <MenuIcon aria-hidden className="size-5" />
           </Button>
         </DropdownMenuTrigger>
         <DropdownMenuContent
           align="end"
           className="min-w-48"
+          onCloseAutoFocus={() => {
+            if (!agentsSelected.current) return;
+            agentsSelected.current = false;
+            setAgentsOpen(true);
+          }}
         >
           {onSelectDashboard ? (
             <DropdownMenuItem onSelect={onSelectDashboard}>
@@ -48,7 +59,11 @@ export function WorkspaceMenu({
               Requests
             </DropdownMenuItem>
           ) : null}
-          <DropdownMenuItem onSelect={() => setAgentsOpen(true)}>
+          <DropdownMenuItem
+            onSelect={() => {
+              agentsSelected.current = true;
+            }}
+          >
             <PlugIcon aria-hidden />
             Connected apps
           </DropdownMenuItem>
@@ -60,7 +75,13 @@ export function WorkspaceMenu({
         </DropdownMenuContent>
       </DropdownMenu>
       <form action="/auth/sign-out" hidden method="post" ref={signOutRef} />
-      <ConnectedAgentsDialog appsMode onOpenChange={setAgentsOpen} open={agentsOpen} source={HOST_GRANT_SOURCE} />
+      <ConnectedAgentsDialog
+        appsMode
+        onOpenChange={setAgentsOpen}
+        open={agentsOpen}
+        returnFocus={triggerRef}
+        source={HOST_GRANT_SOURCE}
+      />
     </>
   );
 }

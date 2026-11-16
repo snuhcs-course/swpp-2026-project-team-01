@@ -4,6 +4,7 @@ import { computeEvidence } from "./analysis";
 import {
   applyRanking,
   type BusyInterval,
+  CANDIDATE_LIMIT,
   displayTime,
   type Endpoint,
   evaluateFeasibility,
@@ -881,6 +882,108 @@ describe("same-day trips", () => {
 
     expect(projection.candidates.map((candidate) => candidate.start)).toEqual(starts(result));
     expect(text).not.toMatch(/Gangnam|Seongsu office|usual area|minutes/);
+  });
+});
+
+describe("time and place pairs", () => {
+  // guest-time-place-pairs: the host meets at a venue or in one area.
+  const office = place("Gangnam office");
+  const VENUE = { key: hashed("AA Cafe, Yeoksam"), text: "AA Cafe, Yeoksam" };
+  const AREA = { key: hashed("Seolleung Station"), text: "Seolleung Station" };
+  const at = (clock: string) => kst("2026-11-02", clock);
+  const pairs = (request: Partial<FeasibilityInput["request"]> = {}, rest: Partial<Omit<FeasibilityInput, "request">> = {}) =>
+    input({
+      ...rest,
+      request: {
+        mode: "in_person",
+        places: [VENUE, AREA],
+        travelMode: "transit",
+        windows: [{ end: at("11:00"), start: at("10:00") }],
+        ...request,
+      },
+    });
+
+  it("pairs each free time with each host place, venue first, each with its own place and ID", () => {
+    const result = evaluateFeasibility(pairs());
+
+    expect(result.candidates.map((candidate) => [candidate.start, candidate.location, candidate.id])).toEqual([
+      [at("10:00").toISOString(), VENUE.text, `c${at("10:00").getTime() / 60_000}-30-p0`],
+      [at("10:00").toISOString(), AREA.text, `c${at("10:00").getTime() / 60_000}-30-p1`],
+      [at("10:15").toISOString(), VENUE.text, `c${at("10:15").getTime() / 60_000}-30-p0`],
+      [at("10:15").toISOString(), AREA.text, `c${at("10:15").getTime() / 60_000}-30-p1`],
+      [at("10:30").toISOString(), VENUE.text, `c${at("10:30").getTime() / 60_000}-30-p0`],
+      [at("10:30").toISOString(), AREA.text, `c${at("10:30").getTime() / 60_000}-30-p1`],
+    ]);
+    expect(result.candidates.every((candidate) => candidate.status === "offered")).toBe(true);
+  });
+
+  it("lets travel decide which pair of a time is offered", () => {
+    const result = evaluateFeasibility(
+      pairs(
+        { windows: [{ end: at("12:30"), start: at("12:00") }] },
+        {
+          estimate: routes({ "Gangnam office -> AA Cafe, Yeoksam": 40, "Gangnam office -> Seolleung Station": 10 }),
+          hostBusy: [busy(at("10:00"), at("11:00"), office)],
+        },
+      ),
+    );
+
+    // 40 + 25 of buffers is over the 60-minute gap; 10 + 25 fits.
+    expect(result.candidates.map((candidate) => candidate.location)).toEqual([AREA.text]);
+    expect(result.exclusionCounts.host_travel).toBe(1);
+    expect(travelQueries(pairs({ windows: [{ end: at("12:30"), start: at("12:00") }] }, { hostBusy: [busy(at("10:00"), at("11:00"), office)] }))
+      .map((query) => query.destination)).toEqual([VENUE.text, AREA.text]);
+  });
+
+  it("keeps one place, its IDs and its order when the request names a place", () => {
+    const named = evaluateFeasibility(pairs({ location: MEETING }));
+    const plain = evaluateFeasibility(pairs({ location: MEETING, places: [] }));
+
+    expect(named.candidates).toEqual(plain.candidates);
+    expect(named.candidates.every((candidate) => candidate.location === MEETING.text && !candidate.id.includes("-p"))).toBe(true);
+  });
+
+  it("makes no pairs for an online meeting", () => {
+    const result = evaluateFeasibility(pairs({ mode: "online" }));
+    expect(result.candidates.every((candidate) => candidate.location === null && !candidate.id.includes("-p"))).toBe(true);
+    expect(result.candidates).toHaveLength(3);
+  });
+
+  it("counts pairs, not times, toward the candidate cut", () => {
+    const result = evaluateFeasibility(pairs({ windows: [{ end: at("17:00"), start: at("10:00") }] }));
+    expect(result.candidates).toHaveLength(CANDIDATE_LIMIT);
+    expect(new Set(result.candidates.map((candidate) => candidate.start)).size).toBe(CANDIDATE_LIMIT / 2);
+  });
+
+  it("shows the requester each time's first pair before any time's second", () => {
+    const result = evaluateFeasibility(pairs());
+    const projection = requesterProjection(result.candidates, { displayTimezone: "Asia/Seoul", id: "e1", state: "completed" });
+
+    expect(projection.candidates.map((candidate) => [candidate.start, candidate.location])).toEqual([
+      [at("10:00").toISOString(), VENUE.text],
+      [at("10:15").toISOString(), VENUE.text],
+      [at("10:30").toISOString(), VENUE.text],
+      [at("10:00").toISOString(), AREA.text],
+      [at("10:15").toISOString(), AREA.text],
+      [at("10:30").toISOString(), AREA.text],
+    ]);
+  });
+
+  it("keeps a host-unresolved pair from the requester without saying why", () => {
+    const result = evaluateFeasibility(
+      pairs({ windows: [{ end: at("12:30"), start: at("12:00") }] }, {
+        estimate: routes({ "Gangnam office -> Seolleung Station": 10 }),
+        hostBusy: [busy(at("10:00"), at("11:00"), office)],
+      }),
+    );
+    const projection = requesterProjection(result.candidates, { displayTimezone: "Asia/Seoul", id: "e1", state: "completed" });
+
+    expect(result.candidates.map((candidate) => [candidate.location, candidate.status])).toEqual([
+      [VENUE.text, "host_unresolved"],
+      [AREA.text, "offered"],
+    ]);
+    expect(projection.candidates.map((candidate) => candidate.location)).toEqual([AREA.text]);
+    expect(JSON.stringify(projection)).not.toMatch(/Gangnam|estimated|minutes/);
   });
 });
 

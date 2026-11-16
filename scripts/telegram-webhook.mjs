@@ -11,6 +11,13 @@
 // loopback stand-in, so the token only ever goes to Telegram or a local stand-in.
 // The token is read from TELEGRAM_BOT_TOKEN and never printed: every message it
 // could appear in is scrubbed first.
+// When TELEGRAM_WEBHOOK_SECRET is unset, it generates one, appends it to the
+// checkout's .env without printing it, and stops before calling Telegram: the
+// same value must reach Vercel Production, and production must be redeployed,
+// before the webhook is registered with it.
+import { randomBytes } from "node:crypto";
+import { appendFileSync, existsSync, readFileSync } from "node:fs";
+import { resolve } from "node:path";
 import { pathToFileURL } from "node:url";
 
 export const PRODUCTION_ORIGIN = "https://findmeatime.com";
@@ -29,6 +36,21 @@ const LOOPBACK = new Set(["localhost", "127.0.0.1", "[::1]"]);
 const SECRET = /^[A-Za-z0-9_-]{32,256}$/;
 
 export class WebhookSetupError extends Error {}
+
+// 36 random bytes as base64url: 48 characters of A-Z a-z 0-9 _ -.
+export function generateSecret() {
+  return randomBytes(36).toString("base64url");
+}
+
+// Appends TELEGRAM_WEBHOOK_SECRET to the env file, refusing to add a second line.
+export function saveSecret(envFile, secret) {
+  const current = existsSync(envFile) ? readFileSync(envFile, "utf8") : "";
+  if (/^TELEGRAM_WEBHOOK_SECRET=./m.test(current)) {
+    throw new WebhookSetupError(`${envFile} already has TELEGRAM_WEBHOOK_SECRET; it was not loaded, so check the file.`);
+  }
+  const separator = current === "" || current.endsWith("\n") ? "" : "\n";
+  appendFileSync(envFile, `${separator}TELEGRAM_WEBHOOK_SECRET=${secret}\n`, { mode: 0o600 });
+}
 
 function originArgument(argv) {
   const index = argv.indexOf("--origin");
@@ -68,12 +90,27 @@ export function apiBase(env) {
   return configured.replace(/\/+$/, "");
 }
 
-export async function setUpTelegramWebhook({ env = process.env, argv = [], fetcher = fetch, log = console.log } = {}) {
+export async function setUpTelegramWebhook({
+  env = process.env,
+  argv = [],
+  fetcher = fetch,
+  log = console.log,
+  envFile = resolve(process.cwd(), ".env"),
+} = {}) {
   const token = env.TELEGRAM_BOT_TOKEN?.trim() ?? "";
   const secret = env.TELEGRAM_WEBHOOK_SECRET?.trim() ?? "";
   const scrub = (text) => (token ? String(text).split(token).join("<token>") : String(text));
 
   if (!token) throw new WebhookSetupError("TELEGRAM_BOT_TOKEN is not set.");
+  if (!secret) {
+    webhookUrl(originArgument(argv));
+    apiBase(env);
+    saveSecret(envFile, generateSecret());
+    log(`Generated TELEGRAM_WEBHOOK_SECRET and saved it to ${envFile}; it was not printed.`);
+    log("Next: set the same value on Vercel Production, redeploy, then run npm run telegram:webhook again.");
+    log(`  grep '^TELEGRAM_WEBHOOK_SECRET=' '${envFile}' | cut -d= -f2- | tr -d '\\n' | vercel env add TELEGRAM_WEBHOOK_SECRET production`);
+    return { generated: true };
+  }
   if (!SECRET.test(secret)) throw new WebhookSetupError("TELEGRAM_WEBHOOK_SECRET must be 32 to 256 letters, digits, _ or -.");
 
   const url = webhookUrl(originArgument(argv));

@@ -50,7 +50,90 @@ export type BookingEmailParameters = MeetingParameters & {
   // pending notice is about, which decide whether it is still current.
   readonly version?: number;
   readonly bookingId?: string;
+  // The proposal a new-version notice replaces, frozen with it, so the notice
+  // can say what the host changed (#198). Absent on notices recorded before.
+  readonly previous?: MeetingTerms;
 };
+
+// The parts of a proposal the host can change.
+export type MeetingTerms = {
+  readonly start: string;
+  readonly end: string;
+  readonly mode: "online" | "in_person";
+  readonly location: string | null;
+};
+
+export type MeetingChange = "time" | "duration" | "mode" | "place";
+
+function minutesOf(terms: MeetingTerms) {
+  return Math.round((Date.parse(terms.end) - Date.parse(terms.start)) / 60_000);
+}
+
+function placeOf(terms: MeetingTerms) {
+  return terms.mode === "in_person" ? terms.location?.trim() || null : null;
+}
+
+// What differs between two versions of a proposal, in a fixed order. A new
+// start is a time change; the same start with another length is a duration
+// change only.
+export function meetingChanges(previous: MeetingTerms, next: MeetingTerms): MeetingChange[] {
+  return [
+    ...(Date.parse(previous.start) !== Date.parse(next.start) ? (["time"] as const) : []),
+    ...(minutesOf(previous) !== minutesOf(next) ? (["duration"] as const) : []),
+    ...(previous.mode !== next.mode ? (["mode"] as const) : []),
+    ...(placeOf(previous) !== placeOf(next) ? (["place"] as const) : []),
+  ];
+}
+
+const CHANGE_LABELS = {
+  en: {
+    duration: "Length",
+    inPerson: "In person",
+    mode: "Meeting type",
+    none: "None",
+    online: "Online",
+    place: "Place",
+    time: "Time",
+    was: (value: string) => `(was: ${value})`,
+  },
+  ko: {
+    duration: "소요 시간",
+    inPerson: "대면",
+    mode: "미팅 방식",
+    none: "없음",
+    online: "온라인",
+    place: "장소",
+    time: "시간",
+    was: (value: string) => `(이전: ${value})`,
+  },
+} as const;
+
+// One line per changed field, "Place: Cafe Onion (was: Seoul Station)", with the
+// time in the recipient's zone through the channel's own formatter.
+export function changeLines(
+  previous: MeetingTerms,
+  next: MeetingTerms,
+  language: RequestLanguage,
+  formatTime: (terms: MeetingTerms) => string,
+): string[] {
+  const labels = CHANGE_LABELS[language];
+  const value = (field: MeetingChange, terms: MeetingTerms) => {
+    switch (field) {
+      case "time":
+        return formatTime(terms);
+      case "duration":
+        return durationText(minutesOf(terms), language);
+      case "mode":
+        return terms.mode === "online" ? labels.online : labels.inPerson;
+      case "place":
+        return placeOf(terms) ?? labels.none;
+    }
+  };
+
+  return meetingChanges(previous, next).map(
+    (field) => `${labels[field]}: ${value(field, next)} ${labels.was(value(field, previous))}`,
+  );
+}
 
 export type RenderedBookingEmail = { readonly subject: string; readonly html: string; readonly text: string };
 
@@ -210,7 +293,21 @@ function renderConfirmation(language: RequestLanguage, parameters: BookingEmailP
   return { html, subject, text };
 }
 
-type StatusCopy = { readonly subject: string; readonly paragraphs: readonly string[]; readonly action: string };
+// changes: the "what changed" block a new-version notice shows after its first
+// paragraph, when it knows the version it replaces.
+type StatusCopy = {
+  readonly subject: string;
+  readonly paragraphs: readonly string[];
+  readonly action: string;
+  readonly changes?: { readonly label: string; readonly lines: readonly string[] };
+};
+
+function newVersionChanges(parameters: BookingEmailParameters, language: RequestLanguage) {
+  if (!parameters.previous) return [];
+  return changeLines(parameters.previous, parameters, language, (terms) =>
+    whenLine(terms.start, terms.end, parameters.timezone, language),
+  );
+}
 
 // byReply: the product inbox's notice, answered by replying (U15).
 function statusCopy(
@@ -221,14 +318,16 @@ function statusCopy(
 ): StatusCopy {
   const host = parameters.hostName;
   const when = whenLine(parameters.start, parameters.end, parameters.timezone, language);
+  const changes = template === "status_new_version" ? newVersionChanges(parameters, language) : [];
 
   if (language === "ko") {
     switch (template) {
       case "status_new_version":
         return {
           action: "새 제안 검토하기",
+          ...(changes.length > 0 ? { changes: { label: "바뀐 내용", lines: changes } } : {}),
           paragraphs: [
-            `${host}님이 미팅 세부 정보를 바꾸어 다시 보냈습니다: ${when}.`,
+            changes.length > 0 ? `${host}님이 미팅 세부 정보를 바꾸어 다시 보냈습니다.` : `${host}님이 미팅 세부 정보를 바꾸어 다시 보냈습니다: ${when}.`,
             byReply
               ? "아직 합의된 것은 없습니다. 동의하시거나 다른 것을 원하시면 이 메일에 답장해 주세요."
               : "아직 합의된 것은 없습니다. 예약 페이지에서 새 제안을 확인하고 동의해 주세요.",
@@ -265,8 +364,9 @@ function statusCopy(
     case "status_new_version":
       return {
         action: "Review the new proposal",
+        ...(changes.length > 0 ? { changes: { label: "What changed", lines: changes } } : {}),
         paragraphs: [
-          `${host} sent back changed meeting details: ${when}.`,
+          changes.length > 0 ? `${host} sent back changed meeting details.` : `${host} sent back changed meeting details: ${when}.`,
           byReply
             ? "Nothing is agreed yet. Reply to agree, or to ask for something else."
             : "Nothing is agreed yet. Open your booking page to review the new proposal and agree to it.",
@@ -318,16 +418,26 @@ function renderStatus(
       ? "이 메일에 답장하면 Thyme과 이어서 이야기할 수 있습니다."
       : "Reply to this email to continue with Thyme.";
 
+  const [lead = "", ...rest] = copy.paragraphs;
+  const changes = copy.changes;
+
   const html = page(language, copy.subject, [
     `<p>${escapeHtml(greeting)}</p>`,
-    ...copy.paragraphs.map((paragraph) => `<p>${escapeHtml(paragraph)}</p>`),
+    `<p>${escapeHtml(lead)}</p>`,
+    ...(changes
+      ? [`<p><strong>${escapeHtml(changes.label)}</strong><br>${changes.lines.map((line) => escapeHtml(line)).join("<br>")}</p>`]
+      : []),
+    ...rest.map((paragraph) => `<p>${escapeHtml(paragraph)}</p>`),
     ...(viewUrl ? [button(viewUrl, copy.action)] : []),
     `<p style="color:#555;font-size:14px">${escapeHtml(footer)}</p>`,
   ]);
   const text = [
     greeting,
     "",
-    ...copy.paragraphs.flatMap((paragraph) => [paragraph, ""]),
+    lead,
+    "",
+    ...(changes ? [`${changes.label}:`, ...changes.lines, ""] : []),
+    ...rest.flatMap((paragraph) => [paragraph, ""]),
     ...(viewUrl ? [`${copy.action}: ${viewUrl}`, ""] : []),
     footer,
     "",
