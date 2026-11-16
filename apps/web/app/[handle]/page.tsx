@@ -1,7 +1,9 @@
 import { isUsableHandle, normalizeHandle } from "@lib/contracts/handles";
 import { database } from "@lib/server/database";
+import { bookingLinkVisitor } from "@lib/server/guest-account-session";
 import { findReadyHostByHandle } from "@lib/server/readiness";
 import type { Metadata } from "next";
+import { cookies } from "next/headers";
 import { notFound } from "next/navigation";
 import { connection } from "next/server";
 import { Suspense } from "react";
@@ -44,5 +46,9 @@ async function HostProfile({ params }: { readonly params: Params }) {
 
   if (!host) notFound();
 
-  return <GuestStart host={{ displayName: host.displayName, handle: host.handle }} />;
+  // A signed-in account is recognized (host-as-guest-session): it can continue
+  // as itself or resume its open request; its own link says so.
+  const visitor = await bookingLinkVisitor(await cookies(), host.hostAccountId);
+
+  return <GuestStart host={{ displayName: host.displayName, handle: host.handle }} visitor={visitor} />;
 }

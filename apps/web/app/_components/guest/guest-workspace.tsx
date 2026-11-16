@@ -89,10 +89,13 @@ export function GuestWorkspace({
   bookingId,
   host,
   initialView,
+  workspaceLink = false,
 }: {
   readonly bookingId: string;
   readonly host: { readonly displayName: string; readonly handle: string | null };
   readonly initialView: OpenRequesterView;
+  // The signed-in account this request is linked to (host-as-guest-session).
+  readonly workspaceLink?: boolean;
 }) {
   const [view, setView] = useState<OpenRequesterView>(initialView);
   const currentView = useRef<OpenRequesterView>(initialView);
@@ -250,7 +253,7 @@ export function GuestWorkspace({
 
   return (
     <>
-      <GuestFrame aside={aside} asideLabel={`Request with ${host.displayName}`}>
+      <GuestFrame aside={aside} asideLabel={`Request with ${host.displayName}`} workspaceLink={workspaceLink}>
         <GuestConversation
           ariaLabel={`Meeting request with ${host.displayName}`}
           before={before}
