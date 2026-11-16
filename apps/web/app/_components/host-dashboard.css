@@ -2,3 +2,9 @@
 @media(max-width:1220px){.hd-layout{display:block}.hd-detail{border-left:0;border-top:1px solid #edf0f4;padding:28px clamp(24px,4vw,58px)}}
 @media(max-width:800px){.hd-header{height:68px;padding:0 18px}.hd-main{padding:25px 17px 28px}.hd-intro h2{font-size:clamp(34px,5vw,46px)}.hd-toolbar{padding:16px;flex-wrap:wrap}.hd-filters{padding:0 16px 14px}.hd-period h3{font-size:25px}.hd-filters small{width:100%;margin:4px 0 0}.hd-month-day{min-height:90px;padding:5px}.hd-month-event{font-size:9px}.hd-detail{padding:24px 17px}}
 @media(max-width:560px){.hd-intro h2{font-size:clamp(31px,8vw,39px)}.hd-intro p{font-size:13px}.hd-month-day{min-height:70px}.hd-month-event{font-size:0;height:7px;padding:0}.hd-month-day>small{display:none}}
+
+/* Sent requests use the outlined blue treatment from the Requests inbox. */
+.hd-key.hd-sent{background:#fff;border:2px solid #2c3e63}
+.hd-sent.hd-event,.hd-sent.hd-month-event{background:#f7f9fc;border-color:#2c3e63;color:#2c3e63}
+.hd-agenda-item.hd-sent{border-color:#2c3e63;background:#f7f9fc}
+.hd-source.hd-sent{background:#fff;color:#2c3e63;border:1px solid #2c3e63}

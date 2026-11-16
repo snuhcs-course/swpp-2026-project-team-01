@@ -1,9 +1,10 @@
 "use client";
 
-import type { HostRequestItem, HostRequestOperation, HostRequestView } from "@lib/contracts/host-request";
+import type { HostRequestOperation, HostRequestView } from "@lib/contracts/host-request";
 import type { RequestState } from "@lib/contracts/request";
+import type { WorkspaceRequestItem } from "@lib/contracts/workspace-request";
 import { displayTime } from "@lib/contracts/timezone";
-import { AlertCircleIcon, ArrowLeftIcon, XIcon } from "lucide-react";
+import { AlertCircleIcon, ArrowLeftIcon, ArrowRightIcon, ChevronRightIcon, XIcon } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { GuestCard, GuestCardActions } from "@/app/_components/guest/guest-card";
@@ -13,7 +14,7 @@ import { ChatComposer } from "@/components/chat/composer";
 import { ChatConversation, ChatConversationContent, ChatItem, ChatScrollButton } from "@/components/chat/conversation";
 import { AgentMessage, AgentThinking } from "@/components/chat/message";
 import { Button } from "@/components/ui/button";
-import { postHostCommand, readHostRequest, readHostRequests } from "@/lib/chat/host-requests";
+import { postHostCommand, readHostRequest, readWorkspaceRequests } from "@/lib/chat/host-requests";
 import { errorMessage, useHostDiscussion } from "@/lib/chat/use-host-discussion";
 import {
   BookingCard,
@@ -103,12 +104,13 @@ export function HostRequests({ onOpenDashboard, onOpenSetup, request }: { readon
 // The inbox
 
 function Inbox({ onSelect }: { readonly onSelect: (requestId: string) => void }) {
-  const [items, setItems] = useState<HostRequestItem[] | null>(null);
+  const [items, setItems] = useState<WorkspaceRequestItem[] | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [filter, setFilter] = useState<"all" | "received" | "sent">("all");
 
   useEffect(() => {
     const controller = new AbortController();
-    readHostRequests(controller.signal)
+    readWorkspaceRequests(controller.signal)
       .then(setItems)
       .catch((cause) => {
         if (!controller.signal.aborted) setError(errorMessage(cause));
@@ -116,12 +118,32 @@ function Inbox({ onSelect }: { readonly onSelect: (requestId: string) => void })
     return () => controller.abort();
   }, []);
 
+  const received = items?.filter((item) => item.direction === "received").length ?? 0;
+  const sent = items?.filter((item) => item.direction === "sent").length ?? 0;
+  const shown = items?.filter((item) => filter === "all" || item.direction === filter) ?? [];
+
   return (
     <main aria-labelledby="inbox-heading" className="min-h-0 flex-1 overflow-y-auto">
-      <div className="mx-auto flex w-full max-w-2xl flex-col gap-3 px-4 pb-8 sm:px-6">
+      <div className="mx-auto flex w-full max-w-2xl flex-col px-4 pb-8 sm:px-6">
         <h2 className="pt-4 font-display text-[clamp(36px,5vw,52px)] leading-[1.05]" id="inbox-heading">
           Requests
         </h2>
+        <p className="mt-3 mb-7 text-sm text-muted-foreground">Every meeting request you sent or received, in one place.</p>
+        <div aria-label="Filter requests" className="mb-5 flex w-fit max-w-full gap-1 rounded-full bg-secondary p-1" role="group">
+          {([[
+            "all", "All", items?.length ?? 0,
+          ], ["received", "Received", received], ["sent", "Sent", sent]] as const).map(([value, label, count]) => (
+            <button
+              aria-pressed={filter === value}
+              className={`min-h-10 rounded-full px-4 text-xs font-semibold transition-colors ${filter === value ? "bg-card text-primary" : "text-muted-foreground hover:text-foreground"}`}
+              key={value}
+              onClick={() => setFilter(value)}
+              type="button"
+            >
+              {label} <span className="ml-1 opacity-70">{count}</span>
+            </button>
+          ))}
+        </div>
         {error ? <p role="alert">{error}</p> : null}
         {items === null && !error ? (
           <p className="text-muted-foreground" role="status">
@@ -129,34 +151,47 @@ function Inbox({ onSelect }: { readonly onSelect: (requestId: string) => void })
           </p>
         ) : null}
         {items?.length === 0 ? (
-          <p className="text-muted-foreground">No requests yet. They appear here once a guest gives their name and email on your booking page.</p>
+          <p className="text-muted-foreground">No requests yet. Requests you receive or send with your Google account will appear here.</p>
         ) : null}
+        {items && items.length > 0 ? <p aria-live="polite" className="mb-2 text-xs font-semibold text-muted-foreground">{shown.length} {shown.length === 1 ? "request" : "requests"}</p> : null}
+        {items && items.length > 0 && shown.length === 0 ? <p className="rounded-2xl bg-card p-5 text-sm text-muted-foreground">No requests in this view yet.</p> : null}
         <ul className="flex flex-col gap-2">
-          {items?.map((item) => (
+          {shown.map((item) => (
             <li key={item.requestId}>
-              <button
-                className="flex w-full min-w-0 flex-col gap-0.5 rounded-2xl bg-card px-5 py-4 text-left text-sm hover:bg-accent focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
-                onClick={() => onSelect(item.requestId)}
-                type="button"
-              >
-                <span className="flex items-center justify-between gap-2">
-                  <span className="truncate font-medium">{item.requesterName}</span>
-                  {item.needsDecision ? (
-                    <span className="shrink-0 rounded-full border border-foreground px-2 py-0.5 text-xs">Needs your decision</span>
-                  ) : null}
-                </span>
-                {item.purpose ? <span className="truncate text-muted-foreground">{item.purpose}</span> : null}
-                <span className="text-muted-foreground">
-                  {STATE_LABELS[item.state]}
-                  {item.proposalStart ? ` · ${displayTime(new Date(item.proposalStart), Intl.DateTimeFormat().resolvedOptions().timeZone)}` : ""}
-                </span>
-              </button>
+              <RequestListCard item={item} onSelect={onSelect} />
             </li>
           ))}
         </ul>
       </div>
     </main>
   );
+}
+
+function RequestListCard({ item, onSelect }: { readonly item: WorkspaceRequestItem; readonly onSelect: (requestId: string) => void }) {
+  const received = item.direction === "received";
+  const status = item.needsDecision ? "Needs your decision" : !received && item.state === "awaiting_host_approval" ? "Awaiting approval" : STATE_LABELS[item.state];
+  const content = (
+    <>
+      <span className="mb-3 flex w-full flex-wrap items-center justify-between gap-x-3 gap-y-2">
+        <span className={`inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs font-semibold ${received ? "border-primary bg-primary text-primary-foreground" : "border-primary bg-card text-primary"}`}>
+          {received ? <ArrowLeftIcon aria-hidden className="size-3.5" /> : <ArrowRightIcon aria-hidden className="size-3.5" />}
+          {received ? "Received request" : "Sent request"}
+        </span>
+        <span className={`text-xs font-semibold ${item.needsDecision ? "text-[#c62828]" : item.state === "booked" ? "text-success" : "text-muted-foreground"}`}>{status}</span>
+      </span>
+      <span className="text-base font-semibold">{item.counterpartyName}</span>
+      {item.purpose ? <span className="truncate text-sm text-body">{item.purpose}</span> : null}
+      <span className="mt-4 flex w-full items-center justify-between gap-3 text-xs text-muted-foreground">
+        <span>{item.proposalStart ? displayTime(new Date(item.proposalStart), Intl.DateTimeFormat().resolvedOptions().timeZone) : "Time not set yet"}</span>
+        {received || item.bookingPath ? <ChevronRightIcon aria-hidden className="size-4 shrink-0" /> : null}
+      </span>
+      {!received && !item.bookingPath ? <span className="mt-1 text-xs text-muted-foreground">Private request link expired</span> : null}
+    </>
+  );
+  const className = "flex w-full min-w-0 flex-col rounded-2xl bg-card px-5 py-4 text-left hover:bg-accent focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring";
+  if (received) return <button className={className} onClick={() => onSelect(item.requestId)} type="button">{content}</button>;
+  if (item.bookingPath) return <a className={className} href={item.bookingPath}>{content}</a>;
+  return <div className="flex w-full min-w-0 flex-col rounded-2xl bg-card px-5 py-4 text-left">{content}</div>;
 }
 
 // ---------------------------------------------------------------------------
