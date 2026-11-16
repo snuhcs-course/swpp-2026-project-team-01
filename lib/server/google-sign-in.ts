@@ -1,3 +1,4 @@
+import { openConnectLink, readConnectAttempt } from "./connect-link";
 import { parseCookieHeader } from "@supabase/ssr";
 import type { User } from "@supabase/supabase-js";
 import { GOOGLE_CALENDAR_SCOPES } from "../contracts/google-scopes";
@@ -160,7 +161,9 @@ export function createGoogleSignInHandler(load: () => GoogleSignInDependencies =
       return auth.redirect(`${origin}/app?sign_in=failed`);
     }
 
-    const returnTo = consentReturn ?? (params.get("return") === RETURN_IMESSAGE ? RETURN_IMESSAGE : null);
+    const linkToken = params.get("return") === "link" ? params.get("token") : null;
+    const linkAttempt = linkToken ? await readConnectAttempt(deps.db, [deps.tokenKey], linkToken) : null;
+    const returnTo = linkAttempt?.role === "host" ? `link:${linkToken}` : consentReturn ?? (params.get("return") === RETURN_IMESSAGE ? RETURN_IMESSAGE : null);
     return auth.redirect(data.url, [returnCookie(returnTo ?? "", origin, returnTo ? RETURN_SECONDS : 0)]);
   };
 }
@@ -227,7 +230,12 @@ export function createGoogleCallbackHandler(load: () => GoogleSignInDependencies
       }
     }
 
-    const consent = recorded && recorded !== RETURN_IMESSAGE && (await isLiveHostTransaction(deps.db, recorded)) ? `${origin}/connect/consent?transaction=${recorded}` : null;
+    const linkToken = recorded?.startsWith("link:") ? recorded.slice(5) : null;
+    const linkReturn = linkToken ? openConnectLink([deps.tokenKey], linkToken) : null;
+    if (linkReturn?.role === "host") {
+      return auth.redirect(`${origin}/connect/link/${encodeURIComponent(linkToken!)}`, clear);
+    }
+    const consent = recorded && !linkToken && recorded !== RETURN_IMESSAGE && (await isLiveHostTransaction(deps.db, recorded)) ? `${origin}/connect/consent?transaction=${recorded}` : null;
     return auth.redirect(consent ?? `${origin}/app`, clear);
   };
 }

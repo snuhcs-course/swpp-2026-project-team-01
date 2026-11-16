@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import { Geist, Geist_Mono, Hahmlet, Instrument_Serif } from "next/font/google";
+import { Geist, Geist_Mono, Hahmlet, Instrument_Serif, Open_Sans } from "next/font/google";
 import type { ReactNode } from "react";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import "./globals.css";
@@ -44,6 +44,11 @@ const hahmlet = Hahmlet({
   variable: "--font-hahmlet",
 });
 
+const openSans = Open_Sans({
+  subsets: ["latin"],
+  variable: "--font-open-sans",
+});
+
 export const metadata: Metadata = {
   metadataBase: resolveMetadataBase(),
   title,
@@ -64,7 +69,7 @@ export const metadata: Metadata = {
 
 export default function RootLayout({ children }: { readonly children: ReactNode }) {
   return (
-    <html className={`${geistSans.variable} ${geistMono.variable} ${instrumentSerif.variable} ${hahmlet.variable}`} lang="en" suppressHydrationWarning>
+    <html className={`${geistSans.variable} ${geistMono.variable} ${instrumentSerif.variable} ${hahmlet.variable} ${openSans.variable}`} lang="en" suppressHydrationWarning>
       <body className="antialiased">
         <TooltipProvider>{children}</TooltipProvider>
       </body>

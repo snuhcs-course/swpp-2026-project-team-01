@@ -1,3 +1,6 @@
+import { setupNextStep } from "./setup-tools";
+import { chatStatus, linkOptions, startAgentLink } from "./connect-link";
+import { createImessageLinkCommand, readImessageStatus, linkChannels, NUMBER_INPUT } from "./imessage-links";
 import { z } from "zod";
 import type { HostRequestOperation } from "../contracts/host-request";
 import { approveCommand, declineCommand } from "./bookings";
@@ -25,6 +28,8 @@ import {
 // stay in the browser. approve_proposal and decline_request run the web
 // buttons' commands when the host has told the agent to in their own words
 // (agent-decisions-in-words D1 and D2, reversing agent-access D9).
+
+const hostWordsSchema = z.string().trim().min(1).max(500);
 
 const requestIdSchema = z.uuid().describe("The request ID from list_requests.");
 
@@ -113,6 +118,19 @@ function requestCommandTool(spec: {
 
 export const HOST_TOOLS: readonly AgentTool[] = [
   {
+    name: "start_chat_link",
+    title: "Start a chat link",
+    description: "Start an iMessage, WhatsApp or Telegram link. Give the person the returned browser link; only they can confirm it after sending the code from their own phone.",
+    role: "host",
+    scope: "host:write",
+    readOnly: false,
+    input: z.object({ channel: z.enum(["imessage", "whatsapp", "telegram"]), number: NUMBER_INPUT.optional(), retryKey: retryKeySchema }).strict().refine(args => args.channel === "telegram" ? args.number === undefined : Boolean(args.number), { message: "A number is required except for Telegram." }),
+    async run(context, raw) {
+      const args = raw as { channel: "imessage" | "whatsapp" | "telegram"; number?: string; retryKey: string };
+      return startAgentLink(context, createImessageLinkCommand(linkOptions(context.deps)), hostOf(context), args);
+    },
+  },
+  {
     description:
       "Whether this host can take meeting requests now, with the public booking link and instructions link once setup is complete, and what to do next.",
     input: z.object({}).strict(),
@@ -123,6 +141,7 @@ export const HOST_TOOLS: readonly AgentTool[] = [
       const readiness = await readReadiness(context.deps.db, hostOf(context));
       const links = readiness.ready && readiness.handle ? setupLinks(context.deps.origin, readiness.handle) : null;
       return ok({
+        chat: chatStatus(await readImessageStatus(context.deps.db, linkOptions(context.deps).tokenKeys, hostOf(context), linkChannels(linkOptions(context.deps)))),
         displayName: readiness.displayName,
         handle: readiness.handle,
         links,
@@ -145,19 +164,20 @@ export const HOST_TOOLS: readonly AgentTool[] = [
     role: "host",
     async run(context) {
       const state = await readSetupState(context.deps.setup, hostOf(context), { includeCalendars: false });
-      return state ? ok(state) : unavailable();
+      return state ? ok({ ...state, nextStep: setupNextStep(state.nextAction, context.deps.origin) }) : unavailable();
     },
     scope: "host:read",
     title: "Get setup",
   },
   {
     description:
-      "Set one setup field in the draft, as the host's Use this, Adjust or Choose my own: use_suggestion takes `shown` (the proposed value get_setup showed) and no value; adjust and choose_own take the host's `value`. Confirm the whole setup afterwards with confirm_setup.",
+      "Propose values from the suggestions or what you know about the host. Set a value only after the host agrees and pass their own words as hostWords. Ask for meeting mode, place and travel mode when you do not know them; never assume them. Set one setup field in the draft, as the host's Use this, Adjust or Choose my own: use_suggestion takes `shown` (the proposed value get_setup showed) and no value; adjust and choose_own take the host's `value`. Confirm the whole setup afterwards with confirm_setup.",
     input: z
       .object({
         expectedRevision: expectedRevisionSchema,
         retryKey: retryKeySchema,
         input: updateDraftCommand.input,
+        hostWords: hostWordsSchema.describe("The host's own words agreeing to this value."),
       })
       .strict(),
     name: "update_setup_field",
@@ -178,12 +198,13 @@ export const HOST_TOOLS: readonly AgentTool[] = [
   },
   {
     description:
-      "Confirm the host's setup exactly as get_setup last showed it (its revision and proposal hash). On success the booking link and instructions link are live. Only call this after the host has reviewed the values.",
+      "Confirm the host's setup exactly as get_setup last showed it (its revision and proposal hash). On success the booking link and instructions link are live. Propose values from suggestions or what you know about the host, and set them only after the host agrees. Ask for meeting mode, place and travel mode when unknown; never assume them. Only call this after the host agrees to the reviewed settings; pass their own words as hostWords.",
     input: z
       .object({
         expectedRevision: expectedRevisionSchema,
         proposalHash: z.string().regex(/^[0-9a-f]{64}$/).describe("The proposal hash from get_setup."),
         retryKey: retryKeySchema,
+        hostWords: hostWordsSchema.describe("The host's own words agreeing to these settings."),
       })
       .strict(),
     name: "confirm_setup",
@@ -212,7 +233,7 @@ export const HOST_TOOLS: readonly AgentTool[] = [
         retryKey: args.retryKey,
       });
       if (!outcome.ok && outcome.error.reason === "destination_not_writable") await recordDestinationAccess(context.deps.db, hostOf(context), live);
-      return outcome.ok ? ok(outcome.result) : commandError(outcome.error);
+      return outcome.ok ? ok({ ...outcome.result, next: "Setup is confirmed. Give the host the booking link to share. You are not notified of new requests: tell the host to ask you to check for requests, and use list_requests when they do." }) : commandError(outcome.error);
     },
     scope: "host:write",
     title: "Confirm setup",

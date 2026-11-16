@@ -36,22 +36,23 @@ const ANALYSIS_POLL_MS = 4000;
 // until the host links or chooses Maybe later, which this browser remembers; the
 // menu's iMessage item opens it at any step.
 
-export function HostWorkspace() {
+export function HostWorkspace({ dashboardAvailable = false }: { readonly dashboardAvailable?: boolean }) {
   const params = useSearchParams();
   const router = useRouter();
   const request = params.get("request");
   const inbox = params.get("view") === "requests" || request !== null;
   const openRequests = useCallback(() => router.push("/app?view=requests"), [router]);
-  const openSetup = useCallback(() => router.push("/app"), [router]);
+  const openSetup = useCallback(() => router.push(dashboardAvailable ? "/app?view=setup" : "/app"), [dashboardAvailable, router]);
+  const openDashboard = useCallback(() => router.push("/app"), [router]);
 
   if (inbox) {
-    return <HostRequests onOpenSetup={openSetup} request={request} />;
+    return <HostRequests onOpenDashboard={dashboardAvailable ? openDashboard : undefined} onOpenSetup={openSetup} request={request} />;
   }
 
-  return <SetupWorkspace onOpenRequests={openRequests} />;
+  return <SetupWorkspace initialImessageOpen={params.get("view") === "imessage"} onOpenDashboard={dashboardAvailable ? openDashboard : undefined} onOpenRequests={openRequests} />;
 }
 
-function SetupWorkspace({ onOpenRequests }: { readonly onOpenRequests: () => void }) {
+function SetupWorkspace({ initialImessageOpen, onOpenDashboard, onOpenRequests }: { readonly initialImessageOpen: boolean; readonly onOpenDashboard?: () => void; readonly onOpenRequests: () => void }) {
   const composerRef = useRef<HTMLDivElement>(null);
   const setup = useSetupController();
   const reloadSetup = setup.reload;
@@ -73,9 +74,9 @@ function SetupWorkspace({ onOpenRequests }: { readonly onOpenRequests: () => voi
   }, [analyzing, reloadSetup]);
 
   const [imessageLater, setImessageLater] = useState(false);
-  const [imessageOpened, setImessageOpened] = useState(false);
+  const [imessageOpened, setImessageOpened] = useState(initialImessageOpen);
   // Counts openings from the menu, so each one moves focus once the card is shown.
-  const [imessageFocus, setImessageFocus] = useState(0);
+  const [imessageFocus, setImessageFocus] = useState(initialImessageOpen ? 1 : 0);
   useEffect(() => setImessageLater(rememberedLater()), []);
   useEffect(() => {
     if (imessageFocus > 0) focusCard(IMESSAGE_CARD_ID);
@@ -125,7 +126,7 @@ function SetupWorkspace({ onOpenRequests }: { readonly onOpenRequests: () => voi
     <div className="flex h-dvh min-h-0 flex-col bg-background text-foreground">
       <header className="flex shrink-0 items-center justify-between gap-3 px-5 py-3 sm:px-8">
         <h1 className="wordmark-lockup min-w-0">Find Me a Time</h1>
-        <div className="flex items-center"><HostSettingsDialog /><WorkspaceMenu onSelectImessage={openImessage} onSelectRequests={onOpenRequests} onSelectSetup={focusSetup} /></div>
+        <div className="flex items-center"><HostSettingsDialog /><WorkspaceMenu onSelectDashboard={onOpenDashboard} onSelectImessage={openImessage} onSelectRequests={onOpenRequests} onSelectSetup={focusSetup} /></div>
       </header>
 
       <main aria-label="Setup conversation with Thyme" className="flex min-h-0 flex-1 flex-col">

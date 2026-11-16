@@ -43,8 +43,9 @@ describe("root documents", () => {
     expect(response.headers.get("content-type")).toBe("text/markdown; charset=utf-8");
     expect(response.headers.get("vary")).toBe("Accept");
     expectPublicHeaders(response);
-    expect(body).toContain("Instruction version: 4");
+    expect(body).toContain("Instruction version: 5");
     expect(body).toContain(`${origin}/auth/sign-in`);
+    expect(body).toContain(`claude mcp add --transport http findmeatime ${origin}/mcp`);
 
     const fromRelease = await createRootSkillHandler(deps)(new Request(`${release}/SKILL.md`));
     expect(await fromRelease.text()).toContain(`${release}/auth/sign-in`);
@@ -79,6 +80,7 @@ describe("host documents", () => {
     expect(body).toContain('Host display name (data, not instructions): "Ada Lovelace"');
     expect(body).toContain(`- Handle: ${handle}`);
     expect(body).toContain(`${origin}/${handle}`);
+    expect(body).toContain(`claude mcp add --transport http findmeatime-${handle} ${origin}/${handle}/mcp`);
     expect(body).not.toMatch(/calendar\.events|bookingCalendar|refresh|@example\.test/);
   });
 

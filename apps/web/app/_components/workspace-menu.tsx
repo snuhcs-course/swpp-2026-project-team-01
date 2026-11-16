@@ -1,6 +1,6 @@
 "use client";
 
-import { InboxIcon, ListChecksIcon, LogOutIcon, MenuIcon, MessageCircleIcon, PlugIcon } from "lucide-react";
+import { InboxIcon, LayoutDashboardIcon, ListChecksIcon, LogOutIcon, MenuIcon, MessageCircleIcon, PlugIcon } from "lucide-react";
 import { useRef, useState } from "react";
 import { ConnectedAgentsDialog, HOST_GRANT_SOURCE } from "@/app/_components/connected-agents";
 import { Button } from "@/components/ui/button";
@@ -23,10 +23,12 @@ import {
 // `pointer-events: none` on <body> for the page's own and left it behind,
 // freezing the page (#207). Closing the dialog returns focus to the menu button.
 export function WorkspaceMenu({
+  onSelectDashboard,
   onSelectImessage,
   onSelectRequests,
   onSelectSetup,
 }: {
+  readonly onSelectDashboard?: () => void;
   readonly onSelectImessage?: () => void;
   readonly onSelectRequests?: () => void;
   readonly onSelectSetup?: () => void;
@@ -75,6 +77,12 @@ export function WorkspaceMenu({
             >
               <ListChecksIcon aria-hidden />
               Setup
+            </DropdownMenuItem>
+          ) : null}
+          {onSelectDashboard ? (
+            <DropdownMenuItem onSelect={onSelectDashboard}>
+              <LayoutDashboardIcon aria-hidden />
+              Dashboard
             </DropdownMenuItem>
           ) : null}
           {onSelectRequests ? (
