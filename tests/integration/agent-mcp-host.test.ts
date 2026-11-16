@@ -109,6 +109,7 @@ describe("protocol eras", () => {
       token,
     });
     expect(init.body?.result).toMatchObject({ capabilities: { tools: {} }, protocolVersion: "2025-06-18", serverInfo: { name: "find-me-a-time" } });
+    expect(init.body?.result?.instructions).toContain("Start with get_host_status");
     expect(init.response.headers.get("mcp-session-id")).toBeNull();
 
     const unknown = await rpc(handler, { era: "2025-03-26", method: "initialize", params: { protocolVersion: "1999-01-01" }, token });
@@ -326,4 +327,44 @@ describe("host tools", () => {
     expect(status.structuredContent).toMatchObject({ workspace: `${ORIGIN}/app` });
     expect(typeof status.structuredContent.nextStep).toBe("string");
   });
+});
+
+it("sets meeting mode, place and travel mode only with hostWords, then confirms through MCP", async () => {
+  const { seedHost, setupDependencies, prepareReviewableHost, draftRevision } = await import("./support/setup-host");
+  const setupDeps = setupDependencies(db, google);
+  const host = await seedHost(db, setupDeps, google, { displayName: "U08 Host" });
+  await prepareReviewableHost(db, host);
+  const agent = agentDependencies(db);
+  const deps: McpDependencies = { appOrigin: ORIGIN, db, setup: setupDeps, signingKey: agent.signingKey, tokenKey: agent.tokenKey };
+  const handler = createMcpHandler("host", () => deps);
+  const tokens = await issueToken(agent, { hostAccountId: host.hostAccountId, resource: HOST_RESOURCE, role: "host", scopes: ["host:read", "host:write"] });
+  const call = (name: string, args = {}) => callTool(handler, "/mcp", tokens.access_token, name, args);
+  const initialRevision = await draftRevision(db, host.hostAccountId);
+  const input = { action: "choose_own", field: "meetingMode", value: "either" };
+  for (const hostWords of [undefined, "   ", "x".repeat(501)]) {
+    expect((await call("update_setup_field", { expectedRevision: initialRevision, retryKey: randomUUID(), input, hostWords })).structuredContent.error?.category).toBe("invalid_input");
+    expect((await call("confirm_setup", { expectedRevision: initialRevision, retryKey: randomUUID(), proposalHash: "a".repeat(64), hostWords })).structuredContent.error?.category).toBe("invalid_input");
+  }
+  expect(await draftRevision(db, host.hostAccountId)).toBe(initialRevision);
+  for (const [field, value, hostWords] of [
+    ["meetingMode", "either", "Online or in person near Yeoksam Station."],
+    ["location", { kind: "places", areas: ["Yeoksam Station"], venue: null }, "Near Yeoksam Station."],
+    ["travelMode", "transit", "I travel by subway."],
+    ["durationMinutes", 45, "Make meetings 45 minutes by default."],
+  ] as const) {
+    const before = await call("get_setup");
+    const draft = before.structuredContent.draft as { revision: number };
+    const saved = await call("update_setup_field", { expectedRevision: draft.revision, retryKey: randomUUID(), input: { action: "choose_own", field, value }, hostWords });
+    expect(saved.isError).toBe(false);
+  }
+  const review = await call("get_setup");
+  expect(review.structuredContent.nextStep).toBe("Read the settings back to the host. When they agree, call confirm_setup with their words.");
+  const confirmed = await call("confirm_setup", { expectedRevision: (review.structuredContent.draft as { revision: number }).revision, proposalHash: review.structuredContent.proposalHash, retryKey: randomUUID(), hostWords: "Looks good, confirm it." });
+  expect(confirmed.isError).toBe(false);
+  expect(confirmed.structuredContent).toMatchObject({ handle: host.local, next: "Setup is confirmed. Give the host the booking link to share. You are not notified of new requests: tell the host to ask you to check for requests, and use list_requests when they do." });
+  const [settings] = await db<{ settings: Record<string, unknown> }[]>`select settings from app.host_settings where host_account_id = ${host.hostAccountId}`;
+  expect(settings!.settings).toMatchObject({ meetingMode: "either", location: { areas: ["Yeoksam Station"] }, travelMode: "transit", durationMinutes: 45 });
+  const receipts = await db`select to_jsonb(o) as receipt from app.command_outcomes o where resource_id = ${host.hostAccountId}`;
+  expect(JSON.stringify(settings)).not.toContain("hostWords");
+  expect(JSON.stringify(receipts)).not.toContain("Looks good, confirm it.");
 });

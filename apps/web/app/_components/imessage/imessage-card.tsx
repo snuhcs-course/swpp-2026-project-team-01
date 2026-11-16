@@ -584,7 +584,7 @@ export function CopyButton({ text, label }: { readonly text: string; readonly la
   );
 }
 
-function PendingCode({
+export function PendingCode({
   busy,
   notice,
   onCancel,
