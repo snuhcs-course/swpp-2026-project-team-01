@@ -137,7 +137,10 @@ BEGIN
     WHERE h.handle = lower(target) AND h.released_at IS NULL;
   END IF;
 
-  SELECT a.status, a.deleted_at INTO old_status, was_deleted FROM app.host_accounts a WHERE a.id = account_id FOR UPDATE;
+  -- NO KEY UPDATE: the approval path inserts rows whose foreign keys take a key
+  -- share lock on the account after locking a request, which FOR UPDATE would
+  -- block in the opposite order (self-service-account-deletion D4).
+  SELECT a.status, a.deleted_at INTO old_status, was_deleted FROM app.host_accounts a WHERE a.id = account_id FOR NO KEY UPDATE;
 
   IF old_status IS NULL THEN
     RAISE EXCEPTION 'unknown host' USING ERRCODE = 'P0002';

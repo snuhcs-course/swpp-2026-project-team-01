@@ -87,6 +87,18 @@ export async function completeGoogleSignIn(
     const account = await ensureHostAccount(tx, identity, (lockedTx) => admitSignUp(lockedTx, source, deps.signUpLimits));
 
     if (account.status === "active") {
+      // A self-service deletion may have run since the account was read: lock
+      // the row, refuse a deleted account, and cancel a pending schedule before
+      // anything else is written (self-service-account-deletion D3).
+      const [current] = await tx<{ deleted_at: Date | null }[]>`
+        select deleted_at from app.host_accounts where id = ${account.id} for no key update
+      `;
+      if (!current || current.deleted_at) throw new Error("The host account was deleted during sign-in.");
+      await cancelScheduledDeletion(tx, account.id, {
+        origin: deps.appOrigin ?? (process.env.APP_ORIGIN?.trim() || "https://findmeatime.com"),
+        tokenKey: deps.tokenKey,
+      });
+
       if (displayName) {
         await tx`
           update app.host_accounts set display_name = ${displayName}, updated_at = now()
@@ -98,13 +110,6 @@ export async function completeGoogleSignIn(
         grantedScopes,
         hostAccountId: account.id,
         refreshToken: signIn.refreshToken,
-      });
-
-      // Signing in cancels a deletion the host scheduled from Settings
-      // (self-service-account-deletion D3).
-      await cancelScheduledDeletion(tx, account.id, {
-        origin: deps.appOrigin ?? (process.env.APP_ORIGIN?.trim() || "https://findmeatime.com"),
-        tokenKey: deps.tokenKey,
       });
     }
 

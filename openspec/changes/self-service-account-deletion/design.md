@@ -18,11 +18,11 @@ Rejected: a pg_cron sweep over due accounts | it adds a schedule and a publisher
 
 ### D3. Signing in cancels
 
-`completeGoogleSignIn` already runs one transaction per sign-in. For an active account it now clears `deletion_due_at` when set and queues the cancellation email in that transaction. The sign-in itself is unchanged. An agent token, an MCP client or a linked chat does not cancel: the proposal names signing in, and those are not sign-ins.
+`completeGoogleSignIn` already runs one transaction per sign-in. For an active account it now locks the account row, refuses the sign-in if the deletion ran meanwhile, and clears `deletion_due_at` when set and queues the cancellation email before writing the Calendar grant. The sign-in itself is unchanged. An agent token, an MCP client or a linked chat does not cancel: the proposal names signing in, and those are not sign-ins.
 
 ### D4. Running reuses the operator function
 
-The `host_deletion` handler runs in the job's transaction. It locks the account row, checks D1's condition, reads the host's Google address and display name and every open request (`gathering`, `negotiating`, `awaiting_host_approval`) with a contact address, then calls `app.operator_delete_host(id, 'self-service', 'requested by the host in Settings', environment)`. A `booking in flight` refusal is thrown as a retryable failure, so the job backs off and tries again; the account keeps its schedule meanwhile. After the call it queues the guest notices and the host's completion email. All of it commits together with the job's completion, so a failure deletes nothing and sends nothing.
+The `host_deletion` handler runs in the job's transaction. It locks the account row, checks D1's condition, reads the host's Google address and display name and every open request (`gathering`, `negotiating`, `awaiting_host_approval`, `booking`) with a contact address, then calls `app.operator_delete_host(id, 'self-service', 'requested by the host in Settings', environment)`. A `booking in flight` refusal is thrown as a retryable failure, so the job backs off and tries again, with up to 100 attempts (about four days at the hourly cap); the account keeps its schedule meanwhile, and scheduling again replaces a job that spent its attempts. The handler and `operator_delete_host` lock the account `FOR NO KEY UPDATE`, which the foreign-key checks of a concurrent approval do not wait on, so the two cannot deadlock. After the call it queues the guest notices and the host's completion email. All of it commits together with the job's completion, so a failure deletes nothing and sends nothing.
 
 ### D5. Account emails
 

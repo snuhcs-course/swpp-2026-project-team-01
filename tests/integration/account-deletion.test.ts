@@ -166,6 +166,15 @@ describe("scheduling from Settings", () => {
     const again = await scheduleAgain(host.hostAccountId, handle);
     expect(again).toMatchObject({ ok: true, result: { alreadyScheduled: true, dueAt: first.dueAt } });
     expect(await deletionJobsOf(host.hostAccountId)).toHaveLength(1);
+
+    // A job that spent its attempts is replaced when the host asks again.
+    const [job] = await deletionJobsOf(host.hostAccountId);
+    expect((await db<{ max_attempts: number }[]>`select max_attempts from app.jobs where id = ${job!.id}`)[0]!.max_attempts).toBe(100);
+    await db`update app.jobs set state = 'exhausted' where id = ${job!.id}`;
+    expect(await scheduleAgain(host.hostAccountId, handle)).toMatchObject({ ok: true, result: { dueAt: first.dueAt } });
+    const jobs = await deletionJobsOf(host.hostAccountId);
+    expect(jobs.map((row) => row.state)).toEqual(["exhausted", "pending"]);
+    expect(jobs[1]!.run_after.toISOString()).toBe(first.dueAt);
   });
 });
 

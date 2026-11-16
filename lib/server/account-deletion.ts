@@ -68,6 +68,20 @@ async function enqueueAccountEmail(
   await enqueueEmail(tx, { ...email, requestId: null, secrets: {}, tokenKey: deps.tokenKey });
 }
 
+// The retry key keeps a schedule made again within the same millisecond after
+// a cancellation from sharing the old job. A booking write can postpone the
+// deletion (D4), so the job keeps retrying, up to an hour apart, for days.
+async function publishDeletionJob(tx: Transaction, hostAccountId: string, due: Date, retryKey: string) {
+  const dueAt = due.toISOString();
+  await publishJob(tx, {
+    dedupeKey: `host:${hostAccountId}:${dueAt}:${retryKey}`,
+    kind: HOST_DELETION_JOB,
+    maxAttempts: 100,
+    payload: { dueAt, hostAccountId },
+    runAfter: due,
+  });
+}
+
 export type ScheduledDeletion = { readonly dueAt: string; readonly alreadyScheduled: boolean };
 
 // host.schedule_deletion: records the due time, publishes the delayed job and
@@ -83,7 +97,7 @@ export function scheduleHostDeletionCommand(
       if (context.actor.kind !== "host_account" || context.actor.id !== context.resourceId) throw new CommandError("forbidden");
       const id = context.resourceId;
       const [account] = await tx<{ status: string; deleted_at: Date | null; deletion_due_at: Date | null }[]>`
-        select status, deleted_at, deletion_due_at from app.host_accounts where id = ${id} for update
+        select status, deleted_at, deletion_due_at from app.host_accounts where id = ${id} for no key update
       `;
       if (account?.status !== "active" || account.deleted_at) throw new CommandError("forbidden");
 
@@ -95,7 +109,18 @@ export function scheduleHostDeletionCommand(
         throw new CommandError("invalid_input");
       }
 
-      if (account.deletion_due_at) return { alreadyScheduled: true, dueAt: account.deletion_due_at.toISOString() };
+      if (account.deletion_due_at) {
+        const dueAt = account.deletion_due_at.toISOString();
+        // A job that spent its attempts (a booking stuck in dispatching for
+        // days) is replaced, so asking again never leaves the schedule dead.
+        const [live] = await tx<{ id: string }[]>`
+          select id from app.jobs
+          where kind = ${HOST_DELETION_JOB} and state in ('pending', 'running')
+            and payload ->> 'hostAccountId' = ${id} and payload ->> 'dueAt' = ${dueAt}
+        `;
+        if (!live) await publishDeletionJob(tx, id, account.deletion_due_at, context.retryKey);
+        return { alreadyScheduled: true, dueAt };
+      }
 
       const [scheduled] = await tx<{ deletion_due_at: Date }[]>`
         update app.host_accounts
@@ -105,14 +130,7 @@ export function scheduleHostDeletionCommand(
       `;
       const dueAt = scheduled!.deletion_due_at.toISOString();
 
-      await publishJob(tx, {
-        // The retry key keeps a schedule made again within the same
-        // millisecond after a cancellation from sharing the old job.
-        dedupeKey: `host:${id}:${dueAt}:${context.retryKey}`,
-        kind: HOST_DELETION_JOB,
-        payload: { dueAt, hostAccountId: id },
-        runAfter: scheduled!.deletion_due_at,
-      });
+      await publishDeletionJob(tx, id, scheduled!.deletion_due_at, context.retryKey);
 
       if (email) {
         await enqueueAccountEmail(tx, deps, {
@@ -136,7 +154,7 @@ export async function cancelScheduledDeletion(tx: Transaction, hostAccountId: st
     with old as (
       select deletion_due_at as due from app.host_accounts
       where id = ${hostAccountId} and deletion_due_at is not null and deleted_at is null
-      for update
+      for no key update
     )
     update app.host_accounts a set deletion_due_at = null, updated_at = now()
     from old where a.id = ${hostAccountId}
@@ -178,7 +196,7 @@ export function createHostDeletionHandler(
 
     const [account] = await tx<{ deleted_at: Date | null; deletion_due_at: Date | null; due: boolean }[]>`
       select deleted_at, deletion_due_at, deletion_due_at <= now() as due
-      from app.host_accounts where id = ${hostAccountId} for update
+      from app.host_accounts where id = ${hostAccountId} for no key update
     `;
     if (!account) return { status: "missing" };
     if (account.deleted_at || !account.deletion_due_at || account.deletion_due_at.getTime() !== new Date(dueAt).getTime()) {
@@ -193,7 +211,8 @@ export function createHostDeletionHandler(
     const guests = await tx<{ id: string; contact_email: string; language: string | null; host_name: string | null }[]>`
       select r.id, r.contact_email, r.details ->> 'language' as language, s.settings ->> 'displayName' as host_name
       from app.requests r left join app.host_settings s on s.host_account_id = r.host_account_id
-      where r.host_account_id = ${hostAccountId} and r.closed_at is null and r.state <> 'draft'
+      where r.host_account_id = ${hostAccountId} and r.closed_at is null
+        and r.state in ('gathering', 'negotiating', 'awaiting_host_approval', 'booking')
         and r.contact_email is not null
       order by r.id
     `;
@@ -273,7 +292,10 @@ export function createAccountDeletionHandler(
     }
 
     const auth = createRequestAuthClient(request, deps.auth);
-    await auth.client.auth.signOut({ scope: "global" }).catch(() => undefined);
+    // signOut reports failure in its result. Without the global revocation, this
+    // browser's session is still cleared, so the host leaves either way.
+    const { error } = await auth.client.auth.signOut({ scope: "global" }).catch((caught: unknown) => ({ error: caught }));
+    if (error) await auth.client.auth.signOut({ scope: "local" }).catch(() => undefined);
     return auth.json({ dueAt: result.result.dueAt });
   };
 }
