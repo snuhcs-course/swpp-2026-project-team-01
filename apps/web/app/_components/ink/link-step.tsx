@@ -11,7 +11,7 @@ import {
 } from "@lib/contracts/messaging-channel";
 import { type ReactNode, useCallback, useEffect, useRef, useState } from "react";
 import { appLinkFor, readStatus, rememberedLater, sendCommand } from "@/app/_components/imessage/imessage-card";
-import { Brand, InkStage, LanguageSelect } from "./chrome";
+import { Brand, InkStage } from "./chrome";
 import { channelCopy, COPY, type Locale, replacesText } from "./copy";
 import { AppGlyph, ExternalIcon, StatusMark } from "./icons";
 import { NumberForm } from "./number-form";
@@ -257,7 +257,6 @@ export function LinkStep({ children, locale, ready }: { readonly children: React
           <div className="inner" data-screen="imessage-link">
             <header className="top">
               <Brand />
-              <LanguageSelect locale={locale} />
             </header>
             <main className="panel-page">
               <section aria-labelledby="connect-h" className="modal">
@@ -499,7 +498,6 @@ export function LinkStep({ children, locale, ready }: { readonly children: React
       <div className="inner" data-screen="imessage-link">
         <header className="top">
           <Brand />
-          <LanguageSelect locale={locale} />
         </header>
         {body}
       </div>
