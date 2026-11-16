@@ -46,8 +46,8 @@ export function Landing({ flow, locale }: { readonly flow: MessagingChannel | nu
           <p>{t.tagline}</p>
           <p>© 2026 Find Me a Time. {t.rights}</p>
           <nav aria-label={t.legal} className="ld-legal">
-            <a href={locale === "ko" ? "/privacy-policy?lang=ko" : "/privacy-policy"}>{t.privacy}</a>
-            <a href={locale === "ko" ? "/terms-of-service?lang=ko" : "/terms-of-service"}>{t.terms}</a>
+            <a href="/privacy-policy">{t.privacy}</a>
+            <a href="/terms-of-service">{t.terms}</a>
           </nav>
         </div>
       </footer>

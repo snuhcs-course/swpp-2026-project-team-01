@@ -1,7 +1,7 @@
 import type { RequestLanguage } from "../contracts/request";
 import { isValidTimeZone } from "../contracts/setup";
 import { agentMailConfigFromEnvironment } from "./agentmail";
-import { type BookingEmailParameters, calendarInvitation, type MeetingParameters } from "./booking-emails";
+import { type BookingEmailParameters, calendarInvitation, type MeetingParameters, type MeetingTerms } from "./booking-emails";
 import { bookingUrl } from "./booking-links";
 import { eventTitle } from "./calendar-events";
 import type { Transaction } from "./database";
@@ -199,8 +199,21 @@ export async function enqueueConfirmations(tx: Transaction, deps: NoticeDependen
   }
 }
 
+// A proposal row's changeable terms, read as
+// `start_at, end_at, details ->> 'mode' as mode, details ->> 'location' as location`.
+export type ProposalTermsRow = { start_at: Date; end_at: Date; mode: string | null; location: string | null };
+
+export function proposalTerms(row: ProposalTermsRow): MeetingTerms {
+  return {
+    end: row.end_at.toISOString(),
+    location: row.location,
+    mode: row.mode === "in_person" ? "in_person" : "online",
+    start: row.start_at.toISOString(),
+  };
+}
+
 export type StatusNotice =
-  | { readonly kind: "status_new_version"; readonly version: number; readonly meeting: Meeting }
+  | { readonly kind: "status_new_version"; readonly version: number; readonly meeting: Meeting; readonly previous?: MeetingTerms }
   | { readonly kind: "status_declined" }
   | { readonly kind: "status_expired" }
   | { readonly kind: "status_pending"; readonly bookingId: string; readonly meeting: Meeting };
@@ -240,7 +253,7 @@ export async function enqueueStatusNotice(tx: Transaction, deps: NoticeDependenc
   const parameters: BookingEmailParameters = {
     ...meeting,
     audience: "requester",
-    ...(notice.kind === "status_new_version" ? { version: notice.version } : {}),
+    ...(notice.kind === "status_new_version" ? { version: notice.version, ...(notice.previous ? { previous: notice.previous } : {}) } : {}),
     ...(notice.kind === "status_pending" ? { bookingId: notice.bookingId } : {}),
   };
 
