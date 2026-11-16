@@ -1,8 +1,10 @@
+import { channelReplies } from "./channel-texts";
 import { deploymentEnvironment } from "./deployment";
 import type { ParsedCommand } from "./imessage-commands";
 import { gateTransport, type MessagingTransport } from "./messaging";
 import type { PhotonSendRequest, PhotonSendResult, PhotonTransport, WhatsAppButtons } from "./photon";
 import type { InboundMessage } from "./photon-receiver";
+import { renderSlotPreviewPng } from "./slot-preview-image";
 
 // The Telegram Bot API, called directly (host-telegram-channel design 1 to 3,
 // D1 to D3). Photon's Telegram provider receives updates only over a persistent
@@ -254,8 +256,11 @@ export function telegramConfig(env: Environment = process.env): TelegramConfig {
   };
 }
 
-// One Bot API method call with its JSON parameters.
-export type TelegramCall = { readonly method: string; readonly params: Readonly<Record<string, unknown>> };
+// A file uploaded with a call, under the parameter that names it (sendPhoto's photo).
+export type TelegramFile = { readonly field: string; readonly data: Buffer; readonly name: string; readonly mimeType: string };
+
+// One Bot API method call with its parameters, and the file it uploads, if any.
+export type TelegramCall = { readonly method: string; readonly params: Readonly<Record<string, unknown>>; readonly file?: TelegramFile };
 
 export type TelegramRejection = "blocked" | "provider_rejected" | "provider_authentication";
 
@@ -301,8 +306,20 @@ export function telegramOutcome(status: number, body: unknown): TelegramResult {
   return { status: "uncertain" };
 }
 
-// The raw client, POST {endpoint}/bot{token}/{method} with a JSON body and a
-// ten-second timeout. The token is only ever part of the request URL.
+// A call with a file goes as multipart/form-data: each parameter a field, an
+// object (reply_markup) as its JSON, and the file under its own field.
+function formOf(call: TelegramCall & { file: TelegramFile }) {
+  const form = new FormData();
+  for (const [name, value] of Object.entries(call.params)) {
+    if (value !== undefined) form.set(name, typeof value === "object" ? JSON.stringify(value) : String(value));
+  }
+  form.set(call.file.field, new Blob([new Uint8Array(call.file.data)], { type: call.file.mimeType }), call.file.name);
+  return form;
+}
+
+// The raw client, POST {endpoint}/bot{token}/{method} with a JSON body (or a
+// multipart one when the call uploads a file) and a ten-second timeout. The
+// token is only ever part of the request URL.
 export function botApiClient(endpoint: string, token: string, fetcher: typeof fetch = fetch): TelegramClient {
   const base = endpoint.replace(/\/+$/, "");
 
@@ -313,9 +330,9 @@ export function botApiClient(endpoint: string, token: string, fetcher: typeof fe
       let response: Response;
 
       try {
+        const file = call.file;
         response = await fetcher(`${base}/bot${token}/${call.method}`, {
-          body: JSON.stringify(call.params),
-          headers: { "content-type": "application/json" },
+          ...(file ? { body: formOf({ ...call, file }) } : { body: JSON.stringify(call.params), headers: { "content-type": "application/json" } }),
           method: "POST",
           signal: AbortSignal.timeout(TELEGRAM_TIMEOUT_MS),
         });
@@ -413,13 +430,21 @@ export const THANKS_REACTION = "👍";
 // Telegram as a messaging transport for the outbox (design 9): text goes out
 // with sendMessage in plain text (no parse_mode, D10), split into ordered parts
 // one second apart; the last part carries the row's buttons, and a notice that
-// needs nothing is sent with disable_notification. A signal is setMessageReaction
+// needs nothing is sent with disable_notification. The slot preview goes out
+// with sendPhoto as the timetable PNG with its one-line caption, in plain text
+// too; when the image cannot be rendered the caption alone is sent and the send
+// is uncertain, as on iMessage and WhatsApp, since the host never saw the
+// timetable. A signal is setMessageReaction
 // on the host's message and sendChatAction typing. An edit removes a sent
 // message's buttons, and a callback answer stops a tapped button's spinner.
 // Anything else is not a Telegram message. The recipient address is the chat ID.
 // Once one part was accepted, a later failure is uncertain, since resending
 // would repeat parts.
-export function telegramTransport(client: TelegramClient, wait: (ms: number) => Promise<unknown> = sleep): PhotonTransport {
+export function telegramTransport(
+  client: TelegramClient,
+  wait: (ms: number) => Promise<unknown> = sleep,
+  render: typeof renderSlotPreviewPng = renderSlotPreviewPng,
+): PhotonTransport {
   return {
     endpoint: client.endpoint,
     async send(request: PhotonSendRequest): Promise<PhotonSendResult> {
@@ -445,6 +470,19 @@ export function telegramTransport(client: TelegramClient, wait: (ms: number) => 
       if (content.kind === "callback_answer") {
         const params = { callback_query_id: content.callbackId, ...(content.answer ? { text: content.answer } : {}) };
         return fromTelegram(await client.send({ method: "answerCallbackQuery", params }), chatId, null);
+      }
+      if (content.kind === "image") {
+        const caption = channelReplies(content.language).onboarding.slotCaption(content.preview);
+        let png: Buffer;
+        try {
+          png = await render(content.preview);
+        } catch {
+          const fallback = await client.send({ method: "sendMessage", params: { chat_id: chatId, text: caption } });
+          return fallback.status === "accepted" ? { status: "uncertain" } : fromTelegram(fallback, chatId, null);
+        }
+        const file = { data: png, field: "photo", mimeType: "image/png", name: `slots-${content.preview.weekStart}.png` };
+        const sent = await client.send({ file, method: "sendPhoto", params: { caption, chat_id: chatId } });
+        return fromTelegram(sent, chatId, sent.status === "accepted" ? messageIdOf(sent.result) : null);
       }
       if (content.kind !== "text") return { category: "provider_rejected", status: "rejected" };
 

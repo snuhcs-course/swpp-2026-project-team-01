@@ -1,0 +1,23 @@
+{
+  "branch": "fix/telegram-slot-image",
+  "user": "haisung.choi@gmail.com",
+  "sessions": {
+    "claude:c4af0f60-e9c2-4bbc-a2da-43e4536b0b2c": {
+      "agent": "claude-code",
+      "client": "claude-desktop",
+      "agent_ms": 0,
+      "models": {
+        "claude-opus-5-5": {
+          "input": 2,
+          "cache_read": 162132,
+          "cache_write_5m": 0,
+          "cache_write_1h": 1475,
+          "output": 586,
+          "reasoning": 0
+        }
+      },
+      "first": "2026-11-16T05:28:31.532Z",
+      "last": "2026-11-16T05:28:31.532Z"
+    }
+  }
+}

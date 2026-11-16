@@ -1,4 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
+import type { SlotPreview } from "../contracts/slot-preview";
+import { channelReplies } from "./channel-texts";
 import { channelHash } from "./photon-receiver";
 import {
   botApiClient,
@@ -187,6 +189,28 @@ describe("botApiClient", () => {
     expect(fetcher).toHaveBeenCalledWith("http://127.0.0.1:9/bot123456:test_token_value/sendMessage", expect.objectContaining({ body: '{"chat_id":"1","text":"hi"}', method: "POST" }));
   });
 
+  it("uploads a file as multipart/form-data with each parameter a field", async () => {
+    const fetcher = vi.fn(async (_url: string, _init: RequestInit) => Response.json({ ok: true, result: { message_id: 10 } }));
+    const png = Buffer.from([0x89, 0x50, 0x4e, 0x47]);
+    const result = await botApiClient("http://127.0.0.1:9", token, fetcher as unknown as typeof fetch).send({
+      file: { data: png, field: "photo", mimeType: "image/png", name: "slots.png" },
+      method: "sendPhoto",
+      params: { caption: "Open times", chat_id: "1", reply_markup: { inline_keyboard: [] } },
+    });
+
+    expect(result).toEqual({ result: { message_id: 10 }, status: "accepted" });
+    const [url, init] = fetcher.mock.calls[0]!;
+    expect(url).toBe("http://127.0.0.1:9/bot123456:test_token_value/sendPhoto");
+    expect(init.headers).toBeUndefined();
+    const form = init.body as FormData;
+    expect(form.get("chat_id")).toBe("1");
+    expect(form.get("caption")).toBe("Open times");
+    expect(form.get("reply_markup")).toBe('{"inline_keyboard":[]}');
+    const photo = form.get("photo") as File;
+    expect({ name: photo.name, type: photo.type }).toEqual({ name: "slots.png", type: "image/png" });
+    expect(Buffer.from(await photo.arrayBuffer())).toEqual(png);
+  });
+
   it("is unavailable without a token or when the connection is refused, and uncertain when the answer is lost", async () => {
     const never = vi.fn();
     expect(await botApiClient("http://127.0.0.1:9", "", never as unknown as typeof fetch).send({ method: "sendMessage", params: {} })).toEqual({
@@ -320,6 +344,58 @@ describe("telegramTransport", () => {
       { method: "setMessageReaction", params: { chat_id: "42", message_id: 9, reaction: [{ emoji: "👍", type: "emoji" }] } },
       { method: "sendChatAction", params: { action: "typing", chat_id: "42" } },
     ]);
+  });
+});
+
+describe("telegramTransport with the slot preview", () => {
+  const preview: SlotPreview = {
+    days: [{ date: "2026-11-16", open: [{ end: "12:00", start: "10:00" }], weekday: "monday" }],
+    durationMinutes: 30,
+    grid: { end: "22:00", start: "09:00" },
+    meetingMode: "online",
+    place: null,
+    reviewRef: "AB12CD",
+    timezone: "Asia/Seoul",
+    travelMode: null,
+    weekStart: "2026-11-16",
+  };
+  const request = { channel: "telegram" as const, content: { kind: "image" as const, language: "en" as const, preview }, idempotencyKey: "o1", recipient: { address: "42", spaceId: "42" } };
+  const caption = channelReplies("en").onboarding.slotCaption(preview);
+  const png = Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]);
+  const wait = async () => undefined;
+
+  it("sends the timetable PNG with sendPhoto, the caption in plain text, and keeps the message ID", async () => {
+    const sent: unknown[] = [];
+    const client = { endpoint: "x", send: async (call: unknown) => (sent.push(call), { result: { message_id: 31 }, status: "accepted" as const }) };
+    const render = vi.fn(async () => png);
+
+    expect(await telegramTransport(client, wait, render).send(request)).toEqual({ messageId: "31", spaceId: "42", status: "accepted" });
+    expect(render).toHaveBeenCalledWith(preview);
+    expect(sent).toEqual([
+      { file: { data: png, field: "photo", mimeType: "image/png", name: "slots-2026-11-16.png" }, method: "sendPhoto", params: { caption, chat_id: "42" } },
+    ]);
+  });
+
+  it("sends the caption alone and is uncertain when the image cannot be rendered", async () => {
+    const sent: unknown[] = [];
+    const client = { endpoint: "x", send: async (call: unknown) => (sent.push(call), { result: { message_id: 32 }, status: "accepted" as const }) };
+    const broken = async () => Promise.reject(new Error("no fonts"));
+
+    expect(await telegramTransport(client, wait, broken).send(request)).toEqual({ status: "uncertain" });
+    expect(sent).toEqual([{ method: "sendMessage", params: { chat_id: "42", text: caption } }]);
+
+    const refusing = { endpoint: "x", send: async () => ({ category: "blocked" as const, status: "rejected" as const }) };
+    expect(await telegramTransport(refusing, wait, broken).send(request)).toEqual({ category: "blocked", status: "rejected" });
+  });
+
+  it("passes on Telegram's refusals, rate limits and lost answers for the photo", async () => {
+    const render = async () => png;
+    const blocked = { endpoint: "x", send: async () => ({ category: "blocked" as const, status: "rejected" as const }) };
+    expect(await telegramTransport(blocked, wait, render).send(request)).toEqual({ category: "blocked", status: "rejected" });
+    const limited = { endpoint: "x", send: async () => ({ retryAfterSeconds: 4, status: "unavailable" as const }) };
+    expect(await telegramTransport(limited, wait, render).send(request)).toEqual({ retryAfterSeconds: 4, status: "unavailable" });
+    const lost = { endpoint: "x", send: async () => ({ status: "uncertain" as const }) };
+    expect(await telegramTransport(lost, wait, render).send(request)).toEqual({ status: "uncertain" });
   });
 });
 
