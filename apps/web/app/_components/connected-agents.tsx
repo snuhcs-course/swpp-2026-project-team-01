@@ -1,15 +1,20 @@
 "use client";
 
 import type { AgentGrantView } from "@lib/contracts/agent-access";
-import { useCallback, useEffect, useState } from "react";
+import type { ImessageStatus } from "@lib/contracts/imessage";
+import { MESSAGING_CHANNELS, channelName, type MessagingChannel } from "@lib/contracts/messaging-channel";
+import { type RefObject, useCallback, useEffect, useState } from "react";
+import { ImessageCard } from "@/app/_components/imessage/imessage-card";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 
 // Connected agents (agent-access design 10): the personal-agent connections
 // of the signed-in host, or of one request on its booking page, each with its
 // client, where it returns to, its permissions and last use, and Revoke behind
-// one inline confirmation. The source decides where the list comes from and how
-// revocation runs; the dialog is the same on both surfaces.
+// one inline confirmation. In host apps mode, the dialog also shows the single
+// linked messaging channel and reuses its existing connect and unlink flow. It
+// opens from a menu rather than a trigger of its own, so on close it returns
+// focus to returnFocus, the menu's button.
 
 export type GrantSource = {
   readonly load: () => Promise<readonly AgentGrantView[] | null>;
@@ -30,18 +35,25 @@ const PERMISSION_WORDS: Readonly<Record<string, string>> = {
 const when = (iso: string) => new Date(iso).toLocaleString(undefined, { dateStyle: "medium", timeStyle: "short" });
 
 export function ConnectedAgentsDialog({
+  appsMode = false,
   onOpenChange,
   open,
+  returnFocus,
   source,
 }: {
+  readonly appsMode?: boolean;
   readonly onOpenChange: (open: boolean) => void;
   readonly open: boolean;
+  readonly returnFocus: RefObject<HTMLElement | null>;
   readonly source: GrantSource;
 }) {
   const [grants, setGrants] = useState<readonly AgentGrantView[] | null>(null);
   const [failed, setFailed] = useState(false);
   const [confirming, setConfirming] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  const [messagingStatus, setMessagingStatus] = useState<ImessageStatus | null>(null);
+  const [messagingFailed, setMessagingFailed] = useState(false);
+  const [manageMessaging, setManageMessaging] = useState(false);
   const { load, revoke } = source;
 
   const reload = useCallback(async () => {
@@ -52,8 +64,31 @@ export function ConnectedAgentsDialog({
 
   useEffect(() => {
     if (open) void reload();
-    else setConfirming(null);
+    else {
+      setConfirming(null);
+      setManageMessaging(false);
+      setMessagingStatus(null);
+      setMessagingFailed(false);
+    }
   }, [open, reload]);
+
+  useEffect(() => {
+    if (!open || !appsMode) return;
+    let active = true;
+    const readMessagingStatus = async () => {
+      const response = await fetch("/api/host/imessage", { cache: "no-store" }).catch(() => null);
+      const status = response?.ok ? ((await response.json()) as ImessageStatus) : null;
+      if (!active) return;
+      setMessagingFailed(status === null);
+      if (status) setMessagingStatus(status);
+    };
+    void readMessagingStatus();
+    const timer = window.setInterval(() => void readMessagingStatus(), 3000);
+    return () => {
+      active = false;
+      window.clearInterval(timer);
+    };
+  }, [appsMode, open]);
 
   async function confirmRevoke(grantId: string) {
     setBusy(true);
@@ -66,11 +101,52 @@ export function ConnectedAgentsDialog({
 
   return (
     <Dialog onOpenChange={onOpenChange} open={open}>
-      <DialogContent>
+      <DialogContent
+        className={appsMode ? "max-h-[85dvh] overflow-y-auto sm:max-w-2xl" : undefined}
+        onCloseAutoFocus={(event) => {
+          event.preventDefault();
+          returnFocus.current?.focus();
+        }}
+      >
         <DialogHeader>
-          <DialogTitle>Connected agents</DialogTitle>
-          <DialogDescription>Agents you allowed to work with Find Me a Time. Revoking one stops it at its next request.</DialogDescription>
+          <DialogTitle>{appsMode ? "Connected apps" : "Connected agents"}</DialogTitle>
+          <DialogDescription>
+            {appsMode
+              ? "Review your connected agents and messaging app."
+              : "Agents you allowed to work with Find Me a Time. Revoking one stops it at its next request."}
+          </DialogDescription>
         </DialogHeader>
+        {appsMode ? (
+          <section aria-labelledby="messaging-apps-heading" className="space-y-3">
+            <div>
+              <h3 className="text-sm font-semibold" id="messaging-apps-heading">Messaging app</h3>
+            </div>
+            {messagingFailed ? <p className="text-destructive text-sm" role="alert">Messaging status could not be loaded.</p> : null}
+            <ul aria-label="Messaging app connections" className="grid gap-2 sm:grid-cols-3">
+              {MESSAGING_CHANNELS.map((channel) => {
+                const result = messagingChannelState(messagingStatus, channel);
+                return (
+                  <li className="min-w-0 rounded-xl border p-3" key={channel}>
+                    <p className="font-medium">{channelName(channel)}</p>
+                    <p className={result.connected ? "mt-1 truncate text-sm text-emerald-700" : "text-muted-foreground mt-1 text-sm"}>
+                      {result.label}
+                    </p>
+                  </li>
+                );
+              })}
+            </ul>
+            <Button className="min-h-11" onClick={() => setManageMessaging((value) => !value)} type="button" variant="outline">
+              {manageMessaging ? "Hide messaging options" : messagingStatus?.state === "linked" ? "Manage messaging app" : "Connect a messaging app"}
+            </Button>
+            {manageMessaging ? <ImessageCard expandedInitially /> : null}
+          </section>
+        ) : null}
+        {appsMode ? <div className="h-px bg-border" /> : null}
+        <section aria-labelledby="connected-agents-heading" className="space-y-3">
+          <div>
+            <h3 className="text-sm font-semibold" id="connected-agents-heading">Connected agents</h3>
+            <p className="text-muted-foreground mt-1 text-sm">Agents you allowed to work with Find Me a Time. Revoking one stops it at its next request.</p>
+          </div>
         {failed ? (
           <p className="text-destructive text-sm" role="alert">
             The list could not be loaded or changed. Try again.
@@ -113,6 +189,7 @@ export function ConnectedAgentsDialog({
             ))}
           </ul>
         ) : null}
+        </section>
       </DialogContent>
     </Dialog>
   );
@@ -133,6 +210,21 @@ export const HOST_GRANT_SOURCE: GrantSource = {
     return response.ok;
   },
 };
+
+function messagingChannelState(status: ImessageStatus | null, channel: MessagingChannel) {
+  if (!status) return { connected: false, label: "Loading status…" };
+  if (status.state === "unavailable") return { connected: false, label: "Unavailable" };
+  if (status.state === "linked" && status.channel === channel) {
+    return { connected: true, label: `Connected · ${status.sender}` };
+  }
+  if ((status.state === "pending" || status.state === "received" || status.state === "fallback") && status.channel === channel) {
+    return { connected: false, label: "Connection in progress" };
+  }
+  return {
+    connected: false,
+    label: status.channels[channel] ? (status.state === "linked" ? "Available to switch" : "Available") : "Not configured",
+  };
+}
 
 export function requestGrantSource(bookingId: string): GrantSource {
   return {

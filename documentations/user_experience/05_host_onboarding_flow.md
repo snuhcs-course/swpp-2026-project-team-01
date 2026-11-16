@@ -65,6 +65,16 @@ In `/app`, the upper-right gear opens settings above the current conversation. W
 | H11 Required WhatsApp link | The same `/app` choice | Enters the WhatsApp number, sends the prefilled proof through `wa.me` and confirms the observed sender | Photon registration and sender verification follow the existing WhatsApp channel contract | Thyme starts setup in WhatsApp | Provider failure offers retry; no web setup bypass |
 | H11 Required Telegram link | The same `/app` choice | Opens `t.me/findmeatime_bot?start=<code>`, taps **Start**, and confirms the observed Telegram account in the browser | The Bot API proof and authenticated confirmation create the binding | Thyme starts setup in Telegram | Bot failure offers retry; no web setup bypass |
 
+### Why each ask
+
+Every time the product asks the host for access or data, it says in one line why and how far it reaches ([issue #203](https://github.com/snuhcs-course/swpp-2026-project-team-01/issues/203)). The lines live in one module, [`lib/contracts/permission-reasons.ts`](../../lib/contracts/permission-reasons.ts), so the web and the linked chats cannot drift: the web shows the English line, and a chat sends it in the conversation's language on the message that makes the ask.
+
+| Ask | Where it appears | Line (English) |
+|---|---|---|
+| Google sign-in and Calendar consent (H1, H4 grant) | Under **Continue with Google** on the landing and the messaging start, on the **Connect Google Calendar** card, and in every chat message that sends the Google link (the sign-in link after a messaging-first proof, the Calendar link in the welcome, the setup next step and Thyme's own replies) | "Why Google: Thyme reads your calendars to find when you're busy and suggest your hours, and adds only the meetings you approve. Guests never see your events." |
+| Calendar roles (H4) | On the **Choose your calendars** card, and under the chat message that saves the primary calendar or asks which calendars to use | "Why: Thyme reads only the calendars you choose, to find your busy times, and adds bookings only to the one you pick." |
+| Note review | On the note review page under its title, and under the chat message that sends the review link | "Why: notes like birthdays or deadlines would block your open times. Only the entries you check are marked free in Google Calendar; nothing is deleted." |
+
 For new incomplete hosts, H4 to H10 run in the linked conversation as described below. The earlier web cards remain in the codebase for existing workspaces but are not the onboarding entry. Google sign-in, channel verification and any required Google Calendar consent remain browser actions.
 
 ## What is recorded
@@ -120,7 +130,7 @@ The diagram shows authority, not transport details. Browser steps (sign-in, clie
 
 ## Setup over iMessage
 
-A new host finishes setup in the linked iMessage, WhatsApp or Telegram conversation (H11): the web only links the phone, after browser Google sign-in, or from Thyme's sign-in link for a messaging-first entry ([`host-onboarding-in-chat`](../../openspec/changes/host-onboarding-in-chat/proposal.md#decisions) D1). The channel maps the verified sender to the host principal and to the same setup session that `/app` uses, so progress, the draft and the next action are shared: a question answered in the chat is not asked again on web, and the reverse. In the chat Thyme asks the minimum and lets the host answer in their own words (D2): two questions, hours and place, each with a suggestion drawn from the host's calendar. Every other setting keeps its inferred value or starter default without a question. Replies follow the host's language, English or Korean ([`channel-actions-in-words`](../../openspec/changes/channel-actions-in-words/proposal.md#decisions)). A linked Telegram chat runs the same flow, with the slot preview sent as text.
+A new host finishes setup in the linked iMessage, WhatsApp or Telegram conversation (H11): the web only links the phone, after browser Google sign-in, or from Thyme's sign-in link for a messaging-first entry ([`host-onboarding-in-chat`](../../openspec/changes/host-onboarding-in-chat/proposal.md#decisions) D1). The channel maps the verified sender to the host principal and to the same setup session that `/app` uses, so progress, the draft and the next action are shared: a question answered in the chat is not asked again on web, and the reverse. In the chat Thyme asks the minimum and lets the host answer in their own words (D2): two questions, hours and place, each with a suggestion drawn from the host's calendar. Every other setting keeps its inferred value or starter default without a question. Replies use English ([`channel-actions-in-words`](../../openspec/changes/channel-actions-in-words/proposal.md#decisions)). A linked Telegram chat runs the same flow, with the slot preview sent as text.
 
 | Step | In the chat | Why |
 |---|---|---|

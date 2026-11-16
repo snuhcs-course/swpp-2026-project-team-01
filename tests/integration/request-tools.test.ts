@@ -1,6 +1,6 @@
 import { randomUUID } from "node:crypto";
 import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
-import { NO_MATCH_MESSAGE } from "../../lib/contracts/feasibility";
+import { NO_MATCH_MESSAGE, noMatchMessage } from "../../lib/contracts/feasibility";
 import { EVALUATION_JOB } from "../../lib/server/evaluation";
 import { closeRequest } from "../../lib/server/request-lifecycle";
 import { applyReviewCommand } from "../../lib/server/request-reviews";
@@ -361,5 +361,44 @@ describe("draft_request_review with only the guest's days (U21)", () => {
     const unsure = await requester({ details: { mode: null } });
     await draftRequestReviewForTool(db, unsure.call(), { details: { windows: [{ date: date(3), end: "12:00", start: "10:00" }] }, intent: "availability" }, { waitMs: 50 });
     expect(await states(unsure.requestId)).toEqual(["pending"]);
+  });
+});
+
+describe("time and place pairs", () => {
+  // guest-time-place-pairs: with listed host places the place is not missing,
+  // times come paired with them, and another area that fits nowhere gets the
+  // place's no-match message with no reason.
+  const places = { location: { areas: ["Seolleung Station"], kind: "places" as const, venue: "AA Cafe" } };
+  const inPerson = { location: null, mode: "in_person", travelMode: "transit" };
+
+  it("does not ask for a place when the host lists places, and pairs the times with them", async () => {
+    const r = await requester({ details: inPerson, settings: places });
+
+    expect((await readRequestForTool(db, r.call())).missing).toEqual([]);
+
+    const call = r.call();
+    const waiting = evaluateCandidatesForTool(db, call, { waitMs: 10_000 });
+    await runEvaluation(db, evaluationDeps(db, google), await evaluationJobFor(r.requestId, call.callId));
+    const result = (await waiting) as { candidates: { location: string }[]; laterCandidates: { location: string }[] };
+
+    expect(result.candidates.map((candidate) => candidate.location)).toEqual(["AA Cafe", "AA Cafe", "AA Cafe"]);
+    expect(result.laterCandidates.map((candidate) => candidate.location)).toEqual(["Seolleung Station", "Seolleung Station", "Seolleung Station"]);
+  });
+
+  it("still asks for a place when the host decides it per meeting", async () => {
+    const r = await requester({ details: inPerson });
+    expect((await readRequestForTool(db, r.call())).missing).toEqual(["location"]);
+  });
+
+  it("names the other area when no time works there, with no reason", async () => {
+    const r = await requester({ details: { ...inPerson, location: "Hongdae" }, events: [busy("09:00", "12:00")], settings: places });
+    const call = r.call();
+    const waiting = evaluateCandidatesForTool(db, call, { waitMs: 10_000 });
+    await runEvaluation(db, evaluationDeps(db, google), await evaluationJobFor(r.requestId, call.callId));
+
+    const result = await waiting;
+
+    expect(result).toMatchObject({ candidates: [], message: noMatchMessage("en", "Hongdae"), state: "completed" });
+    expect(JSON.stringify(result)).not.toMatch(/busy|rule|buffer|travel|AA Cafe/i);
   });
 });

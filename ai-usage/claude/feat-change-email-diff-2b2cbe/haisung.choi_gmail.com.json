@@ -1,0 +1,23 @@
+{
+  "branch": "claude/feat-change-email-diff-2b2cbe",
+  "user": "haisung.choi@gmail.com",
+  "sessions": {
+    "claude:b4f14f3e-76ab-4dde-93ff-818d94374e40": {
+      "agent": "claude-code",
+      "client": "claude-desktop",
+      "agent_ms": 0,
+      "models": {
+        "claude-opus-5-5": {
+          "input": 4,
+          "cache_read": 336062,
+          "cache_write_5m": 0,
+          "cache_write_1h": 744,
+          "output": 402,
+          "reasoning": 0
+        }
+      },
+      "first": "2026-11-16T05:30:57.455Z",
+      "last": "2026-11-16T05:31:41.192Z"
+    }
+  }
+}

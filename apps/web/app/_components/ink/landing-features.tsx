@@ -10,7 +10,7 @@ const THURSDAY_3PM_SEOUL = Date.UTC(2026, 10, 5, 6);
 const MONDAY = Date.UTC(2026, 10, 2);
 
 function formats(locale: Locale) {
-  const tag = locale === "ko" ? "ko-KR" : "en-US";
+  const tag = "en-US";
   const day = new Intl.DateTimeFormat(tag, { timeZone: "UTC", weekday: "short" });
   const time = new Intl.DateTimeFormat(tag, { hour: "numeric", minute: "2-digit", timeZone: "UTC" });
   const at = (weekday: number, hour: number, minute = 0) => {
