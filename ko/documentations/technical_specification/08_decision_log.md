@@ -803,3 +803,16 @@ Dohyeon Park이 2026-11-16에 결정했으며, 2026-11-14 UAT 회의가 [이슈 
 | D4 | 취소하지 않은 쪽만 우리의 알림을 받습니다. 게스트는 `status_cancelled` 이메일과 채팅 메시지, 호스트는 `booking_cancelled` 이메일과 채팅 메시지를 받으며, Google의 취소 알림은 어느 쪽이든 게스트에게 닿습니다. 게스트가 이메일이나 iMessage로 다시 쓰면 취소된 요청은 새 요청으로 이어집니다 | 양쪽 모두에게 알림 | 설계 4; `email-delivery` 델타 | `lib/server/booking-notices.ts`, `booking-emails.ts`, `imessage-notice-job.ts`; `revised-requests.ts`의 `isRevisable` |
 | D5 | 예약 후 변경은 예약된 미팅이 유지된 채로 제안 흐름을 다시 열고, 승인되면 같은 이벤트를 패치합니다 | 취소 후 다시 예약; 별도의 일정 변경 흐름 | 설계 5; `meeting-requests` 델타 "Changing a booked meeting" | `lib/server/booking-cancellation.ts`의 `changeBookingCommand`; `lib/server/bookings.ts`의 `patchChange`와 `confirm` |
 | D6 | 변경은 요청을 `negotiating`으로 다시 열며(기한: 7일 또는 미팅 시작 중 먼저 오는 쪽), 남아 있는 확정 예약으로 식별합니다. `replaces_booking_id`를 가진 두 번째 예약 행이 이벤트 ID를 공유하고, 미팅 자신의 이벤트는 바쁜 시간으로 치지 않으며, 철회, 거절, 만료 시에는 미팅이 유지됩니다 | `rebooking` 요청 상태; 확정된 예약 행 수정 | 설계 5 | `lib/server/request-lifecycle.ts`의 `standingBookingOf`와 `dropChange`; `lib/server/evaluation.ts`의 `notOwnEvent`; `bookings.sql` |
+
+## `self-service-account-deletion`
+
+[설계](../../openspec/changes/self-service-account-deletion/design.md)는 이슈 #228에 대한 다음 선택을 기록합니다. 그 이슈의 제안 코멘트를 바탕으로, 이를 구현한 세션에서 2026-11-16에 정했습니다. 유예 기간과 예약된 미팅의 처리는 거기서 열린 질문이었으며, 이슈 담당자의 동의를 기다리고 있습니다.
+
+| # | 선택 | 대안 | 기록 위치 | 바꾸려면 |
+|---|---|---|---|---|
+| D1 | 호스트는 설정에서 핸들(핸들이 없으면 Google 주소)을 입력해 삭제를 예약하며, 7일 뒤에 실행됩니다. 그 사이 Google로 로그인하면 취소됩니다 | 즉시 삭제; 채팅에서 삭제; 다른 유예 기간 | 제안; 설계 1–3; `host-account-deletion` 델타 | `lib/server/account-deletion.ts`의 `DELETION_GRACE_DAYS` |
+| D2 | 예약은 `host_accounts.deletion_due_at`과 지연 실행되는 `host_deletion` 작업 하나이며, 작업은 예정 시각이 여전히 계정의 것일 때만 실행됩니다 | pg_cron 스윕; 모든 자격 확인이 읽어야 하는 `pending_deletion` 상태 | 설계 1 | 해당 컬럼, `createHostDeletionHandler`, 새 마이그레이션 |
+| D3 | 작업은 `self-service`로 감사되는 `app.operator_delete_host`를 실행하며, 이 함수가 이제 예약을 지웁니다 | 두 번째 삭제 함수 | 설계 4 | `supabase/schemas/app/functions/data_deletion.sql` |
+| D4 | 예약된 미팅은 취소하지 않습니다. 열린 요청은 닫히고 게스트는 이메일을 받으며, 호스트는 예약, 취소, 실행 때 이메일을 받습니다. 계정 이메일에는 요청이 없으므로 끝난 지 30일 뒤에 삭제합니다 | 호스트 대신 캘린더 이벤트 취소; 채팅으로 게스트에게 알리기 | 제안; 설계 5 | `lib/server/account-emails.ts`, `accountEmailCurrent`, `account_emails` 보존 규칙 |
+| D5 | 예약하면 Supabase의 전역 범위로 모든 세션에서 로그아웃합니다 | 세션을 유지하고 취소 버튼 제공 | 설계 2 | `createAccountDeletionHandler` |
+| D6 | 채팅과 MCP 서버는 삭제하지 않고 `/app?settings=account`를 안내합니다 | 확인 절차를 거치는 삭제 도구 | 설계 6 | `agent/instructions/base.md`, `host-imessage.ts`, `lib/server/agent-mcp.ts` |

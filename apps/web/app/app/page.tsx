@@ -12,7 +12,7 @@ import { SignInCard, WorkspaceLoading } from "@/app/_components/sign-in-card";
 // account sees why it cannot continue; an active host gets the conversation,
 // whose empty setup session this visit opens on the server, after the iMessage
 // link step when it applies.
-type SearchParams = Promise<{ sign_in?: string; view?: string; request?: string }>;
+type SearchParams = Promise<{ sign_in?: string; deletion?: string; view?: string; request?: string }>;
 
 // Authentication must run before any reusable page shell can be served.
 export const instant = false;
@@ -37,8 +37,9 @@ async function Workspace({ searchParams }: { readonly searchParams: SearchParams
   const standing = await openHostWorkspace(cookie);
 
   if (!standing || standing.nextAction === "sign_in") {
-    const { sign_in: signIn } = await searchParams;
-    return <SignInCard notice={signIn === "failed" || signIn === "limited" ? signIn : null} />;
+    const { sign_in: signIn, deletion } = await searchParams;
+    const notice = signIn === "failed" || signIn === "limited" ? signIn : deletion === "scheduled" ? "deletion_scheduled" : null;
+    return <SignInCard notice={notice} />;
   }
 
   if (!standing.eligible) {

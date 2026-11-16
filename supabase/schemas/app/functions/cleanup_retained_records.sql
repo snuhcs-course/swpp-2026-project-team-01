@@ -5,7 +5,8 @@
 -- each cascades to many rows): closed requests with everything under them 90 days after
 -- closure; completed jobs, command outcomes, link-resend records, admission
 -- windows and agent protocol attempts after 30 days; exhausted jobs and model
--- reservations after 90 days; operator audit rows after a year. Returns the
+-- reservations after 90 days; operator audit rows after a year; account emails
+-- 30 days after they reached a final state. Returns the
 -- number of rows deleted per rule.
 CREATE FUNCTION "app"."cleanup_retained_records"("row_limit" integer)
 RETURNS TABLE ("rule" text, "deleted" integer)
@@ -90,5 +91,17 @@ BEGIN
   );
   GET DIAGNOSTICS removed = ROW_COUNT;
   rule := 'operator_operations'; deleted := removed; RETURN NEXT;
+
+  -- Account emails have no request to cascade from (self-service-account-
+  -- deletion D5).
+  DELETE FROM app.email_deliveries WHERE id IN (
+    SELECT e.id FROM app.email_deliveries e
+    WHERE e.request_id IS NULL
+      AND e.kind IN ('account_deletion_scheduled', 'account_deletion_cancelled', 'account_deletion_completed', 'host_account_closed')
+      AND e.completed_at < now() - interval '30 days'
+    LIMIT row_limit
+  );
+  GET DIAGNOSTICS removed = ROW_COUNT;
+  rule := 'account_emails'; deleted := removed; RETURN NEXT;
 END;
 $$;

@@ -8,14 +8,17 @@
 -- (kind, dedupe_key) makes a concurrent or retried publication one delivery.
 -- reply_to is the frozen Reply-To (the other party on a booking confirmation),
 -- and attachments the frozen non-secret attachments (the calendar part), each
--- {filename, type, content} with base64 content.
+-- {filename, type, content} with base64 content. Account emails (the account_*
+-- and host_account_closed kinds, self-service-account-deletion D5) have no
+-- request, so deleting the host's requests leaves them to be sent.
 CREATE TABLE "app"."email_deliveries" (
   "id" uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   "kind" text NOT NULL CHECK (
     "kind" IN (
       'request_creation', 'link_resend', 'booking_confirmation', 'status_new_version', 'status_declined',
       'status_expired', 'status_pending', 'status_cancelled', 'booking_cancelled',
-      'status_change_dropped'
+      'status_change_dropped', 'account_deletion_scheduled', 'account_deletion_cancelled',
+      'account_deletion_completed', 'host_account_closed'
     )
   ),
   "request_id" uuid REFERENCES "app"."requests" ("id") ON DELETE CASCADE,

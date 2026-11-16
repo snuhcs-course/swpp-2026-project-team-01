@@ -7,7 +7,8 @@ import { type LegalDocument, LegalPage, type LegalSearchParams } from "../_compo
 // limits of what the team promises, in English and in Korean (?lang=ko). Like
 // the data notice it states only what the code does: approval-only booking, no
 // rescheduling after booking, booking links as credentials, the sign-up, handle
-// and assistant limits, and the operator's suspend and delete commands. Fees,
+// and assistant limits, the operator's suspend and delete commands, and a host's
+// own deletion from Settings (self-service-account-deletion D7). Fees,
 // governing law and a minimum age are the team's decisions and are not stated.
 export const metadata: Metadata = {
   description: "The terms for using Find Me a Time as a host, as someone who books with a host, or through an AI agent.",
@@ -37,7 +38,7 @@ const EN: LegalDocument = {
         "Choose a handle that does not impersonate another person or organization. Some names are reserved, a handle can be changed only a limited number of times, and we may suspend a host whose handle misleads people.",
         "Check each proposal's time, length, place and the person you will meet before you approve it.",
         "Keep the settings you confirm accurate: Thyme offers times based on them and on your calendar.",
-        "You can disconnect Google, unlink iMessage or revoke an agent at any time, and ask us to delete your account as the privacy notice describes.",
+        "You can disconnect Google, unlink iMessage or revoke an agent at any time, and delete your account from Settings as the privacy notice describes.",
       ],
       paragraphs: [
         "You become a host by signing in with Google. You are responsible for what happens under your account, including through the iMessage address and the personal agents you connect.",
@@ -85,7 +86,7 @@ const EN: LegalDocument = {
     {
       id: "ending",
       paragraphs: [
-        `We may limit, suspend or end access for anyone who breaks these terms or puts other people or the service at risk, including by suspending a host account or deleting a request. You may stop using the service at any time; to have your data deleted, write to ${SUPPORT_ADDRESS}.`,
+        `We may limit, suspend or end access for anyone who breaks these terms or puts other people or the service at risk, including by suspending a host account or deleting a request. You may stop using the service at any time. A host deletes their account under Settings > Delete account; it is deleted 7 days later unless they sign in again before then. Anyone who cannot sign in, and anyone who wants a request deleted, writes to ${SUPPORT_ADDRESS}.`,
       ],
       title: "Suspension and ending",
     },
@@ -110,7 +111,7 @@ const EN: LegalDocument = {
     },
   ],
   title: "Terms of service",
-  updated: "Last updated 2026-11-02",
+  updated: "Last updated 2026-11-16",
 };
 
 const KO: LegalDocument = {
@@ -134,7 +135,7 @@ const KO: LegalDocument = {
         "다른 사람이나 단체를 사칭하지 않는 핸들을 고르세요. 일부 이름은 예약되어 있고, 핸들은 정해진 횟수만 바꿀 수 있으며, 사람들을 오도하는 핸들을 쓰는 호스트는 이용을 정지할 수 있습니다.",
         "승인하기 전에 각 제안의 시간, 길이, 장소, 만날 사람을 확인하세요.",
         "확인한 설정을 정확하게 유지하세요. Thyme은 그 설정과 캘린더를 바탕으로 시간을 제안합니다.",
-        "Google 연결 해제, iMessage 연결 해제, 에이전트 권한 철회는 언제든 할 수 있고, 계정 삭제는 개인정보 안내에 적힌 대로 요청할 수 있습니다.",
+        "Google 연결 해제, iMessage 연결 해제, 에이전트 권한 철회는 언제든 할 수 있고, 계정은 개인정보 안내에 적힌 대로 설정에서 삭제할 수 있습니다.",
       ],
       paragraphs: ["Google로 로그인하면 호스트가 됩니다. 연결한 iMessage 주소와 개인 에이전트를 통한 일을 포함해, 계정에서 일어나는 일은 호스트가 책임집니다."],
       title: "호스트",
@@ -180,7 +181,7 @@ const KO: LegalDocument = {
     {
       id: "ending",
       paragraphs: [
-        `이 약관을 어기거나 다른 사람이나 서비스를 위험하게 하는 경우 이용을 제한하거나 정지하거나 끝낼 수 있으며, 호스트 계정을 정지하거나 요청을 삭제할 수도 있습니다. 서비스는 언제든 그만 쓸 수 있고, 데이터 삭제는 ${SUPPORT_ADDRESS}로 요청해 주세요.`,
+        `이 약관을 어기거나 다른 사람이나 서비스를 위험하게 하는 경우 이용을 제한하거나 정지하거나 끝낼 수 있으며, 호스트 계정을 정지하거나 요청을 삭제할 수도 있습니다. 서비스는 언제든 그만 쓸 수 있습니다. 호스트는 설정 > 계정 삭제에서 계정을 삭제할 수 있으며, 7일 안에 다시 로그인하지 않으면 그때 삭제됩니다. 로그인할 수 없거나 요청 삭제를 원하는 분은 ${SUPPORT_ADDRESS}로 요청해 주세요.`,
       ],
       title: "이용 제한과 종료",
     },
@@ -203,7 +204,7 @@ const KO: LegalDocument = {
     },
   ],
   title: "이용약관",
-  updated: "최종 수정 2026-11-02",
+  updated: "최종 수정 2026-11-16",
 };
 
 export default function Page({ searchParams }: { readonly searchParams: LegalSearchParams }) {

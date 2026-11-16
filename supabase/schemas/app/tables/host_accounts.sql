@@ -13,7 +13,11 @@ CREATE TABLE "app"."host_accounts" (
   -- Set when the operator deleted the host's data on request (operations-and-
   -- release D10): the row stays, suspended and nameless, with its handle history.
   "deleted_at" timestamptz,
-  CONSTRAINT "host_accounts_deleted_suspended" CHECK ("deleted_at" IS NULL OR ("status" = 'suspended' AND "display_name" IS NULL))
+  -- When the host's own deletion from Settings falls due (self-service-account-
+  -- deletion D1); null when none is scheduled. Signing in clears it.
+  "deletion_due_at" timestamptz,
+  CONSTRAINT "host_accounts_deleted_suspended" CHECK ("deleted_at" IS NULL OR ("status" = 'suspended' AND "display_name" IS NULL)),
+  CONSTRAINT "host_accounts_deleted_unscheduled" CHECK ("deleted_at" IS NULL OR "deletion_due_at" IS NULL)
 );
 
 ALTER TABLE "app"."host_accounts" ENABLE ROW LEVEL SECURITY;

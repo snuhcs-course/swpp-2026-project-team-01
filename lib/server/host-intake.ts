@@ -22,11 +22,12 @@ export const setHostIntakeCommand: CommandDefinition<{ accepting: boolean }, { a
 };
 
 export async function readHostIntake(db: Queryable, hostAccountId: string) {
-  const [row] = await db<{ accepting_requests: boolean; intake_revision: number; confirmed_windows: unknown; confirmed_timezone: string | null }[]>`
+  const [row] = await db<{ accepting_requests: boolean; intake_revision: number; confirmed_windows: unknown; confirmed_timezone: string | null; handle: string | null }[]>`
     select a.accepting_requests, a.intake_revision, s.settings -> 'weeklyWindows' as confirmed_windows,
-      s.settings ->> 'timezone' as confirmed_timezone
+      s.settings ->> 'timezone' as confirmed_timezone,
+      (select h.handle from app.host_handles h where h.host_account_id = a.id and h.released_at is null) as handle
     from app.host_accounts a left join app.host_settings s on s.host_account_id = a.id where a.id = ${hostAccountId}
   `;
   if (!row) return null;
-  return { accepting: row.accepting_requests, revision: row.intake_revision, confirmedWindows: row.confirmed_windows, confirmedTimezone: row.confirmed_timezone };
+  return { accepting: row.accepting_requests, revision: row.intake_revision, confirmedWindows: row.confirmed_windows, confirmedTimezone: row.confirmed_timezone, handle: row.handle };
 }
