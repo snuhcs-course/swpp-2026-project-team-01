@@ -1,6 +1,6 @@
 import { z } from "zod";
 import { clarificationQuestion } from "../contracts/clarifications";
-import { EVALUATION_FAILURE_MESSAGES, NO_MATCH_MESSAGE, type RequesterEvaluationView, TIMES_SHOWN } from "../contracts/feasibility";
+import { EVALUATION_FAILURE_MESSAGES, noMatchMessage, type RequesterEvaluationView, TIMES_SHOWN } from "../contracts/feasibility";
 import {
   CLARIFICATION_CATEGORIES,
   type ClarificationCategory,
@@ -177,16 +177,26 @@ function minimizedReview(review: StoredReview, timezone: string) {
   };
 }
 
-function missingFields(details: Partial<RequestDetails>) {
+// The place is missing only when the host decides it per meeting: with listed
+// places, in-person times come paired with them (guest-time-place-pairs).
+export function missingFields(details: Partial<RequestDetails>, hostListsPlaces = false) {
   return [
     ...(details.purpose ? [] : ["purpose"]),
     ...(details.durationMinutes ? [] : ["durationMinutes"]),
     ...(details.mode ? [] : ["mode"]),
-    ...(details.mode === "in_person" && !details.location ? ["location"] : []),
+    ...(details.mode === "in_person" && !details.location && !hostListsPlaces ? ["location"] : []),
   ];
 }
 
-export function minimizedEvaluation(view: RequesterEvaluationView, timezone: string, language: RequestLanguage) {
+function hostListsPlaces(offer: RequestRow["offer"]) {
+  return offer?.location?.kind === "places";
+}
+
+function requestedPlace(details: Partial<RequestDetails>) {
+  return details.mode === "in_person" ? (details.location ?? null) : null;
+}
+
+export function minimizedEvaluation(view: RequesterEvaluationView, timezone: string, language: RequestLanguage, place: string | null = null) {
   const offered = view.candidates
     .filter((candidate) => !candidate.unresolvedRequesterLeg)
     .map((candidate) => ({
@@ -211,7 +221,7 @@ export function minimizedEvaluation(view: RequesterEvaluationView, timezone: str
         : view.failure
           ? EVALUATION_FAILURE_MESSAGES[view.failure][language]
           : view.state === "completed" && offered.length === 0
-            ? NO_MATCH_MESSAGE[language]
+            ? noMatchMessage(language, place)
             : null,
     state: view.state,
     tripsToConfirm: view.candidates.length - offered.length,
@@ -306,7 +316,7 @@ export async function readRequestForTool(db: Database, call: RequestToolCall) {
     contact: { email: presence(row.contact_email ?? undefined), name: presence(row.contact_email ?? undefined) },
     identified,
     current: {
-      evaluation: evaluation ? minimizedEvaluation(evaluation, timezone, language) : null,
+      evaluation: evaluation ? minimizedEvaluation(evaluation, timezone, language, requestedPlace(details)) : null,
       proposal: current ? { ...minimizedProposal(current.proposal, timezone), agreed: current.agreement !== null } : null,
     },
     dataNote: HOST_NAME_NOTE,
@@ -325,7 +335,7 @@ export async function readRequestForTool(db: Database, call: RequestToolCall) {
       preferredWeeklyWindows: details.preferredWeeklyWindows ?? [],
     },
     host: { displayName: encodeDisplayName(row.display_name ?? "Your host"), offer: hostOffer(row.offer) },
-    missing: missingFields(details),
+    missing: missingFields(details, hostListsPlaces(row.offer)),
     next: NEXT_STEPS,
     pendingReview: review ? minimizedReview(storedReview(review, language), timezone) : null,
     readyForTimes: identified && detailsComplete(details),
@@ -458,7 +468,7 @@ export async function draftRequestReviewForTool(
   // at once and the times are found, with no review card (guest-flow-completion
   // U21). Any other change waits for Apply these details.
   const onlyTimeConditions = patch !== null && Object.keys(patch).length > 0 && Object.keys(patch).every((field) => ["windows", "preferredWindows", "lessPreferredWindows", "preferredWeeklyWindows"].includes(field));
-  if (input.intent === "availability" && !input.inferredTime && onlyTimeConditions && row.state !== "draft" && missingFields(row.details).length === 0) {
+  if (input.intent === "availability" && !input.inferredTime && onlyTimeConditions && row.state !== "draft" && missingFields(row.details, hostListsPlaces(row.offer)).length === 0) {
     const applied = await applyAndEvaluate(db, call, result.review.id, `tool:${call.callId}:apply`, options);
     return { ...applied, review: minimizedReview(result.review, timezone) };
   }
@@ -507,7 +517,7 @@ export async function evaluateCandidatesForTool(
   const view = await awaitEvaluation(db, outcome.result.evaluationId, options.waitMs ?? REQUEST_EVALUATION_WAIT_MS);
   if (!view) throw new RequestToolDeniedError();
 
-  return { evaluated: true as const, ...minimizedEvaluation(view, timezone, language), next: NEXT_STEPS };
+  return { evaluated: true as const, ...minimizedEvaluation(view, timezone, language, requestedPlace(row.details)), next: NEXT_STEPS };
 }
 
 // ---------------------------------------------------------------------------
@@ -621,7 +631,7 @@ async function applyAndEvaluate(
   const found = await decide(db, call, evaluateCommand, {}, `${retryKey}:evaluate`);
   if (!found.outcome.ok) return { message: "Applied, but times could not be looked up now.", recorded: true as const, state: row.state };
   const view = await awaitEvaluation(db, found.outcome.result.evaluationId, options.waitMs ?? REQUEST_EVALUATION_WAIT_MS);
-  const evaluation = view ? minimizedEvaluation(view, zoneOf(row.details), requestLanguage(row.details)) : null;
+  const evaluation = view ? minimizedEvaluation(view, zoneOf(row.details), requestLanguage(row.details), requestedPlace(row.details)) : null;
   return { evaluation, message: "Applied. Describe the times found.", recorded: true as const, state: row.state };
 }
 

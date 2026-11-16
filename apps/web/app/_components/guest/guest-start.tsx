@@ -31,6 +31,20 @@ import { browserLanguage, TimezoneLine, useGuestTimezone } from "./timezone";
 // it, and **Continue without Google** identifies it with a name and email. The
 // guest continues on /booking/{bookingId}. A cancelled consent returns here to
 // the web start, and trying again reuses the same draft.
+//
+// A signed-in account (host-as-guest-session, #183) is recognized: on another
+// host's link the landing says so and offers **Continue your request** when the
+// account already has an open request there, and the identity card offers
+// **Continue as {name}**, which identifies the draft with the account's name
+// and Google-verified address (request.identify_account) without another
+// account. On the account's own link the landing says it is theirs.
+
+// The signed-in account as the booking link sees it; null for anyone else.
+export type GuestVisitor = {
+  readonly name: string;
+  readonly ownLink: boolean;
+  readonly openRequestPath: string | null;
+};
 
 const GOOGLE_NOTICES: Readonly<Record<string, string>> = {
   cancelled: "Google sign-in was cancelled. Nothing was changed; continue with or without Google.",
@@ -74,7 +88,13 @@ async function startDraft(handle: string, timezone: string): Promise<StartOutcom
   return { message: "This page is not taking requests right now.", ok: false };
 }
 
-export function GuestStart({ host }: { readonly host: { readonly displayName: string; readonly handle: string } }) {
+export function GuestStart({
+  host,
+  visitor = null,
+}: {
+  readonly host: { readonly displayName: string; readonly handle: string };
+  readonly visitor?: GuestVisitor | null;
+}) {
   const [web, setWeb] = useState(false);
   const [notice, setNotice] = useState<string | null>(null);
 
@@ -87,16 +107,19 @@ export function GuestStart({ host }: { readonly host: { readonly displayName: st
     window.history.replaceState(null, "", window.location.pathname);
   }, []);
 
-  if (web) return <WebStart host={host} notice={notice} />;
-  return <BookingLanding host={host} onWeb={() => setWeb(true)} />;
+  const account = visitor && !visitor.ownLink ? visitor : null;
+  if (web) return <WebStart account={account} host={host} notice={notice} />;
+  return <BookingLanding host={host} onWeb={() => setWeb(true)} visitor={visitor} />;
 }
 
 function BookingLanding({
   host,
   onWeb,
+  visitor,
 }: {
   readonly host: { readonly displayName: string; readonly handle: string };
   readonly onWeb: () => void;
+  readonly visitor: GuestVisitor | null;
 }) {
   const [agent, setAgent] = useState(false);
   const prompt = useRef<HTMLPreElement>(null);
@@ -114,11 +137,29 @@ function BookingLanding({
           <p className="lede small">Booking link</p>
           <h1>{host.displayName}</h1>
           <p className="lede">
-            Book a meeting with {host.displayName} (@{host.handle}). You need no account.
+            Book a meeting with {host.displayName} (@{host.handle}).{" "}
+            {visitor?.ownLink
+              ? null
+              : visitor
+                ? `You're signed in as ${visitor.name}, so you can book with the same account.`
+                : "You need no account."}
           </p>
+          {visitor?.ownLink ? (
+            <p className="lede small" role="note">
+              This is your own booking link; guests see this page.{" "}
+              <a className="underline underline-offset-4" href="/app">
+                Back to your workspace
+              </a>
+            </p>
+          ) : null}
           <div className="start">
-            <button className="primary-btn" onClick={onWeb} type="button">
-              Continue with web
+            {visitor?.openRequestPath ? (
+              <a className="primary-btn" href={visitor.openRequestPath}>
+                Continue your request
+              </a>
+            ) : null}
+            <button className={visitor?.openRequestPath ? "secondary-btn" : "primary-btn"} onClick={onWeb} type="button">
+              {visitor?.openRequestPath ? "Start a new request" : "Continue with web"}
             </button>
             <button aria-expanded={agent} className="secondary-btn" onClick={() => setAgent((open) => !open)} type="button">
               Start with agent
@@ -161,9 +202,11 @@ function BookingLanding({
 }
 
 function WebStart({
+  account,
   host,
   notice,
 }: {
+  readonly account: GuestVisitor | null;
   readonly host: { readonly displayName: string; readonly handle: string };
   readonly notice: string | null;
 }) {
@@ -190,7 +233,7 @@ function WebStart({
             <AuthoredMessages messages={reveal.visible} onTyped={reveal.onTyped} thinking={reveal.thinking} typingId={reveal.typingId} />
             {reveal.done ? (
               <ChatItem messageId="identity">
-                <IdentityCard handle={host.handle} zone={timezone.zone} />
+                <IdentityCard account={account} handle={host.handle} zone={timezone.zone} />
               </ChatItem>
             ) : null}
             {notice ? (
@@ -229,7 +272,15 @@ function WebStart({
 
 // **Continue with Google** (name and email, and optionally read-only Calendar,
 // on one Google screen) or **Continue without Google** with a name and email.
-function IdentityCard({ handle, zone }: { readonly handle: string; readonly zone: string }) {
+function IdentityCard({
+  account,
+  handle,
+  zone,
+}: {
+  readonly account: GuestVisitor | null;
+  readonly handle: string;
+  readonly zone: string;
+}) {
   const id = useId();
   const google = useRef<HTMLFormElement>(null);
   const [bookingId, setBookingId] = useState("");
@@ -254,6 +305,48 @@ function IdentityCard({ handle, zone }: { readonly handle: string; readonly zone
     }
     setBusy(false);
     setError(started.message);
+  }
+
+  // **Continue as {name}**: the signed-in account's own name and verified
+  // address, linked to the account; the account session stays as it is.
+  async function continueAsAccount() {
+    setBusy(true);
+    setError(null);
+    const started = await startDraft(handle, zone);
+
+    if (!started.ok) {
+      setBusy(false);
+      setError(started.message);
+      return;
+    }
+
+    try {
+      const response = await fetch(`/api/requests/${started.bookingId}/commands`, {
+        body: JSON.stringify({
+          expectedRevision: null,
+          input: { language: browserLanguage(), timezone: zone },
+          operation: "request.identify_account",
+          retryKey: crypto.randomUUID(),
+        }),
+        headers: { "content-type": "application/json" },
+        method: "POST",
+      });
+      const body = (await response.json().catch(() => null)) as { ok?: boolean; error?: { message?: string } } | null;
+
+      if (body?.ok) {
+        window.location.assign(`/booking/${started.bookingId}`);
+        return;
+      }
+
+      setError(
+        response.status === 401
+          ? "You are no longer signed in. Continue with or without Google instead."
+          : "That did not go through. Continue with or without Google, or try again in a moment.",
+      );
+    } catch {
+      setError("That did not go through. Try again in a moment.");
+    }
+    setBusy(false);
   }
 
   async function continueWithoutGoogle(event: React.FormEvent<HTMLFormElement>) {
@@ -316,8 +409,25 @@ function IdentityCard({ handle, zone }: { readonly handle: string; readonly zone
         <input name="timezone" type="hidden" value={zone} />
         <input name="language" type="hidden" value={browserLanguage()} />
       </form>
+      {account ? (
+        <p className="text-sm">
+          You're signed in to Find Me a Time as {account.name}. Continue with that account's name and email; your own host
+          settings and requests stay as they are.
+        </p>
+      ) : null}
       <GuestCardActions>
-        <Button className="min-h-11" disabled={busy} onClick={() => void continueWithGoogle()} type="button">
+        {account ? (
+          <Button className="min-h-11" disabled={busy} onClick={() => void continueAsAccount()} type="button">
+            Continue as {account.name}
+          </Button>
+        ) : null}
+        <Button
+          className="min-h-11"
+          disabled={busy}
+          onClick={() => void continueWithGoogle()}
+          type="button"
+          variant={account ? "outline" : "default"}
+        >
           Continue with Google
         </Button>
         {!manual ? (

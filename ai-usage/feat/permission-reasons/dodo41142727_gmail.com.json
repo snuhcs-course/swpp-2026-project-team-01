@@ -1,0 +1,23 @@
+{
+  "branch": "feat/permission-reasons",
+  "user": "dodo41142727@gmail.com",
+  "sessions": {
+    "claude:310e3d79-efb1-4fef-af93-a7710fd34507": {
+      "agent": "claude-code",
+      "client": "claude-desktop",
+      "agent_ms": 0,
+      "models": {
+        "claude-opus-5-5": {
+          "input": 2,
+          "cache_read": 189694,
+          "cache_write_5m": 0,
+          "cache_write_1h": 465,
+          "output": 484,
+          "reasoning": 0
+        }
+      },
+      "first": "2026-11-16T05:48:10.117Z",
+      "last": "2026-11-16T05:48:10.117Z"
+    }
+  }
+}

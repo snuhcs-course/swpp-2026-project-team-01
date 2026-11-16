@@ -18,6 +18,7 @@ import { type CommandDefinition, CommandError } from "./commands";
 import type { Database, Queryable, Transaction } from "./database";
 import { generateLinkCode, hashLinkCode } from "./email-links";
 import { recordOutbound } from "./imessage-outbox";
+import { PERMISSION_REASONS } from "../contracts/permission-reasons";
 import { REQUESTER_LINK_TEXTS } from "./requester-imessage-bindings";
 import { imessageContinuationUrl } from "./imessage-continuation";
 import { photonRegistrar, type PhotonRegistrar } from "./photon";
@@ -128,14 +129,14 @@ export const LINK_TEXTS = {
   // An attempt from the iMessage start has no host until a browser signs in (D15);
   // the link lets the sender sign in from this thread (D19).
   receivedBeforeSignIn: (url: string) =>
-    `Got it. To finish, sign in with Google and connect your calendar: ${url}\nThen tap Confirm and link on the page.`,
+    `Got it. To finish, sign in with Google and connect your calendar: ${url}\n${PERMISSION_REASONS.en.googleSignIn}\nThen tap Confirm and link on the page.`,
   refused: "That link code is not valid any more. Start again from Connect iMessage in Find Me a Time.",
   refusedWhatsApp: "That link code is not valid any more. Start again from Connect WhatsApp in Find Me a Time.",
   refusedTelegram: "That link code is not valid any more. Start again from Connect Telegram in Find Me a Time.",
   // A ready host gets this; one still setting up gets a welcome into setup here (D19).
   linked: "Linked. Send help for what I can do here.",
   welcomeCalendar: (url: string) =>
-    `You're connected! I'm Thyme, and we can set up your meetings right here. First, connect Google Calendar: ${url}`,
+    `You're connected! I'm Thyme, and we can set up your meetings right here. First, connect Google Calendar: ${url}\n${PERMISSION_REASONS.en.googleSignIn}`,
   backFromGoogle: "You're back from Google. Let's keep going here: tell me your meeting preferences, or send setup to see what's next.",
   fallbackCode: (code: string, minutes: number) => `Your Find Me a Time code is ${code}. It expires in ${minutes} minutes.`,
 } as const;

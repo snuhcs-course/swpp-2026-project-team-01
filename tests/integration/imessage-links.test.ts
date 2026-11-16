@@ -1,6 +1,7 @@
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { linkMessage } from "../../lib/contracts/imessage";
 import { GOOGLE_CALENDAR_SCOPES } from "../../lib/contracts/google-scopes";
+import { PERMISSION_REASONS } from "../../lib/contracts/permission-reasons";
 import { generateLinkCode } from "../../lib/server/email-links";
 import { channelReplies } from "../../lib/server/channel-texts";
 import { calendarConnectUrl, LINK_TEXTS, lockActiveBindingOfSender } from "../../lib/server/imessage-links";
@@ -125,7 +126,7 @@ describe("linking by a host-sent code", () => {
 
     const [linked] = await im.outbox({ hostAccountId, kind: "linked" });
     expect(textOf((await im.send(linked!.id)).sent)).toEqual([
-      `You're connected! I'm Thyme, and we can set up your meetings right here. First, connect Google Calendar: ${calendarConnectUrl("http://localhost:3000")}`,
+      `You're connected! I'm Thyme, and we can set up your meetings right here. First, connect Google Calendar: ${calendarConnectUrl("http://localhost:3000")}\n${PERMISSION_REASONS.en.googleSignIn}`,
     ]);
   });
 

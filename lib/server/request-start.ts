@@ -208,15 +208,18 @@ export async function identifyDraft(
     readonly timezone: string;
     readonly language?: RequestLanguage;
     readonly google?: RequesterGoogleIdentity;
+    // The address Google verified when the guest's own account signed in
+    // (request.identify_account): the confirmed contact, like a Google return.
+    readonly accountVerifiedEmail?: boolean;
   },
   options: IdentifyOptions,
 ): Promise<IdentifyResult> {
   if (request.state !== "draft") throw new CommandError("invalid_input");
   if (!(await hostCanContinueRequests(tx, request.host_account_id))) throw new CommandError("forbidden");
 
-  const verified = Boolean(
-    identity.google?.emailVerified && identity.google.email?.toLowerCase() === identity.email.toLowerCase(),
-  );
+  const verified =
+    identity.accountVerifiedEmail === true ||
+    Boolean(identity.google?.emailVerified && identity.google.email?.toLowerCase() === identity.email.toLowerCase());
   const details = {
     ...request.details,
     language: identity.language ?? request.details.language ?? "en",
