@@ -1,9 +1,13 @@
 // Every word of the note review (calendar-note-review design 7), in English (the
-// default) and Korean. A plain module, so the server page can read it too.
+// default) and Korean. A plain module, so the server page can read it too. The
+// reason line is the shared one the chat link carries too (issue #203).
+
+import { PERMISSION_REASONS } from "@lib/contracts/permission-reasons";
 
 export const NOTE_REVIEW_COPY = {
   en: {
     title: "Check the entries that are just notes",
+    why: PERMISSION_REASONS.en.noteReview,
     doneTitle: "Your note entries are checked",
     back: "Back",
     done: "Done",
@@ -33,6 +37,7 @@ export const NOTE_REVIEW_COPY = {
   },
   ko: {
     title: "메모 용도의 일정을 체크해주세요",
+    why: PERMISSION_REASONS.ko.noteReview,
     doneTitle: "메모 용도의 일정을 체크했습니다",
     back: "뒤로",
     done: "완료",

@@ -64,6 +64,16 @@ stateDiagram-v2
 | H11 선택 사항: WhatsApp 연결 | 같은 단계와 카드, Android이거나 **대신 WhatsApp 사용(Use WhatsApp instead)**을 선택한 경우 | 먼저 "WhatsApp에 어떤 번호를 쓰시나요?"를 묻고 iMessage처럼 Photon에 등록함([`guest-whatsapp-link`](../../openspec/changes/guest-whatsapp-link/proposal.md#decisions) D3). 이후 **WhatsApp 연결(Connect WhatsApp)**을 누르면 메시지가 입력된 상태로 WhatsApp이 열림(`wa.me`). 컴퓨터에서는 같은 링크의 QR 코드, **복사(Copy)**, 번호를 보여 줌. 이후 번호 전체와 **확인 및 연결(Confirm and link)**, 그리고 메시지가 없는 하루가 지나면 Thyme이 짧은 알림을 보낸다는 문장을 보여 줌 | iMessage의 H11과 같음([`host-whatsapp-channel`](../../openspec/changes/host-whatsapp-channel/proposal.md#decisions)). WhatsApp을 연결하면 iMessage 연결이 대체됨 |
 | H11 선택 사항: Telegram 연결 | 같은 단계와 카드, 모든 기기([`host-telegram-channel`](../../openspec/changes/host-telegram-channel/proposal.md#decisions)) | **Telegram 연결(Connect Telegram)**을 누르면 `t.me/findmeatime_bot?start=<code>`로 봇이 열리고 호스트가 **시작(Start)**을 누름. 컴퓨터에서는 **Telegram 열기(Open Telegram)**, 같은 링크의 QR 코드, **복사(Copy)**를 보여 줌. 이후 Telegram 이름과 **확인 및 연결(Confirm and link)**, 그리고 Telegram이 봇 대화를 자기 서버에 보관한다는 문장을 보여 줌. 연결 후 Thyme의 환영 메시지가 봇의 첫 메시지가 되며, 설정 검토에 **설정 확인(Confirm settings)**이 붙는 Telegram에서 설정을 이어 갈 수 있음 | iMessage의 H11과 같음: `/start <code>` 또는 코드가 호스트 본인의 Telegram 계정에서 도착하며, 바인딩은 브라우저 확인 후에만 생김. 버튼을 누르면 그 버튼이 가리키는 명령이 연결된 계정에 대해서만 그대로 실행됨 | 연결됨, 건너뜀 또는 미룸 | 연결하면 다른 채널의 연결이 대체되며, `stop`, `/stop`을 보내거나 봇을 차단하면 연결이 해제됨 |
 
+### 요청마다 이유 밝히기
+
+제품이 호스트에게 접근 권한이나 데이터를 요청할 때마다, 왜 필요하고 어디까지 미치는지를 한 줄로 알려 줍니다([이슈 #203](https://github.com/snuhcs-course/swpp-2026-project-team-01/issues/203)). 이 문구들은 [`lib/contracts/permission-reasons.ts`](../../lib/contracts/permission-reasons.ts) 한 모듈에 모여 있어 웹과 연결된 채팅이 서로 어긋날 수 없습니다. 웹은 영어 문구를 보여 주고, 채팅은 요청을 하는 메시지에 대화의 언어로 된 문구를 함께 보냅니다.
+
+| 요청 | 표시되는 위치 | 문구(영어) |
+|---|---|---|
+| Google 로그인과 캘린더 동의(H1, H4 권한 부여) | 랜딩과 메시지 시작 화면의 **Continue with Google** 아래, **Connect Google Calendar** 카드, 그리고 Google 링크를 보내는 모든 채팅 메시지(메시지 우선 증명 뒤의 로그인 링크, 환영 메시지의 캘린더 링크, 설정 다음 단계, Thyme 자신의 답장) | "Why Google: Thyme reads your calendars to find when you're busy and suggest your hours, and adds only the meetings you approve. Guests never see your events." |
+| 캘린더 역할(H4) | **Choose your calendars** 카드, 그리고 기본 캘린더를 저장하거나 어느 캘린더를 쓸지 묻는 채팅 메시지 아래 | "Why: Thyme reads only the calendars you choose, to find your busy times, and adds bookings only to the one you pick." |
+| 메모 검토 | 메모 검토 페이지의 제목 아래, 그리고 검토 링크를 보내는 채팅 메시지 아래 | "Why: notes like birthdays or deadlines would block your open times. Only the entries you check are marked free in Google Calendar; nothing is deleted." |
+
 웹에서는 H4~H9 단계가 하나의 대화 안에서 한 번에 작은 카드 하나씩 진행됩니다. 현재 단계의 카드만 최신 메시지 뒤에 열려 있고, 답변이 끝난 카드는 값과 **편집**이 담긴 한 줄 영수증으로 대화에 남으며(**편집**은 맨 아래에서 그 질문을 다시 합니다), 검토 단계에서 모든 답변을 마지막에 모아 보여 줍니다([한 번에 하나만 생각하게 한다](../03_design_principles.md#4-one-thing-to-think-about-at-once)). 에이전트는 안전하게 가능한 경우 제안된 답을 먼저 제시하고, 해결되지 않은 세부 사항에 대해서만 집중된 질문 하나를 던집니다. 세밀한 편집은 라벨이 붙은 채팅 내 편집기를 열며, 편집기를 닫으면 포커스가 복원됩니다.
 
 ## 기록되는 내용
