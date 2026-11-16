@@ -13,6 +13,7 @@ import {
   ImessageUpdates,
   EmailLinkLine,
   focusCardHeading,
+  type AgreementFailure,
   type RequesterCardContext,
   SentLine,
   useRequesterCards,
@@ -94,12 +95,17 @@ export function GuestWorkspace({
   readonly initialView: OpenRequesterView;
 }) {
   const [view, setView] = useState<OpenRequesterView>(initialView);
+  const currentView = useRef<OpenRequesterView>(initialView);
   const [notice, setNotice] = useState<{ readonly card: string; readonly text: string } | null>(null);
   const [detailsAt, setDetailsAt] = useState<string | null>(null);
   // The proposal version whose candidate times the guest reopened to choose again.
   const [choosingAgain, setChoosingAgain] = useState<number | null>(null);
   // **Change** on the host-profile receipt reopens its card until the guest decides again.
   const [profileAgain, setProfileAgain] = useState(false);
+  const [agreementDialog, setAgreementDialog] = useState<
+    { readonly kind: "success"; readonly version: number } | ({ readonly kind: "failure" } & AgreementFailure) | null
+  >(null);
+  const agreementFocusCard = useRef<"awaiting" | AgreementFailure["focusCard"]>("awaiting");
   const timezone = useGuestTimezone();
   // The thread's send, for the online or in person buttons.
   const sendRef = useRef<((text: string) => Promise<void>) | null>(null);
@@ -110,6 +116,7 @@ export function GuestWorkspace({
       const next = (await response.json()) as RequesterView;
 
       if (response.ok && next.open) {
+        currentView.current = next;
         setView(next);
         return;
       }
@@ -143,7 +150,18 @@ export function GuestWorkspace({
     [],
   );
   const chooseAnotherTime = useCallback(() => setChoosingAgain(view.proposal?.version ?? null), [view.proposal?.version]);
-  const context = useRequesterCards(bookingId, view, timezone.zone, refresh, details, chooseAnotherTime);
+  const onAgreed = useCallback((version: number) => {
+    agreementFocusCard.current = "awaiting";
+    setAgreementDialog({ kind: "success", version });
+  }, []);
+  const onAgreementFailure = useCallback((failure: AgreementFailure) => {
+    // A lost response may follow a committed agreement. The refreshed request
+    // state is authoritative; never tell the guest it failed if it now waits.
+    if (["awaiting_host_approval", "booking", "booked"].includes(currentView.current.request.state)) return;
+    agreementFocusCard.current = failure.focusCard;
+    setAgreementDialog({ kind: "failure", ...failure });
+  }, []);
+  const context = useRequesterCards(bookingId, view, timezone.zone, refresh, details, chooseAnotherTime, onAgreed, onAgreementFailure);
 
   // The fixed steps hand over to the assistant once the Calendar step is done.
   const handedOver = view.thread.some((card) => card.kind === "calendar" && card.status === "answered");
@@ -224,29 +242,63 @@ export function GuestWorkspace({
     </>
   );
 
+  const showAgreementDialog = agreementDialog?.kind === "failure" || (
+    agreementDialog?.kind === "success"
+    && view.request.state === "awaiting_host_approval"
+    && view.proposal?.version === agreementDialog.version
+  );
+
   return (
-    <GuestFrame aside={aside} asideLabel={`Request with ${host.displayName}`}>
-      <GuestConversation
-        ariaLabel={`Meeting request with ${host.displayName}`}
-        before={before}
-        client={client}
-        composerAction={context ? <ThreadMenu context={context} /> : null}
-        entries={entries}
-        onError={onError}
-        onRecover={async (generation) => {
-          const response = await fetch(`/api/requests/${bookingId}/recover`, {
-            body: JSON.stringify({ observedGeneration: generation }),
-            headers: { "content-type": "application/json" },
-            method: "POST",
-          });
-          return (await response.json()) as { status: string; delivered?: boolean };
-        }}
-        onSettled={() => void refresh()}
-        placeholder="Write to Thyme"
-        lockedReason={handedOver ? null : COMPOSER_LOCKED}
-        sendRef={sendRef}
-      />
-    </GuestFrame>
+    <>
+      <GuestFrame aside={aside} asideLabel={`Request with ${host.displayName}`}>
+        <GuestConversation
+          ariaLabel={`Meeting request with ${host.displayName}`}
+          before={before}
+          client={client}
+          composerAction={context ? <ThreadMenu context={context} /> : null}
+          entries={entries}
+          onError={onError}
+          onRecover={async (generation) => {
+            const response = await fetch(`/api/requests/${bookingId}/recover`, {
+              body: JSON.stringify({ observedGeneration: generation }),
+              headers: { "content-type": "application/json" },
+              method: "POST",
+            });
+            return (await response.json()) as { status: string; delivered?: boolean };
+          }}
+          onSettled={() => void refresh()}
+          placeholder="Write to Thyme"
+          lockedReason={handedOver ? null : COMPOSER_LOCKED}
+          sendRef={sendRef}
+        />
+      </GuestFrame>
+      <Dialog onOpenChange={(open) => { if (!open) setAgreementDialog(null); }} open={showAgreementDialog}>
+        <DialogContent
+          className="rounded-3xl"
+          onCloseAutoFocus={(event) => {
+            event.preventDefault();
+            focusCardHeading(agreementFocusCard.current);
+          }}
+          showCloseButton={false}
+        >
+          <DialogHeader>
+            <DialogTitle className="text-center text-base leading-snug">
+              {agreementDialog?.kind === "failure" ? agreementDialog.title : "Request sent successfully"}
+            </DialogTitle>
+            <DialogDescription className={agreementDialog?.kind === "failure" ? "text-center" : "sr-only"}>
+              {agreementDialog?.kind === "failure" ? agreementDialog.message : "View the request card for its current status."}
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter className="items-center sm:justify-center">
+            <DialogClose asChild>
+              <Button className="min-h-11" type="button">
+                {agreementDialog?.kind === "failure" ? agreementDialog.action : "View request"}
+              </Button>
+            </DialogClose>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+    </>
   );
 }
 

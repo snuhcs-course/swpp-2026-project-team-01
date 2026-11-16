@@ -94,6 +94,9 @@ export default defineConfig({
   fullyParallel: true,
   forbidOnly: Boolean(process.env.CI),
   retries: process.env.CI ? 2 : 0,
+  // The CI runner also hosts Supabase, Next and Eve. Keep one browser worker
+  // so those services have room during the full end-to-end run.
+  workers: process.env.CI ? 1 : undefined,
   reporter: process.env.CI ? "list" : "html",
   timeout: 60_000,
   use: {

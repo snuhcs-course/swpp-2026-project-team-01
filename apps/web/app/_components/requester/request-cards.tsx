@@ -554,8 +554,36 @@ export function ProposalCard({ context }: { readonly context: RequesterCardConte
   // records nothing and new times are found.
   async function agree() {
     const outcome = await act("request.agree", { version: proposal.version });
-    if (outcome.ok && (outcome.result as { outcome?: string }).outcome === "time_unavailable") {
+    if (!outcome.ok) {
+      context.onAgreementFailure(
+        outcome.error.category === "internal"
+          ? {
+              action: "View request",
+              focusCard: "proposal",
+              message: "We couldn’t confirm whether your request was sent. Check its status before trying again.",
+              title: "Request status unclear",
+            }
+          : {
+              action: "Back to request",
+              focusCard: "proposal",
+              message: outcome.error.category === "stale_revision" || outcome.error.category === "invalid_input"
+                ? failureText(outcome)
+                : "Please try again.",
+              title: "Request not sent",
+            },
+      );
+      return;
+    }
+    if ((outcome.result as { outcome?: string }).outcome === "agreed") {
+      context.onAgreed(proposal.version);
+    } else if ((outcome.result as { outcome?: string }).outcome === "time_unavailable") {
       setError("This time is no longer free on the host's calendar, so nothing was agreed. Choose another time.");
+      context.onAgreementFailure({
+        action: "Choose another time",
+        focusCard: "candidates",
+        message: "This time is no longer available. Choose another time.",
+        title: "Request not sent",
+      });
     }
   }
   const host = proposal.participants.find((participant) => participant.role === "host")?.name ?? context.view.host.displayName;
