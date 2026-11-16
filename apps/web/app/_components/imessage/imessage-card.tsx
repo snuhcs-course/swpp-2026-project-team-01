@@ -144,7 +144,7 @@ export function appLinkFor(channel: MessagingChannel, platform: MessagesPlatform
   return deepLinkFor(platform, lineNumber, message);
 }
 
-export function ImessageCard({ onLater }: { readonly onLater?: () => void }) {
+export function ImessageCard({ onLater, expandedInitially = false }: { readonly onLater?: () => void; readonly expandedInitially?: boolean }) {
   const [status, setStatus] = useState<ImessageStatus | null>(null);
   const [loadFailed, setLoadFailed] = useState(false);
   const [busy, setBusy] = useState<ImessageOperation | null>(null);
@@ -152,7 +152,7 @@ export function ImessageCard({ onLater }: { readonly onLater?: () => void }) {
   const [lost, setLost] = useState<Pending | null>(null);
   const [confirmUnlink, setConfirmUnlink] = useState(false);
   // A linked channel shows as a small status pill until the host opens it.
-  const [expanded, setExpanded] = useState(false);
+  const [expanded, setExpanded] = useState(expandedInitially);
   const platform = useMessagesPlatform();
   const device = useDeviceKind();
   // The channel the host chose with the app question or Use ... instead.

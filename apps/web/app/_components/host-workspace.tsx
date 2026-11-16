@@ -42,11 +42,10 @@ export function HostWorkspace({ dashboardAvailable = false }: { readonly dashboa
   const request = params.get("request");
   const inbox = params.get("view") === "requests" || request !== null;
   const openRequests = useCallback(() => router.push("/app?view=requests"), [router]);
-  const openSetup = useCallback(() => router.push(dashboardAvailable ? "/app?view=setup" : "/app"), [dashboardAvailable, router]);
   const openDashboard = useCallback(() => router.push("/app"), [router]);
 
   if (inbox) {
-    return <HostRequests onOpenDashboard={dashboardAvailable ? openDashboard : undefined} onOpenSetup={openSetup} request={request} />;
+    return <HostRequests onOpenDashboard={dashboardAvailable ? openDashboard : undefined} request={request} />;
   }
 
   return <SetupWorkspace initialImessageOpen={params.get("view") === "imessage"} onOpenDashboard={dashboardAvailable ? openDashboard : undefined} onOpenRequests={openRequests} />;
@@ -87,10 +86,6 @@ function SetupWorkspace({ initialImessageOpen, onOpenDashboard, onOpenRequests }
   const setupValue = setup.value;
   const showSetup = setupValue !== null && reveal.done;
   const showImessage = imessageOpened || (showSetup && setupState?.nextAction === "ready" && !imessageLater);
-  const openImessage = useCallback(() => {
-    setImessageOpened(true);
-    setImessageFocus((count) => count + 1);
-  }, []);
   // Answered setup cards, as receipts placed among the messages by time.
   const receipts = useMemo(
     () => (showSetup && setupValue ? deriveReceipts(setupValue.state, setupValue.skipped) : []),
@@ -115,18 +110,11 @@ function SetupWorkspace({ initialImessageOpen, onOpenDashboard, onOpenRequests }
     return grouped;
   }, [messages, receipts, times]);
 
-  // The menu's Setup item leads to the current step's card, or the composer
-  // while setup has not loaded.
-  const focusSetup = useCallback(() => {
-    if (setupState && reveal.done) focusCurrentCard();
-    else composerRef.current?.querySelector("textarea")?.focus();
-  }, [reveal.done, setupState]);
-
   return (
     <div className="flex h-dvh min-h-0 flex-col bg-background text-foreground">
       <header className="flex shrink-0 items-center justify-between gap-3 px-5 py-3 sm:px-8">
         <h1 className="wordmark-lockup min-w-0">Find Me a Time</h1>
-        <div className="flex items-center"><HostSettingsDialog /><WorkspaceMenu onSelectDashboard={onOpenDashboard} onSelectImessage={openImessage} onSelectRequests={onOpenRequests} onSelectSetup={focusSetup} /></div>
+        <div className="flex items-center"><HostSettingsDialog /><WorkspaceMenu onSelectDashboard={onOpenDashboard} onSelectRequests={onOpenRequests} /></div>
       </header>
 
       <main aria-label="Setup conversation with Thyme" className="flex min-h-0 flex-1 flex-col">

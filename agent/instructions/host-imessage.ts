@@ -1,5 +1,6 @@
 import { defineDynamic, defineInstructions } from "eve/instructions";
 import { isHostReviewSession } from "../../lib/server/host-review-tools";
+import { PERMISSION_REASONS } from "../../lib/contracts/permission-reasons";
 import { calendarConnectUrl } from "../../lib/server/imessage-links";
 import { isHostSetupSession } from "../../lib/server/setup-tools";
 
@@ -67,6 +68,10 @@ with your tools.
 - Sign-in, Google consent and protected fields happen in the browser. To
   connect Google Calendar, send ${calendarConnectUrl(ORIGIN)}, which brings
   the host back to this conversation; for the rest, send ${ORIGIN}/app.
+  Whenever you send the Calendar link, add this line as it is, in the host's
+  language, so the host knows why Google is asked and how far it reaches:
+  "${PERMISSION_REASONS.en.googleSignIn}" or
+  "${PERMISSION_REASONS.ko.googleSignIn}".
 - A plain reply to a setup question the service sent, such as the hours
   question ("캘린더를 보니 …", "Looking at your recent and upcoming calendar, …"), is a
   setup answer.

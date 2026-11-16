@@ -2,6 +2,7 @@ import type { StoredChannel } from "../contracts/messaging-channel";
 import type { RequestState } from "../contracts/request";
 import type { MeetingMode, SetupFieldName, TravelMode, Weekday } from "../contracts/setup";
 import type { HoursSuggestion, LocalRange, SlotPreview, SlotPreviewDay } from "../contracts/slot-preview";
+import { PERMISSION_REASONS } from "../contracts/permission-reasons";
 import type { ChannelLanguage } from "./channel-language";
 
 // The fixed replies of a linked conversation, in English and Korean
@@ -365,8 +366,8 @@ export const CHANNEL_REPLIES = {
     selectedSetup: "We're now talking about your setup.",
     onboarding: {
       rolesDefault: (calendar: string) =>
-        `I'll check your primary calendar (${calendar}) for busy times and put bookings there. If another calendar should count too, just tell me. I'm looking over your recent and upcoming calendar now and will suggest meeting hours next.`,
-      rolesNeeded: "Which calendars should I check for busy times, and which one should bookings go into? Just tell me their names.",
+        `I'll check your primary calendar (${calendar}) for busy times and put bookings there. If another calendar should count too, just tell me. I'm looking over your recent and upcoming calendar now and will suggest meeting hours next.\n${PERMISSION_REASONS.en.calendarRoles}`,
+      rolesNeeded: `Which calendars should I check for busy times, and which one should bookings go into? Just tell me their names.\n${PERMISSION_REASONS.en.calendarRoles}`,
       hoursQuestion: (hours: HoursSuggestion) => {
         const groups = hourGroups(hours, "en");
         const proposed = listEn(groups.map((group) => `${group.label} ${rangeText(group.range, "en")}`));
@@ -379,7 +380,7 @@ export const CHANNEL_REPLIES = {
       // The note review link (calendar-note-review design 8), between the place
       // answer and the slot image.
       noteReviewLink: (count: number, url: string) =>
-        `${count === 1 ? "One entry looks" : `${count} entries look`} like just a note. Check the ones that can be free, and I'll send your open times after that: ${url}`,
+        `${count === 1 ? "One entry looks" : `${count} entries look`} like just a note. Check the ones that can be free, and I'll send your open times after that: ${url}\n${PERMISSION_REASONS.en.noteReview}`,
       // Under the image sent after a day without the review (design 8).
       noteReviewLater: (url: string) => `I kept the entries that look like notes busy for now. You can still choose which ones can be free here: ${url}`,
       slotCaption: (preview: SlotPreview) =>
@@ -407,7 +408,7 @@ export const CHANNEL_REPLIES = {
       analyzing: "I'm looking at your calendars; I'll have suggestions shortly.",
       choose_calendars: "Choose which calendars to check and where bookings go. Tell me here, or open the link below.",
       confirm_settings: "Your settings are ready to review. Ask me to go through them.",
-      connect_calendar: "Connect Google Calendar first; that happens in the browser.",
+      connect_calendar: `Connect Google Calendar first; that happens in the browser. ${PERMISSION_REASONS.en.googleSignIn}`,
       ready: "You're set up. Ask me about your settings or requests, or tell me what to change.",
       review_suggestions: "Let's go through your suggested settings. Tell me what you prefer.",
     } as Readonly<Record<string, string>>,
@@ -529,8 +530,8 @@ export const CHANNEL_REPLIES = {
     selectedSetup: "이제 설정에 대해 이야기해요.",
     onboarding: {
       rolesDefault: (calendar: string) =>
-        `기본 캘린더(${calendar})로 일정을 확인하고 예약도 여기에 넣을게요. 다른 캘린더도 같이 봐야 하면 말씀해 주세요. 지금 최근 일정과 예정된 일정을 살펴보고 있으니 곧 미팅 시간을 제안드릴게요.`,
-      rolesNeeded: "어떤 캘린더로 일정을 확인하고, 예약은 어느 캘린더에 넣을까요? 캘린더 이름으로 말씀해 주세요.",
+        `기본 캘린더(${calendar})로 일정을 확인하고 예약도 여기에 넣을게요. 다른 캘린더도 같이 봐야 하면 말씀해 주세요. 지금 최근 일정과 예정된 일정을 살펴보고 있으니 곧 미팅 시간을 제안드릴게요.\n${PERMISSION_REASONS.ko.calendarRoles}`,
+      rolesNeeded: `어떤 캘린더로 일정을 확인하고, 예약은 어느 캘린더에 넣을까요? 캘린더 이름으로 말씀해 주세요.\n${PERMISSION_REASONS.ko.calendarRoles}`,
       hoursQuestion: (hours: HoursSuggestion) => {
         const groups = hourGroups(hours, "ko");
         const proposed = groups.map((group) => `${group.label} ${rangeText(group.range, "ko")}`).join(", ");
@@ -541,7 +542,7 @@ export const CHANNEL_REPLIES = {
         return `캘린더를 보니 ${seen} 보통 약속이 있으시네요. 미팅 가능 시간을 ${ro(proposed)} 잡아둘까요?`;
       },
       noteReviewLink: (count: number, url: string) =>
-        `메모처럼 보이는 일정이 ${count}개 있어요. 비워도 되는 일정을 골라주세요. 고르시면 가능한 시간을 보내드릴게요: ${url}`,
+        `메모처럼 보이는 일정이 ${count}개 있어요. 비워도 되는 일정을 골라주세요. 고르시면 가능한 시간을 보내드릴게요: ${url}\n${PERMISSION_REASONS.ko.noteReview}`,
       noteReviewLater: (url: string) => `메모처럼 보이는 일정은 일단 바쁨으로 두었어요. 비워도 되는 일정은 나중에 여기서 고를 수 있어요: ${url}`,
       slotCaption: (preview: SlotPreview) =>
         hasOpenTime(preview)
@@ -566,7 +567,7 @@ export const CHANNEL_REPLIES = {
       analyzing: "캘린더를 살펴보고 있어요. 곧 제안을 드릴게요.",
       choose_calendars: "확인할 캘린더와 예약을 넣을 캘린더를 골라 주세요. 여기서 말씀하시거나 아래 링크를 열어 주세요.",
       confirm_settings: "설정을 검토할 준비가 됐어요. 함께 살펴보자고 말씀해 주세요.",
-      connect_calendar: "먼저 Google Calendar를 연결해 주세요. 연결은 브라우저에서 해요.",
+      connect_calendar: `먼저 Google Calendar를 연결해 주세요. 연결은 브라우저에서 해요. ${PERMISSION_REASONS.ko.googleSignIn}`,
       ready: "설정이 끝났어요. 설정이나 요청에 대해 물어보시거나 바꿀 내용을 말씀해 주세요.",
       review_suggestions: "제안된 설정을 함께 살펴봐요. 원하시는 내용을 말씀해 주세요.",
     } as Readonly<Record<string, string>>,

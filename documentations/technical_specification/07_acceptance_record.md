@@ -507,3 +507,30 @@ Fixture and local-stack evidence only.
 - **Refusals Meta reports after acceptance** (a 131047 in a status event) are not observed; the dispatch-time window check is the safeguard.
 - **No controlled Android run** of AC-29 to AC-31. The change is deployed and migrated (above), but the templates are not registered, since the number's display name in WhatsApp Manager is Astia, not Find Me a Time.
 
+
+## Phase 10 — `host-telegram-channel`
+
+Change: [`host-telegram-channel`](../../openspec/changes/host-telegram-channel/tasks.md). Evidence list: [Phase 10](06_implementation_plan.md#phase-10--host-telegram-channel). Lanes A to C were verified locally in their pull requests (#113, #127, #130, #134); this section records the release and the join.
+
+### Suite runs
+
+| Command | Date | Revision | Environment | Result |
+|---|---|---|---|---|
+| `npx vitest run lib/server/telegram.test.ts` | 2026-11-14 | `da375c1c` | Local | 28 passed, including the update shape captured on production |
+| `npx vitest run --project integration tests/integration/telegram-*.test.ts`, one file at a time | 2026-11-14 | `da375c1c` | Local stack | 6 files, 43 passed (`telegram-buttons`, `-channel`, `-links`, `-outbox`, `-receiver`, `-webhook-script`) |
+
+### Production deployment
+
+| Step | Date | Revision | Result |
+|---|---|---|---|
+| Shared-project migration | 2026-11-14 | `34b9bc47` | `20261104050046_telegram_channel.sql`, `20261104054324_telegram_sender_name.sql` and `20261104054627_telegram_buttons.sql` are in the chain the `Deploy production` workflow pushes on every merge to `main`; the run succeeded |
+| `TELEGRAM_BOT_TOKEN`, `TELEGRAM_BOT_USERNAME`, `TELEGRAM_WEBHOOK_SECRET` | 2026-11-14 | — | Set by the user on `findmeatime-release` Production at about 11:51 UTC; the secret is 48 URL-safe characters and matches the main checkout's `.env` |
+| `Deploy production` (`workflow_dispatch`) | 2026-11-14 | `34b9bc47` | The 11:47 UTC run deployed before the variables existed, so the webhook answered `401`; runs at 12:01 and 12:02 UTC deployed with them. `/eve/v1/health` answers `ready` |
+| Bot profile | 2026-11-16 | — | Name, description and picture set by the user in @BotFather |
+| `npm run telegram:webhook` | 2026-11-14 | `f9e09e2a` | `setWebhook` to `https://findmeatime.com/telegram/webhook` with `message`, `callback_query` and `my_chat_member`, 10 connections; commands `/requests`, `/review`, `/help`, `/stop` |
+| Real update capture (task 5.1) | 2026-11-14 | `da375c1c` | With the webhook briefly removed, `getUpdates` returned a `/start` and a plain message from a private chat. Differences from the fixture: `chat` repeats the sender's names and username, and a leading command carries a `bot_command` entity. The fixtures and a redacted unit test follow it; the raw copy was deleted. After the webhook was registered again and production redeployed, both updates were delivered (`pending_update_count` 0, no error after 12:01:43 UTC) and the bot replied on the phone |
+
+### Known gaps
+
+- **No controlled device run** of AC-32 to AC-34 yet (task 5.2): linking, a button approval and decline, a stale tap, a replay after restart, and blocking and unblocking the bot, on an Android phone and an iPhone.
+- **Teammate review of D1–D13** (task 1.2) and the archive (task 6.3, after `host-imessage-channel` and `host-whatsapp-channel`) remain.
