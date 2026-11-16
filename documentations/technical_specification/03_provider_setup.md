@@ -166,6 +166,26 @@ Operator steps, all blocked on the user until the implementing pull requests lan
 
 Never change the Photon project's platforms, lines or webhook, register templates or send a WhatsApp message from an agent session without the user's approval.
 
+### Diagnosing refused WhatsApp replies
+
+A completed agent turn does not prove WhatsApp delivery. Trace the inbound receipt to its conversation input, then the `input_id` in `app.imessage_outbox` and its `imessage_send` job. The diagnostics snapshot includes failed sends across all channels under `imessage_failed`; inspect the sampled row's `channel`, `state` and `failure_category` using an authorized read-only database connection. A completed send job with outbox state `failed` means the worker handled the refusal, not that the reply arrived.
+
+Known business refusals retain only the numeric code in a bounded category (no raw error payload):
+
+| Failure category | Meta code | Operator action |
+| --- | --- | --- |
+| `whatsapp_131031` | 131031 | Inspect account restrictions and Health Status; resolve the reported restriction. |
+| `whatsapp_131037` | 131037 | Check display-name approval for the Meta-provided 555 number in WhatsApp Manager. |
+| `whatsapp_131042` | 131042 | Check billing and account eligibility in WhatsApp Manager. |
+| `whatsapp_131045` | 131045 | Resolve the number's registration failure through Photon / WhatsApp Manager. |
+
+These mappings and actions follow [Meta's error reference](https://developers.facebook.com/documentation/business-messaging/whatsapp/support/error-codes). A Photon line marked `CONNECTED` / `VERIFIED` is not evidence that Meta permits its next send. A [first-hand developer report](https://www.reddit.com/r/WhatsappBusinessAPI/comments/1sn0qw6/131037_whatsapp_provided_number_needs_display/) describes initially successful 555-number sends followed by 131037 despite a visible verified name; it is a troubleshooting lead, not proof of the cause of our incident.
+
+On 2026-11-16 production had completed inputs followed by two refused turn replies and one refused image, all stored as `provider_rejected`. The original numeric codes were not retained, so those historical rows cannot identify which restriction applied. New business refusals preserve the four categories above. Do not infer a specific Meta code from a historical `provider_rejected` row.
+
+These business refusals remain final failures, while rate limits remain retryable and lost answers remain uncertain. Do not reset completed jobs or resend uncertain messages. Resolve the provider restriction first, then verify a fresh inbound message and reply end to end; a code-only change cannot approve a display name, restore an account or fix billing. Production delivery recovery remains tracked in [#142](https://github.com/snuhcs-course/swpp-2026-project-team-01/issues/142).
+
+
 ## Telegram
 
 Telegram is the transport of the host Telegram channel, proposed on 2026-11-04 in the [`host-telegram-channel` change](../../openspec/changes/host-telegram-channel/proposal.md#decisions). Its webhook, records and Bot API transport (Lane A) are implemented; linking and the channel's behavior (Lanes B and C) are not, so a Telegram update is stored and then ignored. It uses the Telegram Bot API directly, not Photon (D1). Photon's Telegram provider, `@spectrum-ts/telegram` 12.14.0, registers the bot's webhook at Photon's relay and delivers updates to the application over a persistent WebSocket (`wss://fusor-ws.spectrum.photon.codes/v1/subscribe`), which a Vercel Function cannot hold.

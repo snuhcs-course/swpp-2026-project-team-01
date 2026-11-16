@@ -7,7 +7,7 @@ import type { StoredChannel } from "../contracts/messaging-channel";
 import { deploymentEnvironment } from "./deployment";
 import { gateTransport, type MessagingTransport } from "./messaging";
 import type { TelegramButtons } from "./telegram";
-import { whatsAppSendFailure } from "./whatsapp";
+import { type WhatsAppBusinessRejection, whatsAppSendFailure } from "./whatsapp";
 
 // The one module that sends iMessages (host-imessage-channel design 1 and 3, D1,
 // D9). Production uses Photon's Spectrum SDK, loaded with a dynamic import so
@@ -78,6 +78,7 @@ export type PhotonSendRequest = {
 };
 
 export type PhotonRejection =
+  | WhatsAppBusinessRejection
   | "not_imessage"
   | "invalid_recipient"
   | "provider_rejected"
@@ -123,6 +124,10 @@ const REJECTIONS: readonly PhotonRejection[] = [
   "not_imessage",
   "invalid_recipient",
   "provider_rejected",
+  "whatsapp_131031",
+  "whatsapp_131037",
+  "whatsapp_131042",
+  "whatsapp_131045",
   "provider_authentication",
   "window_closed",
   "undeliverable",
