@@ -134,7 +134,7 @@ test.describe("on Android", () => {
 
     await expect(page.getByRole("link", { name: "Open Telegram" })).toHaveAttribute("href", `https://t.me/${BOT}`);
     await page.getByRole("link", { name: "Go to Home" }).click();
-    await expect(page).toHaveURL("/");
+    await expect(page).toHaveURL("/app");
   });
 
   test("without WhatsApp, the link step offers Telegram", async ({ baseURL, context, db, page }) => {

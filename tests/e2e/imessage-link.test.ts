@@ -202,7 +202,7 @@ test("at 1280px a new host chooses iMessage, verifies the sender, then opens the
 
   await expect(page.getByRole("link", { name: "Open iMessage" })).toHaveAttribute("href", `sms:${LINE}`);
   await page.getByRole("link", { name: "Go to Home" }).click();
-  await expect(page).toHaveURL("/");
+  await expect(page).toHaveURL("/app");
 });
 
 test("a new host cannot defer messaging into web setup", async ({ baseURL, context, db, page }) => {
