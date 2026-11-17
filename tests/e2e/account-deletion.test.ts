@@ -75,17 +75,22 @@ for (const width of [390, 1280]) {
   });
 }
 
-test("the Delete account card stays closed until the host asks for it", async ({ baseURL, context, db, page }) => {
+test("Delete account is a quiet link until the host opens it", async ({ baseURL, context, db, page }) => {
   const host = await signedInHost(db, context, baseURL!);
   await confirmedHost(db, host.hostAccountId);
 
   await page.goto("/app");
   await page.getByRole("button", { name: "Open settings" }).click();
-  const card = page.getByRole("dialog", { name: "Settings" }).getByRole("region", { name: "Delete account" });
-  await expect(card.getByText("You get 7 days to change your mind.", { exact: false })).toBeVisible({ timeout: 30_000 });
-  await expect(card.getByRole("button", { name: "Delete my account" })).toHaveCount(0);
-  await card.getByRole("button", { name: "Delete account…" }).click();
+  const dialog = page.getByRole("dialog", { name: "Settings" });
+  const link = dialog.getByRole("button", { name: "Delete account", exact: true });
+  await expect(link).toBeVisible({ timeout: 30_000 });
+  await expect(dialog.getByRole("region", { name: "Delete account" })).toHaveCount(0);
+  expect(await link.evaluate((element) => getComputedStyle(element).textDecorationLine)).toBe("underline");
+
+  await link.click();
+  const card = dialog.getByRole("region", { name: "Delete account" });
   await expect(card.getByRole("button", { name: "Delete my account" })).toBeDisabled();
   await card.getByRole("button", { name: "Keep my account" }).click();
-  await expect(card.getByRole("button", { name: "Delete account…" })).toBeVisible();
+  await expect(dialog.getByRole("region", { name: "Delete account" })).toHaveCount(0);
+  await expect(link).toBeVisible();
 });

@@ -474,7 +474,7 @@ export function LinkStep({ children, locale, ready }: { readonly children: React
           </p>
           <div className="verify-actions">
             {appUrl ? <a className="primary-btn" href={appUrl}>{c.link.openConnected(channelName(linked.channel))}</a> : null}
-            <a className="link-btn faint" href="/">{c.link.goHome}</a>
+            <a className="link-btn faint" href="/app">{c.link.goHome}</a>
           </div>
         </main>
       );
