@@ -17,13 +17,14 @@ test("the iMessage start offers Messages instead of Google first", async ({ page
   await expect(page.getByRole("link", { name: "Continue with Google" })).toHaveAttribute("href", "/auth/sign-in");
 });
 
-test("the landing follows the lang cookie", async ({ context, page }) => {
+// Service screens are English only since #217: an old Korean cookie changes nothing.
+test("the landing stays in English with an old Korean lang cookie", async ({ baseURL, context, page }) => {
+  await context.addCookies([{ domain: new URL(baseURL!).hostname, name: "lang", path: "/", value: "ko" }]);
   await page.goto("/");
-  await page.getByRole("button", { name: /Language: English/ }).click();
-  await page.getByRole("menuitemradio", { name: "한국어" }).click();
 
-  await expect(page.getByRole("link", { name: "Google로 계속하기" })).toBeVisible();
-  expect((await context.cookies()).find((cookie) => cookie.name === "lang")?.value).toBe("ko");
+  await expect(page.getByRole("heading", { level: 1 })).toContainText("The assistant that");
+  await expect(page.getByRole("link", { name: "Continue with Google" })).toBeVisible();
+  await expect(page.getByRole("button", { name: /Language/ })).toHaveCount(0);
 });
 
 test("home points agents at the host instructions", async ({ page, request }) => {

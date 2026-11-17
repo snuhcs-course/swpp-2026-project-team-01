@@ -11,6 +11,7 @@ import { messagesEvent, newSender, signedWebhook, TEST_WEBHOOK_ID, TEST_WEBHOOK_
 import { unreachableSetup } from "../integration/support/imessage";
 import { runJob } from "../integration/support/requests";
 import { expect, signedInHost, test } from "./support/session";
+import { openMessagingCard } from "./support/connected-apps";
 import { E2E_TOKEN_ENCRYPTION_KEY } from "./support/token-key";
 
 // The Connect iMessage card in /app (host-imessage-channel design 4 to 6 and 11;
@@ -88,18 +89,7 @@ test.use({
 });
 
 async function openCard(page: Page) {
-  await page.goto("/app");
-  const menu = page.getByRole("button", { name: "Open menu" });
-  await expect(menu).toBeVisible({ timeout: 45_000 });
-  // The conversation has loaded, so nothing moves focus after the menu does.
-  await expect(page.getByRole("textbox", { name: "Message Thyme" })).toBeEnabled({ timeout: 45_000 });
-  await menu.click();
-  await page.getByRole("menuitem", { name: "iMessage" }).click();
-  const card = page.locator("[data-imessage-card]");
-  await expect(card).toBeVisible({ timeout: 15_000 });
-  // The menu moves focus to the card's heading once it is shown.
-  await expect(card.getByRole("heading").first()).toBeFocused();
-  return card;
+  return openMessagingCard(page);
 }
 
 async function press(page: Page, name: string) {
@@ -161,9 +151,8 @@ for (const width of [390, 1280]) {
     ]);
 
     await press(page, "Confirm and link");
-    // Linked, the card folds into a small status pill that opens the full card.
-    await expect(again.getByRole("button", { name: `iMessage linked ${sender}` })).toBeVisible();
-    await press(page, `iMessage linked ${sender}`);
+    // Linked: Connected apps lists the sender, and its card, opened expanded, says so.
+    await expect(page.getByRole("dialog", { name: "Connected apps" }).getByRole("list", { name: "Messaging app connections" })).toContainText(sender);
     await expect(again.getByRole("heading", { name: "iMessage is linked" })).toBeVisible();
     expect(await db`select 1 from app.imessage_bindings where host_account_id = ${host.hostAccountId} and state = 'active'`).toHaveLength(1);
 

@@ -15,6 +15,7 @@ import { runJob } from "../integration/support/requests";
 import { agreedReviewRequest, runBookings, readyReviewHost } from "./support/host-review";
 import { readyRequestHost, runEmails, runEvaluations, sentTo } from "./support/requester";
 import { expect, signedInHost, test } from "./support/session";
+import { openConnectedApps } from "./support/connected-apps";
 import { E2E_TOKEN_ENCRYPTION_KEY } from "./support/token-key";
 
 const key = parseTokenKey(E2E_TOKEN_ENCRYPTION_KEY);
@@ -168,9 +169,7 @@ for (const role of ["host", "requester"] as const) test(`${role} starts a link t
     expect(booked.state).toBe("booked");
     evidence.B14 = { approved, booked };
     await page.goto("/app");
-    await page.getByRole("button", { name: "Open menu" }).click();
-    await page.getByRole("menuitem", { name: "Connected agents" }).click();
-    const dialog = page.getByRole("dialog", { name: "Connected agents" });
+    const dialog = await openConnectedApps(page);
     await dialog.getByRole("button", { name: "Revoke U08 Local Agent" }).click();
     await dialog.getByRole("button", { name: "Revoke", exact: true }).click();
     await expect(dialog.getByText(/No agents are connected/)).toBeVisible();
