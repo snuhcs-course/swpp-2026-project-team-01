@@ -1,0 +1,23 @@
+{
+  "branch": "docs/testing-baseline",
+  "user": "enu3379@gmail.com",
+  "sessions": {
+    "claude:7a5d1a3a-bd9a-4648-95f1-d0a60a3c6fce": {
+      "agent": "claude-code",
+      "client": "cli",
+      "agent_ms": 1141183,
+      "models": {
+        "claude-opus-5-5": {
+          "input": 266,
+          "cache_read": 48055937,
+          "cache_write_5m": 0,
+          "cache_write_1h": 254791,
+          "output": 126421,
+          "reasoning": 0
+        }
+      },
+      "first": "2026-11-17T06:36:45.478Z",
+      "last": "2026-11-17T08:09:03.586Z"
+    }
+  }
+}
