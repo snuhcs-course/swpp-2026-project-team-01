@@ -473,12 +473,10 @@ test("the identity step and the review work by keyboard alone", async ({ baseURL
   const identity = card(page, "What should your booking page show?");
   await expectOnlyCard(page, "What should your booking page show?");
 
-  // The menu's Setup item moves focus to the current step's card.
-  await page.getByRole("button", { name: "Open menu" }).focus();
-  await page.keyboard.press("Enter");
-  await expect(page.getByRole("menuitem", { name: "Setup" })).toBeFocused();
-  await page.keyboard.press("Enter");
-  await expect(identity.getByRole("heading", { name: "What should your booking page show?" })).toBeFocused();
+  // The menu's Setup item went with #213; start from the current step's heading.
+  const heading = identity.getByRole("heading", { name: "What should your booking page show?" });
+  await heading.focus();
+  await expect(heading).toBeFocused();
 
   const tabTo = async (name: string) => {
     for (let step = 0; step < 60; step += 1) {
