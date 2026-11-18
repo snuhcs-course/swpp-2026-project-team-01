@@ -21,6 +21,9 @@ export type GrantSource = {
   readonly revoke: (grantId: string) => Promise<boolean>;
   // Shown when nothing is connected.
   readonly empty: string;
+  // Shown under the list whether or not something is connected: how to connect
+  // another agent, or switch to one (testing baseline A01 M-4.1).
+  readonly connectHint?: (origin: string) => { readonly prompt: string; readonly note: string };
 };
 
 const PERMISSION_WORDS: Readonly<Record<string, string>> = {
@@ -56,6 +59,8 @@ export function ConnectedAgentsDialog({
   const [manageMessaging, setManageMessaging] = useState(false);
   const listedChannels = listedMessagingChannels(messagingStatus);
   const { load, revoke } = source;
+  // The dialog renders only on the client once opened, so the origin is known here.
+  const connectHint = open && source.connectHint ? source.connectHint(window.location.origin) : null;
 
   const reload = useCallback(async () => {
     const loaded = await load().catch(() => null);
@@ -192,6 +197,14 @@ export function ConnectedAgentsDialog({
             ))}
           </ul>
         ) : null}
+        {connectHint ? (
+          <div className="space-y-1">
+            <p className="text-sm font-medium">{grants && grants.length > 0 ? "Connect or switch to another agent" : "Connect an agent"}</p>
+            <p className="text-muted-foreground text-sm">Tell your agent:</p>
+            <code className="block rounded-md bg-secondary px-3 py-2 text-sm break-all select-all">{connectHint.prompt}</code>
+            <p className="text-muted-foreground text-sm">{connectHint.note}</p>
+          </div>
+        ) : null}
         </section>
       </DialogContent>
     </Dialog>
@@ -199,7 +212,11 @@ export function ConnectedAgentsDialog({
 }
 
 export const HOST_GRANT_SOURCE: GrantSource = {
-  empty: "No agents are connected. Ask your agent to connect to Find Me a Time; you allow it in this browser.",
+  empty: "No agents are connected.",
+  connectHint: (origin) => ({
+    prompt: `Let me use ${origin}/SKILL.md for my scheduling`,
+    note: "When it asks to connect, you allow it in this browser. To switch agents, connect the new one, then revoke the old one above.",
+  }),
   load: async () => {
     const response = await fetch("/api/agent-grants", { cache: "no-store" });
     return response.ok ? ((await response.json()) as { grants: AgentGrantView[] }).grants : null;
