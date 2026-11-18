@@ -459,8 +459,9 @@ function decisionTime(decision: NoteReviewDecision, locale: Locale, timeZone: st
 // After Confirm: the entries now free, each with its day and time, under one
 // quiet line that they are written to Google Calendar. Only a failed writeback
 // gets words, since that entry is still busy. The main button takes the host
-// back to the chat they set up in (iMessage, WhatsApp or Telegram), or to the
-// workspace without one; Back returns to the week to change an answer.
+// back to the chat they set up in (iMessage or WhatsApp), or to the workspace
+// without one; for Telegram one line asks the host to go back there instead,
+// with no link to open the bot. Back returns to the week to change an answer.
 export function NoteReviewDone({
   busy = false,
   exit,
@@ -526,12 +527,19 @@ export function NoteReviewDone({
           {t.slotImageFollows}
         </p>
       ) : null}
+      {exit.channel === "telegram" ? (
+        <p className="text-sm font-medium text-foreground" data-note-exit="telegram">
+          {t.goBackToTelegram}
+        </p>
+      ) : null}
       <div className="flex flex-wrap items-center gap-2">
-        <Button asChild className="min-h-11">
-          <a data-note-exit={exit.channel ?? "app"} href={exit.href}>
-            {exit.channel ? t.backTo[exit.channel] : t.done}
-          </a>
-        </Button>
+        {exit.channel === "telegram" ? null : (
+          <Button asChild className="min-h-11">
+            <a data-note-exit={exit.channel ?? "app"} href={exit.href}>
+              {exit.channel ? t.backTo[exit.channel] : t.done}
+            </a>
+          </Button>
+        )}
         <Button className="min-h-11" disabled={busy} onClick={onBack} type="button" variant="secondary">
           <ChevronLeftIcon aria-hidden />
           {t.back}
