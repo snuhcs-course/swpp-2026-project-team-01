@@ -11,6 +11,7 @@ import { HostIneligibleError, readHostStanding } from "./host-eligibility";
 import { type AppOrigins, appOriginsFromEnvironment, crossSiteRefusal } from "./same-origin";
 import { readSetupState, type SetupDependencies, setupDependenciesFromEnvironment } from "./setup";
 import { confirmSettingsCommand, suggestImageWindowsCommand, updateDraftCommand } from "./setup-commands";
+import { saveReadyHostChange } from "./setup-saved-change";
 import { type SupabaseAuthConfig, supabaseAuthConfigFromEnvironment } from "./supabase-auth";
 
 // Web routes for the setup cards (design decision 11), shaped like the chat
@@ -92,6 +93,22 @@ async function liveCalendars(deps: SetupRouteDependencies, hostAccountId: string
   return (await calendar.listCalendars()).calendars;
 }
 
+// A host whose settings are already confirmed changes them at once: after a
+// recorded change, the confirmed settings follow it, so guests book against what
+// the host just set. The outcome reports savedChange; first-time setup ("not_ready")
+// still ends with the host's own save.
+async function withSavedChange(
+  deps: SetupRouteDependencies,
+  actor: Actor,
+  retryKey: string,
+  outcome: CommandOutcome<unknown>,
+): Promise<CommandOutcome<unknown>> {
+  if (!outcome.ok) return outcome;
+  const savedChange = await saveReadyHostChange(deps, actor, { retryKey: `${retryKey.slice(0, 190)}:save` });
+  const result = outcome.result && typeof outcome.result === "object" ? outcome.result : {};
+  return { ...outcome, result: { ...result, savedChange } };
+}
+
 // POST /api/setup/commands { operation, expectedRevision, retryKey, input }
 export function createSetupCommandHandler(load: () => SetupRouteDependencies = setupRouteDependenciesFromEnvironment) {
   return async (request: Request) => {
@@ -126,6 +143,7 @@ export function createSetupCommandHandler(load: () => SetupRouteDependencies = s
           break;
         case "setup.save_calendar_roles":
           outcome = await run(saveCalendarRolesCommand(await liveCalendars(deps, actor.id)));
+          outcome = await withSavedChange(deps, actor, body.data.retryKey, outcome);
           break;
         case "setup.confirm_settings": {
           const live = await liveCalendars(deps, actor.id);
@@ -145,6 +163,7 @@ export function createSetupCommandHandler(load: () => SetupRouteDependencies = s
           break;
         case "setup.update_draft":
           outcome = await run(updateDraftCommand);
+          outcome = await withSavedChange(deps, actor, body.data.retryKey, outcome);
           break;
       }
     } catch (error) {

@@ -7,7 +7,7 @@ Hosts currently edit weekly meeting windows through setup cards and sign out thr
 ## What Changes
 
 - Place a labeled gear button at the upper right of the host setup and host request/chat views in `/app`. It opens a floating settings modal over a translucent backdrop. A visible **X** at the modal's upper right closes it; keyboard and screen-reader operation remain available.
-- Show the host's confirmed weekly available windows in their meeting timezone and let them edit them. Saving follows the existing draft, review and confirmation rules, so the public schedule changes only after a successful confirmation.
+- Show the host's confirmed weekly available windows in their meeting timezone and let them edit them. For a host whose settings are already confirmed, a saved edit becomes the public schedule at once, through the existing confirmation command and its checks; only first-time setup needs the host's own confirmation.
 - Add a host-controlled **Accept new meeting requests** toggle. Turning it off stops new requests across the public web page, agent and email entry points while preserving existing requests and confirmed settings. Turning it back on resumes intake only when the host is otherwise ready. This is distinct from operator suspension.
 - Place the gear immediately left of the upper-right menu. Keep **Sign out** in that menu, alongside navigation to setup, requests, iMessage and connected agents.
 
