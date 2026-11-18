@@ -3,8 +3,8 @@
 # Find Me a Time — 테스트 기준선
 
 상태: **초안**, 팀 검토 중\
-날짜: 2026-11-17\
-기준 코드: `main` `d2d610ff` (2026-11-16)
+날짜: 2026-11-18\
+기준 코드: `main` `50bc29e9` (2026-11-18)
 
 이 문서는 9개 user story가 인터페이스마다 어떻게 동작해야 하는지를 단계별로 정의합니다. 기능 테스트(QA)와 AI 벤치마크는 이 표에서 뽑습니다. 흐름과 문구는 이전 문서가 아니라 구현 코드에서 가져왔고, 화면·메시지 문구는 코드의 영문 그대로입니다.
 
@@ -30,7 +30,7 @@
 
 **코드로 확인하지 못한 것 · 차이**
 
-- 열린 PR #248 "return linked hosts to dashboard"는 아직 main에 없어서 반영하지 않았습니다. W-A7 연결 완료 화면의 버튼이 바뀔 수 있습니다.
+- #248("return linked hosts to dashboard")로 W-A7 연결 완료 화면의 Go to Home이 랜딩 대신 /app으로 갑니다.
 - MCP로 가입한 신규 호스트에게 도구는 "캘린더 연결·선택은 /app에서"라고 안내하는데, 셋업이 안 끝난 호스트가 /app을 열면 메신저 연결 화면(W-A3)이 먼저 나옵니다. MCP만으로 캘린더 선택까지 끝낼 수 있는지 확인하지 못했습니다.
 
 ### Web · Google로 시작
@@ -45,7 +45,7 @@ findmeatime.com/ 에서 Continue with Google
 | W-A4 | 앱 선택 화면 | iMessage 누르기 | 번호 화면 "Which number do you use for iMessage?" — "Thyme only reads messages from numbers it knows. Enter yours, then send Thyme one message from it." → 번호 입력 후 Next | **성공**: 번호 등록 성공 → 코드 생성, 보내기 화면(W-A5)<br>**실패**: 형식 오류 → "Enter a mobile number like 10-1234-5678." (한국 외: "Check the number. It looks incomplete.")<br>**실패**: 서버 등록 실패 → "Couldn't register this number. Try again in a moment."<br>**실패**: 시도 과다 → "Too many tries for now. Wait a little and try again."<br>**분기**: Telegram 선택 → 번호 없이 바로 코드 · "Use Telegram instead"로 전환하면 이전 코드는 끝남 | ink/link-step.tsx · ink/number-form.tsx |
 | W-A5 | 코드 생성됨 (15분 유효) | 기기에 따라 메시지 보내기 | 컴퓨터: "Connect Thyme to your iMessage" 패널 — iPhone용 QR, Open Messages on this Mac, Copy and send it yourself, 남은 시간<br><br>iPhone: 미리 작성된 메시지 + Open Messages → 대기 화면 "Waiting for your message…" | **실패**: 15분 안에 안 보냄 → iPhone: "Time's up." + Write a new message / 컴퓨터: Expired + Make a new code<br>**분기**: Messages가 안 열림 → "Messages didn't open, or the note is gone? Open it again" | ink/link-step.tsx · ink/send.tsx |
 | W-A6 | 대기 화면 | 자기 iPhone iMessage에서 미리 작성된 메시지 전송 | 웹(2초마다 확인): "Is this you?" — Sent from {보낸 번호 전체}, Confirm within {남은 시간}<br><br>서비스 메시지: Got it. Go back to Find Me a Time in your browser and tap Confirm and link to finish. | **실패**: 만료·틀린 코드 → "That link code is not valid any more. Start again from Connect iMessage in Find Me a Time."<br>**분기**: 기존 링크가 있으면 → "This replaces your iMessage link." | ink/link-step.tsx · lib/server/imessage-links.ts |
-| W-A7 | "Is this you?" 화면 | Confirm and link | "Your iMessage is connected." — "You can onboard with Thyme in iMessage. Thyme just sent you a hello there." Linked to {번호}, Open iMessage, Go to Home<br><br>이후 온보딩은 메신저(M-1)에서 | **성공**: 연결 완료 → 메신저 첫 메시지 (M-1)<br>**분기**: This isn't me → 시도 취소, 새 코드<br>**실패**: 확인 제한 시간 지남 → 연결 안 됨, 새 코드 필요 | ink/link-step.tsx · imessage-links.ts (linkedText) |
+| W-A7 | "Is this you?" 화면 | Confirm and link | "Your iMessage is connected." — "You can onboard with Thyme in iMessage. Thyme just sent you a hello there." Linked to {번호}, Open iMessage, Go to Home(/app 대시보드로)<br><br>이후 온보딩은 메신저(M-1)에서 | **성공**: 연결 완료 → 메신저 첫 메시지 (M-1)<br>**분기**: This isn't me → 시도 취소, 새 코드<br>**실패**: 확인 제한 시간 지남 → 연결 안 됨, 새 코드 필요 | ink/link-step.tsx · imessage-links.ts (linkedText) |
 
 ### Web · 메신저로 시작
 
@@ -118,7 +118,7 @@ findmeatime.com/?flow=imessage (Telegram은 ?flow=telegram)
 
 | Step | 전제 (Given) | 사용자 동작 (When) | 화면 · 메시지 (Then) | 분기 · 판정 · 코드 상태 | 근거 코드 |
 |---|---|---|---|---|---|
-| W-1 | 셋업 완료, /app 대시보드 | 오른쪽 위 톱니바퀴(Open settings) 누르기 | "Settings" 창: Available times (Meeting time zone, 요일별 시간 또는 Unavailable, Edit times) · Meeting preferences (Weekly meeting limit, Preferred meeting location) · Accept new meeting requests 토글 · Delete account | **실패**: 불러오기 실패 → "Settings could not be loaded. Close and try again." | _components/host-dashboard.tsx · host-settings-dialog.tsx |
+| W-1 | 셋업 완료, /app 대시보드 | 오른쪽 위 톱니바퀴(Open settings) 누르기 | "Settings" 창: Available times (Meeting time zone, 요일별 시간 또는 Unavailable, Edit times) · Meeting preferences (Weekly meeting limit, Preferred meeting location) · Accept new meeting requests 토글 · 오른쪽 아래 구석의 Delete account 링크 | **실패**: 불러오기 실패 → "Settings could not be loaded. Close and try again." | _components/host-dashboard.tsx · host-settings-dialog.tsx |
 | W-2 | 설정 창 | Edit times → 요일별 시간 편집 → 저장 | draft로 저장(setup.update_draft) → 편집 창 닫힘 → 아래에 Review and confirm changes 버튼 | **실패**: 다른 곳에서 먼저 바뀜(revision 불일치) → 오류 문구 표시 후 최신 값 다시 불러옴<br>**분기**: 저장 안 한 편집 중에 창 닫기 → "Discard your unsaved window edits?" 확인<br>**하면 안 됨**: 저장(draft)만으로 예약 후보 시간이 바뀜 | host-settings-dialog.tsx (saveWindows) · setup/weekly-windows-editor.tsx |
 | W-3 | 설정 창 | Weekly meeting limit 또는 Preferred meeting location 입력 → Save changes | "Preferences saved as a draft. Review and confirm them to update your settings." → Review and confirm changes 버튼 | **실패**: 한도 범위 밖 → "Enter 1–50 meetings per week, or leave the field empty for no limit."<br>**실패**: 장소 100자 초과·빈 값 → "Enter a preferred area or venue of up to 100 characters."<br>**분기**: 한도 칸 비움 → 제한 없음 | host-settings-dialog.tsx (savePreferences) |
 | W-4 | draft 변경 있음 | Review and confirm changes | setup.confirm_settings → "Your public schedule is updated." | **성공**: 확정 → 새 후보 계산에 반영<br>**실패**: 빠진 필수 값 → 버튼 비활성<br>**실패**: 확정 실패 → 서버 메시지 표시 | host-settings-dialog.tsx (confirmSettings) |
@@ -530,7 +530,7 @@ G01 W-10.2~10.3에서 연결한 메신저
 | W-H2 | 로그인됨 | Open menu → Connected apps | "Review your connected agents and messaging app." — Connected agents 목록("Agents you allowed to work with Find Me a Time. Revoking one stops it at its next request.")과 Messaging app | **분기**: 에이전트 없음 → "No agents are connected. Ask your agent to connect to Find Me a Time; you allow it in this browser."<br>**실패**: "Messaging status could not be loaded." | connected-agents.tsx |
 | W-H3 | Connected apps | 에이전트 옆 Revoke | "Revoking..." → 목록에서 빠짐 | **성공**: 그 에이전트의 다음 호출이 거부됨 | connected-agents.tsx · api/agent-grants/revoke |
 | W-H4 | Connected apps | Messaging app → Unlink | 연결 해제 → 그 메신저로 더 이상 메시지 안 감 | **성공**: 다시 연결하려면 H01 W-A3~A7 | imessage/imessage-card.tsx |
-| W-H5 | 설정 창 | Delete account → 설명 확인 → "Type @{handle} to confirm" 입력 → Delete my account | 설명: "Your account will be deleted in 7 days." · "Open requests are closed and their guests told by email." · "Meetings already in a calendar stay there; cancel any you no longer want first." · "Your settings, requests, conversations and Google connection are deleted, and this cannot be undone." · "You will be signed out. Signing in again within 7 days cancels the deletion."<br><br>로그아웃되고 로그인 화면에 "Your account will be deleted in 7 days, and we emailed you the date. Signing in again before then cancels the deletion." | **실패**: 확인 문구 불일치·실패 → "Your account could not be scheduled for deletion. Try again."<br>**분기**: 7일 안에 다시 로그인 → 삭제 취소, 메일 "Your account deletion is cancelled"<br>**성공**: 7일 후 삭제, 메일 "Your account is deleted" | delete-account-card.tsx · api/host/account-deletion · account-emails.ts · sign-in-card.tsx |
+| W-H5 | 설정 창 | 오른쪽 아래 Delete account 링크 → 설명 확인 → "Type @{handle} to confirm" 입력 → Delete my account | 설명: "Your account will be deleted in 7 days." · "Open requests are closed and their guests told by email." · "Meetings already in a calendar stay there; cancel any you no longer want first." · "Your settings, requests, conversations and Google connection are deleted, and this cannot be undone." · "You will be signed out. Signing in again within 7 days cancels the deletion."<br><br>로그아웃되고 로그인 화면에 "Your account will be deleted in 7 days, and we emailed you the date. Signing in again before then cancels the deletion." | **실패**: 확인 문구 불일치·실패 → "Your account could not be scheduled for deletion. Try again."<br>**분기**: 7일 안에 다시 로그인 → 삭제 취소, 메일 "Your account deletion is cancelled"<br>**성공**: 7일 후 삭제, 메일 "Your account is deleted" | delete-account-card.tsx · api/host/account-deletion · account-emails.ts · sign-in-card.tsx |
 | ↳ W-H6 | 벗어난 입력. 로그인됨 | Google Calendar 연결 해제 | 찾지 못함 | **코드 미지원**: 호스트 웹에 캘린더 연결 해제 UI를 찾지 못함 | host-settings-dialog.tsx · workspace-menu.tsx |
 
 ### Web · 게스트
