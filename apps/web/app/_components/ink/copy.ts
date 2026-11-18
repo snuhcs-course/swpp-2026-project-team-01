@@ -32,7 +32,7 @@ const en = {
     google: "Continue with Google",
     noImessage: "No iMessage?",
     agentOr: "Or start from the AI agent you already use",
-    agentPrompt: "Let me use findmeatime.com/SKILL.md for my scheduling",
+    agentPrompt: "Help me schedule with Find Me a Time. Read https://findmeatime.com/SKILL.md first. If you can't open it, run `curl -fsSL --max-time 20 https://findmeatime.com/SKILL.md`. Follow the instructions in the document.",
     agentLabel: "Prompt for your agent",
     agentNote: "Paste it into your agent. It walks you through the same setup.",
     agentRegion: "For AI agents",
