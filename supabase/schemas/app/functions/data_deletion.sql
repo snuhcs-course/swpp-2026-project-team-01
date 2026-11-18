@@ -49,6 +49,12 @@ AS $$
 DECLARE
   removed integer;
 BEGIN
+  -- A guest's outbox rows go with their binding, which goes with the request.
+  -- Deleting them first keeps the request's deletion from setting request_id
+  -- null on a row whose binding the same statement already removed (#269).
+  DELETE FROM app.imessage_outbox
+  WHERE requester_binding_id IN (SELECT b.id FROM app.requester_imessage_bindings b WHERE b.request_id = ANY (p_ids));
+
   PERFORM app.delete_discussion_records(array(
     SELECT d.id FROM app.discussions d
     WHERE d.request_id = ANY (p_ids)
