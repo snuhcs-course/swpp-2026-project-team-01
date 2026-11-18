@@ -64,7 +64,7 @@ describe("discovery", () => {
     });
 
     const resource = (await (await createHostResourceMetadataHandler(() => deps)(new Request(`${ORIGIN}/.well-known/oauth-protected-resource/mcp`))).json()) as Record<string, unknown>;
-    expect(resource).toEqual(expect.objectContaining({ authorization_servers: [ORIGIN], resource: HOST_RESOURCE, scopes_supported: ["host:read", "host:write", "host:decide"] }));
+    expect(resource).toEqual(expect.objectContaining({ authorization_servers: [ORIGIN], resource: HOST_RESOURCE, scopes_supported: ["host:read", "host:write", "host:decide", "request:read", "request:write", "request:decide"] }));
 
     const unknown = await createHostResourceMetadataHandler(() => deps)(new Request("http://evil.example/.well-known/oauth-protected-resource"));
     expect(unknown.status).toBe(421);
@@ -188,7 +188,7 @@ describe("the authorization request", () => {
     expect(await errorOf({ ...valid, code_challenge: "short" })).toBe("invalid_request");
     expect(await errorOf({ ...valid, resource: "https://other.example/mcp" })).toBe("invalid_target");
     expect(await errorOf({ ...valid, resource: `${ORIGIN}/mcp/` })).toBe("invalid_target");
-    expect(await errorOf({ ...valid, scope: "request:write" })).toBe("invalid_scope");
+    expect(await errorOf({ ...valid, scope: "request:admin" })).toBe("invalid_scope");
     expect(await errorOf({ ...valid, scope: "host:read host:admin" })).toBe("invalid_scope");
     expect(await errorOf({ ...valid, scope: "" })).toBe("invalid_scope");
 
@@ -228,6 +228,18 @@ describe("the authorization request", () => {
 });
 
 describe("host consent", () => {
+  it("explicitly consents to account request permissions on the same resource", async () => {
+    const deps = agentDependencies(db);
+    const host = await signInHost(db);
+    const scope = "host:read request:read request:write request:decide";
+    const { tokens } = await connectHost(deps, host.cookie, { scope });
+    expect(tokens.scope).toBe(scope);
+    const claims = verifyAccessToken(deps.signingKey(), tokens.access_token, { audience: HOST_RESOURCE, issuer: ORIGIN })!;
+    expect(await accessFromClaims(db, claims)).toMatchObject({ hostAccountId: host.hostAccountId, role: "host", scopes: scope.split(" ") });
+    const narrowed = await connectHost(deps, host.cookie, { scope, allow: ["request:read"] });
+    expect(narrowed.tokens.scope).toBe("request:read");
+  });
+
   it("narrows the grant to the permissions left checked", async () => {
     const deps = agentDependencies(db);
     const host = await signInHost(db);

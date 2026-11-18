@@ -144,3 +144,13 @@ describe("Markdown negotiation", () => {
     expect(prefersMarkdown(accept)).toBe(false);
   });
 });
+
+
+it("reuses an account connection before offering anonymous per-host setup", () => {
+  const document = requesterEntryDocument("https://findmeatime.com", { handle: "dodo", displayName: "Dodo" });
+  expect(document.indexOf("If you already have an account connection")).toBeLessThan(document.indexOf("For an account-free requester"));
+  expect(document).toContain('hostHandle "dodo"');
+  expect(document).toContain("get_sent_request");
+  expect(document).toContain("request:read,request:write,request:decide");
+  expect(hostEntryDocument("https://findmeatime.com")).toContain("Existing host-only connections need explicit additional requester consent");
+});
