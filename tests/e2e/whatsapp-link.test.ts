@@ -122,7 +122,8 @@ test.describe("on Android", () => {
 
     await expect(page.getByRole("link", { name: "Open WhatsApp" })).toHaveAttribute("href", `https://wa.me/${WHATSAPP}`);
     await page.getByRole("link", { name: "Go to Home" }).click();
-    await expect(page).toHaveURL("/app");
+    await expect(page).toHaveURL("/app?view=dashboard");
+    await expect(page.getByRole("region", { name: "Calendar" })).toBeVisible();
   });
 
   test("the card's Connect WhatsApp makes the code, then opens wa.me with the message", async ({ baseURL, context, db, page }) => {

@@ -55,7 +55,8 @@ async function Workspace({ searchParams }: { readonly searchParams: SearchParams
   }
 
   const params = await searchParams;
-  if (standing.ready && !params.request && (!params.view || params.view === "dashboard")) {
+  // The post-link Home action opens the dashboard even while setup is incomplete.
+  if (!params.request && (params.view === "dashboard" || (standing.ready && !params.view))) {
     return <HostDashboard />;
   }
   return (

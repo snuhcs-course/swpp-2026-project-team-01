@@ -593,8 +593,8 @@ function ThreadMenu({ context }: { readonly context: RequesterCardContext }) {
           }}
         >
           <DialogHeader>
-            <DialogTitle>Withdraw this request?</DialogTitle>
-            <DialogDescription>It closes for good and cannot be reopened.</DialogDescription>
+            <DialogTitle>Are you sure you want to withdraw this request?</DialogTitle>
+            <DialogDescription>Once withdrawn, this request can’t be reopened. You can submit a new request at any time.</DialogDescription>
           </DialogHeader>
           {error ? (
             <p className="text-destructive text-sm" role="alert">

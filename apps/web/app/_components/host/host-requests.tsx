@@ -381,11 +381,6 @@ function PrivateDiscussion({
       ) : null}
       <ChatConversation>
         <ChatConversationContent aria-busy={busy} aria-label="Private messages">
-          {chat.messages.length === 0 && chat.phase === "ready" ? (
-            <p className="px-3 text-sm text-muted-foreground">
-              Ask Thyme about this request: why a time works, or what to suggest instead. The requester never sees this conversation.
-            </p>
-          ) : null}
           {chat.messages.map((message, index) => (
             <ChatItem key={message.id} messageId={message.id} scrollAnchor={message.role === "user"}>
               <AgentMessage
@@ -435,7 +430,7 @@ function PrivateDiscussion({
             onChange={chat.setDraft}
             onStop={() => {}}
             onSubmit={chat.send}
-            placeholder="Message Thyme privately about this request"
+            placeholder="Ask Thyme about this request."
             value={chat.draft}
           />
         </div>

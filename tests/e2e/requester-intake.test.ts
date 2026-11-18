@@ -206,11 +206,10 @@ for (const viewport of [
     // with Get updates in iMessage as its button (U10).
     const waiting = page.locator('[data-guest-card="awaiting"]');
     await expect(waiting.getByRole("heading", { name: "Waiting for Ada Lovelace to approve" })).toBeVisible();
-    await expect(waiting.getByText(/Nothing is booked yet/)).toBeVisible();
+    await expect(waiting.getByText("Your meeting request has been submitted.")).toBeVisible();
     const decision = waiting.locator("[data-guest-decision-details]");
-    await expect(decision).toContainText("The request is waiting for the host’s approval. Nothing is booked yet.");
-    await expect(decision).toContainText(`We’ll email the host’s decision to ${email}.`);
-    await expect(decision).toContainText("If iMessage or Telegram is linked, updates can arrive there too.");
+    await expect(decision).toContainText(`You’ll receive an email at ${email} as soon as the host approves your request.`);
+    await expect(decision).toContainText("You can also link iMessage or Telegram to receive updates through those channels.");
     await expect(decision).not.toContainText("We sent a copy of your agreement");
     await openCardCount(page, 1);
     await expect(page.locator('[data-guest-receipt="answered"]').getByText(/You agreed to/)).toBeVisible();
@@ -233,12 +232,19 @@ for (const viewport of [
     await page.keyboard.press("Escape");
     await expect(page.getByRole("button", { name: "Request actions" })).toBeFocused();
 
+    await press(page, /^Email updates only$/);
+    await expect(waiting.locator('[data-notification-preference="email-only"]')).toBeVisible();
+    await expect(waiting.getByRole("button", { name: "Get updates in iMessage", exact: true })).toHaveCount(0);
+    await expect(page.locator('[data-notification-confirmation="email-only"]')).toContainText("Got it. I’ll notify you by email only when the host approves your request.");
+
     // A reload loads the same thread from its stored records, cards in place.
     await page.reload();
     await expect(page.getByRole("dialog", { name: "Request sent successfully" })).toHaveCount(0);
     await expect(page.getByText("Talk about compilers, online.")).toBeVisible();
     await expect(page.getByRole("heading", { name: "Waiting for Ada Lovelace to approve" })).toBeVisible();
-    await expect(page.locator("[data-guest-decision-details]")).toContainText(`We’ll email the host’s decision to ${email}.`);
+    await expect(page.locator("[data-guest-decision-details]")).toContainText(`You’ll receive an email at ${email} as soon as the host approves your request.`);
+    await expect(page.locator('[data-notification-preference="email-only"]')).toBeVisible();
+    await expect(page.locator('[data-notification-confirmation="email-only"]')).toBeVisible();
     await expect(page.locator('[data-guest-card="calendar"]').getByText("Skipped")).toBeVisible();
     await openCardCount(page, 1);
   });

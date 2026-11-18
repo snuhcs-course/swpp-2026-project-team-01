@@ -106,7 +106,9 @@ export function createRequesterImessageLinkCommand(
       const requestId = assertRequest(context);
       const channel = context.input.channel ?? "imessage";
       if (!channelAddress(options, channel)) throw new CommandError("unavailable_configuration");
-      assertIdentified(await lockRequestLinking(tx, requestId));
+      const request = await lockRequestLinking(tx, requestId);
+      assertIdentified(request);
+      if (request.details.notificationPreference === "email_only") throw new CommandError("invalid_input");
 
       const [recent] = await tx<{ count: number }[]>`
         select count(*)::int as count from app.imessage_links
@@ -200,6 +202,25 @@ export const unlinkRequesterImessageCommand: CommandDefinition<{ pendingOnly?: b
   },
 };
 
+// Choosing email ends messaging delivery and cancels any code that could link it
+// again. The preference shares the request lock with edits to its JSON details.
+export const emailOnlyRequesterCommand: CommandDefinition<Record<string, never>, { emailOnly: boolean }> = {
+  input: noInput,
+  operation: REQUESTER_IMESSAGE_OPERATIONS.emailOnly,
+  async run(tx, context) {
+    const requestId = assertRequest(context);
+    assertIdentified(await lockRequestLinking(tx, requestId));
+    await endRequesterBindings(tx, requestId, "unlinked");
+    await endOpenAttempts(tx, requestId, "cancelled");
+    await tx`
+      update app.requests
+      set details = jsonb_set(details, '{notificationPreference}', '"email_only"'::jsonb), updated_at = now()
+      where id = ${requestId}
+    `;
+    return { emailOnly: true };
+  },
+};
+
 export function shareRequesterContactCardCommand(options: RequesterLinkOptions): CommandDefinition<Record<string, never>, { outboxId: string }> {
   return {
     input: noInput,
@@ -237,6 +258,11 @@ export async function readRequesterImessageStatus(
   whatsappNumber = "",
   telegramUsername = "",
 ): Promise<RequesterImessageStatus> {
+  const [preference] = await db<{ email_only: boolean }[]>`
+    select details ->> 'notificationPreference' = 'email_only' as email_only
+    from app.requests where id = ${requestId}
+  `;
+  if (preference?.email_only) return { emailOnly: true, lineNumber, state: "none", telegramUsername: telegramUsername || null, whatsappNumber: whatsappNumber || null };
   if (!lineNumber && !whatsappNumber && !telegramUsername) return { state: "unavailable" };
   const numberOf = (channel: GuestChannel) => channelAddress({ lineNumber, telegramUsername, whatsappNumber }, channel);
 

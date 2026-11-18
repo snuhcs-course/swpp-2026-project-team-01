@@ -94,6 +94,8 @@ export type RequestWindow = {
 
 // app.requests.details. Unknown values are null until the requester states them.
 export type RequestDetails = {
+  // An explicit, request-scoped choice; messaging bindings are ended when set.
+  readonly notificationPreference?: "email_only";
   readonly purpose: string | null;
   readonly durationMinutes: number | null;
   readonly mode: MeetingMode | null;
