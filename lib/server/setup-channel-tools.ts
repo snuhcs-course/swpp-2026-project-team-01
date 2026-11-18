@@ -6,8 +6,9 @@ import { CalendarAccessError, openHostCalendar } from "./google-calendar";
 import { hostRequestsForModel, QUOTED_NOTE, SELECT_NOTE } from "./host-review-tools";
 import { listHostRequests } from "./host-requests";
 import { settingsRef } from "./request-ref";
-import { computeSetupProposal, readSetupState, missingFields, setupDependenciesFromEnvironment, withStatedAnswers, type SetupDependencies } from "./setup";
+import { computeSetupProposal, differsFromConfirmed, readSetupState, missingFields, setupDependenciesFromEnvironment, withStatedAnswers, type SetupDependencies } from "./setup";
 import { confirmSettingsCommand } from "./setup-commands";
+import { saveReadyHostChange } from "./setup-saved-change";
 import { authorizeSetupTool, type SetupToolCall } from "./setup-tools";
 import { activeBindingOfHost, bindingRecipient } from "./imessage-links";
 import { encodeDisplayName } from "./entry-documents";
@@ -159,7 +160,10 @@ export async function setCalendarRolesForTool(deps: SetupDependencies, call: Set
     input: { conflictCalendarIds: conflicts.filter((id): id is string => id !== null), bookingCalendarId: booking },
     resourceId: actor.id, retryKey: `tool:${call.callId}`,
   });
-  return outcome.ok ? { saved: true, analysisStarted: true } : { saved: false, problem: "The calendars could not be saved. The destination must be writable; read setup again." };
+  if (!outcome.ok) return { saved: false, problem: "The calendars could not be saved. The destination must be writable; read setup again." };
+  // A host whose settings are already confirmed books against the new calendars at once.
+  const savedChange = await saveReadyHostChange(deps, actor, { call, retryKey: `tool:${call.callId}:save` });
+  return { saved: true, analysisStarted: true, savedChange };
 }
 
 export const previewNextWeekToolInput = z
@@ -276,8 +280,11 @@ export async function previewNextWeekForTool(deps: SetupDependencies, call: Setu
     if (error instanceof CalendarAccessError) return { queued: false, problem: "Google Calendar could not be read; no free times were inferred." };
     throw error;
   }
-  const preview = composed.preview;
-  if (!preview) return { queued: false, missingFields: composed.missing, problem: "Record the missing host answers before the preview." };
+  if (!composed.preview) return { queued: false, missingFields: composed.missing, problem: "Record the missing host answers before the preview." };
+  // Settings nothing has changed since they were saved are already open to guests.
+  const confirmed = proposal.records.confirmed;
+  const saved = confirmed !== null && !differsFromConfirmed(proposal.proposed, proposal.roles, confirmed);
+  const preview = saved ? { ...composed.preview, saved: true } : composed.preview;
   const outcome = await runCommand({ authenticate: async () => actor, db: deps.db }, {
     operation: "setup.preview_next_week",
     input: z.object({ proposalHash: z.string() }).strict(),

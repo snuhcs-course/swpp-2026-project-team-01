@@ -18,7 +18,7 @@ Use a shared gear trigger and dialog component from both setup and request views
 
 ### 2. Reuse setup's draft and confirmation path for windows
 
-The dialog reads the current setup state, displays confirmed weekly windows in the confirmed timezone and flags any pending draft. Reuse `WeeklyWindowsEditor` for weekday rows and overnight labels, but send edits through the existing `setup.update_draft` command with the current revision. The dialog then shows a concise before/after review and calls `setup.confirm_settings`, including the normal readiness checks. For an incomplete host, it may save the draft, then link back to the next required setup step; no public schedule is implied. A ready host's old confirmed windows remain live until confirmation succeeds. A direct write to `host_settings` from the dialog would bypass the review and role checks, so it is rejected.
+The dialog reads the current setup state, displays confirmed weekly windows in the confirmed timezone and flags any pending draft. Reuse `WeeklyWindowsEditor` for weekday rows and overnight labels, but send edits through the existing `setup.update_draft` command with the current revision. For a host whose settings are already confirmed, the server then runs `setup.confirm_settings` itself, with the normal readiness checks, so the change is live at once; the setup conversation's `draft_settings` and `set_calendar_roles` do the same. A second review was dropped after a host's Telegram hours change stayed in the draft while guests kept booking the old hours (2026-11-18). For an incomplete host, it may save the draft, then link back to the next required setup step; no public schedule is implied, and the first setup still ends with the host's own confirmation. When the automatic save fails, the old confirmed windows remain live and the change shows as pending with the reason. A direct write to `host_settings` from the dialog would bypass the review and role checks, so it is rejected.
 
 ### 3. Persist intake preference separately from readiness
 
@@ -28,7 +28,7 @@ Every public discovery path (`/{handle}`, its skill document, requester MCP and 
 
 ### 4. Keep toggles and window edits independent
 
-The toggle saves immediately and visibly; window edits need explicit review and confirmation. Closing the modal discards only unsubmitted window form input, not a successfully saved toggle or setup draft. On a stale toggle or draft revision, reload authoritative state and show what changed rather than overwriting it. The gear panel always labels pending windows and saved intake state separately to avoid implying both share a save button.
+The toggle and a ready host's window edits save immediately and visibly. Closing the modal discards only unsubmitted window form input, not a successfully saved toggle or setup draft. On a stale toggle or draft revision, reload authoritative state and show what changed rather than overwriting it. The gear panel always labels pending windows and saved intake state separately to avoid implying both share a save button.
 
 ## Risks / Trade-offs
 
@@ -36,7 +36,7 @@ The toggle saves immediately and visibly; window edits need explicit review and 
 - **A draft guest may be stranded by pause** → preserve draft identification and all existing-request continuation; gate only creation of a new request.
 - **A ready host may lose Calendar access after enabling intake** → show effective unavailable status from the server and keep the saved preference distinct; it cannot override readiness.
 - **The new dialog overlaps issue #43's theme migration** → use its shared ink tokens and verify modal contrast after integration rather than introducing modal-only colors.
-- **An unconfirmed window edit may look live** → show confirmed and pending values separately and require the existing confirmation action.
+- **A window edit that could not be saved may look live** → say after each edit whether guests now see it, and show a pending change with the existing confirmation action.
 
 ## Migration Plan
 

@@ -35,4 +35,7 @@ export type SlotPreview = {
   readonly travelMode: TravelMode | null;
   readonly durationMinutes: number;
   readonly reviewRef: string;
+  // True when these are the host's saved settings (guests already book these
+  // times), so the caption shows them instead of asking whether to open them.
+  readonly saved?: boolean;
 };

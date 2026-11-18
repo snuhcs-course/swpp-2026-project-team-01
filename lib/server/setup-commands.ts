@@ -142,10 +142,20 @@ function toRef(calendar: CalendarRef): CalendarRef {
 // destination_not_writable reason otherwise), validates every required value,
 // assigns the handle and writes the confirmed settings. Any failure rolls all of
 // it back.
+//
+// `savedChange` saves a change of a host whose settings are already confirmed,
+// right after the change was recorded (a change goes live at once; no second
+// approval). It refuses a host with no confirmed settings, so first-time setup
+// still ends with the host's own save. `acceptStated` accepts the meeting mode,
+// place and travel mode the host stated, and is set only for a turn from their
+// linked iMessage, WhatsApp or Telegram, as the channel review does.
+export type SavedChangeReview = { readonly acceptStated: boolean; readonly call?: SetupToolCall };
+
 export function confirmSettingsCommand(
   live: readonly CalendarListEntry[],
   appOrigin: string,
   channelReview?: { readonly bindingId: string; readonly call?: SetupToolCall },
+  savedChange?: SavedChangeReview,
 ): CommandDefinition<z.infer<typeof confirmInput>, ConfirmSettingsResult> {
   const byId = new Map(live.map((calendar) => [calendar.id, calendar]));
 
@@ -176,14 +186,31 @@ export function confirmSettingsCommand(
           order by created_at desc, id desc limit 1
         `;
         if (!binding || preview?.state !== "accepted" || preview.review_hash !== proposal.proposalHash) throw new CommandError("stale_revision");
+      }
+
+      if (savedChange) {
+        if (!proposal.records.confirmed) throw new CommandError("invalid_input");
+        if (savedChange.call) await authorizeSetupTool(tx, savedChange.call.auth, savedChange.call.sessionId, { lock: true });
+        if (savedChange.acceptStated && !(savedChange.call && (await channelOfTurn(tx, savedChange.call.sessionId, hostAccountId)))) {
+          throw new CommandError("forbidden");
+        }
+      }
+
+      if (channelReview || savedChange?.acceptStated) {
         const fields: Record<string, DraftEntry> = { ...draft.fields };
+        let accepted = false;
         for (const field of HOST_ANSWER_FIELDS) {
           const entry = fields[field];
-          if (entry?.source === "stated") fields[field] = acceptedEntry(entry, entry, new Date().toISOString());
+          if (entry?.source === "stated" && !entry.accepted) {
+            fields[field] = acceptedEntry(entry, entry, new Date().toISOString());
+            accepted = true;
+          }
         }
-        await writeDraft(tx, hostAccountId, fields);
-        proposal = await computeSetupProposal(tx, hostAccountId);
-        if (!proposal || proposal.proposalHash !== context.input.proposalHash) throw new CommandError("stale_revision");
+        if (accepted || channelReview) {
+          await writeDraft(tx, hostAccountId, fields);
+          proposal = await computeSetupProposal(tx, hostAccountId);
+          if (!proposal || proposal.proposalHash !== context.input.proposalHash) throw new CommandError("stale_revision");
+        }
       }
 
       // The roles the reviewed hash covers, read under the roles lock.

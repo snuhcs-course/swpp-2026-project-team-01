@@ -22,15 +22,15 @@ The signed-in host workspace SHALL show a labeled gear button immediately left o
 - **THEN** the title, close button, controls, pending and error messages are readable and reachable without horizontal page scrolling or focus escaping behind the modal
 
 ### Requirement: Weekly availability in settings
-The modal SHALL show the host's confirmed weekly available windows and meeting timezone, distinguish any pending draft from the active schedule, and let the host edit windows by weekday. It SHALL label an overnight end as the next day and reject equal start and end times. Editing SHALL update only the revisioned draft; the public schedule SHALL continue to use confirmed windows until the host reviews and explicitly confirms the current settings. Failed or stale confirmation SHALL leave the earlier confirmed schedule in force and show the current draft for review.
+The modal SHALL show the host's confirmed weekly available windows and meeting timezone, distinguish any pending draft from the active schedule, and let the host edit windows by weekday. It SHALL label an overnight end as the next day and reject equal start and end times. For a host whose settings are already confirmed, a change the host makes, in settings or in words in their setup conversation, SHALL be saved as the confirmed schedule at once, with the normal readiness checks and no second review; the host SHALL be told whether guests now see it. A change that cannot be saved (a missing answer, Google Calendar unavailable, an unwritable booking calendar or a stale revision) SHALL leave the earlier confirmed schedule in force, show the change as pending and say why.
 
 #### Scenario: Ready host changes a window
-- **WHEN** a ready host edits Monday's window and has not confirmed the review
-- **THEN** settings shows the new window as pending while public candidate evaluation continues to use the earlier confirmed window
+- **WHEN** a ready host edits Monday's window in settings, or tells their setup conversation to change it, and all readiness checks pass
+- **THEN** the new weekly window becomes the confirmed schedule for subsequent evaluations, without a separate confirmation
 
-#### Scenario: Confirm changed window
-- **WHEN** the host confirms the current review and all readiness checks pass
-- **THEN** the new weekly window becomes the confirmed schedule for subsequent evaluations
+#### Scenario: Change cannot be saved yet
+- **WHEN** a ready host's change cannot be saved because Google Calendar cannot be read
+- **THEN** public candidate evaluation continues to use the earlier confirmed window, and settings shows the change as pending with the reason
 
 #### Scenario: Incomplete onboarding
 - **WHEN** a host who has not completed setup edits weekly windows in settings

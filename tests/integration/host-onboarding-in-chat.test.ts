@@ -182,6 +182,38 @@ describe("slot preview and acceptance", () => {
     expect(draft!.accepted).toBe(true);
   });
 
+  it("saves a ready host's change in words at once, with no second approval", async () => {
+    const { host, sender, call } = await reviewable();
+    const ref = settingsRef((await computeSetupProposal(db, host.hostAccountId))!.proposalHash);
+    await sendPreview(call, host);
+    const yes = await turn(host, sender, "Yes, open those");
+    expect(await confirmSettingsForTool(deps, yes, { reviewRef: ref })).toMatchObject({ saved: true });
+
+    const change = await turn(host, sender, "금요일은 13시부터 18시까지만");
+    const current = await readSetupStateForTool(deps, change);
+    const friday = { weekday: "friday", start: "13:00", end: "18:00" } as const;
+    const others = (["monday", "tuesday", "wednesday", "thursday"] as const).map(weekday => ({ weekday, start: "10:00", end: "18:00" }));
+    const result = await draftSettingsForTool(deps, change, { expectedRevision: current.draftRevision, values: { weeklyWindows: { source: "stated", value: [...others, friday] } } });
+    expect(result).toMatchObject({ saved: true, savedChange: "saved", state: { pendingChanges: false, ready: true } });
+
+    const [saved] = await db<{ windows: { weekday: string; start: string; end: string }[] }[]>`select settings -> 'weeklyWindows' as windows from app.host_settings where host_account_id = ${host.hostAccountId}`;
+    expect(saved!.windows.filter(window => window.weekday === "friday")).toEqual([friday]);
+
+    // The image of saved settings says guests can book them, not whether to open them.
+    expect(await previewNextWeekForTool(deps, { ...change, callId: randomUUID() })).toMatchObject({ queued: true });
+    const image = (await im.outbox({ hostAccountId: host.hostAccountId, kind: "image" })).at(-1);
+    await im.send(image!.id, { ...im.sendDeps(), tokenKeys: deps.calendar.tokenKeys });
+    expect(photon.sends.at(-1)?.content).toMatchObject({ kind: "image", preview: { saved: true } });
+  });
+
+  it("leaves first-time setup to the host's own save", async () => {
+    const { host, call } = await reviewable();
+    const state = await readSetupStateForTool(deps, call);
+    const result = await draftSettingsForTool(deps, { ...call, callId: randomUUID() }, { expectedRevision: state.draftRevision, values: { durationMinutes: { source: "stated", value: 45 } } });
+    expect(result).toMatchObject({ saved: true, savedChange: "not_ready" });
+    expect(await db`select host_account_id from app.host_settings where host_account_id = ${host.hostAccountId}`).toHaveLength(0);
+  });
+
   it("blocks an unsent preview, a changed place after an image, and all three actions from a web turn", async () => {
     const { host, sender, call } = await reviewable();
     const state = await readSetupStateForTool(deps, call);

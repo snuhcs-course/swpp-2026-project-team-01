@@ -387,7 +387,7 @@ export const CHANNEL_REPLIES = {
       noteReviewLater: (url: string) => `I kept the entries that look like notes busy for now. You can still choose which ones can be free here: ${url}`,
       slotCaption: (preview: SlotPreview) =>
         hasOpenTime(preview)
-          ? `Next week's open times (${weekText(preview.weekStart, "en")}): ${openSummary(preview, "en")} (${meetingDetails(preview, "en")}). Shall I open these for booking?`
+          ? `Next week's open times (${weekText(preview.weekStart, "en")}): ${openSummary(preview, "en")} (${meetingDetails(preview, "en")}). ${preview.saved ? "Guests can book these now." : "Shall I open these for booking?"}`
           : `Next week (${weekText(preview.weekStart, "en")}) has no open time with these settings (${meetingDetails(preview, "en")}). Want to change your meeting hours?`,
     },
     notes: {
@@ -551,7 +551,7 @@ export const CHANNEL_REPLIES = {
       noteReviewLater: (url: string) => `메모처럼 보이는 일정은 일단 바쁨으로 두었어요. 비워도 되는 일정은 나중에 여기서 고를 수 있어요: ${url}`,
       slotCaption: (preview: SlotPreview) =>
         hasOpenTime(preview)
-          ? `다음 주(${weekText(preview.weekStart, "ko")}) 비어 있는 시간이에요: ${openSummary(preview, "ko")} (${meetingDetails(preview, "ko")}). 이 시간들로 예약을 열어둘까요?`
+          ? `다음 주(${weekText(preview.weekStart, "ko")}) 비어 있는 시간이에요: ${openSummary(preview, "ko")} (${meetingDetails(preview, "ko")}). ${preview.saved ? "지금 게스트가 이 시간으로 예약할 수 있어요." : "이 시간들로 예약을 열어둘까요?"}`
           : `다음 주(${weekText(preview.weekStart, "ko")})에는 이 설정으로 비어 있는 시간이 없어요 (${meetingDetails(preview, "ko")}). 미팅 가능 시간을 바꿔볼까요?`,
     },
     notes: {
