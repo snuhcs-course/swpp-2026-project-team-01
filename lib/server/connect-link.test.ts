@@ -66,9 +66,9 @@ describe("link tools", () => {
   });
 });
 
-it("gives each role version 5 and client-specific connection steps", () => {
+it("gives each role version 6 and client-specific connection steps", () => {
   for (const [document, name, endpoint, role] of [[hostEntryDocument(origin), "findmeatime", `${origin}/mcp`, "host"], [requesterEntryDocument(origin, { handle: "dodo", displayName: "Dodo" }), "findmeatime-dodo", `${origin}/dodo/mcp`, "request"]]) {
-    expect(document).toContain("Instruction version: 5");
+    expect(document).toContain("Instruction version: 6");
     expect(document).toContain(`claude mcp add --transport http ${name} ${endpoint}`);
     expect(document).toContain("`/mcp`");
     expect(document).toContain("restart Claude Code");

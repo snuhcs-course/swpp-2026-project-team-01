@@ -11,7 +11,7 @@ export const AGENT_SCOPES = [...HOST_SCOPES, ...REQUESTER_SCOPES] as const;
 export type AgentScope = (typeof AGENT_SCOPES)[number];
 
 export function roleScopes(role: AgentRole): readonly AgentScope[] {
-  return role === "host" ? HOST_SCOPES : REQUESTER_SCOPES;
+  return role === "host" ? AGENT_SCOPES : REQUESTER_SCOPES;
 }
 
 export function isAgentScope(value: string): value is AgentScope {
@@ -23,8 +23,8 @@ export const SCOPE_DESCRIPTIONS: Readonly<Record<AgentScope, string>> = {
   "host:read": "See your setup, your requests and their booking status",
   "host:write": "Draft setup, find times, suggest and share changes, and start chat links for you to confirm",
   "host:decide": "Approve, decline and cancel meetings when you tell the agent to",
-  "request:read": "See the host's public profile and your request",
-  "request:write": "Create your request, change its details, find and choose times, and start an updates link for you to confirm",
+  "request:read": "See public host profiles and your requests (including account-linked sent requests)",
+  "request:write": "Create requests for other hosts, change your requests' details, find and choose times, and start an updates link for you to confirm",
   "request:decide": "Agree to the proposed time, withdraw the request and cancel the booked meeting for you",
 };
 
