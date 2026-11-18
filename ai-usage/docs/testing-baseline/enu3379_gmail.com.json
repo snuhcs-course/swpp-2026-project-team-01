@@ -2,22 +2,107 @@
   "branch": "docs/testing-baseline",
   "user": "enu3379@gmail.com",
   "sessions": {
+    "claude:0ef3fa0d-3243-4def-84ec-89b9a8506610": {
+      "agent": "claude-code",
+      "client": "cli",
+      "agent_ms": 452351,
+      "models": {
+        "claude-opus-5-5": {
+          "input": 62,
+          "cache_read": 6136729,
+          "cache_write_5m": 0,
+          "cache_write_1h": 65828,
+          "output": 19085,
+          "reasoning": 0
+        }
+      },
+      "first": "2026-11-18T06:17:14.890Z",
+      "last": "2026-11-18T08:06:41.100Z"
+    },
     "claude:7a5d1a3a-bd9a-4648-95f1-d0a60a3c6fce": {
       "agent": "claude-code",
       "client": "cli",
-      "agent_ms": 2599115,
+      "agent_ms": 3226331,
       "models": {
         "claude-opus-5-5": {
-          "input": 340,
-          "cache_read": 56382773,
+          "input": 370,
+          "cache_read": 58424837,
           "cache_write_5m": 0,
-          "cache_write_1h": 306420,
-          "output": 149589,
+          "cache_write_1h": 398000,
+          "output": 174897,
           "reasoning": 0
         }
       },
       "first": "2026-11-17T06:36:45.478Z",
-      "last": "2026-11-18T03:43:01.881Z"
+      "last": "2026-11-18T06:59:10.973Z"
+    },
+    "claude:def02b92-74bd-4c84-a44f-1fe185589640": {
+      "agent": "claude-code",
+      "client": "cli",
+      "agent_ms": 2143791,
+      "models": {
+        "claude-opus-5-5": {
+          "input": 192,
+          "cache_read": 33802088,
+          "cache_write_5m": 0,
+          "cache_write_1h": 368131,
+          "output": 236430,
+          "reasoning": 0
+        }
+      },
+      "first": "2026-11-18T06:52:04.519Z",
+      "last": "2026-11-18T08:11:26.860Z"
+    },
+    "codex:01a1ed9a-93ac-7680-b4d5-12b9893a4894": {
+      "agent": "codex",
+      "client": "codex_exec",
+      "agent_ms": 533450,
+      "models": {
+        "gpt-6.2-sol": {
+          "input": 132854,
+          "cache_read": 1849088,
+          "cache_write_5m": 0,
+          "cache_write_1h": 0,
+          "output": 18190,
+          "reasoning": 2118
+        }
+      },
+      "first": "2026-11-18T07:41:45.427Z",
+      "last": "2026-11-18T07:50:26.982Z"
+    },
+    "codex:01a1ed9c-062c-7f80-b5b8-2106f33a9c97": {
+      "agent": "codex",
+      "client": "codex-tui",
+      "agent_ms": 251138,
+      "models": {
+        "gpt-6.2-sol": {
+          "input": 52633,
+          "cache_read": 807680,
+          "cache_write_5m": 0,
+          "cache_write_1h": 0,
+          "output": 4160,
+          "reasoning": 259
+        }
+      },
+      "first": "2026-11-18T08:06:09.148Z",
+      "last": "2026-11-18T08:10:08.103Z"
+    },
+    "codex:01a1ed9c-0884-7eb0-a641-ecac0fcc0122": {
+      "agent": "codex",
+      "client": "codex-tui",
+      "agent_ms": 0,
+      "models": {
+        "codex-auto-review": {
+          "input": 46082,
+          "cache_read": 133376,
+          "cache_write_5m": 0,
+          "cache_write_1h": 0,
+          "output": 892,
+          "reasoning": 380
+        }
+      },
+      "first": "2026-11-18T08:06:40.582Z",
+      "last": "2026-11-18T08:09:53.741Z"
     }
   }
 }
