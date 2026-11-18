@@ -48,6 +48,15 @@ describe("setup capabilities resolve per audience", () => {
     expect(isHostSetupSession(hostSetup)).toBe(true);
   });
 
+  it("offers new hours after a calendar change even when the host already answered (testing baseline H01 M-2.1, H02 M-5)", async () => {
+    const instructions = await hostSetupInstructions.events["session.started"]!({}, resolveContext(hostSetup));
+    const content = (instructions as { content: string }).content;
+
+    expect(content).not.toContain("keep hours the host already answered and do not");
+    expect(content).toContain("ask whether to switch");
+    expect(content).toContain("Their hours stay until they agree");
+  });
+
   it("describes draft_settings to the model as JSON Schema", () => {
     const schema = JSON.stringify(serializeModelInputSchema(draftSettingsToolInput));
 

@@ -1,6 +1,12 @@
 import type { ImessageStatus } from "@lib/contracts/imessage";
 import { expect, test } from "vitest";
-import { listedMessagingChannels } from "./connected-agents";
+import { HOST_GRANT_SOURCE, listedMessagingChannels } from "./connected-agents";
+
+test("Connected apps tells a host how to connect or switch agents with this origin's SKILL.md (testing baseline A01 M-4.1)", () => {
+  const hint = HOST_GRANT_SOURCE.connectHint?.("https://release.findmeatime.com");
+  expect(hint?.prompt).toContain("https://release.findmeatime.com/SKILL.md");
+  expect(hint?.note).toMatch(/revoke the old one/);
+});
 
 const channels = { imessage: "+15550001111", telegram: "findmeatime_bot", whatsapp: null };
 

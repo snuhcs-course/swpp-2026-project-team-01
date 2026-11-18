@@ -1,0 +1,23 @@
+{
+  "branch": "fix/baseline-calendar-hours-agent-switch",
+  "user": "haisung.choi@gmail.com",
+  "sessions": {
+    "claude:d75f3b4e-f8ab-4d29-9c7f-8144d0bfae0a": {
+      "agent": "claude-code",
+      "client": "claude-desktop",
+      "agent_ms": 0,
+      "models": {
+        "claude-opus-5-5": {
+          "input": 52,
+          "cache_read": 3567770,
+          "cache_write_5m": 0,
+          "cache_write_1h": 44504,
+          "output": 12968,
+          "reasoning": 0
+        }
+      },
+      "first": "2026-11-18T08:51:43.097Z",
+      "last": "2026-11-18T09:31:08.777Z"
+    }
+  }
+}
