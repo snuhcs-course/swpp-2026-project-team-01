@@ -284,4 +284,19 @@ describe("NoteReviewDone", () => {
     expect(text(done(true))).toContain("가능한 시간을 메시지로 보내드릴게요.");
     expect(done(false)).not.toContain("data-note-slot-image");
   });
+
+  it("asks a Telegram host to go back to Telegram in words, with no link to the bot", () => {
+    const html = renderToStaticMarkup(
+      <NoteReviewDone
+        exit={{ channel: "telegram", href: "https://t.me/findmeatime_bot" }}
+        locale="en"
+        onBack={() => {}}
+        review={{ ...review, decisions: [], items: [] }}
+      />,
+    );
+    expect(text(html)).toContain("Please go back to Telegram.");
+    expect(html).not.toContain("t.me");
+    expect(html).not.toContain("Back to Telegram");
+    expect(text(html)).toContain("Back");
+  });
 });
