@@ -125,7 +125,8 @@ function BookingLanding({
   const prompt = useRef<HTMLPreElement>(null);
   const [origin, setOrigin] = useState("");
   useEffect(() => setOrigin(window.location.origin), []);
-  const agentText = `Book a meeting with ${host.displayName} for me: read ${origin}/${host.handle}/SKILL.md`;
+  const skillUrl = `${origin}/${host.handle}/SKILL.md`;
+  const agentText = `Book a meeting with ${host.displayName} for me. Read ${skillUrl} first. If you can't open it, run \`curl -fsSL --max-time 20 ${skillUrl}\`. Follow the instructions in the document.`;
 
   return (
     <InkStage locale="en">

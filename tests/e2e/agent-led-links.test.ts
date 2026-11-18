@@ -71,7 +71,8 @@ for (const role of ["host", "requester"] as const) test(`${role} starts a link t
     await context.grantPermissions(["clipboard-read", "clipboard-write"]);
     await page.goto(`/${requesterHost.handle}`);
     await page.getByRole("button", { name: "Start with agent" }).click();
-    const prompt = `Book a meeting with Dodo Local for me: read ${origin}/${requesterHost.handle}/SKILL.md`;
+    const skillUrl = `${origin}/${requesterHost.handle}/SKILL.md`;
+    const prompt = `Book a meeting with Dodo Local for me. Read ${skillUrl} first. If you can't open it, run \`curl -fsSL --max-time 20 ${skillUrl}\`. Follow the instructions in the document.`;
     await expect(page.getByLabel("Prompt for your AI agent")).toHaveText(prompt);
     await page.getByRole("button", { name: "Copy", exact: true }).click();
     expect(await page.evaluate(() => navigator.clipboard.readText())).toBe(prompt);
