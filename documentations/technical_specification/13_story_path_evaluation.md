@@ -54,7 +54,31 @@ Each case runs three times as separate evals (pass^3 over cases, pass^1 over run
 | Ranking | No ranking model in the evaluation worker: candidates keep the deterministic order |
 | Environment | Local Supabase stack (`supabase start`), the dev server `eve eval` starts, fake Google Calendar and Routes |
 | Commands | `FMAT_EVAL_AUDIENCE=requester npx eve eval requester/story` and `FMAT_EVAL_AUDIENCE=host_review npx eve eval host-review/story` |
+| Concurrency | `--max-concurrency 8` |
 | Prompt version | The commit hash of the run |
+
+## How to run
+
+1. Start the local stack (`supabase start`) and bring its database up to the branch's migrations with `supabase migration up --local`; an older local database fails the start states.
+2. Set the route for the run only: `export OPENAI_BASE_URL=https://openrouter.ai/api/v1 OPENAI_API_KEY=<OpenRouter key>`.
+3. Run the guest set, then the host review set. `eve eval` starts one dev server per checkout, so the two cannot run at once:
+
+   ```sh
+   FMAT_EVAL_AUDIENCE=requester npx eve eval requester/story --max-concurrency 8
+   FMAT_EVAL_AUDIENCE=host_review npx eve eval host-review/story --max-concurrency 8
+   ```
+
+   `--tag case:GU-21` runs one case's three runs; `--exclude-tag` leaves cases out.
+4. Read the results from the artifacts `eve eval` writes under `.eve/evals/<time>/`. [`scripts/story-evals.ts`](../../scripts/story-evals.ts) prints the runs passed, the cases passing every run and each failed run's checks; `--transcripts` adds the messages, tool calls and replies of each failed run:
+
+   ```sh
+   npx tsx scripts/story-evals.ts report --transcripts .eve/evals/<guest run> .eve/evals/<host run>
+   ```
+
+   A later directory overrides an earlier one for the same eval, so a rerun of some cases can be laid over a full run.
+5. To compare prompt versions, `npx tsx scripts/story-evals.ts compare <ref> <ref>` runs every case once under each ref's `agent/instructions/` with the rest of the code as checked out, lists the cases whose result differs, and restores `agent/instructions/` from `HEAD`. One run per case of both sets costs about USD 2.9 and takes about 4 minutes.
+
+A full run of both sets, three runs per case, is 399 evals: about USD 9, estimated from the day's spend of about USD 0.02 per eval. The one-run figures above were measured on the comparison.
 
 ## Testing progress (2026-11-18)
 
@@ -74,18 +98,22 @@ Each case runs three times as separate evals (pass^3 over cases, pass^1 over run
 
 After every failed run was read against the instructions (pre-check below), 48 runs remain real failures of the assistant. The ones that repeat across runs:
 
-| Failure | Runs | Cases | Impact |
-|---|---|---|---|
-| Replies in Korean to a host writing in English from a messenger | 11 | RV-02, RV-05, RV-P5, RV-X10 | The messenger fragment's language rule does not hold; strengthen it |
-| Asks for the year of "11월 26일" and makes no suggestion: the host's `read_request` gives times without a year and no today's date | 6 | RV-13, RV-X17, RV-X19 | Add the year and today's date to the host's request view |
-| Says the revised details were sent to the guest when `share_changes` only submitted them for checking | 4 | RV-07, RV-X14 | Report the checking state the tool returns |
-| Replaces a pending suggestion without its time, so the new suggestion loses 15:00 | 3 | RV-22 | Carry the pending suggestion's changes into a replacement |
-| Offers to cancel a meeting that has already started | 3 | GU-21 | Tell the assistant whether the meeting has started |
-| Calls `change_agreement` after the host approved | 3 | GU-31 | Block or explain the tool in that state |
-| Records in person from a place name instead of asking | 3 | GU-50 | Clarify when a place settles the form |
-| Answers who the host is instead of declining | 3 | GU-26 | Recheck the expected behavior with the team |
+| Failure | Runs | Cases | Cause found | Issue |
+|---|---|---|---|---|
+| Replies in Korean to a host writing in English from a messenger | 11 | RV-02, RV-05, RV-P5, RV-X10 | Korean examples in the messenger fragment and the host tool descriptions, with Korean request data and no language signal for the host; replaying one call, removing both turned 6 of 6 Korean replies into 0 of 6. Ungraded turns show the same: 39 of 53 English host messages got Korean replies | #272 |
+| Asks for the year of "11월 26일" and makes no suggestion | 6 | RV-13, RV-X17, RV-X19 | The host's `read_request` gives times without a year and no today's date; the guest's has `today` | #273 |
+| Says the revised details were sent when they were only submitted for checking | 4 | RV-07, RV-X14 | `share_changes` answers "Shared." while the suggestion is `checking` | #274 |
+| Replaces a pending suggestion without its time, so 15:00 is lost | 3 | RV-22 | A new suggestion supersedes the pending one and keeps only its own changes; nothing tells the assistant | #275 |
+| Offers 14:30 instead of drafting the 15:00 the host asked for | 2 | RV-06 | Took the guest's windows as the limit; sharing checks the exact time against the host only | #276 |
+| Offers to cancel a meeting that has already started | 3 | GU-21 | `read_request` has no current time and keeps `booked` after the start; the command refuses the cancellation | #277 |
+| Calls `change_agreement` after the host approved | 3 | GU-31 | The `next` text lists it whatever the state | #278 |
+| Asks which days instead of drafting "next week" for a booked meeting | 2 | GU-19 | The requester fragment limits availability drafts to exact days or times | #279 |
+| Records in person from a place name instead of asking | 3 | GU-50 | The instructions do not say whether a place settles the form | #280 |
+| Answers who the host is instead of declining | 3 | GU-26 | The instructions do not cover questions about the host; the expectation is the team's | #281 |
+| Refuses a switch to the host conversation without saying what it can do | 2 | GU-R06 | Not found | #282 |
+| Handles a place outside the host's areas differently on each run | 2 | GU-05 | Not found | #283 |
 
-The rest (12 runs) happened once or twice: applying a draft without the guest's confirmation, a whole-day window drafted as hours, asking which days instead of drafting next week, and not saying what the assistant can do here.
+The rest (4 runs) happened once each: a whole-day window drafted as hours (GU-13), no decline (GU-42), "next Friday" read as this week's (GU-P6), and not asking a hesitating host (RV-18).
 
 Building the set also found product gaps, tracked in #255 (38 items): the host's request list reaches the model without dates, a thanks-only message never reaches the assistant, approving the original proposal leaves a host's suggestion pending, the assistant has no instruction for several explanations, and a guest's draft accepts any length from 5 to 480 minutes.
 
@@ -116,6 +144,8 @@ Run on 2026-11-18 at commit `7c8627ff` with the settings above, every case three
 |---|---|---|---|---|
 | Guest | 149 of 225 | 42 of 75 | 55 / 0 / 21 | 204 of 225 runs, 65 of 75 cases |
 | Host review | 130 of 174 | 38 of 58 | 17 / 0 / 27 | 147 of 174 runs, 46 of 58 cases |
+
+Each failed run's verdict and reason is in [`evals/story/results/2026-11-18-pre-check-verdicts.tsv`](../../evals/story/results/2026-11-18-pre-check-verdicts.tsv). `scripts/story-evals.ts report --transcripts` over the run's artifacts shows the transcripts the verdicts were read from.
 
 Fixes made before the first commit, from the grader errors:
 
