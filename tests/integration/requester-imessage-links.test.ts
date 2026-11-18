@@ -3,6 +3,7 @@ import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { REQUESTER_IMESSAGE_OPERATIONS } from "../../lib/contracts/requester-imessage";
 import { enqueueStatusNotice } from "../../lib/server/booking-notices";
 import { type CommandDefinition, runCommand } from "../../lib/server/commands";
+import { hashLinkCode } from "../../lib/server/email-links";
 import { createImessageNoticeHandler } from "../../lib/server/imessage-notice-job";
 import { guestNoticeKey, IMESSAGE_NOTICE_JOB } from "../../lib/server/imessage-notices";
 import { withdrawRequestCommand } from "../../lib/server/request-lifecycle";
@@ -10,6 +11,7 @@ import { REQUESTER_LINK_TEXTS } from "../../lib/server/requester-imessage-bindin
 import {
   confirmRequesterImessageLinkCommand,
   createRequesterImessageLinkCommand,
+  emailOnlyRequesterCommand,
   readRequesterImessageStatus,
   shareRequesterContactCardCommand,
   unlinkRequesterImessageCommand,
@@ -41,7 +43,7 @@ let photon: FakePhoton;
 const im = imessageHarness(db, () => photon);
 const options = { lineNumber: TEST_LINE, registrar: im.registrar, tokenKey: testTokenKey, tokenKeys: [testTokenKey], whatsappNumber: TEST_WHATSAPP_NUMBER };
 const commands: Readonly<Record<string, CommandDefinition<unknown, unknown>>> = Object.fromEntries(
-  [createRequesterImessageLinkCommand(options), confirmRequesterImessageLinkCommand(options), unlinkRequesterImessageCommand, shareRequesterContactCardCommand(options)].map(
+  [createRequesterImessageLinkCommand(options), confirmRequesterImessageLinkCommand(options), unlinkRequesterImessageCommand, emailOnlyRequesterCommand, shareRequesterContactCardCommand(options)].map(
     (command) => [command.operation, command as unknown as CommandDefinition<unknown, unknown>],
   ),
 );
@@ -204,6 +206,32 @@ describe("linking a guest's iMessage", () => {
 });
 
 describe("ending a guest binding", () => {
+  it("persists email-only delivery, cancels pending links and refuses a later linking attempt", async () => {
+    const request = await createTestRequest(db);
+    const pending = await pendingCode(request.requestId);
+    expect(await asGuest(request.requestId, REQUESTER_IMESSAGE_OPERATIONS.emailOnly)).toMatchObject({ ok: true, result: { emailOnly: true } });
+    expect(await status(request.requestId)).toMatchObject({ state: "none", emailOnly: true });
+    const [saved] = await db<{ details: { notificationPreference: string }; state: string }[]>`
+      select details, state from app.requests where id = ${request.requestId}
+    `;
+    expect(saved!.details.notificationPreference).toBe("email_only");
+    expect(saved!.state).toBe("gathering");
+    const [attempt] = await db<{ state: string }[]>`select state from app.imessage_links where request_id = ${request.requestId} and code_hash = ${hashLinkCode(pending.code)}`;
+    expect(attempt!.state).toBe("cancelled");
+    expect(await asGuest(request.requestId, REQUESTER_IMESSAGE_OPERATIONS.create, { number: newSender() })).toMatchObject({ ok: false, error: { category: "invalid_input" } });
+    expect((await asGuest(request.requestId, REQUESTER_IMESSAGE_OPERATIONS.emailOnly)).ok).toBe(true);
+    expect(await readRequesterImessageStatus(db, [testTokenKey], request.requestId, "")).toMatchObject({ state: "none", emailOnly: true });
+  });
+
+  it("choosing email only ends an active binding and suppresses queued messaging", async () => {
+    const guest = await linkedGuest();
+    const [welcome] = await im.outbox({ kind: "linked", recipientHash: imessageHash(testTokenKey, "sender", guest.sender) });
+    expect((await asGuest(guest.requestId, REQUESTER_IMESSAGE_OPERATIONS.emailOnly)).ok).toBe(true);
+    expect(await bindingOf(guest.requestId)).toMatchObject({ state: "unlinked" });
+    expect(await status(guest.requestId)).toMatchObject({ state: "none", emailOnly: true });
+    expect((await im.send(welcome!.id)).sent).toEqual([]);
+  });
+
   it("unlinks in the database only and suppresses the guest's messages that had not left", async () => {
     const guest = await linkedGuest();
     const senderHash = imessageHash(testTokenKey, "sender", guest.sender);

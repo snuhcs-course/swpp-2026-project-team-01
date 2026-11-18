@@ -84,6 +84,7 @@ import { supabaseAuthConfigFromEnvironment, type SupabaseAuthConfig, verifiedUse
 import {
   confirmRequesterImessageLinkCommand,
   createRequesterImessageLinkCommand,
+  emailOnlyRequesterCommand,
   readRequesterImessageStatus,
   shareRequesterContactCardCommand,
   unlinkRequesterImessageCommand,
@@ -538,6 +539,7 @@ export function requesterCommands(
     registered(createRequesterImessageLinkCommand(imessage)),
     registered(confirmRequesterImessageLinkCommand(imessage)),
     registered(unlinkRequesterImessageCommand),
+    registered(emailOnlyRequesterCommand),
     registered(shareRequesterContactCardCommand(imessage)),
     registered(revokeGrantCommand),
   ]);

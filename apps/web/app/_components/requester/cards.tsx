@@ -15,6 +15,8 @@ import { ContactCardLine, CopyButton, useMessagesPlatform } from "@/app/_compone
 import { channelCopy, COPY } from "@/app/_components/ink/copy";
 import { NumberForm } from "@/app/_components/ink/number-form";
 import { Button } from "@/components/ui/button";
+import { AgentMessage } from "@/components/chat/message";
+import { CheckIcon } from "lucide-react";
 
 // The guest thread's request cards (design decision 12; DESIGN.md: conversation
 // card): the Calendar connection and selection, the status lines with the
@@ -710,6 +712,15 @@ export function ImessageUpdates({ context, onlyLinked = false }: { readonly cont
   if (!status || status.state === "unavailable") return null;
   if (onlyLinked && status.state !== "linked") return null;
 
+  if (status.state === "none" && status.emailOnly) {
+    return (
+      <p className="flex min-h-11 items-center gap-2 text-sm" data-notification-preference="email-only" role="status">
+        <CheckIcon aria-hidden className="size-4 shrink-0" />
+        Email updates only
+      </p>
+    );
+  }
+
   if (status.state === "none" && askNumber) {
     const channel = askNumber;
     return (
@@ -774,8 +785,31 @@ export function ImessageUpdates({ context, onlyLinked = false }: { readonly cont
               Get updates in Telegram
             </Button>
           ) : null}
+          <Button
+            className="min-h-11"
+            disabled={busy}
+            onClick={async () => {
+              setBusy(true);
+              setError(null);
+              try {
+                const outcome = await run(REQUESTER_IMESSAGE_OPERATIONS.emailOnly, {}, null);
+                if (!outcome.ok) {
+                  setError(outcome.error.message);
+                  return;
+                }
+                setStatus({ ...status, emailOnly: true });
+              } catch {
+                setError("Your notification preference could not be saved. Please try again.");
+              } finally {
+                setBusy(false);
+              }
+            }}
+            type="button"
+            variant="outline"
+          >
+            {busy ? "Saving..." : "Email updates only"}
+          </Button>
         </GuestCardActions>
-        <p className="text-muted-foreground">Optional: your email still gets every update.</p>
         <ErrorLine message={error} />
       </div>
     );
@@ -979,18 +1013,34 @@ export function AwaitingCard({ context }: { readonly context: RequesterCardConte
   }
 
   return (
-    <GuestCard
-      description={agreed ? `You agreed to ${displayTime(new Date(agreed.start), context.timezone)}` : "You agreed"}
-      id="awaiting"
-      label="Request"
-      title={`Waiting for ${context.view.host.displayName} to approve`}
-    >
-      <AwaitingDecisionDetails
-        agreementEmailSentTo={context.view.agreementEmailSentTo}
-        email={context.view.contact?.email}
-      />
-      <ImessageUpdates context={context} />
-    </GuestCard>
+    <>
+      <GuestCard
+        description={agreed ? `You agreed to ${displayTime(new Date(agreed.start), context.timezone)}` : "You agreed"}
+        id="awaiting"
+        label="Request"
+        title={`Waiting for ${context.view.host.displayName} to approve`}
+      >
+        <AwaitingDecisionDetails
+          agreementEmailSentTo={context.view.agreementEmailSentTo}
+          email={context.view.contact?.email}
+        />
+        <ImessageUpdates context={context} />
+      </GuestCard>
+      {context.view.request.details.notificationPreference === "email_only" ? (
+        <div aria-live="polite" data-notification-confirmation="email-only">
+          <AgentMessage
+            canRespond={false}
+            isStreaming={false}
+            message={{
+              id: `email-only:${context.bookingId}`,
+              parts: [{ type: "text", text: "Got it. I’ll notify you by email only when the host approves your request.", state: "done" }],
+              role: "assistant",
+            }}
+            onInputResponses={() => {}}
+          />
+        </div>
+      ) : null}
+    </>
   );
 }
 
@@ -1003,10 +1053,10 @@ export function AwaitingDecisionDetails({
 }) {
   return (
     <div className="flex min-w-0 flex-col gap-2 rounded-xl bg-secondary p-3 text-sm" data-guest-decision-details="">
-      <p>The request is waiting for the host’s approval. Nothing is booked yet.</p>
+      <p className="font-semibold">Your meeting request has been submitted.</p>
       <p>
-        We’ll email the host’s decision{email ? <> to <strong className="break-all font-medium">{email}</strong></> : null}.
-        {" "}If iMessage or Telegram is linked, updates can arrive there too.
+        You’ll receive an email{email ? <> at <strong className="break-all font-medium">{email}</strong></> : null} as soon as the host approves your request.
+        {" "}You can also link iMessage or Telegram to receive updates through those channels.
       </p>
       {agreementEmailSentTo ? (
         <p>

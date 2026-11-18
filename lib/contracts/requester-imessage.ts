@@ -15,6 +15,7 @@ export type GuestChannel = "imessage" | "whatsapp" | "telegram";
 export const GUEST_CHANNELS = ["imessage", "whatsapp", "telegram"] as const satisfies readonly GuestChannel[];
 
 export const REQUESTER_IMESSAGE_OPERATIONS = {
+  emailOnly: "request.notifications.email_only",
   create: "request.imessage_link.create",
   confirm: "request.imessage_link.confirm",
   unlink: "request.imessage_link.unlink",
@@ -26,7 +27,7 @@ export type RequesterImessageStatus =
   | { readonly state: "unavailable" }
   // lineNumber is the iMessage line ("" without one); whatsappNumber the WhatsApp
   // digits, and telegramUsername the bot's username, each null without one.
-  | { readonly state: "none"; readonly lineNumber: string; readonly whatsappNumber: string | null; readonly telegramUsername: string | null }
+  | { readonly state: "none"; readonly lineNumber: string; readonly whatsappNumber: string | null; readonly telegramUsername: string | null; readonly emailOnly?: boolean }
   // A link code to send from the guest's iMessage or WhatsApp, as shown, to
   // lineNumber; on Telegram, the bot's start link carries the code.
   | {
