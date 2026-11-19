@@ -253,16 +253,26 @@ async function ownerChannel(tx: Transaction, message: RecordOutbound): Promise<S
 
 // From the session-owner hook when a turn ends: the replies waiting on inputs
 // that session completed, or on any input of a session that failed for good, are
-// due now, so the next worker run sends them.
+// due now. Updating a pending job does not trigger the insert wake-up.
 export async function wakeImessageReplies(db: Database, sessionId: string) {
-  await db`
+  const jobs = await db<{ producer_environment: string }[]>`
     update app.jobs j set run_after = now(), updated_at = now()
     from app.imessage_outbox o
     join app.conversation_inputs i on i.id = o.input_id
     join app.agent_sessions s on s.session_id = i.session_id
     where i.session_id = ${sessionId} and (i.state = 'completed' or s.state = 'failed') and o.state = 'waiting'
       and j.kind = ${IMESSAGE_SEND_JOB} and j.state = 'pending' and j.payload ->> 'outboxId' = o.id::text
+    returning j.producer_environment
   `;
+
+  if (jobs.some((job) => job.producer_environment === "production")) {
+    try {
+      await db`select app.request_worker()`;
+    } catch (error) {
+      // The jobs are already due, so the sweep still recovers a lost wake-up.
+      console.warn("chat reply worker wake-up failed", { error: error instanceof Error ? error.name : typeof error });
+    }
+  }
 }
 
 export const TURN_FALLBACK = "I couldn't finish that. You can continue in Find Me a Time on the web.";

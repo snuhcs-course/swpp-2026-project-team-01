@@ -1,7 +1,9 @@
+import { createServer } from "node:http";
+import type { AddressInfo } from "node:net";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { helpText, requestRef, settingsRef, STOP_TEXTS } from "../../lib/server/imessage-commands";
 import { CHANNEL_TEXTS } from "../../lib/server/imessage-receipts";
-import { recordOutbound } from "../../lib/server/imessage-outbox";
+import { IMESSAGE_SEND_JOB, recordOutbound } from "../../lib/server/imessage-outbox";
 import { computeSetupProposal } from "../../lib/server/setup";
 import { TYPING_MAX } from "../../lib/server/telegram-jobs";
 import { agreedRequest } from "./support/booking";
@@ -180,6 +182,37 @@ describe("setup over Telegram", () => {
     const calls = await tg.send(turn!.id);
     expect(sentTexts(calls)).toEqual(["Got it: 30 minutes."]);
     expect((await tg.outbox(userId)).filter((row) => row.kind === "signal")).toHaveLength(3);
+  });
+
+  it("wakes the production worker when a Telegram turn reply becomes due", async () => {
+    const { hostAccountId, userId } = await linkedHost();
+    await tg.deliver(telegramMessage({ text: "What can you do?", userId }));
+    const [input] = await im.inputsOf(hostAccountId);
+    const [turn] = (await tg.outbox(userId)).filter((row) => row.kind === "turn");
+    if (!im.sessions.has(input!.session_id!)) im.sessions.set(input!.session_id!, { events: [], sent: [] });
+    await db`
+      update app.jobs set producer_environment = 'production', run_after = now() + interval '1 minute'
+      where kind = ${IMESSAGE_SEND_JOB} and dedupe_key = ${`outbox:${turn!.id}`}
+    `;
+
+    const wakes: string[] = [];
+    const server = createServer((request, response) => {
+      wakes.push(request.url ?? "");
+      response.writeHead(200).end();
+    });
+    await new Promise<void>((resolve) => server.listen(0, "0.0.0.0", resolve));
+    const { port } = server.address() as AddressInfo;
+    try {
+      await db`
+        select vault.create_secret(${`http://host.docker.internal:${port}/api/internal/jobs`}, 'worker_url'),
+               vault.create_secret('test-worker-secret', 'worker_secret')
+      `;
+      await im.endTurn(input!.id, "I can help find a time.");
+      await expect.poll(() => wakes, { timeout: 3_000 }).toContain("/api/internal/jobs");
+    } finally {
+      await db`delete from vault.secrets where name in ('worker_url', 'worker_secret')`;
+      await new Promise<void>((resolve) => server.close(() => resolve()));
+    }
   });
 
   it("stops typing after twelve indicators", async () => {
