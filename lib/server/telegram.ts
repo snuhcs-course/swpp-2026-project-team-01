@@ -242,7 +242,7 @@ export const TELEGRAM_CHAT_SPACING_MS = 1_000;
 export type TelegramConfig = {
   // The bot's token (TELEGRAM_BOT_TOKEN). Never logged, printed or returned.
   readonly token: string;
-  // The bot's username without "@" (TELEGRAM_BOT_USERNAME), for the t.me link.
+  // The bot's username without "@" (TELEGRAM_BOT_USERNAME), for the telegram.me link.
   readonly username: string;
   // The stand-in's base URL (TELEGRAM_API_URL), honored outside production only.
   readonly apiUrl: string | null;

@@ -16,7 +16,7 @@ import { AppGlyph, CloseIcon } from "./icons";
 // For a WhatsApp code (host-whatsapp-channel D6) the QR code carries the wa.me link, the middle way opens
 // WhatsApp Web or the desktop app on any computer, and the number shows with its plus.
 // For a Telegram code (host-telegram-channel D6) the code's lineNumber is the bot's username and its message
-// the bare code: the QR code and the middle way carry the t.me start link (Telegram Desktop or Telegram Web on
+// the bare code: the QR code and the middle way carry the telegram.me start link (Telegram Desktop or Telegram Web on
 // any computer), the preview shows the /start the Start button sends, and Copy offers the link and the code.
 
 export type SendCode = {
@@ -30,7 +30,7 @@ export type SendCode = {
 export const shownNumber = (code: SendCode) =>
   code.channel === "whatsapp" ? displayWhatsAppNumber(code.lineNumber) : code.channel === "telegram" ? `@${code.lineNumber}` : code.lineNumber;
 
-// The link that opens the app from any computer: wa.me for WhatsApp, t.me for Telegram, a Mac's sms: link for iMessage.
+// The link that opens the app from any computer: wa.me for WhatsApp, telegram.me for Telegram, a Mac's sms: link for iMessage.
 const computerLink = (code: SendCode) =>
   code.channel === "whatsapp"
     ? whatsAppLinkFor(code.lineNumber, code.message)
@@ -38,7 +38,7 @@ const computerLink = (code: SendCode) =>
       ? telegramLinkFor(code.lineNumber, code.message)
       : deepLinkFor("mac", code.lineNumber, code.message);
 
-// The link a QR code carries: wa.me for WhatsApp, t.me for Telegram, the iOS sms: link for iMessage.
+// The link a QR code carries: wa.me for WhatsApp, telegram.me for Telegram, the iOS sms: link for iMessage.
 const qrLink = (code: SendCode) => (code.channel === "imessage" ? qrDeepLink(code.lineNumber, code.message) : (computerLink(code) ?? ""));
 
 export function usePlatform(): MessagesPlatform {

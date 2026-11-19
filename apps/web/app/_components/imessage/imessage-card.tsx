@@ -56,7 +56,7 @@ import { cn } from "@/lib/utils";
 // computer, Confirm and link says what it replaces and what Thyme will send on
 // WhatsApp, and a WhatsApp binding offers no Add to contacts or fallback code.
 // Telegram links the same way (host-telegram-channel design 6, D6, D7, D13): Connect Telegram makes the code and,
-// on a phone, opens t.me/<bot>?start=<code> at once, where Start sends /start <code>; on a computer the card shows
+// on a phone, opens telegram.me/<bot>?start=<code> at once, where Start sends /start <code>; on a computer the card shows
 // Open Telegram, the link's QR code and Copy. Every device can switch to Telegram (Use Telegram instead), the app
 // question lists each configured channel, the received sender is the Telegram name, and the card says where
 // Telegram keeps bot chats before Confirm and link.
@@ -136,7 +136,7 @@ export function useDeviceKind(): DeviceKind | null {
 }
 
 // The link that opens the channel's app with the message written: wa.me for
-// WhatsApp, the platform's sms: link for iMessage, and for Telegram the t.me
+// WhatsApp, the platform's sms: link for iMessage, and for Telegram the telegram.me
 // start link, whose message is the bare code.
 export function appLinkFor(channel: MessagingChannel, platform: MessagesPlatform, lineNumber: string, message: string) {
   if (channel === "whatsapp") return whatsAppLinkFor(lineNumber, message);

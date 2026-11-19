@@ -350,14 +350,14 @@ describe("NoteReviewDone", () => {
   it("asks a Telegram host to go back to Telegram in words, with no link to the bot", () => {
     const html = renderToStaticMarkup(
       <NoteReviewDone
-        exit={{ channel: "telegram", href: "https://t.me/findmeatime_bot" }}
+        exit={{ channel: "telegram", href: "https://telegram.me/findmeatime_bot" }}
         locale="en"
         onBack={() => {}}
         review={{ ...review, decisions: [], items: [] }}
       />,
     );
     expect(text(html)).toContain("Please go back to Telegram.");
-    expect(html).not.toContain("t.me");
+    expect(html).not.toContain("telegram.me");
     expect(html).not.toContain("Back to Telegram");
     expect(text(html)).toContain("Back");
   });

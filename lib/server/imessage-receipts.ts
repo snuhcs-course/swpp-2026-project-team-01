@@ -672,7 +672,7 @@ async function forwardGuest(
 const START_COMMAND = /^\/start(?:@[A-Za-z0-9_]+)?(?:\s+(\S+))?\s*$/;
 
 // Linking over Telegram, or null when the receipt is not about linking:
-//   - a message carrying an FMAT- code (/start <code> from the t.me link, or the
+//   - a message carrying an FMAT- code (/start <code> from the telegram.me link, or the
 //     code typed as text) goes to receiveLinkCode with the sender's display
 //     name; only a Telegram attempt is completed by it, and any other attempt
 //     it names is voided;

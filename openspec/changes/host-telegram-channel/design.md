@@ -100,7 +100,7 @@ Unchanged from Phase 9 D5, across three channels. The binding index is per host,
 
 ### 6. Linking
 
-**Connect Telegram** creates an attempt with channel `telegram` and the same `FMAT-` code, expiry, attempt limits and confirmation window as iMessage D5. It then opens `https://t.me/findmeatime_bot?start=<code>` in the same tab, where `<code>` is the code as created; Telegram allows 64 characters of `A–Z a–z 0–9 _ -`.
+**Connect Telegram** creates an attempt with channel `telegram` and the same `FMAT-` code, expiry, attempt limits and confirmation window as iMessage D5. It then opens `https://telegram.me/findmeatime_bot?start=<code>` in the same tab, where `<code>` is the code as created; Telegram allows 64 characters of `A–Z a–z 0–9 _ -`. Every Telegram link uses `telegram.me`, Telegram's own alias of `t.me` with the same paths and `start` payload: on 2026-11-18 the SNU campus Wi-Fi's DNS sent `t.me` alone to an address that never answered, so **Open Telegram** timed out on a computer there, while `telegram.me` opened.
 
 - **On a phone,** the link opens Telegram at the bot with **Start**. The tap sends `/start <code>` from the host's account.
 - **On a computer,** the card shows **Open Telegram** (the same link), a QR code of it and **Copy**. A host who opens the bot without the link can send the code as text, which links the same way.
