@@ -25,7 +25,7 @@ import type { Queryable, Transaction } from "./database";
 import type { ClaimedJob, JobHandler } from "./jobs";
 import { slotPreviewNoteExclusions } from "./note-decisions";
 import { readNoteReview } from "./note-review";
-import { noteReviewLinkKey, noteStepOf, queueSlotImageAfterWait } from "./onboarding-note-step";
+import { latestSlotImage, noteReviewLinkKey, noteStepOf, queueSlotImageAfterWait, slotImageDelivery } from "./onboarding-note-step";
 import { SETUP_FIELD_SCHEMAS } from "../contracts/setup";
 import { enqueueSettingsButtonRetirement } from "./telegram-jobs";
 
@@ -82,11 +82,7 @@ export async function confirmSettingsForTool(deps: SetupDependencies, call: Setu
     return { missingFields: proposal.missingFields, problem: "Some settings are still missing; nothing was saved.", saved: false as const };
   }
 
-  const [preview] = await deps.db<{ state: string; review_hash: string | null }[]>`
-    select state, review_hash from app.imessage_outbox
-    where host_account_id = ${actor.id} and binding_id = ${binding.id} and kind = 'image'
-    order by created_at desc, id desc limit 1
-  `;
+  const preview = await latestSlotImage(deps.db, actor.id, binding.id);
   if (preview?.state !== "accepted" || preview.review_hash !== proposal.proposalHash) {
     return { saved: false as const, problem: "This review needs a delivered slot preview. Send preview_next_week and wait for the host to agree to it." };
   }
@@ -306,7 +302,7 @@ export async function previewNextWeekForTool(deps: SetupDependencies, call: Setu
     if (!sent.ok) return { queued: false, problem: "The conversation changed. Read setup again." };
     return {
       queued: false, noteReviewSent: true,
-      note: "The service sent the host the note review link. The slot image follows by itself once the host presses 확인 there, with the notes they free no longer busy. Do not list times or ask about notes, and call preview_next_week again only if the host says to skip the review or changes a setting. Say in one line what you recorded.",
+      note: "The service sent the host the note review link. The slot image follows by itself once the host presses 확인 there, with the notes they free no longer busy. Do not list times or ask about notes, and call preview_next_week again only if the host says to skip the review or changes a setting. Say in one line what you recorded. In later turns, read_setup_state's chatOnboarding says whether the review is still waiting and whether the image went out.",
     };
   }
 
@@ -319,6 +315,18 @@ export async function previewNextWeekForTool(deps: SetupDependencies, call: Setu
   }
   if (!composed.preview) return { queued: false, missingFields: composed.missing, problem: "Record the missing host answers before the preview." };
   const { preview } = composed;
+  // Before the first save, the image for these settings may already be in the
+  // chat, or on its way, whether this tool or the job after the note review's
+  // 확인 sent it (issue #216): no second copy. A changed setting is a new
+  // proposal hash and sends a new image; an image that was not delivered is
+  // sent again. A saved host who asks to see their open times gets one.
+  const latest = proposal.records.confirmed === null ? await latestSlotImage(deps.db, actor.id, binding.id) : null;
+  if (latest?.review_hash === proposal.proposalHash && slotImageDelivery(latest.state) !== "not_delivered") {
+    return {
+      queued: false, alreadySent: true, delivery: slotImageDelivery(latest.state), reviewRef: preview.reviewRef, ranges: openRanges(preview),
+      note: "The slot image for the current settings was already sent to the conversation (when delivery is sending, it is still on its way); nothing new was sent. Tell the host it is there and ask whether to open those times, without listing them. If the host changes a setting, record it and call preview_next_week again.",
+    };
+  }
   const times = channelReplies(language).onboarding.slotSummary(preview);
   const change = input.changeSummary && redactCredentials(input.changeSummary, { bareUuids: true }).trim();
   const summary = change ? `${change} ${times}` : times;

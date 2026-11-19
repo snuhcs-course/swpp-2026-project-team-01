@@ -17,6 +17,7 @@ import { encodeDisplayName } from "./entry-documents";
 import { HOST_SETUP_AUDIENCE } from "./eve-auth";
 import { checkHandle } from "./handles";
 import { weeklyNoteListForModel } from "./note-weekly-store";
+import { chatOnboardingForModel } from "./onboarding-note-step";
 import { settingsRef } from "./request-ref";
 import { draftedEntry, readSetupState, type SetupDependencies, type SetupLinks, type SetupStateView } from "./setup";
 import { saveReadyHostChange, type SavedChangeOutcome } from "./setup-saved-change";
@@ -382,8 +383,14 @@ export async function readSetupStateForTool(deps: SetupDependencies, call: Setup
   if (!state) throw new SetupToolDeniedError();
 
   // The weekly note list the service sent (calendar-note-review design 11), by
-  // reference and size; its titles come only from choose_note_items.
-  return { ...modelProjection(state), weeklyNoteList: await weeklyNoteListForModel(deps.db, actor.id) };
+  // reference and size; its titles come only from choose_note_items. The chat
+  // onboarding's note step and latest slot image (issue #216), which jobs may
+  // have moved on since the assistant's last tool result.
+  return {
+    ...modelProjection(state),
+    chatOnboarding: await chatOnboardingForModel(deps.db, actor.id, state.proposalHash),
+    weeklyNoteList: await weeklyNoteListForModel(deps.db, actor.id),
+  };
 }
 
 export type DraftSettingsToolResult =

@@ -31,7 +31,7 @@ export default defineDynamic({
         ? {
             read_setup_state: defineTool({
               description:
-                "Read the host's current setup: the next action, drafted values with their labels, current suggestions with sample sizes, missing required fields, calendar roles, analysis evidence and readiness. Call it at the start of each turn before talking about setup.",
+                "Read the host's current setup: the next action, drafted values with their labels, current suggestions with sample sizes, missing required fields, calendar roles, analysis evidence and readiness, and for a linked chat the onboarding note review step and the latest slot image sent there (chatOnboarding). Call it at the start of each turn before talking about setup.",
               inputSchema: z.object({}),
               execute: (_input, toolCtx) =>
                 readSetupStateForTool(setupDependenciesFromEnvironment(), {
@@ -68,7 +68,7 @@ export default defineDynamic({
               execute: (input, ctx) => setCalendarRolesForTool(setupDependenciesFromEnvironment(), { auth: ctx.session.auth.current, callId: ctx.callId, sessionId: ctx.session.id }, input),
             }),
             preview_next_week: defineTool({
-              description: "Send next week's open times as an image followed by one message in the linked conversation, using the current draft. Record the host's answers first and pass a short changeSummary if they just answered or changed anything. When queued, the service sends the whole reply, including whether to open the times. When the scan found entries that may be notes, it sends the note review link instead (noteReviewSent), and the image follows by itself after the host confirms that page; pass skipNoteReview true only when the host says to skip that review. Before setup is first saved, confirm only after the host agrees. Once setup is saved, use it only when the host asks to see their open times; a change needs no image.",
+              description: "Send next week's open times as an image followed by one message in the linked conversation, using the current draft. Record the host's answers first and pass a short changeSummary if they just answered or changed anything. When queued, the service sends the whole reply, including whether to open the times. When the scan found entries that may be notes, it sends the note review link instead (noteReviewSent), and the image follows by itself after the host confirms that page; pass skipNoteReview true only when the host says to skip that review. Before setup is first saved, when the image for the current settings was already sent, it sends no copy and reports alreadySent; then reply yourself. Before setup is first saved, confirm only after the host agrees. Once setup is saved, use it only when the host asks to see their open times; a change needs no image.",
               inputSchema: previewNextWeekToolInput,
               execute: (input, ctx) => previewNextWeekForTool(setupDependenciesFromEnvironment(), { auth: ctx.session.auth.current, callId: ctx.callId, sessionId: ctx.session.id }, input),
             }),

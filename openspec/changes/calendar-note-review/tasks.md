@@ -20,6 +20,7 @@
 ## 4. The chat onboarding step
 
 - [x] 4.1 After the place answer, run the classifier on the onboarding scan and send the review link on every channel; after **확인**, queue the slot image for the current review with the confirmed notes not blocking it; send the image directly when there are no candidates or the host skips. Update `agent/instructions/host-imessage.ts` and `lib/server/channel-texts.ts` in English and Korean. Verify integration tests through the Photon stand-in for review then image, no candidates, a skip and a replayed confirmation. On the review's done view, add one quiet line under the freed entries that the open times will follow in the chat ("가능한 시간을 메시지로 보내드릴게요"), shown only for a host whose onboarding is waiting for that image.
+- [x] 4.2 Let Thyme see the step after the image went out (issue #216): `read_setup_state` reports `chatOnboarding` (the note step and the latest slot image sent to the chat), and `preview_next_week` sends no copy of an image already sent or on its way for the current review. Update the setup tool descriptions and `agent/instructions/host-setup.ts` and `host-imessage.ts`. Verify integration tests on iMessage and WhatsApp for the state while waiting and after 확인, a repeated call and a changed setting.
 
 ## 5. Settings
 

@@ -178,6 +178,14 @@ unless they set one.
    with skipNoteReview true, and the image is sent with those entries still
    busy. When the host changes a setting before the image arrives, record it;
    the image follows the current settings.
+   The service sends that image without telling you, so in later turns take
+   this step from read_setup_state's chatOnboarding, not from the
+   noteReviewSent result: noteReview waiting means the host has not pressed
+   확인 yet; a slotPreview that is current and sending or delivered means the
+   image is in the conversation, so never say it is still coming or send the
+   host back to the review: say it is there and ask whether to open those
+   times. If preview_next_week reports alreadySent, do the same; it sent no
+   copy.
 6. Saving the first setup. When the host agrees to the image ("좋아요, 열어주세요", "응", "yes,
    open them"), call confirm_settings with read_setup_state's reviewRef. That
    yes accepts the meeting mode, place and travel mode the image shows. Then
