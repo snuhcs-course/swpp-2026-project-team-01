@@ -45,11 +45,11 @@ A linked host SHALL be able to finish setup in the linked conversation without o
 
 #### Scenario: Note review before the image
 - **WHEN** the host answers the place question and the scan has note candidates
-- **THEN** the service sends the review page link, no slot image is sent yet, and after the host confirms "엄마 생일" as free the image shows that day open
+- **THEN** the service sends the review page link, no slot image is sent yet, and after the host confirms "엄마 생일" as free the image shows that day open and is followed by one message with the open times and booking question
 
 #### Scenario: No note candidates
 - **WHEN** the host answers the hours question and then "역삼역 근처, 대면이고 지하철로 다녀요" and the scan has no note candidates
-- **THEN** Thyme asks nothing more and the slot image is sent
+- **THEN** Thyme sends the slot image followed by one message with the open times and booking question
 
 #### Scenario: Review skipped
 - **WHEN** the host replies "나중에 할게" to the review link
@@ -57,7 +57,7 @@ A linked host SHALL be able to finish setup in the linked conversation without o
 
 #### Scenario: Review left unanswered
 - **WHEN** a day passes after the review link with no 확인 and no reply
-- **THEN** the slot image is sent once with the candidates still busy, followed by one line with the review link, and a later 확인 sends no second image
+- **THEN** the slot image is sent once with the candidates still busy, followed by one message with the review link, open times and booking question, and a later 확인 sends no second image
 
 #### Scenario: Slot image and link
 - **WHEN** the host agrees to the slot image

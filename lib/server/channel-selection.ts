@@ -53,14 +53,18 @@ export function channelOf(message: string): MessagingChannel | null {
 // one. Every action the assistant takes in the host's words checks this first
 // (channel-actions-in-words D1).
 export async function channelOfTurn(db: Queryable, sessionId: string, hostAccountId: string): Promise<MessagingChannel | null> {
-  const [turn] = await db<{ message: string; channel: MessagingChannel }[]>`
-    select i.message, r.channel from app.agent_sessions s
+  return (await linkedMessagingTurn(db, sessionId, hostAccountId))?.channel ?? null;
+}
+
+export async function linkedMessagingTurn(db: Queryable, sessionId: string, hostAccountId: string) {
+  const [turn] = await db<{ inputId: string; message: string; channel: MessagingChannel }[]>`
+    select i.id as "inputId", i.message, r.channel from app.agent_sessions s
     join app.conversation_inputs i on i.id = s.current_input_id
     join app.imessage_receipts r on r.id = i.client_input_id
     where s.session_id = ${sessionId} and s.principal_type = 'host_account'
       and s.principal_id = ${hostAccountId} and s.state = 'active'
   `;
-  return turn && channelOf(turn.message) === turn.channel ? turn.channel : null;
+  return turn && channelOf(turn.message) === turn.channel ? turn : null;
 }
 
 function normalize(value: string) {

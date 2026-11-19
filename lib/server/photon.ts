@@ -53,7 +53,7 @@ export const MAX_BUTTON_TITLE = 20;
 export const MAX_BUTTONS = 3;
 
 export type PhotonContent =
-  | { readonly kind: "image"; readonly preview: SlotPreview; readonly language: ChannelLanguage }
+  | { readonly kind: "image"; readonly preview: SlotPreview; readonly language: ChannelLanguage; readonly summary?: string }
   // Buttons only on WhatsApp, inside the window (the outbox decides). On
   // Telegram (host-telegram-channel design 7 and 8): the row's inline keyboard,
   // and silent delivery for a notice that needs nothing.
@@ -308,11 +308,17 @@ export function spectrumTransport(config: Pick<PhotonConfig, "projectId" | "proj
           }
 
           if (request.content.kind === "image") {
-            const caption = channelReplies(request.content.language).onboarding.slotCaption(request.content.preview);
-            await withTimeout(space.send(caption), SEND_TIMEOUT_MS);
-            const png = await renderSlotPreviewPng(request.content.preview);
+            const { preview, language, summary = channelReplies(language).onboarding.slotSummary(preview) } = request.content;
+            let png: Buffer;
+            try {
+              png = await renderSlotPreviewPng(preview);
+            } catch {
+              await withTimeout(space.send(summary), SEND_TIMEOUT_MS);
+              return { status: "uncertain" };
+            }
             const { attachment } = await import("@spectrum-ts/core");
-            const sent = await withTimeout(space.send(attachment(png, { mimeType: "image/png", name: `slots-${request.content.preview.weekStart}.png` })), SEND_TIMEOUT_MS);
+            const sent = await withTimeout(space.send(attachment(png, { mimeType: "image/png", name: `slots-${preview.weekStart}.png` })), SEND_TIMEOUT_MS);
+            await withTimeout(space.send(summary), SEND_TIMEOUT_MS);
             return { messageId: sent?.id ?? null, spaceId: space.id, status: "accepted" };
           }
 
@@ -376,16 +382,21 @@ async function sendWhatsApp(config: Pick<PhotonConfig, "projectId" | "projectSec
 
     try {
       if (content.kind === "image") {
-        const caption = channelReplies(content.language).onboarding.slotCaption(content.preview);
+        const { preview, language, summary = channelReplies(language).onboarding.slotSummary(preview) } = content;
         let png: Buffer;
         try {
-          png = await renderSlotPreviewPng(content.preview);
+          png = await renderSlotPreviewPng(preview);
         } catch {
-          await withTimeout(space.send(caption), SEND_TIMEOUT_MS);
+          await withTimeout(space.send(summary), SEND_TIMEOUT_MS);
           return { status: "uncertain" };
         }
-        const { attachment, group } = await import("@spectrum-ts/core");
-        const sent = await withTimeout(space.send(group(attachment(png, { mimeType: "image/png", name: `slots-${content.preview.weekStart}.png` }), caption)), SEND_TIMEOUT_MS);
+        const { attachment } = await import("@spectrum-ts/core");
+        const sent = await withTimeout(space.send(attachment(png, { mimeType: "image/png", name: `slots-${preview.weekStart}.png` })), SEND_TIMEOUT_MS);
+        try {
+          await withTimeout(space.send(summary), SEND_TIMEOUT_MS);
+        } catch {
+          return { status: "uncertain" };
+        }
         return { messageId: sent?.id ?? null, spaceId: space.id, status: "accepted" };
       }
       const message =

@@ -157,13 +157,11 @@ unless they set one.
    travel buffer, duration, buffers, the weekly limit or the handle unless
    read_setup_state lists them in missingFields.
 5. The slot image. Once nothing required is missing, call preview_next_week.
-   It sends next week's open slots and the place as one image, with a caption
-   that lists the open times and asks whether to open them. The caption and the
-   image ask whether to open these times, so your own reply does not ask it
-   again: in the conversation's language, say in one line what you recorded if
-   the host just answered, or nothing more than a short lead-in. Do not list
-   the times again. If
-   it refuses because something is missing, ask for that.
+   If the host just answered or changed a setting, give the tool one short
+   changeSummary in the conversation's language. The service sends the image
+   and one message with that summary, the open times and the booking question.
+   When the tool reports queued, the service sends the whole reply. If it
+   refuses because something is missing, ask for that.
    When the scan found entries that may be notes (birthdays, deadlines), the
    first call sends the note review link instead and reports noteReviewSent:
    the host checks those entries on that page, and the service sends the slot

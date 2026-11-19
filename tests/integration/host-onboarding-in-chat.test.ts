@@ -56,8 +56,8 @@ async function reviewable(channel: "imessage" | "whatsapp" = "imessage") {
   return { host, sender, call, channel };
 }
 
-async function sendPreview(call: SetupToolCall, host: SeededHost) {
-  const result = await previewNextWeekForTool(deps, { ...call, callId: randomUUID() });
+async function sendPreview(call: SetupToolCall, host: SeededHost, changeSummary?: string) {
+  const result = await previewNextWeekForTool(deps, { ...call, callId: randomUUID() }, { changeSummary });
   expect(result).toMatchObject({ queued: true, reviewRef: expect.any(String), ranges: expect.stringContaining(":") });
   const [image] = await im.outbox({ hostAccountId: host.hostAccountId, kind: "image" });
   expect(image).toBeDefined();
@@ -173,10 +173,15 @@ describe("slot preview and acceptance", () => {
     const { host, sender, call } = await reviewable(channel);
     const ref = settingsRef((await computeSetupProposal(db, host.hostAccountId))!.proposalHash);
     expect(await confirmSettingsForTool(deps, { ...call, callId: randomUUID() }, { reviewRef: ref })).toMatchObject({ saved: false });
-    await sendPreview(call, host);
+    await sendPreview(call, host, `I recorded online meetings. ${randomUUID()}`);
     const image = photon.sends.find(send => send.content.kind === "image" && send.content.preview.reviewRef === ref && send.channel === channel);
     expect(image?.content).toMatchObject({ kind: "image", language: "en", preview: { meetingMode: "online", reviewRef: ref, days: expect.any(Array) } });
+    expect(image?.content).toMatchObject({ summary: expect.stringMatching(/^I recorded online meetings\. \[removed credential\][\s\S]*Shall I open these for booking\?$/) });
+    const [reply] = await im.outbox({ hostAccountId: host.hostAccountId, kind: "turn" });
+    expect(reply!.state).toBe("waiting");
+    expect(await im.send(reply!.id)).toEqual({ result: "completed", sent: [] });
     const yes = await turn(host, sender, "Yes, open those", channel);
+    expect((await im.outbox({ hostAccountId: host.hostAccountId, kind: "turn" })).map(row => row.state).sort()).toEqual(["suppressed", "waiting"]);
     expect(await confirmSettingsForTool(deps, yes, { reviewRef: ref })).toMatchObject({ saved: true, links: { booking: expect.any(String) } });
     const [draft] = await db<{ accepted: boolean }[]>`select (fields -> 'meetingMode' ->> 'accepted')::boolean as accepted from app.setup_drafts where host_account_id = ${host.hostAccountId}`;
     expect(draft!.accepted).toBe(true);
@@ -203,7 +208,7 @@ describe("slot preview and acceptance", () => {
     expect(await previewNextWeekForTool(deps, { ...change, callId: randomUUID() })).toMatchObject({ queued: true });
     const image = (await im.outbox({ hostAccountId: host.hostAccountId, kind: "image" })).at(-1);
     await im.send(image!.id, { ...im.sendDeps(), tokenKeys: deps.calendar.tokenKeys });
-    expect(photon.sends.at(-1)?.content).toMatchObject({ kind: "image", preview: { saved: true } });
+    expect(photon.sends.at(-1)?.content).toMatchObject({ kind: "image", preview: { saved: true }, summary: expect.stringMatching(/(?:Guests can book these now\.|지금 게스트가 이 시간으로 예약할 수 있어요\.)$/) });
   });
 
   it("leaves first-time setup to the host's own save", async () => {

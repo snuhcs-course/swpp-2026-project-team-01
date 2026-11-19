@@ -10,8 +10,9 @@ import { standInNoteClassifier } from "../../lib/server/note-classifier-stand-in
 import { confirmNoteReviewCommand, readNoteReview } from "../../lib/server/note-review";
 import { ONBOARDING_SLOT_IMAGE_JOB, slotImageWaits } from "../../lib/server/onboarding-note-step";
 import { settingsRef } from "../../lib/server/request-ref";
-import { computeSetupProposal } from "../../lib/server/setup";
+import { computeSetupProposal, readSetupState } from "../../lib/server/setup";
 import { confirmSettingsForTool, createOnboardingSlotImageHandler, previewNextWeekForTool } from "../../lib/server/setup-channel-tools";
+import { confirmSettingsCommand } from "../../lib/server/setup-commands";
 import { draftSettingsForTool, readSetupStateForTool, type SetupToolCall } from "../../lib/server/setup-tools";
 import { nextWeekRange } from "../../lib/server/slot-preview";
 import type { SlotPreview } from "../../lib/contracts/slot-preview";
@@ -21,7 +22,7 @@ import { startFakePhoton, type FakePhoton } from "./support/fake-photon";
 import { imessageHarness } from "./support/imessage";
 import { runJob, testTokenKey } from "./support/requests";
 import { unlinkImessageCommand } from "../../lib/server/imessage-links";
-import { hostCommandDeps, seedHost, setupDependencies, type SeededHost } from "./support/setup-host";
+import { hostCommandDeps, prepareReviewableHost, seedHost, setupDependencies, type SeededHost } from "./support/setup-host";
 
 // The note step of the chat onboarding (calendar-note-review task 4.1, design 8):
 // after the place answer the review link goes out instead of the slot image, the
@@ -162,6 +163,7 @@ describe("the note step after the place answer", () => {
     expect(image!.review_hash).toBe(proposal!.proposalHash);
     const preview = await sentImage(image!.id);
     expect(openOn(preview, BIRTHDAY_DAY).length).toBeGreaterThan(0);
+    expect(photon.sends.at(-1)?.content).toMatchObject({ summary: expect.stringMatching(/Shall I open these for booking\?$/) });
     expect(await slotImageWaits(db, host.hostAccountId)).toBe(false);
 
     // 확인 after the image went out sends no second image.
@@ -242,15 +244,34 @@ describe("a review left unanswered (design 8)", () => {
     expect(openOn(await sentImage(image!.id), BIRTHDAY_DAY)).toEqual([]);
     expect(await slotImageWaits(db, host.hostAccountId)).toBe(false);
 
-    const [later] = await laterNotes(host.hostAccountId);
-    const { sent } = await im.send(later!.id, { ...im.sendDeps(), tokenKeys: deps.calendar.tokenKeys });
-    expect(sent[0]?.content).toMatchObject({ kind: "text", text: channelReplies("en").onboarding.noteReviewLater(`${deps.appOrigin}/app/notes`) });
+    expect(await laterNotes(host.hostAccountId)).toHaveLength(0);
+    expect(photon.sends.at(-1)?.content).toMatchObject({ kind: "image", summary: expect.stringContaining(channelReplies("en").onboarding.noteReviewLater(`${deps.appOrigin}/app/notes`)) });
+    expect(photon.sends.at(-1)?.content).toMatchObject({ summary: expect.stringMatching(/Shall I open these for booking\?$/) });
 
     // A 확인 after that records the answer and sends no second image.
     const review = await readNoteReview(db, host.hostAccountId);
     const birthday = review.items.find(item => item.title === "엄마 생일")!;
     expect(await confirm(host.hostAccountId, { analysisId: review.analysisId!, choices: [{ key: birthday.key, decision: "free" }] })).toMatchObject({ ok: true, result: { slotImage: false } });
     expect(await images(host.hostAccountId)).toHaveLength(1);
+  });
+
+  it("says the times are already open if the host saves on the web during the wait", async () => {
+    const { call, host } = await placeAnswered();
+    expect(await previewNextWeekForTool(deps, call)).toMatchObject({ noteReviewSent: true });
+
+    const live = await prepareReviewableHost(db, host);
+    const state = await readSetupState(deps, host.hostAccountId);
+    expect(await runCommand(hostCommandDeps(db, host.hostAccountId), confirmSettingsCommand(live, deps.appOrigin), {
+      expectedRevision: state!.draft.revision,
+      input: { proposalHash: state!.proposalHash },
+      resourceId: host.hostAccountId,
+      retryKey: randomUUID(),
+    })).toMatchObject({ ok: true });
+
+    expect(await runJob(db, (await waitJob(host.hostAccountId)).id, createOnboardingSlotImageHandler(() => deps))).toBe("completed");
+    const [image] = await images(host.hostAccountId);
+    expect(await sentImage(image!.id)).toMatchObject({ saved: true });
+    expect(photon.sends.at(-1)?.content).toMatchObject({ summary: expect.stringMatching(/Guests can book these now\.$/) });
   });
 
   it("sends nothing after the wait once 확인 sent the image", async () => {

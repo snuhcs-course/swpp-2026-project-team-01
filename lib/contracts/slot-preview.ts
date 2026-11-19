@@ -20,7 +20,7 @@ export type SlotPreviewDay = {
   readonly open: readonly LocalRange[];
 };
 
-// Next week's open slots for one settings review, as the image and its caption show them (design 5).
+// Next week's open slots for one settings review, as the image and its summary show them (design 5).
 export type SlotPreview = {
   readonly timezone: string;
   // The Monday the week starts on, YYYY-MM-DD.

@@ -29,21 +29,21 @@ const transport = spectrumTransport({ projectId: "test", projectSecret: "test" }
 const request = { recipient: { address: "+15550000000", spaceId: "space" }, content: { kind: "image" as const, preview, language: "ko" as const }, idempotencyKey: "preview" };
 beforeEach(() => { wire.sent.length = 0; wire.render.mockReset().mockResolvedValue(wire.png); });
 
-it("sends the iMessage caption then the rendered PNG attachment", async () => {
+it("sends the bare iMessage PNG then the preview message", async () => {
   expect(await transport.send({ ...request, channel: "imessage" })).toMatchObject({ status: "accepted" });
-  expect(wire.sent).toEqual([channelReplies("ko").onboarding.slotCaption(preview), { buffer: wire.png, mimeType: "image/png", name: "slots-2026-11-16.png" }]);
+  expect(wire.sent).toEqual([{ buffer: wire.png, mimeType: "image/png", name: "slots-2026-11-16.png" }, channelReplies("ko").onboarding.slotSummary(preview)]);
 });
-it("sends WhatsApp's image and caption together", async () => {
+it("sends the bare WhatsApp PNG then the preview message", async () => {
   expect(await transport.send({ ...request, channel: "whatsapp" })).toMatchObject({ status: "accepted" });
-  expect(wire.sent).toEqual([{ parts: [{ buffer: wire.png, mimeType: "image/png", name: "slots-2026-11-16.png" }, channelReplies("ko").onboarding.slotCaption(preview)] }]);
+  expect(wire.sent).toEqual([{ buffer: wire.png, mimeType: "image/png", name: "slots-2026-11-16.png" }, channelReplies("ko").onboarding.slotSummary(preview)]);
 });
-it("does not acknowledge a preview whose image failed after the iMessage caption", async () => {
+it("keeps the iMessage summary readable when rendering fails", async () => {
   wire.render.mockRejectedValue(new Error("render failed"));
   expect(await transport.send({ ...request, channel: "imessage" })).toEqual({ status: "uncertain" });
-  expect(wire.sent).toEqual([channelReplies("ko").onboarding.slotCaption(preview)]);
+  expect(wire.sent).toEqual([channelReplies("ko").onboarding.slotSummary(preview)]);
 });
 it("keeps the WhatsApp ranges readable when rendering fails, without acknowledging an image", async () => {
   wire.render.mockRejectedValue(new Error("render failed"));
   expect(await transport.send({ ...request, channel: "whatsapp" })).toEqual({ status: "uncertain" });
-  expect(wire.sent).toEqual([channelReplies("ko").onboarding.slotCaption(preview)]);
+  expect(wire.sent).toEqual([channelReplies("ko").onboarding.slotSummary(preview)]);
 });
