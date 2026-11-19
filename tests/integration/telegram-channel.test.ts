@@ -184,37 +184,6 @@ describe("setup over Telegram", () => {
     expect((await tg.outbox(userId)).filter((row) => row.kind === "signal")).toHaveLength(3);
   });
 
-  it("wakes the production worker when a Telegram turn reply becomes due", async () => {
-    const { hostAccountId, userId } = await linkedHost();
-    await tg.deliver(telegramMessage({ text: "What can you do?", userId }));
-    const [input] = await im.inputsOf(hostAccountId);
-    const [turn] = (await tg.outbox(userId)).filter((row) => row.kind === "turn");
-    if (!im.sessions.has(input!.session_id!)) im.sessions.set(input!.session_id!, { events: [], sent: [] });
-    await db`
-      update app.jobs set producer_environment = 'production', run_after = now() + interval '1 minute'
-      where kind = ${IMESSAGE_SEND_JOB} and dedupe_key = ${`outbox:${turn!.id}`}
-    `;
-
-    const wakes: string[] = [];
-    const server = createServer((request, response) => {
-      wakes.push(request.url ?? "");
-      response.writeHead(200).end();
-    });
-    await new Promise<void>((resolve) => server.listen(0, "0.0.0.0", resolve));
-    const { port } = server.address() as AddressInfo;
-    try {
-      await db`
-        select vault.create_secret(${`http://host.docker.internal:${port}/api/internal/jobs`}, 'worker_url'),
-               vault.create_secret('test-worker-secret', 'worker_secret')
-      `;
-      await im.endTurn(input!.id, "I can help find a time.");
-      await expect.poll(() => wakes, { timeout: 3_000 }).toContain("/api/internal/jobs");
-    } finally {
-      await db`delete from vault.secrets where name in ('worker_url', 'worker_secret')`;
-      await new Promise<void>((resolve) => server.close(() => resolve()));
-    }
-  });
-
   it("stops typing after twelve indicators", async () => {
     const host = await linkedHost();
     await tg.deliver(telegramMessage({ text: "What can you do?", userId: host.userId }));
@@ -294,5 +263,38 @@ describe("summaries on Telegram", () => {
       ["booking_confirmed", true],
       ["booking_failed", false],
     ]);
+  });
+});
+
+describe("Telegram reply delivery", () => {
+  it("wakes the production worker when a Telegram turn reply becomes due", async () => {
+    const { hostAccountId, userId } = await linkedHost();
+    await tg.deliver(telegramMessage({ text: "What can you do?", userId }));
+    const [input] = await im.inputsOf(hostAccountId);
+    const [turn] = (await tg.outbox(userId)).filter((row) => row.kind === "turn");
+    if (!im.sessions.has(input!.session_id!)) im.sessions.set(input!.session_id!, { events: [], sent: [] });
+    await db`
+      update app.jobs set producer_environment = 'production', run_after = now() + interval '1 minute'
+      where kind = ${IMESSAGE_SEND_JOB} and dedupe_key = ${`outbox:${turn!.id}`}
+    `;
+
+    const wakes: string[] = [];
+    const server = createServer((request, response) => {
+      wakes.push(request.url ?? "");
+      response.writeHead(200).end();
+    });
+    await new Promise<void>((resolve) => server.listen(0, "0.0.0.0", resolve));
+    const { port } = server.address() as AddressInfo;
+    try {
+      await db`
+        select vault.create_secret(${`http://host.docker.internal:${port}/api/internal/jobs`}, 'worker_url'),
+               vault.create_secret('test-worker-secret', 'worker_secret')
+      `;
+      await im.endTurn(input!.id, "I can help find a time.");
+      await expect.poll(() => wakes, { timeout: 3_000 }).toContain("/api/internal/jobs");
+    } finally {
+      await db`delete from vault.secrets where name in ('worker_url', 'worker_secret')`;
+      await new Promise<void>((resolve) => server.close(() => resolve()));
+    }
   });
 });
