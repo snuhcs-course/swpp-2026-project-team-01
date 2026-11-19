@@ -20,4 +20,4 @@ The prototype covers the received proposal states, a withdrawn request, a cancel
 
 ## Impact
 
-Implementation affects `apps/web/app/_components/host/host-requests.tsx`, its request cards and the [visual design](../../../DESIGN.md). Existing command authorization, revision checks and booking rules continue to govern actions. A chat-workspaces capability delta and interaction tests remain before the change can be archived.
+Implementation affects `apps/web/app/_components/host/host-requests.tsx`, its request cards, the [visual design](../../../DESIGN.md), and the chat-workspaces capability delta. Existing command authorization, revision checks and booking rules continue to govern actions. Interaction tests remain before the change can be archived.
