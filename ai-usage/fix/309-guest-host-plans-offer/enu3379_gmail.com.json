@@ -1,0 +1,23 @@
+{
+  "branch": "fix/309-guest-host-plans-offer",
+  "user": "enu3379@gmail.com",
+  "sessions": {
+    "claude:2c25d184-5cbc-4658-82e2-cba5477cc6b2": {
+      "agent": "claude-code",
+      "client": "cli",
+      "agent_ms": 0,
+      "models": {
+        "claude-opus-5-5": {
+          "input": 32,
+          "cache_read": 1093681,
+          "cache_write_5m": 0,
+          "cache_write_1h": 33036,
+          "output": 5399,
+          "reasoning": 0
+        }
+      },
+      "first": "2026-11-19T08:17:33.269Z",
+      "last": "2026-11-19T08:18:58.414Z"
+    }
+  }
+}
