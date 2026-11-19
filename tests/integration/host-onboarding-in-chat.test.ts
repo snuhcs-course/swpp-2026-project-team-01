@@ -217,7 +217,10 @@ describe("slot preview and acceptance", () => {
       callId: randomUUID(),
     };
     expect(await readRequestForHostTool(db, review)).toMatchObject({ sample: true, details: { windows: expect.arrayContaining([expect.any(String)]) } });
-    expect(await finishSampleForTool(db, review)).toMatchObject({ finished: true });
+    expect(await finishSampleForTool(db, review, { action: "change" })).toMatchObject({
+      finished: true,
+      message: "You requested changes to the sample. This was practice. No calendar event was created and no guest was notified.",
+    });
     expect(await listHostRequests(db, host.hostAccountId)).toEqual([]);
     expect(await db`select id from app.bookings where request_id = ${requestId}`).toEqual([]);
   });

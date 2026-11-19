@@ -74,7 +74,12 @@ async function stateOf(requestId: string) {
 const answers = (calls: { method: string; params: Record<string, unknown> }[]) => calls.filter((call) => call.method === "answerCallbackQuery").map((call) => call.params);
 
 describe("decision buttons", () => {
-  it.each(["a", "d", "stop"])("keeps the sample selected and finishes it for %s without touching real requests", async (action) => {
+  it.each([
+    ["a", "en", "You approved the sample request."],
+    ["d", "en", "You declined the sample request."],
+    ["stop", "en", "You ended the tutorial."],
+    ["a", "ko", "튜토리얼 요청을 승인했어요."],
+  ])("keeps the sample selected and finishes it for %s (%s) without touching real requests", async (action, language, confirmation) => {
     let bound: Awaited<ReturnType<typeof tg.bind>> | undefined;
     const real = await agreedRequest(db, google, {
       beforeAgree: async ({ hostAccountId }) => { bound = await tg.bind(hostAccountId); },
@@ -105,11 +110,20 @@ describe("decision buttons", () => {
     await tg.flush(userId);
     expect(await im.bindingOf(hostAccountId)).toMatchObject({ selected_request_id: requestId });
 
+    if (language === "ko") {
+      expect((await tg.deliver(telegramMessage({ text: "이 요청에 대해 알려주세요.", userId }))).outcome).toBe("forwarded");
+      await tg.flush(userId);
+    }
+
     const decision = action === "stop"
       ? telegramMessage({ text: "stop", userId })
       : telegramCallback({ callbackId: "cb-practice", data: `${action}:${reviewRef(requestId, 1)}`, userId });
     expect((await tg.deliver(decision)).outcome).toBe("command");
-    expect(sentTexts(await tg.flush(userId))).toEqual([expect.stringContaining("Tutorial complete.")]);
+    const [reply] = sentTexts(await tg.flush(userId));
+    expect(reply).toContain(confirmation);
+    expect(reply).toContain(language === "ko"
+      ? "실제 일정은 만들어지지 않았고, 게스트에게도 알림이 가지 않았어요."
+      : "No calendar event was created and no guest was notified.");
     expect(await tg.runRetirement(requestId)).toBe(1);
     expect((await listHostRequests(db, hostAccountId)).map((item) => item.requestId)).toEqual([real.requestId]);
     expect(await im.bindingOf(hostAccountId)).toMatchObject({ state: "active" });

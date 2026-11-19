@@ -28,6 +28,7 @@ import {
   declineRequestToolInput,
   evaluateCandidatesForHostTool,
   finishSampleForTool,
+  finishSampleToolInput,
   isHostReviewSession,
   listHostRequestsForTool,
   proposeSharedChangesForTool,
@@ -162,8 +163,8 @@ function hostReviewTools() {
     }),
     finish_sample_tutorial: defineTool({
       description: "Only when read_request reports sample: true, finish the host tutorial after the host approves, declines, asks to change the request, or asks to end the tutorial. Works in words from web or linked chat. Asking what other times are available is a question and does not finish it.",
-      inputSchema: z.object({}),
-      execute: (_input, toolCtx) => finishSampleForTool(database(), call(toolCtx)),
+      inputSchema: finishSampleToolInput,
+      execute: (input, toolCtx) => finishSampleForTool(database(), call(toolCtx), input),
     }),
     approve_proposal: defineTool({
       description:

@@ -1,9 +1,10 @@
 import { cancelBookingCommand, changeBookingCommand } from "./booking-cancellation";
 import { z } from "zod";
+import { tutorialAction } from "../contracts/host-tutorial";
 import { BOOKING_STATUS_TEXT } from "../contracts/booking";
 import type { HostRequestItem, HostRequestView, HostSuggestion } from "../contracts/host-request";
 import { currentTime, displayTime, weekOf } from "../contracts/timezone";
-import { finishSampleCommand, TUTORIAL_TEXT } from "./host-tutorial";
+import { finishSampleCommand, tutorialCompletionText } from "./host-tutorial";
 import { approveCommand, declineCommand, readBookingStatus } from "./bookings";
 import { channelOfTurn } from "./channel-selection";
 import { type Actor, runCommand } from "./commands";
@@ -171,15 +172,17 @@ export async function readRequestForHostTool(db: Database, call: HostReviewToolC
   return hostModelProjection(view);
 }
 
-export async function finishSampleForTool(db: Database, call: HostReviewToolCall) {
+export const finishSampleToolInput = z.object({ action: tutorialAction });
+
+export async function finishSampleForTool(db: Database, call: HostReviewToolCall, input: z.infer<typeof finishSampleToolInput>) {
   const { hostAccountId, requestId } = await authorizeHostReviewTool(db, call);
   const outcome = await runCommand({ authenticate: async () => hostActor(hostAccountId), db }, finishSampleCommand, {
-    input: {},
+    input,
     resourceId: requestId,
     retryKey: `tool:${call.callId}`,
   });
   return outcome.ok
-    ? { finished: true, message: TUTORIAL_TEXT.en.done }
+    ? { finished: true, message: tutorialCompletionText("en", outcome.result) }
     : { finished: false, message: "This action only applies to the host's sample tutorial request." };
 }
 
