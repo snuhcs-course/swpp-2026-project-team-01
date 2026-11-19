@@ -327,7 +327,7 @@ export function SuggestionCard({ context, onRequestChanges }: { readonly context
   if (suggestion.state === "shared") {
     return (
       <GuestCard
-        description={`Version ${suggestion.proposalVersion ?? ""} was sent to ${view.requester.name}, who needs to agree to it before you approve.`}
+        description={`The proposed details were sent to ${view.requester.name}. We’re waiting for their confirmation before you can approve.`}
         id="suggestion"
         label="Proposed shared changes"
         title="Shared with the requester"
