@@ -277,26 +277,36 @@ test("a new host completes setup one card at a time, from the authored messages 
   expect(await skill.text()).toContain(handle);
 });
 
-test("a newly onboarded host can try a sample and remove it by requesting a change", async ({ baseURL, context, db, page }) => {
-  const host = await signedInHost(db, context, baseURL!);
-  await reviewableHost(db, host.hostAccountId);
-  await acceptSuggestions(db, host.hostAccountId, { displayName: "Tutorial Host", handle: uniqueHandle() });
-  await page.goto("/app");
+for (const [button, confirmation] of [
+  ["Approve this proposal", "You approved the sample request."],
+  ["Decline", "You declined the sample request."],
+  ["Request changes", "You requested changes to the sample."],
+  ["End tutorial", "You ended the tutorial."],
+]) {
+  test(`a newly onboarded host sees the practice result after clicking ${button}`, async ({ baseURL, context, db, page }) => {
+    const host = await signedInHost(db, context, baseURL!);
+    await reviewableHost(db, host.hostAccountId);
+    await acceptSuggestions(db, host.hostAccountId, { displayName: "Tutorial Host", handle: uniqueHandle() });
+    await page.goto("/app");
 
-  await expectOnlyCard(page, "Review your booking settings");
-  await card(page, "Review your booking settings").getByRole("button", { name: "Confirm and save proposed settings" }).click();
-  await expectOnlyCard(page, "You're ready.");
-  await page.reload();
-  const links = card(page, "You're ready.");
-  await expect(links.getByText("Would you like to try a sample request?")).toBeVisible();
-  await links.getByRole("button", { name: "Try it" }).click();
+    await expectOnlyCard(page, "Review your booking settings");
+    await card(page, "Review your booking settings").getByRole("button", { name: "Confirm and save proposed settings" }).click();
+    await expectOnlyCard(page, "You're ready.");
+    await page.reload();
+    const links = card(page, "You're ready.");
+    await expect(links.getByText("Would you like to try a sample request?")).toBeVisible();
+    await links.getByRole("button", { name: "Try it" }).click();
 
-  await expect(page.getByRole("heading", { name: "Requests" })).toBeVisible();
-  await expect(page.getByRole("button", { name: /Alex Kim \(sample\)/ })).toHaveAttribute("aria-expanded", "true");
-  await expect(page.getByRole("heading", { name: "Approve this meeting?" })).toBeVisible();
-  await page.getByRole("button", { name: "Request changes" }).click();
-  await expect(page.getByText("No requests yet.", { exact: false })).toBeVisible();
-});
+    await expect(page.getByRole("heading", { name: "Requests" })).toBeVisible();
+    await expect(page.getByRole("button", { name: /Alex Kim \(sample\)/ })).toHaveAttribute("aria-expanded", "true");
+    await expect(page.getByRole("heading", { name: "Approve this meeting?" })).toBeVisible();
+    await page.getByRole("button", { name: button, exact: true }).click();
+    await expect(page.getByText("No requests yet.", { exact: false })).toBeVisible();
+    await expect(page.getByRole("heading", { name: confirmation, exact: true })).toBeVisible();
+    await expect(page.getByText("This was practice. No calendar event was created and no guest was notified.")).toBeVisible();
+    await expect(page.getByText("That request is not available.")).toHaveCount(0);
+  });
+}
 
 test("declined Calendar scopes show Connect Google Calendar with the consent link", async ({ baseURL, context, db, page }) => {
   await signedInHost(db, context, baseURL!);

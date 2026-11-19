@@ -151,7 +151,7 @@ export type RecordOutbound = {
   readonly requesterBindingId?: string | null;
   readonly linkId?: string | null;
   readonly requestId?: string | null;
-  // A turn reply waits for its input. A preview that replaces it names the same input.
+  // A turn reply, its Telegram typing signals and a preview that replaces it name the same input.
   readonly inputId?: string;
   // The frozen text; none for a turn reply or a contact card.
   readonly text?: string;
@@ -253,16 +253,26 @@ async function ownerChannel(tx: Transaction, message: RecordOutbound): Promise<S
 
 // From the session-owner hook when a turn ends: the replies waiting on inputs
 // that session completed, or on any input of a session that failed for good, are
-// due now, so the next worker run sends them.
+// due now. Updating a pending job does not trigger the insert wake-up.
 export async function wakeImessageReplies(db: Database, sessionId: string) {
-  await db`
+  const jobs = await db<{ producer_environment: string }[]>`
     update app.jobs j set run_after = now(), updated_at = now()
     from app.imessage_outbox o
     join app.conversation_inputs i on i.id = o.input_id
     join app.agent_sessions s on s.session_id = i.session_id
     where i.session_id = ${sessionId} and (i.state = 'completed' or s.state = 'failed') and o.state = 'waiting'
       and j.kind = ${IMESSAGE_SEND_JOB} and j.state = 'pending' and j.payload ->> 'outboxId' = o.id::text
+    returning j.producer_environment
   `;
+
+  if (jobs.some((job) => job.producer_environment === "production")) {
+    try {
+      await db`select app.request_worker()`;
+    } catch (error) {
+      // The jobs are already due, so the sweep still recovers a lost wake-up.
+      console.warn("chat reply worker wake-up failed", { error: error instanceof Error ? error.name : typeof error });
+    }
+  }
 }
 
 export const TURN_FALLBACK = "I couldn't finish that. You can continue in Find Me a Time on the web.";
@@ -483,6 +493,19 @@ export function createImessageSendHandler(load: () => ImessageSendDependencies =
       }
 
       if (row.state !== "waiting" && row.state !== "queued") return { state: row.state };
+
+      // A Telegram typing signal can be queued before its reply and claimed after it.
+      if (row.channel === "telegram" && row.kind === "signal" && row.input_id) {
+        const [reply] = await claimTx<{ id: string }[]>`
+          select id from app.imessage_outbox
+          where kind = 'turn' and dedupe_key = ${`input:${row.input_id}`}
+            and completed_at is null and created_at > now() - make_interval(mins => ${TURN_REPLY_WAIT_MINUTES})
+        `;
+        if (!reply) {
+          await finish(claimTx, row.id, row.state, "suppressed", { category: "reply_finished" });
+          return { state: "suppressed" as const };
+        }
+      }
 
       let inWindow = row.fresh;
 
