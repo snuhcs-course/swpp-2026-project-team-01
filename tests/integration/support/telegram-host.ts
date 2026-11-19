@@ -96,7 +96,7 @@ export function telegramHarness(db: Database, im: ImessageHarness, telegram: () 
       for (const job of jobs) await runJob(db, job.id, createTelegramButtonsHandler(jobDeps));
       return jobs.length;
     },
-    // Runs the due typing repeats of a waiting reply, as the worker would every five seconds.
+    // Runs the due typing repeats of a pending reply.
     async runTyping(turnOutboxId: string) {
       const jobs = await due(TELEGRAM_TYPING_JOB, turnOutboxId);
       for (const job of jobs) {
@@ -106,8 +106,8 @@ export function telegramHarness(db: Database, im: ImessageHarness, telegram: () 
       return jobs.length;
     },
     // Sends one outbox row through the stand-in and returns the Bot API calls it made.
-    async send(outboxId: string): Promise<FakeTelegramCall[]> {
-      const [job] = await db<{ id: string }[]>`select id from app.jobs where kind = ${IMESSAGE_SEND_JOB} and dedupe_key = ${`outbox:${outboxId}`}`;
+    async send(outboxId: string, dedupeKey = `outbox:${outboxId}`): Promise<FakeTelegramCall[]> {
+      const [job] = await db<{ id: string }[]>`select id from app.jobs where kind = ${IMESSAGE_SEND_JOB} and dedupe_key = ${dedupeKey}`;
       await db`update app.jobs set run_after = now() where id = ${job!.id} and state = 'pending'`;
       await db`update app.imessage_outbox set dispatched_at = dispatched_at - interval '1 minute' where channel = 'telegram' and dispatched_at is not null`;
       const before = telegram().calls.length;

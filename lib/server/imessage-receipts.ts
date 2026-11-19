@@ -912,17 +912,19 @@ export async function processReceipt(
 
   const outcome = await channel(tx, deps, { ...bound, text: receipt.text.trim() });
 
-  // Telegram shows typing while the turn runs: once now and every few seconds
-  // until its reply is queued (design 8). A bot cannot mark a message read.
+  // Telegram shows typing once now and refreshes it until its reply is sent
+  // (design 8). A bot cannot mark a message read.
   if (receipt.channel === "telegram" && outcome === "forwarded") {
-    await recordSignal(tx, deps, receipt, binding, recipient, { messageId: null, reaction: null, typing: true });
-    const [turn] = await tx<{ id: string }[]>`
-      select o.id from app.imessage_outbox o
+    const [turn] = await tx<{ id: string; input_id: string }[]>`
+      select o.id, i.id as input_id from app.imessage_outbox o
       join app.conversation_inputs i on o.kind = 'turn' and o.dedupe_key = 'input:' || i.id::text
       join app.discussions d on d.id = i.discussion_id
       where d.principal_type = 'host_account' and d.principal_id = ${binding.host_account_id} and i.client_input_id = ${receipt.id}
     `;
-    if (turn) await startTypingRepeats(tx, receipt.id, turn.id);
+    if (turn) {
+      await recordSignal(tx, deps, receipt, binding, recipient, { messageId: null, reaction: null, typing: true }, turn.input_id);
+      await startTypingRepeats(tx, receipt.id, turn.id);
+    }
   }
   if (receipt.channel === "telegram") return outcome;
 
@@ -942,11 +944,13 @@ async function recordSignal(
   binding: { readonly id: string; readonly host_account_id: string },
   recipient: { readonly address: string; readonly spaceId: string },
   signal: ImessageSignal,
+  inputId?: string,
 ) {
   await recordOutbound(tx, {
     bindingId: binding.id,
     dedupeKey: `receipt:${receipt.id}:signal`,
     hostAccountId: binding.host_account_id,
+    inputId,
     kind: "signal",
     recipient,
     recipientHash: receipt.senderHash,

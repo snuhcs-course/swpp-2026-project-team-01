@@ -5,7 +5,6 @@ import { helpText, requestRef, settingsRef, STOP_TEXTS } from "../../lib/server/
 import { CHANNEL_TEXTS } from "../../lib/server/imessage-receipts";
 import { IMESSAGE_SEND_JOB, recordOutbound } from "../../lib/server/imessage-outbox";
 import { computeSetupProposal } from "../../lib/server/setup";
-import { TYPING_MAX } from "../../lib/server/telegram-jobs";
 import { agreedRequest } from "./support/booking";
 import { testDatabase } from "./support/database";
 import { type FakeGoogle, startFakeGoogle } from "./support/fake-google";
@@ -154,7 +153,7 @@ describe("commands on Telegram", () => {
 });
 
 describe("setup over Telegram", () => {
-  it("forwards plain text to the setup discussion with the [Telegram] prefix and shows typing until the reply is queued", async () => {
+  it("forwards plain text to the setup discussion with the [Telegram] prefix and shows typing until the reply is sent", async () => {
     const host = await linkedHost();
     const { userId } = host;
 
@@ -167,7 +166,7 @@ describe("setup over Telegram", () => {
     // The seeded setup session was not started by the harness runtime; let it record events.
     if (!im.sessions.has(input!.session_id!)) im.sessions.set(input!.session_id!, { events: [], sent: [] });
 
-    // Typing at once, then every few seconds while the reply waits, at most twelve times.
+    // Typing at once, then every few seconds while the reply waits.
     expect((await tg.flush(userId)).map((call) => call.method)).toEqual(["sendChatAction"]);
     const [turn] = (await tg.outbox(userId)).filter((row) => row.kind === "turn");
     expect(turn).toMatchObject({ state: "waiting" });
@@ -175,22 +174,18 @@ describe("setup over Telegram", () => {
     expect(await tg.runTyping(turn!.id)).toBe(1);
     expect((await tg.flush(userId)).map((call) => call.method)).toEqual(["sendChatAction", "sendChatAction"]);
 
-    // The turn ends: its reply is queued and the typing stops.
     await im.endTurn(input!.id, "Got it: 30 minutes.");
+    expect(await tg.runTyping(turn!.id)).toBe(1);
+    expect((await tg.flush(userId)).map((call) => call.method)).toEqual(["sendChatAction"]);
+
+    // A refresh can be queued while the reply is pending but dispatched after it.
+    expect(await tg.runTyping(turn!.id)).toBe(1);
+    expect(sentTexts(await tg.send(turn!.id))).toEqual(["Got it: 30 minutes."]);
+    expect(await tg.flush(userId)).toEqual([]);
     await tg.runTyping(turn!.id);
     expect(await tg.runTyping(turn!.id)).toBe(0);
-    const calls = await tg.send(turn!.id);
-    expect(sentTexts(calls)).toEqual(["Got it: 30 minutes."]);
-    expect((await tg.outbox(userId)).filter((row) => row.kind === "signal")).toHaveLength(3);
-  });
-
-  it("stops typing after twelve indicators", async () => {
-    const host = await linkedHost();
-    await tg.deliver(telegramMessage({ text: "What can you do?", userId: host.userId }));
-    const [turn] = (await tg.outbox(host.userId)).filter((row) => row.kind === "turn");
-
-    while ((await tg.runTyping(turn!.id)) > 0);
-    expect((await tg.outbox(host.userId)).filter((row) => row.kind === "signal")).toHaveLength(TYPING_MAX);
+    expect((await tg.outbox(userId)).filter((row) => row.kind === "signal").map((row) => row.state))
+      .toEqual(["accepted", "accepted", "accepted", "accepted", "suppressed"]);
   });
 
   it("puts Confirm settings under the settings review and saves from it", async () => {
@@ -221,6 +216,45 @@ describe("setup over Telegram", () => {
     // The review's button is spent once settings were saved.
     expect(await tg.runRetirement(host.hostAccountId)).toBe(1);
     expect((await tg.flush(host.userId)).map((call) => call.method)).toEqual(["editMessageReplyMarkup"]);
+  });
+
+  it("keeps refreshing past twelve indicators while the reply is pending, up to the reply wait limit", async () => {
+    const { userId } = await linkedHost();
+    await tg.deliver(telegramMessage({ text: "What can you do?", userId }));
+    const [turn] = (await tg.outbox(userId)).filter((row) => row.kind === "turn");
+
+    for (let repeat = 0; repeat < 15; repeat += 1) expect(await tg.runTyping(turn!.id)).toBe(1);
+    expect((await tg.outbox(userId)).filter((row) => row.kind === "signal")).toHaveLength(16);
+
+    await db`update app.imessage_outbox set created_at = now() - interval '31 minutes' where id = ${turn!.id}`;
+    await tg.runTyping(turn!.id);
+    expect(await tg.runTyping(turn!.id)).toBe(0);
+    expect((await tg.outbox(userId)).filter((row) => row.kind === "signal")).toHaveLength(16);
+  });
+
+  it("keeps typing during a delivery retry and stops after a terminal refusal", async () => {
+    const { hostAccountId, userId } = await linkedHost();
+    await tg.deliver(telegramMessage({ text: "What can you do?", userId }));
+    const [input] = await im.inputsOf(hostAccountId);
+    const [turn] = (await tg.outbox(userId)).filter((row) => row.kind === "turn");
+    if (!im.sessions.has(input!.session_id!)) im.sessions.set(input!.session_id!, { events: [], sent: [] });
+    await tg.flush(userId);
+    await im.endTurn(input!.id, "I can help find a time.");
+
+    telegram.next({ status: 429, retryAfter: 5 });
+    await tg.send(turn!.id);
+    expect((await tg.outbox(userId)).find((row) => row.id === turn!.id))
+      .toMatchObject({ state: "queued", failure_category: "rate_limited" });
+    expect(await tg.runTyping(turn!.id)).toBe(1);
+    expect((await tg.flush(userId)).map((call) => call.method)).toEqual(["sendChatAction"]);
+
+    telegram.next({ status: 400 });
+    await tg.send(turn!.id, `outbox:${turn!.id}:rate:1`);
+    expect((await tg.outbox(userId)).find((row) => row.id === turn!.id))
+      .toMatchObject({ state: "failed", failure_category: "provider_rejected" });
+    await tg.runTyping(turn!.id);
+    expect(await tg.runTyping(turn!.id)).toBe(0);
+    expect(await tg.flush(userId)).toEqual([]);
   });
 });
 
