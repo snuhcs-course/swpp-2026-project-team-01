@@ -56,6 +56,14 @@ The setup state given to the model SHALL include up to five of the most frequent
 ### Requirement: Saving from the slot image
 From the linked conversation, settings SHALL be saved only after the service sent an image of next week's open slots for the current settings review, and only when the host agrees to it. That agreement SHALL count as the host's acceptance of the stated meeting mode, location and travel mode the image shows. A review that changed after its image SHALL NOT be saved until a new image is sent.
 
+#### Scenario: Slot preview in chat
+- **WHEN** Thyme previews next week's open times in iMessage, WhatsApp or Telegram
+- **THEN** the service sends a captionless timetable followed by one localized message with the open times and any settings just recorded, ending with the booking question for a first-time setup with open times or the booking status when the shown times are already open to guests
+
+#### Scenario: Rendering fails
+- **WHEN** Thyme cannot render the slot preview image
+- **THEN** the service sends the summary of the open times in one text message and the review remains ineligible to save from that preview
+
 #### Scenario: Yes to the image
 - **WHEN** Thyme sent the slot image for the current review and the host replies "좋아요, 열어주세요"
 - **THEN** the settings are saved with the stated answers accepted, and the reply carries the booking link

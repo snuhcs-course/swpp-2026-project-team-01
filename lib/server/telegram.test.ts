@@ -384,11 +384,11 @@ describe("telegramTransport with the slot preview", () => {
     weekStart: "2026-11-16",
   };
   const request = { channel: "telegram" as const, content: { kind: "image" as const, language: "en" as const, preview }, idempotencyKey: "o1", recipient: { address: "42", spaceId: "42" } };
-  const caption = channelReplies("en").onboarding.slotCaption(preview);
+  const caption = channelReplies("en").onboarding.slotSummary(preview);
   const png = Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]);
   const wait = async () => undefined;
 
-  it("sends the timetable PNG with sendPhoto, the caption in plain text, and keeps the message ID", async () => {
+  it("sends the bare PNG with sendPhoto then one text and keeps the photo ID", async () => {
     const sent: unknown[] = [];
     const client = { endpoint: "x", send: async (call: unknown) => (sent.push(call), { result: { message_id: 31 }, status: "accepted" as const }) };
     const render = vi.fn(async () => png);
@@ -396,11 +396,12 @@ describe("telegramTransport with the slot preview", () => {
     expect(await telegramTransport(client, wait, render).send(request)).toEqual({ messageId: "31", spaceId: "42", status: "accepted" });
     expect(render).toHaveBeenCalledWith(preview);
     expect(sent).toEqual([
-      { file: { data: png, field: "photo", mimeType: "image/png", name: "slots-2026-11-16.png" }, method: "sendPhoto", params: { caption, chat_id: "42" } },
+      { file: { data: png, field: "photo", mimeType: "image/png", name: "slots-2026-11-16.png" }, method: "sendPhoto", params: { chat_id: "42" } },
+      { method: "sendMessage", params: { chat_id: "42", text: caption } },
     ]);
   });
 
-  it("sends the caption alone and is uncertain when the image cannot be rendered", async () => {
+  it("sends the summary alone and is uncertain when the image cannot be rendered", async () => {
     const sent: unknown[] = [];
     const client = { endpoint: "x", send: async (call: unknown) => (sent.push(call), { result: { message_id: 32 }, status: "accepted" as const }) };
     const broken = async () => Promise.reject(new Error("no fonts"));

@@ -13,7 +13,7 @@ A linked host SHALL be able to finish setup in the linked conversation without o
 
 #### Scenario: Two questions
 - **WHEN** the host answers the hours question and then "역삼역 근처, 대면이고 지하철로 다녀요"
-- **THEN** Thyme asks nothing more and sends the slot image
+- **THEN** Thyme sends the slot image followed by one message that summarizes the open times and asks whether to open them
 
 #### Scenario: Slot image and link
 - **WHEN** the host agrees to the slot image
