@@ -1,0 +1,154 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Requests accordion prototype · Find Me a Time</title>
+  <style>
+    :root { font-family: Geist, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; color: #1e2430; background: #f6f7f9; }
+    * { box-sizing: border-box; }
+    body { margin: 0; }
+    button { font: inherit; }
+    button:focus-visible { outline: 2px solid #2c3e63; outline-offset: 3px; }
+    .preview-note { padding: 9px 20px; background: #e7eaf0; color: #586172; text-align: center; font-size: 12px; }
+    .topbar { display: flex; align-items: center; justify-content: space-between; padding: 20px clamp(20px, 5vw, 64px); }
+    .brand { color: #2c3e63; font: 30px/1 Georgia, serif; letter-spacing: -.04em; }
+    .avatar { display: grid; place-items: center; width: 38px; height: 38px; border: 1px solid #d4d9e2; border-radius: 50%; background: #fff; color: #2c3e63; font-weight: 700; }
+    main { width: min(100% - 40px, 760px); margin: 32px auto 80px; }
+    h1 { margin: 0; font: 400 clamp(42px, 7vw, 64px)/1 Georgia, serif; letter-spacing: -.05em; }
+    .lede { margin: 10px 0 30px; color: #586172; font-size: 15px; line-height: 1.5; }
+    .filters { display: flex; width: max-content; max-width: 100%; gap: 3px; padding: 4px; border-radius: 99px; background: #e7eaf0; }
+    .filter { min-height: 42px; padding: 0 15px; border: 0; border-radius: 99px; background: none; color: #586172; font-size: 13px; font-weight: 650; cursor: pointer; }
+    .filter[aria-pressed="true"] { background: #fff; color: #2c3e63; box-shadow: 0 1px 3px #1e243014; }
+    .filter span { margin-left: 4px; opacity: .75; }
+    .count { margin: 23px 0 10px; color: #586172; font-size: 13px; font-weight: 650; }
+    .list { display: grid; gap: 12px; margin: 0; padding: 0; list-style: none; }
+    .request { overflow: hidden; border: 1px solid transparent; border-radius: 22px; background: #fff; }
+    .request.open { border-color: #d4d9e2; }
+    .request[hidden], .detail[hidden], .empty[hidden], .toast[hidden] { display: none; }
+    .toggle { width: 100%; min-height: 158px; padding: 22px 26px; border: 0; background: transparent; color: inherit; text-align: left; cursor: pointer; }
+    .toggle:hover { background: #f9fafc; }
+    .topline { display: flex; justify-content: space-between; align-items: center; gap: 12px; }
+    .direction { display: inline-flex; align-items: center; gap: 7px; padding: 8px 13px; border-radius: 99px; background: #2c3e63; color: #fff; font-size: 12px; font-weight: 700; white-space: nowrap; }
+    .direction.sent { border: 1px solid #2c3e63; background: #fff; color: #2c3e63; }
+    .direction svg { width: 15px; height: 15px; }
+    .status { color: #586172; font-size: 13px; font-weight: 650; text-align: right; }
+    .status.attention { color: #c62828; }
+    .request-main { display: flex; align-items: end; justify-content: space-between; gap: 18px; margin-top: 22px; }
+    .person { display: block; font-size: 20px; font-weight: 690; line-height: 1.3; }
+    .purpose { display: block; margin-top: 3px; color: #3e444e; font-size: 15px; }
+    .summary-time { display: block; margin-top: 16px; color: #586172; font-size: 14px; }
+    .chevron { flex: none; width: 20px; height: 20px; margin-bottom: 2px; color: #586172; transition: transform 150ms ease; }
+    .request.open .chevron { transform: rotate(180deg); }
+    .detail { padding: 0 26px 26px; }
+    .rule { height: 1px; background: #d4d9e2; }
+    .detail .rule:first-child { margin-bottom: 22px; }
+    .detail h2 { margin: 0; font-size: 21px; font-weight: 650; line-height: 1.3; letter-spacing: -.015em; }
+    .description { margin: 7px 0 0; color: #586172; font-size: 14px; line-height: 1.5; }
+    .time-band { display: grid; grid-template-columns: 110px 1fr; gap: 16px; align-items: center; margin-top: 23px; padding: 17px 20px; border-radius: 15px; background: #e7eaf0; }
+    .day { border-right: 1px solid #c8cfda; color: #2c3e63; font: 26px/1 Georgia, serif; }
+    .day small { display: block; margin-top: 5px; font: 650 12px/1.3 Geist, sans-serif; letter-spacing: .04em; text-transform: uppercase; }
+    .time { font-size: 20px; font-weight: 650; line-height: 1.25; }
+    .time small { display: block; margin-top: 4px; color: #586172; font-size: 13px; font-weight: 500; }
+    dl { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 18px 24px; margin: 23px 0 0; }
+    dt { margin-bottom: 5px; color: #586172; font-size: 12px; font-weight: 650; }
+    dd { margin: 0; overflow-wrap: anywhere; font-size: 15px; line-height: 1.4; }
+    .wide { grid-column: span 2; }
+    .subtle { display: block; margin-top: 2px; color: #586172; font-size: 12px; }
+    .actions { display: flex; flex-wrap: wrap; gap: 9px; margin-top: 25px; padding-top: 20px; border-top: 1px solid #d4d9e2; }
+    .action { min-height: 44px; padding: 10px 18px; border: 0; border-radius: 99px; font-size: 14px; font-weight: 700; cursor: pointer; }
+    .action.primary { background: #2c3e63; color: #fff; }
+    .action.secondary { background: #e7eaf0; color: #1e2430; }
+    .action.tertiary { background: transparent; color: #1e2430; }
+    .action:disabled { background: #a3acbf; color: #fff; cursor: not-allowed; }
+    .empty { padding: 22px; border-radius: 16px; background: #fff; color: #586172; font-size: 14px; }
+    .toast { position: fixed; right: 20px; bottom: 20px; max-width: min(380px, calc(100vw - 40px)); padding: 13px 17px; border-radius: 12px; background: #1e2430; color: #fff; font-size: 13px; }
+    @media (max-width: 620px) {
+      .topbar { padding: 17px 20px; }.brand { font-size: 24px; }
+      main { width: min(100% - 28px, 760px); margin-top: 20px; }
+      .lede { margin-bottom: 25px; }.toggle { min-height: 150px; padding: 19px 18px; }
+      .topline { align-items: start; }.status { padding-top: 7px; font-size: 12px; }
+      .detail { padding: 0 18px 20px; }.time-band { grid-template-columns: 83px 1fr; gap: 12px; padding: 15px; }
+      .day { font-size: 22px; }.time { font-size: 17px; }
+      dl { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 17px 15px; }.wide { grid-column: 1 / -1; }
+      .actions { flex-direction: column; }.action { width: 100%; }
+    }
+    @media (prefers-reduced-motion: reduce) { .chevron { transition: none; } }
+  </style>
+</head>
+<body>
+  <div class="preview-note">Design prototype · example data following the current request fields · no requests will be changed</div>
+  <header class="topbar"><div class="brand">Find Me a Time</div><div class="avatar" aria-hidden="true">Y</div></header>
+  <main>
+    <h1>Requests</h1>
+    <p class="lede">Every meeting request you sent or received, in one place.</p>
+    <div class="filters" role="group" aria-label="Filter requests">
+      <button class="filter" type="button" data-filter="all" aria-pressed="true">All <span>5</span></button>
+      <button class="filter" type="button" data-filter="received" aria-pressed="false">Received <span>4</span></button>
+      <button class="filter" type="button" data-filter="sent" aria-pressed="false">Sent <span>1</span></button>
+    </div>
+    <p class="count" aria-live="polite">5 requests</p>
+    <ul class="list" id="requests"></ul>
+    <p class="empty" hidden>No requests in this view yet.</p>
+  </main>
+  <div class="toast" role="status" aria-live="polite" hidden></div>
+  <script>
+    // Example HostRequestView-shaped data. The status and proposal copy below use
+    // the same state/agreement conditions as main; copy changes are design proposals.
+    const requests = [
+      { id: 'waiting', direction: 'received', state: 'negotiating', needsDecision: false, name: 'ㄴㄴ', purpose: 'coffee chat', email: 'guest@example.com', emailConfirmed: false, proposal: { version: 2, date: '23 Nov', weekday: 'Monday', summary: 'Mon 23 Nov, 10:00 GMT+9', time: '10:00 – 10:30', zone: 'GMT+9', length: '30 minutes', mode: 'In person', place: 'SNU', agreedAt: null } },
+      { id: 'approval', direction: 'received', state: 'awaiting_host_approval', needsDecision: true, name: 'Mina Park', purpose: 'project catch-up', email: 'mina@example.com', emailConfirmed: true, proposal: { version: 1, date: '24 Nov', weekday: 'Tuesday', summary: 'Tue 24 Nov, 14:00 GMT+9', time: '14:00 – 14:45', zone: 'GMT+9', length: '45 minutes', mode: 'Online', link: 'Google Meet, created when booked', agreedAt: '2026-11-19T00:00:00Z' } },
+      { id: 'withdrawn', direction: 'received', state: 'withdrawn', needsDecision: false, name: 'Sora Kim', purpose: 'research introduction', email: 'sora@example.com', emailConfirmed: true, proposal: { version: 2, date: '25 Nov', weekday: 'Wednesday', summary: 'Wed 25 Nov, 11:00 GMT+9', time: '11:00 – 11:30', zone: 'GMT+9', length: '30 minutes', mode: 'In person', place: 'SNU', agreedAt: null } },
+      { id: 'cancelled', direction: 'received', state: 'cancelled', needsDecision: false, name: 'Daniel Cho', purpose: 'planning session', email: 'daniel@example.com', emailConfirmed: true, proposal: { version: 1, date: '26 Nov', weekday: 'Thursday', summary: 'Thu 26 Nov, 15:00 GMT+9', time: '15:00 – 16:00', zone: 'GMT+9', length: '60 minutes', mode: 'Online', link: 'Google Meet', agreedAt: '2026-11-18T00:00:00Z' } },
+      { id: 'sent', direction: 'sent', state: 'awaiting_host_approval', needsDecision: false, name: 'Alex Morgan', purpose: 'portfolio feedback', email: 'alex@example.com', emailConfirmed: true, proposal: { version: 1, date: '27 Nov', weekday: 'Friday', summary: 'Fri 27 Nov, 13:00 GMT+9', time: '13:00 – 13:30', zone: 'GMT+9', length: '30 minutes', mode: 'Online', link: 'Google Meet, created when booked', agreedAt: '2026-11-19T00:00:00Z' } }
+    ];
+    const statusLabels = { gathering: 'Gathering details', negotiating: 'Coordinating a time', awaiting_host_approval: 'Waiting for your approval', booking: 'Booking in progress', booked: 'Booked', declined: 'Declined', expired: 'Expired', withdrawn: 'Request withdrawn', cancelled: 'Meeting cancelled' };
+    const escapeHtml = value => String(value).replace(/[&<>"']/g, char => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[char]);
+    const status = request => request.direction === 'received' && request.needsDecision ? 'Needs your decision' : request.direction === 'sent' && request.state === 'awaiting_host_approval' ? 'Awaiting host approval' : statusLabels[request.state];
+    const arrow = direction => direction === 'received' ? '<path d="m12 19-7-7 7-7M5 12h14"/>' : '<path d="m12 5 7 7-7 7M19 12H5"/>';
+    function detailCopy(request) {
+      if (request.state === 'withdrawn') return { title: 'Request withdrawn', description: 'The requester withdrew this request before a meeting was booked.' };
+      if (request.state === 'cancelled') return { title: 'Meeting cancelled', description: 'This meeting was booked and later cancelled.' };
+      if (request.direction === 'sent') return { title: 'Awaiting host approval', description: 'Your proposal is waiting for the host’s approval.' };
+      if (request.state === 'awaiting_host_approval' && request.proposal.agreedAt !== null) return { title: 'Approve this meeting?', description: `${request.name} has agreed to the proposed details. Once you approve, we’ll check your calendar and confirm the booking.` };
+      return { title: 'Waiting for the requester', description: 'We’re waiting for the requester to confirm the proposed details.' };
+    }
+    function renderRequest(request, index) {
+      const p = request.proposal;
+      const copy = detailCopy(request);
+      const received = request.direction === 'received';
+      const closed = ['withdrawn', 'cancelled'].includes(request.state);
+      const approved = request.state === 'awaiting_host_approval' && p.agreedAt !== null;
+      const label = received ? 'Received request' : 'Sent request';
+      return `<li class="request${index === 0 ? ' open' : ''}" data-direction="${request.direction}">
+        <button class="toggle" type="button" id="trigger-${request.id}" aria-controls="panel-${request.id}" aria-expanded="${index === 0}">
+          <span class="topline"><span class="direction${received ? '' : ' sent'}"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">${arrow(request.direction)}</svg>${label}</span><span class="status${request.needsDecision ? ' attention' : ''}">${escapeHtml(status(request))}</span></span>
+          <span class="request-main"><span><span class="person">${escapeHtml(request.name)}</span><span class="purpose">${escapeHtml(request.purpose)}</span><span class="summary-time">${escapeHtml(p.summary)}</span></span><svg class="chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="m6 9 6 6 6-6"/></svg></span>
+        </button>
+        <section class="detail" id="panel-${request.id}" aria-labelledby="trigger-${request.id}" ${index === 0 ? '' : 'hidden'}>
+          <div class="rule"></div><h2>${escapeHtml(copy.title)}</h2><p class="description">${escapeHtml(copy.description)}</p>
+          <div class="time-band"><div class="day">${escapeHtml(p.date)}<small>${escapeHtml(p.weekday)}</small></div><div class="time">${escapeHtml(p.time)}<small>${escapeHtml(p.zone)} · your time zone</small></div></div>
+          <dl><div><dt>Length</dt><dd>${escapeHtml(p.length)}</dd></div><div><dt>Mode</dt><dd>${escapeHtml(p.mode)}</dd></div><div><dt>${p.place ? 'Place' : 'Meeting link'}</dt><dd>${escapeHtml(p.place || p.link)}</dd></div><div class="wide"><dt>With</dt><dd>${escapeHtml(request.name)}<span class="subtle">${escapeHtml(request.email)}${request.emailConfirmed ? '' : ' · address not confirmed'}</span></dd></div><div><dt>Purpose</dt><dd>${escapeHtml(request.purpose)}</dd></div></dl>
+          ${received && !closed ? `<div class="actions" role="group" aria-label="Actions for ${escapeHtml(request.name)}"><button class="action primary" type="button" ${approved ? '' : 'disabled'}>Approve this proposal</button><button class="action secondary" type="button">Request changes</button><button class="action tertiary" type="button">Decline</button></div>` : ''}
+        </section>
+      </li>`;
+    }
+    document.querySelector('#requests').innerHTML = requests.map(renderRequest).join('');
+    const cards = [...document.querySelectorAll('.request')];
+    function setOpen(card, open) { card.classList.toggle('open', open); card.querySelector('.toggle').setAttribute('aria-expanded', String(open)); card.querySelector('.detail').hidden = !open; }
+    cards.forEach(card => card.querySelector('.toggle').addEventListener('click', () => { const open = !card.classList.contains('open'); cards.forEach(other => setOpen(other, other === card && open)); }));
+    document.querySelectorAll('.filter').forEach(filter => filter.addEventListener('click', () => {
+      document.querySelectorAll('.filter').forEach(button => button.setAttribute('aria-pressed', String(button === filter)));
+      const shown = cards.filter(card => filter.dataset.filter === 'all' || card.dataset.direction === filter.dataset.filter);
+      cards.forEach(card => { card.hidden = !shown.includes(card); });
+      document.querySelector('.count').textContent = `${shown.length} ${shown.length === 1 ? 'request' : 'requests'}`;
+      document.querySelector('.empty').hidden = shown.length > 0;
+    }));
+    let toastTimer;
+    document.querySelectorAll('.action:not(:disabled)').forEach(button => button.addEventListener('click', () => {
+      const toast = document.querySelector('.toast'); toast.textContent = 'Prototype only. No request was changed.'; toast.hidden = false;
+      clearTimeout(toastTimer); toastTimer = setTimeout(() => { toast.hidden = true; }, 4000);
+    }));
+  </script>
+</body>
+</html>

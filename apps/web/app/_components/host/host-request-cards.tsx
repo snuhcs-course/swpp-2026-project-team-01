@@ -65,19 +65,6 @@ function StatusLine({ message }: { readonly message: string | null }) {
   );
 }
 
-function DetailList({ rows }: { readonly rows: readonly (readonly [string, ReactNode])[] }) {
-  return (
-    <dl className="grid grid-cols-[minmax(0,auto)_minmax(0,1fr)] gap-x-3 gap-y-1">
-      {rows.map(([term, value]) => (
-        <div className="contents" key={term}>
-          <dt className="text-muted-foreground">{term}</dt>
-          <dd className="min-w-0 break-words">{value}</dd>
-        </div>
-      ))}
-    </dl>
-  );
-}
-
 function linkText(plan: LinkPlan | null | undefined) {
   if (!plan) return null;
   return plan.kind === "google_meet" ? "Google Meet, created when the meeting is booked" : plan.url;
@@ -107,32 +94,35 @@ export function ProposalReviewCard({ context, onRequestChanges }: { readonly con
   const proposal = view.proposal!;
   const { act, busy, error } = useAction(context);
   const [confirmDecline, setConfirmDecline] = useState(false);
-  const agreed = proposal.agreedAt !== null;
-  const awaiting = view.state === "awaiting_host_approval" && agreed;
+  const closed = ["declined", "withdrawn", "expired", "cancelled"].includes(view.state);
+  const awaiting = view.state === "awaiting_host_approval" && proposal.agreedAt !== null;
+  const start = new Date(proposal.start);
+  const day = new Intl.DateTimeFormat("en", { day: "numeric", month: "short", timeZone: view.hostTimezone }).format(start);
+  const weekday = new Intl.DateTimeFormat("en", { timeZone: view.hostTimezone, weekday: "long" }).format(start);
+  const time = (instant: string) => new Intl.DateTimeFormat("en", { hour: "2-digit", hourCycle: "h23", minute: "2-digit", timeZone: view.hostTimezone }).format(new Date(instant));
+  const facts: readonly (readonly [string, ReactNode])[] = [
+    ["Length", `${proposal.durationMinutes} minutes`],
+    ["Mode", MODE_LABELS[proposal.mode]],
+    ...(proposal.mode === "in_person" ? ([["Place", proposal.location ?? "Not set"]] as const) : []),
+    ...(proposal.mode === "online" ? ([["Meeting link", linkText(proposal.linkPlan) ?? "Not set"]] as const) : []),
+    ["With", `${view.requester.name} <${view.requester.email}>${view.requester.emailConfirmed ? "" : " (address not confirmed)"}`],
+    ...(view.details.purpose ? ([["Purpose", view.details.purpose]] as const) : []),
+  ];
 
   return (
-    <GuestCard
-      description={
-        awaiting
-          ? `${view.requester.name} agreed to these exact details. Approving books the meeting in your calendar.`
-          : "The requester has not agreed to this version yet."
-      }
-      id="proposal-review"
-      label={`Proposal, version ${proposal.version}`}
-      title={awaiting ? "Approve this meeting?" : "Waiting for the requester"}
-    >
-      <DetailList
-        rows={[
-          ["When", when(proposal.start, proposal.end, view)],
-          ["Length", `${proposal.durationMinutes} minutes`],
-          ["Mode", MODE_LABELS[proposal.mode]],
-          ...(proposal.mode === "in_person" ? ([["Place", proposal.location ?? "Not set"]] as const) : []),
-          ...(proposal.mode === "online" ? ([["Meeting link", linkText(proposal.linkPlan) ?? "Not set"]] as const) : []),
-          ["With", `${view.requester.name} <${view.requester.email}>${view.requester.emailConfirmed ? "" : " (address not confirmed)"}`],
-          ...(view.details.purpose ? ([["Purpose", view.details.purpose]] as const) : []),
-        ]}
-      />
-      {confirmDecline ? (
+    <section aria-labelledby="proposal-review-heading" className="flex min-w-0 flex-col gap-5 pt-5" id="proposal-review">
+      <div>
+        <h3 className="text-[21px] leading-[1.3] font-semibold tracking-tight" id="proposal-review-heading">{closed ? view.state === "withdrawn" ? "Request withdrawn" : view.state === "cancelled" ? "Meeting cancelled" : view.state === "expired" ? "Expired" : "Declined" : awaiting ? "Approve this meeting?" : "Waiting for the requester"}</h3>
+        <p className="mt-1 text-sm text-muted-foreground">{closed ? "This request is closed." : awaiting ? `${view.requester.name} has agreed to the proposed details. Once you approve, we’ll check your calendar and confirm the booking.` : "We’re waiting for the requester to confirm the proposed details."}</p>
+      </div>
+      <div className="grid grid-cols-[90px_1fr] items-center gap-3 rounded-2xl bg-secondary px-4 py-4 sm:grid-cols-[110px_1fr]">
+        <div className="border-r border-border text-primary"><span className="block font-display text-[26px] leading-none">{day}</span><span className="text-xs font-semibold uppercase">{weekday}</span></div>
+        <div className="min-w-0"><p className="text-lg font-semibold">{time(proposal.start)} – {time(proposal.end)}</p><p className="text-xs text-muted-foreground">{displayTime(start, view.hostTimezone).split(" ").at(-1)} · your time zone</p></div>
+      </div>
+      <dl className="grid min-w-0 grid-cols-2 gap-x-4 gap-y-4 sm:grid-cols-3">
+        {facts.map(([label, value]) => <div className={label === "With" ? "col-span-2 min-w-0" : "min-w-0"} key={label}><dt className="text-xs font-semibold text-muted-foreground">{label}</dt><dd className="mt-1 break-words text-sm">{value}</dd></div>)}
+      </dl>
+      {closed ? null : confirmDecline ? (
         <div className="flex flex-col gap-2" role="group" aria-label="Confirm decline">
           <p>Decline this request? {view.requester.name} is told by email, and the request closes.</p>
           <GuestCardActions>
@@ -145,7 +135,7 @@ export function ProposalReviewCard({ context, onRequestChanges }: { readonly con
           </GuestCardActions>
         </div>
       ) : (
-        <GuestCardActions>
+        <div className="border-t border-border pt-4"><GuestCardActions>
           <Button disabled={busy || !awaiting} onClick={() => void act("request.approve", { version: proposal.version })} type="button">
             Approve this proposal
           </Button>
@@ -155,10 +145,10 @@ export function ProposalReviewCard({ context, onRequestChanges }: { readonly con
           <Button disabled={busy} onClick={() => setConfirmDecline(true)} type="button" variant="ghost">
             Decline
           </Button>
-        </GuestCardActions>
+        </GuestCardActions></div>
       )}
       <StatusLine message={error} />
-    </GuestCard>
+    </section>
   );
 }
 
