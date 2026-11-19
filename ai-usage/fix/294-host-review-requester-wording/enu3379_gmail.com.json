@@ -1,0 +1,23 @@
+{
+  "branch": "fix/294-host-review-requester-wording",
+  "user": "enu3379@gmail.com",
+  "sessions": {
+    "claude:c9cd1568-22c8-49da-97af-9d9be97e5227": {
+      "agent": "claude-code",
+      "client": "cli",
+      "agent_ms": 0,
+      "models": {
+        "claude-opus-5-5": {
+          "input": 16,
+          "cache_read": 437547,
+          "cache_write_5m": 0,
+          "cache_write_1h": 6198,
+          "output": 1894,
+          "reasoning": 0
+        }
+      },
+      "first": "2026-11-19T05:53:31.056Z",
+      "last": "2026-11-19T05:54:05.371Z"
+    }
+  }
+}

@@ -135,7 +135,7 @@ export function hostModelProjection(view: HostRequestView) {
     next: NEXT_STEPS,
     proposal: view.proposal
       ? {
-          agreedByRequester: view.proposal.agreedAt !== null,
+          requesterAskedForThisTime: view.proposal.agreedAt !== null,
           location: view.proposal.location,
           meetingLink: view.proposal.linkPlan?.kind ?? null,
           mode: view.proposal.mode,
