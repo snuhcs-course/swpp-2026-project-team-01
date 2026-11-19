@@ -165,7 +165,7 @@ describe("setup over Telegram", () => {
     // The seeded setup session was not started by the harness runtime; let it record events.
     if (!im.sessions.has(input!.session_id!)) im.sessions.set(input!.session_id!, { events: [], sent: [] });
 
-    // Typing at once, then every five seconds while the reply waits, at most twelve times.
+    // Typing at once, then every few seconds while the reply waits, at most twelve times.
     expect((await tg.flush(userId)).map((call) => call.method)).toEqual(["sendChatAction"]);
     const [turn] = (await tg.outbox(userId)).filter((row) => row.kind === "turn");
     expect(turn).toMatchObject({ state: "waiting" });

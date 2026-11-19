@@ -1,11 +1,13 @@
 import { timingSafeEqual } from "node:crypto";
 import { hostname } from "node:os";
+import { setTimeout as delay } from "node:timers/promises";
 import { COMMAND_ERROR_MESSAGES, type CommandErrorCategory } from "../contracts/command-errors";
 import { database, type Database } from "./database";
 import { type DeploymentEnvironment, deploymentEnvironment } from "./deployment";
 import { JOB_BATCH_LIMITS, JOB_HANDLERS } from "./job-handlers";
 import { type ClaimedJob, claimJobs, type JobHandler, type JobResult, processJob } from "./jobs";
 import { messagingAdmitted } from "./messaging";
+import { TELEGRAM_TYPING_JOB, TYPING_INTERVAL_SECONDS } from "./telegram-jobs";
 
 // The one job worker. The internal route (POST /api/internal/jobs) and
 // `npm run jobs:dev` both run a bounded batch through runWorkerBatch: claim due
@@ -113,7 +115,10 @@ function routeDependenciesFromEnvironment(): JobRouteDependencies {
 // (VERCEL=1 with VERCEL_ENV=production) and claims only production-produced
 // jobs, so a preview sharing the database leaves preview jobs unclaimed and
 // visible. Every refusal happens before job state is read.
-export function createJobWorkerHandler(load: () => JobRouteDependencies = routeDependenciesFromEnvironment) {
+export function createJobWorkerHandler(
+  load: () => JobRouteDependencies = routeDependenciesFromEnvironment,
+  afterResponse?: (task: () => Promise<void>) => void,
+) {
   return async (request: Request) => {
     const deps = load();
 
@@ -129,7 +134,32 @@ export function createJobWorkerHandler(load: () => JobRouteDependencies = routeD
       return refusal("unauthenticated", 401);
     }
 
-    const batch = await runWorkerBatch({ ...deps, environment: "production" });
+    const worker = { ...deps, environment: "production" as const };
+    const typing = deps.handlers[TELEGRAM_TYPING_JOB];
+    if (typing) {
+      afterResponse?.(() => runScheduledTyping({ ...worker, handlers: { [TELEGRAM_TYPING_JOB]: typing } }));
+    }
+    const batch = await runWorkerBatch(worker);
     return Response.json(batch, { headers: { "cache-control": "no-store" } });
   };
+}
+
+// Publishing a refresh wakes the worker before run_after. Check the pending
+// refreshes after acknowledging that wake-up, within one typing interval.
+// Later refreshes publish their own wake-ups; the minute sweep still recovers lost ones.
+async function runScheduledTyping(deps: JobWorkerDependencies) {
+  const deadline = new Date(Date.now() + TYPING_INTERVAL_SECONDS * 1000);
+  while (Date.now() < deadline.getTime()) {
+    const [next] = await deps.db<{ delay_ms: number }[]>`
+      select greatest(0, ceil(extract(epoch from run_after - now()) * 1000))::int as delay_ms
+      from app.jobs
+      where producer_environment = ${deps.environment} and kind = ${TELEGRAM_TYPING_JOB}
+        and state = 'pending' and run_after <= ${deadline}
+      order by run_after
+      limit 1
+    `;
+    if (!next) return;
+    if (next.delay_ms > 0) await delay(next.delay_ms);
+    await runWorkerBatch(deps);
+  }
 }

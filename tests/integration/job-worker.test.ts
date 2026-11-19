@@ -8,6 +8,7 @@ import { createJobWorkerHandler, type JobRouteDependencies, runWorkerBatch } fro
 import { claimJobs, type JobHandler, publishJob } from "../../lib/server/jobs";
 import { devWorkerRefusal } from "../../scripts/jobs-dev";
 import type { Database } from "../../lib/server/database";
+import { TELEGRAM_TYPING_JOB } from "../../lib/server/telegram-jobs";
 import { testDatabase } from "./support/database";
 
 const db = testDatabase();
@@ -77,6 +78,35 @@ describe("job worker route", () => {
 
     expect(await response.json()).toEqual({ claimed: 1, results: { completed: 1 } });
     expect(await job(id)).toMatchObject({ attempts: 1, state: "completed" });
+  });
+
+  it("checks for near-term Telegram typing jobs after answering a wake-up", async () => {
+    const otherKind = kind();
+    const [typingId, otherId] = await db.begin(async (tx) => {
+      const runAfter = new Date(Date.now() + 1_500);
+      return [
+        await publishJob(tx, { kind: TELEGRAM_TYPING_JOB, runAfter }, "production"),
+        await publishJob(tx, { kind: otherKind, runAfter }, "production"),
+      ];
+    });
+    const afterResponse: (() => Promise<void>)[] = [];
+    const handle = createJobWorkerHandler(
+      () => ({
+        db,
+        env: production,
+        handlers: { [TELEGRAM_TYPING_JOB]: async () => ({}), [otherKind]: async () => ({}) },
+        secret,
+      }),
+      (task) => afterResponse.push(task),
+    );
+
+    const response = await handle(new Request(url, { headers: { authorization: `Bearer ${secret}` }, method: "POST" }));
+    expect(response.status).toBe(200);
+    expect(await job(typingId!)).toMatchObject({ attempts: 0, state: "pending" });
+
+    await Promise.all(afterResponse.map((task) => task()));
+    expect(await job(typingId!)).toMatchObject({ attempts: 1, state: "completed" });
+    expect(await job(otherId!)).toMatchObject({ attempts: 0, state: "pending" });
   });
 
   it("recovers a job whose worker died mid-job once its lease expires", async () => {
