@@ -1,4 +1,4 @@
-import { noteReviewHost, NEXT_WEEK } from "./support/note-review";
+import { NEXT_WEEK, noteReviewHost, OVERLAPPING_MEETING, pressEntry } from "./support/note-review";
 import { expect, test } from "./support/session";
 
 // The note review on a phone (calendar-note-review task 3.2): three days at a
@@ -82,4 +82,64 @@ test("on a phone the review shows three days at a time and records only the days
   // 과제 마감 is always among them; a later day never is.
   expect(recorded.map((row) => row.event_id)).toContain("assignment");
   if (last < NEXT_WEEK + 5) expect(recorded.map((row) => row.event_id)).not.toContain("dad");
+});
+
+test("on a phone an entry opens its details within the screen, and only the checkbox strip toggles it", async ({ baseURL, context, db, page }, testInfo) => {
+  test.setTimeout(90_000);
+  await noteReviewHost(db, context, baseURL!, "en");
+  const { date, today } = seoulDates();
+
+  await page.goto("/app/notes");
+  const grid = page.locator("[data-note-week-grid]");
+  const range = page.locator("[data-note-range]");
+  // Ahead three days at a time until 헬스's day (next Tuesday) is on screen.
+  let first = today;
+  while (first + 2 < NEXT_WEEK + 1) {
+    await page.getByRole("button", { name: "Next 3 days" }).click();
+    first += 3;
+    await expect(range).toHaveAttribute("data-note-range", `${date(first)}/${date(first + 2)}`);
+  }
+
+  const box = grid.getByRole("checkbox", { name: /^헬스/ });
+  // The label around the checkbox.
+  const strip = box.locator("xpath=..");
+  const entry = grid.getByRole("button", { name: /^헬스 .*, Details$/ });
+  const details = page.locator("[data-note-details]");
+  await expect(box).not.toBeChecked();
+
+  // The checkbox's strip is a big enough tap target and toggles only.
+  await strip.scrollIntoViewIfNeeded();
+  const target = (await strip.boundingBox())!;
+  expect(target.height).toBeGreaterThanOrEqual(24);
+  expect(target.width).toBeGreaterThanOrEqual(24);
+  // Beside the checkbox itself, inside its corner.
+  await page.mouse.click(target.x + target.width - 3, target.y + target.height - 3);
+  await expect(box).toBeChecked();
+  await expect(details).toBeHidden();
+
+  // However narrow the block, the rest of it is the details button: a press
+  // below the checkbox's corner opens the details.
+  const button = (await entry.boundingBox())!;
+  expect(button.width).toBeGreaterThanOrEqual(24);
+  await page.mouse.click(button.x + 4, button.y + button.height - 6);
+  await expect(details).toBeVisible();
+  await expect(box).toBeChecked();
+  await page.keyboard.press("Escape");
+
+  // Pressing the entry opens its details inside the screen; pressing it again closes them.
+  await pressEntry(entry);
+  await expect(details.locator("[data-note-details-title]")).toHaveText("헬스");
+  await expect(details.locator("[data-note-description]")).toContainText("PT는 7시 반");
+  const panel = (await details.boundingBox())!;
+  expect(panel.x).toBeGreaterThanOrEqual(0);
+  expect(panel.x + panel.width).toBeLessThanOrEqual(375);
+  await expect(box).toBeChecked();
+  await page.screenshot({ path: testInfo.outputPath("note-review-phone-details.png") });
+  await pressEntry(entry);
+  await expect(details).toBeHidden();
+
+  // The long-titled meeting beside it reads in full.
+  await grid.getByRole("button", { name: `${OVERLAPPING_MEETING} 7:00 PM, Details` }).click();
+  await expect(details.locator("[data-note-details-title]")).toHaveText(OVERLAPPING_MEETING);
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
 });

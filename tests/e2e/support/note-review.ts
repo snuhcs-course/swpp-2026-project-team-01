@@ -67,6 +67,8 @@ function allDay(id: string, summary: string, offsetDays: number, extra: Partial<
 // goes on into the weeks after.
 export const NEXT_WEEK = 7;
 
+export const OVERLAPPING_MEETING = "분기 회고와 다음 분기 계획 공유 (팀 전체, 저녁 포함)";
+
 export function noteReviewFixture(email: string): FakeGoogleFixture {
   const self = { email, responseStatus: "accepted", self: true };
   const meeting = (id: string, summary: string, day: number, hour: number, guest: string) =>
@@ -83,8 +85,14 @@ export function noteReviewFixture(email: string): FakeGoogleFixture {
         meeting("lunch", "점심 약속", NEXT_WEEK + 1, 12, "friend@example.test"),
         meeting("one-on-one", "1:1 with 민지", NEXT_WEEK + 2, 15, "minji@example.test"),
         meeting("client", "Client check-in", NEXT_WEEK + 3, 10, "client@client.test"),
+        // A long-titled meeting beside 헬스, so both are cut off on the week and
+        // read in full in their details; Google keeps its description as HTML.
+        {
+          ...meeting("retro", OVERLAPPING_MEETING, NEXT_WEEK + 1, 19, "team@example.test"),
+          description: '회의실 <b>3층</b><br>안건: <a href="https://example.test/retro">회고 문서</a> &amp; 다음 분기',
+        },
         // Note candidates.
-        timed("gym", "헬스", NEXT_WEEK + 1, 19, { location: "동네 헬스장" }),
+        timed("gym", "헬스", NEXT_WEEK + 1, 19, { description: "준비물: 운동화, 수건<br>PT는 7시 반", location: "동네 헬스장" }),
         ...[1, 8, 15].map((offset, index) => timed(`recycling_${index + 1}`, "분리수거", NEXT_WEEK + offset, 21, { recurringEventId: "recycling" })),
         allDay("mom-birthday", "엄마 생일", NEXT_WEEK + 2),
         timed("study", "스터디 준비", NEXT_WEEK + 3, 14),
@@ -138,4 +146,12 @@ export async function runPendingWritebacks(db: Database, hostAccountId: string) 
   `;
   for (const job of jobs) await runJob(db, job.id, handler);
   return jobs.length;
+}
+
+// Presses a candidate's entry button away from its checkbox's corner: below
+// it in a block tall enough, else beside it. Playwright's default, the centre,
+// is the checkbox's own corner in a narrow block.
+export async function pressEntry(entry: import("@playwright/test").Locator) {
+  const box = (await entry.boundingBox())!;
+  await entry.click({ position: box.height >= 36 ? { x: box.width / 2, y: box.height - 6 } : { x: box.width - 6, y: box.height / 2 } });
 }

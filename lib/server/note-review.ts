@@ -1,6 +1,14 @@
 import { z } from "zod";
 import type { AnalysisCard } from "../contracts/analysis";
-import type { NoteReview, NoteReviewChoice, NoteReviewDecision, NoteReviewItem, NoteWeek, NoteWeekEvent } from "../contracts/note-review";
+import type {
+  NoteReview,
+  NoteReviewChoice,
+  NoteReviewDecision,
+  NoteReviewItem,
+  NoteWeek,
+  NoteWeekDescription,
+  NoteWeekEvent,
+} from "../contracts/note-review";
 import type { RequestLanguage } from "../contracts/request";
 import type { CalendarRef } from "../contracts/setup";
 import { lockActiveHost, readLatestAnalysis } from "./analysis";
@@ -12,6 +20,7 @@ import type { Queryable } from "./database";
 import { startOfLocalDay } from "./feasibility";
 import { type CalendarEvent, type GoogleCalendarDependencies, openHostCalendar } from "./google-calendar";
 import { noteAnswerMatcher } from "./note-answers";
+import { plainDescription } from "./note-description";
 import {
   type NoteDecisionItem,
   readNoteDecisions,
@@ -206,8 +215,12 @@ function isDeclined(event: CalendarEvent, hostEmail: string | null) {
 // The week the page draws. Candidates come from the scan; the other busy
 // entries are read now from the conflict calendars, for context only: a
 // cancelled, declined or transparent entry is not drawn, a candidate is not
-// drawn twice, and copies on several calendars appear once. Nothing read here is
-// stored, and no attendee leaves this function.
+// drawn twice, and copies on several calendars appear once. The same read
+// brings each entry's description, as plain text, for the details the host can
+// open on an entry; the candidates' come back keyed by item and occurrence.
+// Nothing read here is stored or sent to a model, and no attendee leaves this
+// function; the route returns it only to the signed-in host whose calendars
+// these are.
 export async function readNoteWeek(
   calendarDeps: GoogleCalendarDependencies,
   hostAccountId: string,
@@ -223,12 +236,18 @@ export async function readNoteWeek(
   const bounds = weekBounds(input.requested, timezone, input.now, new Date(input.analysis.range.end));
   const range = { end: new Date(startOfLocalDay(addDays(bounds.start, 7), timezone)), start: new Date(startOfLocalDay(bounds.start, timezone)) };
   const candidates = new Set<string>();
-  for (const source of input.sources.values()) {
-    for (const id of source.occurrences.keys()) candidates.add(`${source.calendarId}\u0000${id}`);
+  // A listed occurrence by its calendar and event ID: the item it belongs to.
+  const listed = new Map<string, string>();
+  for (const [key, source] of input.sources) {
+    for (const id of source.occurrences.keys()) {
+      candidates.add(`${source.calendarId}\u0000${id}`);
+      listed.set(`${source.calendarId}\u0000${id}`, key);
+    }
     if (source.seriesId) candidates.add(`${source.calendarId}\u0000${source.seriesId}`);
   }
 
   const events: NoteWeekEvent[] = [];
+  const descriptions: NoteWeekDescription[] = [];
   let contextUnavailable = false;
   try {
     const [identity] = await calendarDeps.db<{ email: string }[]>`
@@ -238,7 +257,13 @@ export async function readNoteWeek(
     const calendar = await openHostCalendar(calendarDeps, hostAccountId);
     const seen = new Set<string>();
     for (const entry of input.calendars) {
-      for (const event of await calendar.listEvents(entry.id, range)) {
+      for (const event of await calendar.listEvents(entry.id, range, { withDescription: true })) {
+        const item = listed.get(`${event.calendarId}\u0000${event.id}`);
+        if (item) {
+          const description = plainDescription(event.description);
+          if (description) descriptions.push({ description, key: item, occurrence: event.id });
+          continue;
+        }
         if (event.status === "cancelled" || event.transparency === "transparent" || isDeclined(event, hostEmail)) continue;
         if (candidates.has(`${event.calendarId}\u0000${event.id}`)) continue;
         if (event.recurringEventId && candidates.has(`${event.calendarId}\u0000${event.recurringEventId}`)) continue;
@@ -248,15 +273,23 @@ export async function readNoteWeek(
         const copy = `${event.iCalUID ?? event.id}|${start}`;
         if (seen.has(copy)) continue;
         seen.add(copy);
-        events.push({ allDay: !event.start.dateTime, end, id: `${events.length}`, start, title: event.summary?.trim() ?? "" });
+        events.push({
+          allDay: !event.start.dateTime,
+          description: plainDescription(event.description),
+          end,
+          id: `${events.length}`,
+          start,
+          title: event.summary?.trim() ?? "",
+        });
       }
     }
   } catch {
     contextUnavailable = true;
     events.length = 0;
+    descriptions.length = 0;
   }
 
-  return { ...bounds, contextUnavailable, events, timezone };
+  return { ...bounds, contextUnavailable, descriptions, events, timezone };
 }
 
 async function reviewInputs(db: Queryable, hostAccountId: string) {

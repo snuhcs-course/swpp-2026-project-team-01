@@ -1,4 +1,4 @@
-import { noteReviewHost, runPendingWritebacks } from "./support/note-review";
+import { noteReviewHost, OVERLAPPING_MEETING, pressEntry, runPendingWritebacks } from "./support/note-review";
 import { expect, test } from "./support/session";
 
 // The note review page (calendar-note-review task 3.1) as a week like Google
@@ -37,6 +37,67 @@ test("a host checks the note entries on the week, confirms them, and goes back t
   await expect(page.locator("[data-note-all-day]").filter({ hasText: "엄마 생일" })).toHaveCount(1);
   // The whole week fits on a desktop page, Sunday included, without scrolling.
   expect(await grid.evaluate((element) => element.scrollWidth <= element.clientWidth)).toBe(true);
+
+  // Entries that overlap are cut off on the week; pressing one opens its full
+  // title and description, and pressing it again closes them. Only the
+  // checkbox toggles a candidate.
+  const details = page.locator("[data-note-details]");
+  const retro = grid.getByRole("button", { name: `${OVERLAPPING_MEETING} 7:00 PM, Details` });
+  const retroTitle = retro.locator("span").first();
+  expect(await retroTitle.evaluate((element) => element.scrollWidth > element.clientWidth)).toBe(true);
+  await expect(retro).toHaveAttribute("aria-expanded", "false");
+  await page.screenshot({ fullPage: true, path: testInfo.outputPath("note-review-cut-off.png") });
+  await retro.click();
+  await expect(retro).toHaveAttribute("aria-expanded", "true");
+  // The panel is on screen, fully shown, inside the window.
+  await expect(details).toBeVisible();
+  await expect(details).toHaveCSS("opacity", "1");
+  await expect(details).toBeInViewport({ ratio: 1 });
+  await expect(details.locator("[data-note-details-title]")).toHaveText(OVERLAPPING_MEETING);
+  // Google's HTML arrives as plain text: its words, none of its tags.
+  await expect(details.locator("[data-note-description]")).toContainText("회의실 3층");
+  await expect(details.locator("[data-note-description]")).toContainText("안건: 회고 문서 & 다음 분기");
+  await expect(details.locator("b, a, br")).toHaveCount(0);
+  await page.screenshot({ fullPage: true, path: testInfo.outputPath("note-review-details.png") });
+  await retro.click();
+  await expect(details).toBeHidden();
+  await expect(retro).toHaveAttribute("aria-expanded", "false");
+
+  // From one open entry straight to the candidate beside it: the meeting's
+  // details close and the candidate's open, and stay open.
+  const gym = grid.getByRole("button", { name: /^헬스 .*, Details$/ });
+  await retro.click();
+  await expect(details).toBeVisible();
+  await pressEntry(gym);
+  await expect(details).toHaveCount(1);
+  await expect(details.locator("[data-note-details-title]")).toHaveText("헬스");
+  await expect(retro).toHaveAttribute("aria-expanded", "false");
+  await expect(gym).toHaveAttribute("aria-expanded", "true");
+  await page.waitForTimeout(500);
+  await expect(details).toBeVisible();
+  await expect(details).toHaveCSS("opacity", "1");
+  await expect(details).toBeInViewport({ ratio: 1 });
+  await expect(details.locator("[data-note-details-title]")).toHaveText("헬스");
+  await expect(details.locator("[data-note-description]")).toContainText("준비물: 운동화, 수건");
+  await expect(box("헬스")).not.toBeChecked();
+  // Escape closes the details and returns focus to the entry.
+  await page.keyboard.press("Escape");
+  await expect(details).toBeHidden();
+  await expect(gym).toBeFocused();
+  // From the keyboard: Enter opens them with focus inside, Escape closes them.
+  await page.keyboard.press("Enter");
+  await expect(page.getByRole("button", { name: "Close details" })).toBeFocused();
+  await page.keyboard.press("Escape");
+  await expect(gym).toBeFocused();
+  // An entry with no description says so.
+  await grid.getByRole("button", { name: /^팀 회의 .*, Details$/ }).click();
+  await expect(details.locator('[data-note-description="none"]')).toHaveText("No description");
+  await page.keyboard.press("Escape");
+  // The checkbox toggles and opens nothing.
+  await box("헬스").check();
+  await expect(box("헬스")).toBeChecked();
+  await expect(details).toBeHidden();
+  await box("헬스").uncheck();
 
   // Choosing happens on the week itself.
   await box("과제 마감").uncheck();

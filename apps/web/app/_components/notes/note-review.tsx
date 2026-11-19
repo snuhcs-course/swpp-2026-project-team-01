@@ -1,9 +1,10 @@
 "use client";
 
 import type { NoteReview, NoteReviewChoice, NoteReviewDecision, NoteReviewItem, NoteWeek } from "@lib/contracts/note-review";
-import { ChevronLeftIcon, ChevronRightIcon, RotateCcwIcon } from "lucide-react";
-import { useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
+import { ChevronLeftIcon, ChevronRightIcon, RotateCcwIcon, XIcon } from "lucide-react";
+import { type ReactNode, useEffect, useId, useMemo, useRef, useState, useSyncExternalStore } from "react";
 import { Button } from "@/components/ui/button";
+import { Popover, PopoverAnchor, PopoverClose, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { cn } from "@/lib/utils";
 import type { Locale } from "../ink/copy";
 import { NOTE_REVIEW_COPY } from "./note-review-copy";
@@ -27,7 +28,8 @@ import {
 // candidates in yellow with a checkbox each, and the host's other plans in grey
 // for context. A checked candidate becomes free; those the classifier
 // recommends as notes start checked, and the classifier's reason is the block's
-// tooltip. Checking an entry that repeats checks the whole series. On a phone
+// tooltip. Checking an entry that repeats checks the whole series; pressing an
+// entry anywhere but its checkbox opens its full title and description. On a phone
 // the week shows three days at a time (task 3.2). Confirm records only the
 // candidates of the days the host has looked at, so nothing is freed unseen. Standalone, so the web setup's notes step, /app/notes and later
 // the redesigned settings can hold it. The look follows DESIGN.md until the
@@ -334,7 +336,7 @@ export function NoteReviewWeek({
                           className="absolute px-0.5"
                           key={block.id}
                           style={{
-                            height: Math.max(((block.endMinute - block.startMinute) / 60) * HOUR_PX, 20),
+                            height: Math.max(((block.endMinute - block.startMinute) / 60) * HOUR_PX, 24),
                             left: `${(block.lane / block.lanes) * 100}%`,
                             top: ((block.startMinute - hours.firstHour * 60) / 60) * HOUR_PX,
                             width: `${100 / block.lanes}%`,
@@ -374,8 +376,17 @@ export function NoteReviewWeek({
   );
 }
 
-// One entry on the week. A candidate is a checkbox: checked, it becomes free.
-// The host's other plans are quiet grey context.
+// One entry on the week. Each entry is a button that opens its details (the
+// full title, cut off on the week when entries overlap, and the description
+// from Google) and closes them when pressed again. A candidate also has a
+// checkbox of its own: only the checkbox toggles it, and checked, it becomes
+// free. The host's other plans are quiet grey context.
+//
+// The details are a popover anchored to the entry, as Google Calendar opens an
+// entry, on a phone too: it keeps the host's place on the hour grid (an inline
+// panel would sit below a grid taller than the screen), and Radix places it
+// within the screen, closes it with Escape or a press outside, and returns
+// focus to the entry.
 function Block({
   block,
   choice,
@@ -399,48 +410,131 @@ function Block({
 }) {
   const time = block.allDay ? null : clock(block.start, locale, timeZone);
   const title = block.title || t.untitled;
-
-  if (block.kind === "busy" || !item) {
-    return (
-      <div
-        className={cn("h-full overflow-hidden rounded-lg bg-secondary px-1.5 text-[11px] leading-tight text-muted-foreground", compact ? "py-0.5" : "py-1")}
-        data-note-busy
-        title={title}
-      >
-        <span className="block truncate font-semibold">{title}</span>
-        {time ? <span className="block truncate tabular-nums">{time}</span> : null}
-      </div>
-    );
-  }
-
+  const name = `${title}${time ? ` ${time}` : ""}`;
+  const candidate = block.kind === "candidate" && item ? item : null;
   const free = choice === "free";
   // The classifier's reason, on hover, so the week stays uncluttered.
-  const hint = item.reason ? `${title} · ${item.reason}` : title;
+  const hint = candidate?.reason ? `${title} · ${candidate.reason}` : title;
+  const pad = compact ? "py-0.5" : "py-1";
+
+  const entry = (
+    <PopoverTrigger asChild>
+      <button
+        aria-label={`${name}, ${t.details}`}
+        className={cn(
+          "flex h-full w-full min-w-0 cursor-pointer flex-col items-start rounded-lg text-left outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-inset",
+          pad,
+          // A candidate's text starts after the checkbox's corner.
+          candidate ? "pr-1.5 pl-6 pointer-coarse:pl-7" : "px-1.5",
+        )}
+        data-note-entry
+        title={hint}
+        type="button"
+      >
+        <span className="block w-full truncate font-semibold">{title}</span>
+        {time ? <span className={cn("block w-full truncate tabular-nums", candidate && "text-muted-foreground")}>{time}</span> : null}
+      </button>
+    </PopoverTrigger>
+  );
+
   return (
-    <label
-      className={cn(
-        "flex h-full w-full cursor-pointer items-start gap-1 overflow-hidden rounded-lg px-1.5 text-[11px] leading-tight text-foreground transition-colors",
-        compact ? "py-0.5" : "py-1",
-        free ? "bg-warning/25 ring-1 ring-warning/60" : "border border-dashed border-warning/70 bg-card",
-        disabled && "cursor-default opacity-70",
+    <Popover>
+      <PopoverAnchor asChild>
+        {candidate ? (
+          <div
+            className={cn(
+              "relative flex h-full min-h-6 w-full overflow-hidden rounded-lg text-[11px] leading-tight text-foreground transition-colors",
+              free ? "bg-warning/25 ring-1 ring-warning/60" : "border border-dashed border-warning/70 bg-card",
+              disabled && "opacity-70",
+            )}
+            data-note-block={free ? "free" : "busy"}
+            data-note-occurrence={block.occurrenceId}
+          >
+            {/* The checkbox's own corner over the entry button, at least 24px
+                and larger on a touch screen; the rest of the block, however
+                narrow, opens the details. */}
+            <label
+              className={cn(
+                "absolute top-0 left-0 z-10 flex size-6 cursor-pointer items-start pl-1.5 pointer-coarse:size-7 pointer-coarse:pl-2",
+                compact ? "pt-0.5" : "pt-1",
+                disabled && "cursor-default",
+              )}
+              data-note-check
+            >
+              <input
+                aria-label={name}
+                checked={free}
+                className="mt-px size-3.5 shrink-0 accent-primary pointer-coarse:size-4"
+                disabled={disabled}
+                onChange={(event) => onChoose(candidate.key, event.target.checked ? "free" : "keep_busy")}
+                type="checkbox"
+              />
+            </label>
+            {entry}
+          </div>
+        ) : (
+          <div className="flex h-full w-full overflow-hidden rounded-lg bg-secondary text-[11px] leading-tight text-muted-foreground" data-note-busy>
+            {entry}
+          </div>
+        )}
+      </PopoverAnchor>
+      <PopoverContent
+        align="start"
+        className="w-[min(20rem,calc(100vw-2rem))] rounded-2xl p-4"
+        aria-label={title}
+        collisionPadding={16}
+        data-note-details
+      >
+        <NoteEntryDetails
+          close={
+            <PopoverClose asChild>
+              <Button aria-label={t.closeDetails} className="-my-1 -mr-2 size-8 shrink-0 rounded-full" size="icon" type="button" variant="ghost">
+                <XIcon aria-hidden />
+              </Button>
+            </PopoverClose>
+          }
+          description={block.description}
+          t={t}
+          title={title}
+        />
+      </PopoverContent>
+    </Popover>
+  );
+}
+
+// An entry's details: the full title and Google's description, nothing else.
+// The description arrives as plain text and is rendered as text, so markup in
+// it shows as written and never runs.
+export function NoteEntryDetails({
+  close,
+  description,
+  t,
+  title,
+}: {
+  readonly close?: ReactNode;
+  readonly description: string | null;
+  readonly t: Copy;
+  readonly title: string;
+}) {
+  const heading = useId();
+  return (
+    <section aria-labelledby={heading} className="flex flex-col gap-2">
+      <div className="flex items-start gap-2">
+        <h4 className="min-w-0 flex-1 text-sm font-semibold break-words text-foreground [overflow-wrap:anywhere]" data-note-details-title id={heading}>
+          {title}
+        </h4>
+        {close}
+      </div>
+      {description ? (
+        <p className="max-h-64 overflow-y-auto text-sm break-words whitespace-pre-line text-body [overflow-wrap:anywhere]" data-note-description>
+          {description}
+        </p>
+      ) : (
+        <p className="text-sm text-muted-foreground" data-note-description="none">
+          {t.noDescription}
+        </p>
       )}
-      data-note-block={free ? "free" : "busy"}
-      data-note-occurrence={block.occurrenceId}
-      title={hint}
-    >
-      <input
-        aria-label={`${title}${time ? ` ${time}` : ""}`}
-        checked={free}
-        className="mt-px size-3.5 shrink-0 accent-primary"
-        disabled={disabled}
-        onChange={(event) => onChoose(item.key, event.target.checked ? "free" : "keep_busy")}
-        type="checkbox"
-      />
-      <span className="flex min-w-0 flex-col">
-        <span className="truncate font-semibold">{title}</span>
-        {time ? <span className="truncate text-muted-foreground tabular-nums">{time}</span> : null}
-      </span>
-    </label>
+    </section>
   );
 }
 

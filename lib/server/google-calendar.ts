@@ -89,6 +89,11 @@ export type CalendarEvent = {
   readonly updated: string | null;
   readonly recurringEventId: string | null;
   readonly iCalUID: string | null;
+  // The description as Google returns it (it may hold HTML), present only when
+  // listEvents was asked for it: the note review's week shows it to the host
+  // (calendar-note-review design 7). Analysis never asks, so no description
+  // reaches evidence or a model.
+  readonly description?: string | null;
 };
 
 export type HostCalendar = {
@@ -98,7 +103,7 @@ export type HostCalendar = {
   listEvents(
     calendarId: string,
     range: { readonly start: Date; readonly end: Date },
-    options?: { readonly signal?: AbortSignal },
+    options?: { readonly signal?: AbortSignal; readonly withDescription?: boolean },
   ): Promise<CalendarEvent[]>;
   // One calendar list entry's allowed conference solution types (design decision
   // 11: hangoutsMeet means Google Meet can be created with the event).
@@ -235,6 +240,7 @@ type RawEvent = {
   updated?: string;
   recurringEventId?: string;
   iCalUID?: string;
+  description?: string;
 };
 
 const CALENDAR_LIST_FIELDS = "nextPageToken,items(id,summary,summaryOverride,accessRole,primary,timeZone)";
@@ -242,11 +248,13 @@ const EVENT_FIELDS =
   "nextPageToken,items(id,status,summary,start,end,transparency,location,hangoutLink," +
   "conferenceData(entryPoints(entryPointType)),attendees(email,self,responseStatus,resource)," +
   "updated,recurringEventId,iCalUID)";
+// The same fields with the description, for the note review's week only.
+const EVENT_FIELDS_WITH_DESCRIPTION = `${EVENT_FIELDS.slice(0, -1)},description)`;
 
 // A location that is a meeting URL is a conference link, not a place.
 const MEETING_URL = /https?:\/\/|meet\.google\.com|zoom\.us|teams\.microsoft\.com|webex\.com/i;
 
-function toEvent(calendarId: string, raw: RawEvent): CalendarEvent | null {
+function toEvent(calendarId: string, raw: RawEvent, withDescription = false): CalendarEvent | null {
   if (!raw.id || !raw.start || !raw.end) return null;
 
   const location = raw.location?.trim() || null;
@@ -275,6 +283,7 @@ function toEvent(calendarId: string, raw: RawEvent): CalendarEvent | null {
     summary: raw.summary ?? null,
     transparency: raw.transparency ?? null,
     updated: raw.updated ?? null,
+    ...(withDescription ? { description: raw.description ?? null } : {}),
   };
 }
 
@@ -577,7 +586,7 @@ export function createGoogleCalendarClient(
         const body = await getJson<{ items?: RawEvent[]; nextPageToken?: string }>(
           `/calendars/${encodeURIComponent(calendarId)}/events`,
           {
-            fields: EVENT_FIELDS,
+            fields: options?.withDescription ? EVENT_FIELDS_WITH_DESCRIPTION : EVENT_FIELDS,
             maxResults: String(PAGE_SIZE),
             orderBy: "startTime",
             singleEvents: "true",
@@ -589,7 +598,7 @@ export function createGoogleCalendarClient(
         );
 
         for (const item of body.items ?? []) {
-          const event = toEvent(calendarId, item);
+          const event = toEvent(calendarId, item, options?.withDescription);
           if (event) events.push(event);
         }
 

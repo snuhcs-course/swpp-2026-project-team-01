@@ -16,6 +16,7 @@
 
 - [x] 3.1 Build the review as a standalone week view like Google Calendar (design 7: a checkbox on each yellow candidate, pre-checked for `note`, the reason as its tooltip, grey context from the week's other busy entries read live, all-day row, week navigation; after 확인, the freed entries with their times under the Google line and a way back to change them) and use it in `NotesStep` and an authenticated `/app` route. Apply the design mock-ups from Slack. Verify component tests and a Playwright test from scan to confirmed note.
 - [x] 3.2 On a phone-width screen (under 640px), show three days at a time instead of scrolling the week sideways, from today, the arrows moving three days and loading each week the days reach; a candidate counts as seen only once its day has been on screen (user, 2026-11-14: in this iteration). Verify component tests for the paging and the seen rule and a Playwright test at 375×812.
+- [x] 3.3 Open an entry's details on press (user, 2026-11-18: overlapping titles are cut off): a popover with the full title and the Google description as plain text, read live with the week and never stored or sent to a model, pressed again to close; only the checkbox toggles a candidate. Verify component tests, a server test that only the owner receives descriptions and nothing stores them, and Playwright at desktop and 375×812.
 
 ## 4. The chat onboarding step
 

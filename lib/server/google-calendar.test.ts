@@ -172,6 +172,12 @@ describe("openHostCalendar", () => {
     expect(first.searchParams.get("orderBy")).toBe("startTime");
     expect(first.searchParams.get("maxResults")).toBe("250");
     expect(first.searchParams.get("fields")).toMatch(/^nextPageToken,items\(/);
+    // Descriptions are read only when asked for (the note review's week).
+    expect(first.searchParams.get("fields")).not.toContain("description");
+    expect(events[0]).not.toHaveProperty("description");
+    const described = await calendar.listEvents("me@example.test", { end: new Date("2026-11-16T00:00:00Z"), start: new Date("2026-09-21T00:00:00Z") }, { withDescription: true });
+    expect(new URL(urls.at(-1)!).searchParams.get("fields")).toMatch(/,description\)$/);
+    expect(described[0]).toHaveProperty("description", null);
     expect(urls.join(" ")).not.toContain(refreshToken);
     expect(urls.join(" ")).not.toContain("ya29.access");
   });
