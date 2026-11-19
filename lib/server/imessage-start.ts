@@ -33,7 +33,7 @@ import { openToken, sealToken, type TokenKey } from "./token-encryption";
 // The start also links WhatsApp (/?flow=whatsapp, host-whatsapp-channel D7): the
 // attempt records its channel, and the bounds count both channels together.
 // Telegram starts the same way (/?flow=telegram, host-telegram-channel D7): the
-// page opens the t.me start link, and the sender is shown by their Telegram name.
+// page opens the telegram.me start link, and the sender is shown by their Telegram name.
 
 export const START_COOKIE = "fmat_imessage_start";
 const START_COOKIE_SECONDS = 30 * 60;

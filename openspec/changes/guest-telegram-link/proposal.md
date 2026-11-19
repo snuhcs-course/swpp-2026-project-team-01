@@ -8,7 +8,7 @@ Guests follow a request by email, on the booking page, or in iMessage or WhatsAp
 
 ## What Changes
 
-- **Get updates in Telegram.** The booking page's waiting card offers **Get updates in Telegram** wherever Telegram is configured (`TELEGRAM_BOT_USERNAME`), beside the other configured channels. It asks for no number: it makes the `FMAT-` code and opens `t.me/<bot>?start=<code>`. On a phone Telegram opens at the bot; on a computer the card shows the link's QR code, **Open Telegram** and **Copy**. Confirm and link, This isn't me, Cancel and **Unlink Telegram** work as for iMessage.
+- **Get updates in Telegram.** The booking page's waiting card offers **Get updates in Telegram** wherever Telegram is configured (`TELEGRAM_BOT_USERNAME`), beside the other configured channels. It asks for no number: it makes the `FMAT-` code and opens `telegram.me/<bot>?start=<code>`. On a phone Telegram opens at the bot; on a computer the card shows the link's QR code, **Open Telegram** and **Copy**. Confirm and link, This isn't me, Cancel and **Unlink Telegram** work as for iMessage.
 - **Guest Telegram binding.** A guest binding may be on Telegram, and keeps the sender's sealed Telegram name to show in place of a user ID. Guest Telegram messages route to the request's requester discussion with the `[Telegram] ` prefix, and guest notices and replies go out on Telegram.
 - **Through the agent.** The requester agent's `start_updates_link` takes `channel: "telegram"` without a number, and its connect-link page shows the bot's start link.
 - **Ending.** **Unlink Telegram**, blocking the bot, or a send Telegram refuses as blocked ends the guest's binding.

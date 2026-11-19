@@ -8,7 +8,7 @@
 // WhatsApp), or the iMessage line in "none".
 // It links Telegram too (host-telegram-channel design 6): channels.telegram is
 // the bot's username; a Telegram attempt's lineNumber is that username and its
-// message the bare code, which the card turns into the t.me start link; a
+// message the bare code, which the card turns into the telegram.me start link; a
 // Telegram sender is shown by name ("Dohyeon (@dohyeon)"), never by user ID.
 
 import type { ConfiguredChannels, MessagingChannel } from "./messaging-channel";

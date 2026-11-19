@@ -36,7 +36,7 @@ const runtime: ConversationRuntime = {
 };
 const PRIVACY = "Telegram keeps bot chats on its servers. Find Me a Time sends your request summaries here.";
 const CODE = /^FMAT-[0-9A-HJKMNP-TV-Z]{10}$/;
-const startLink = (code: string) => `https://t.me/${BOT}?start=${code}`;
+const startLink = (code: string) => `https://telegram.me/${BOT}?start=${code}`;
 
 const AGENTS = {
   android: "Mozilla/5.0 (Linux; Android 15; Pixel 9) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/141.0.0.0 Mobile Safari/537.36",
@@ -84,7 +84,7 @@ async function withoutWhatsApp(page: Page) {
         status && typeof status.channels === "object" ? { ...status, channels: { ...(status.channels as object), whatsapp: null } } : status;
       await route.fulfill({ json: "state" in body ? hide(body) : { ...body, status: hide(body.status) }, response });
     } catch {
-      // The page moved on (to t.me) while the answer was in flight.
+      // The page moved on (to telegram.me) while the answer was in flight.
     }
   };
   await page.route("**/api/host/imessage", strip);
@@ -132,7 +132,7 @@ test.describe("on Android", () => {
     await expect(page.getByRole("heading", { name: "Your Telegram is connected." })).toBeVisible();
     expect(await activeChannel(db, host.hostAccountId)).toEqual([{ channel: "telegram" }]);
 
-    await expect(page.getByRole("link", { name: "Open Telegram" })).toHaveAttribute("href", `https://t.me/${BOT}`);
+    await expect(page.getByRole("link", { name: "Open Telegram" })).toHaveAttribute("href", `https://telegram.me/${BOT}`);
     await page.getByRole("link", { name: "Go to Home" }).click();
     await expect(page).toHaveURL("/app?view=dashboard");
     await expect(page.getByRole("region", { name: "Calendar" })).toBeVisible();
@@ -154,12 +154,12 @@ test.describe("on Android", () => {
     await signedInHost(db, context, baseURL!);
     await withoutWhatsApp(page);
     // Nothing reaches Telegram: the stand-in page records where the card went.
-    await page.route("https://t.me/**", (route) => route.fulfill({ body: "Telegram", contentType: "text/plain" }));
+    await page.route("https://telegram.me/**", (route) => route.fulfill({ body: "Telegram", contentType: "text/plain" }));
     const card = await openCard(page);
     await expect(card.getByRole("heading", { name: "Use Find Me a Time from Telegram" })).toBeVisible({ timeout: 45_000 });
     await expect(card.getByRole("button", { name: /instead/ })).toHaveCount(0);
     await card.getByRole("button", { name: "Connect Telegram" }).click();
-    await page.waitForURL(/^https:\/\/t\.me\//, { timeout: 45_000 });
+    await page.waitForURL(/^https:\/\/telegram\.me\//, { timeout: 45_000 });
     const url = new URL(page.url());
     expect(url.pathname).toBe(`/${BOT}`);
     expect(url.searchParams.get("start")).toMatch(CODE);

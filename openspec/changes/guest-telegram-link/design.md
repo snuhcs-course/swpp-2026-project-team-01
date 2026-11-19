@@ -2,7 +2,7 @@
 
 ## Context
 
-The guest iMessage and WhatsApp links ([`guest-flow-completion`](../guest-flow-completion/design.md) design 1 to 4, [`guest-whatsapp-link`](../guest-whatsapp-link/design.md)) store a request's attempt in `app.imessage_links`, bind the confirmed sender in `app.requester_imessage_bindings` with its channel, route the guest's messages by the sender's keyed hash, and send notices and turn replies through `app.imessage_outbox` on the binding's channel. The host Telegram channel ([`host-telegram-channel`](../host-telegram-channel/design.md)) added the webhook, Telegram receipts with the sender's sealed name, the `t.me` start link and the Bot API transport. Three pieces kept guests off Telegram: the check `imessage_links_request_channel`, the binding's channel check, and the receipt job sending every Telegram receipt down the host path.
+The guest iMessage and WhatsApp links ([`guest-flow-completion`](../guest-flow-completion/design.md) design 1 to 4, [`guest-whatsapp-link`](../guest-whatsapp-link/design.md)) store a request's attempt in `app.imessage_links`, bind the confirmed sender in `app.requester_imessage_bindings` with its channel, route the guest's messages by the sender's keyed hash, and send notices and turn replies through `app.imessage_outbox` on the binding's channel. The host Telegram channel ([`host-telegram-channel`](../host-telegram-channel/design.md)) added the webhook, Telegram receipts with the sender's sealed name, the `telegram.me` start link and the Bot API transport. Three pieces kept guests off Telegram: the check `imessage_links_request_channel`, the binding's channel check, and the receipt job sending every Telegram receipt down the host path.
 
 ## Goals / Non-Goals
 

@@ -12,7 +12,7 @@ import {
 } from "./messaging-channel";
 
 // Which channel a device is offered across iMessage, WhatsApp and Telegram (host-whatsapp-channel D7,
-// host-telegram-channel D7), the wa.me link (WhatsApp D6) and the t.me start link (Telegram D6).
+// host-telegram-channel D7), the wa.me link (WhatsApp D6) and the telegram.me start link (Telegram D6).
 
 const agents = {
   android: "Mozilla/5.0 (Linux; Android 15; Pixel 9) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/141.0 Mobile Safari/537.36",
@@ -62,8 +62,8 @@ describe("whatsAppLinkFor", () => {
 
 describe("telegramLinkFor", () => {
   it("builds the bot's start link with the code as its payload", () => {
-    expect(telegramLinkFor("findmeatime_bot", "FMAT-ABCDEFGHJK")).toBe("https://t.me/findmeatime_bot?start=FMAT-ABCDEFGHJK");
-    expect(telegramLinkFor("@findmeatime_bot", "FMAT-ABCDEFGHJK")).toBe("https://t.me/findmeatime_bot?start=FMAT-ABCDEFGHJK");
+    expect(telegramLinkFor("findmeatime_bot", "FMAT-ABCDEFGHJK")).toBe("https://telegram.me/findmeatime_bot?start=FMAT-ABCDEFGHJK");
+    expect(telegramLinkFor("@findmeatime_bot", "FMAT-ABCDEFGHJK")).toBe("https://telegram.me/findmeatime_bot?start=FMAT-ABCDEFGHJK");
   });
 
   it("refuses a username or a payload Telegram would not take", () => {

@@ -635,7 +635,7 @@ export function EmailLinkLine({ context }: { readonly context: RequesterCardCont
 // **Open WhatsApp** (WhatsApp Web or the app). One link at a time: a code or
 // binding on one channel replaces the other's. WhatsApp has no contact card.
 // **Get updates in Telegram** sits beside them wherever the bot is configured
-// (guest-telegram-link design 2): no number, then the bot's t.me start link,
+// (guest-telegram-link design 2): no number, then the bot's telegram.me start link,
 // opened at once on a phone, and elsewhere a QR code of it with **Open
 // Telegram** (Telegram Desktop or Telegram Web) and Copy. The sender shows by
 // their Telegram name, and the card says where Telegram keeps the chat.
@@ -684,7 +684,7 @@ export function ImessageUpdates({ context, onlyLinked = false }: { readonly cont
   const whatsapp = pending?.channel === "whatsapp";
   const telegram = pending?.channel === "telegram";
   // wa.me opens WhatsApp on a phone and WhatsApp Web or the app on a computer;
-  // so does the bot's t.me start link for Telegram.
+  // so does the bot's telegram.me start link for Telegram.
   const appLink = pending ? (whatsapp ? whatsAppLinkFor(pending.lineNumber, pending.message) : telegram ? telegramLinkFor(pending.lineNumber, pending.message) : null) : null;
   const link = pending && phone ? (appLink ?? deepLinkFor(platform, pending.lineNumber, pending.message)) : null;
   // A Mac has Messages too, offered beside the QR code and Copy as on the host's link screens (D17).
