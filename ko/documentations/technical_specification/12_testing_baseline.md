@@ -6,7 +6,7 @@
 날짜: 2026-11-18\
 기준 코드: `main` `50bc29e9` (2026-11-18)
 
-이 문서는 9개 user story가 인터페이스마다 어떻게 동작해야 하는지를 단계별로 정의합니다. 기능 테스트(QA)와 AI 벤치마크는 이 표에서 뽑습니다. 흐름과 문구는 이전 문서가 아니라 구현 코드에서 가져왔고, 화면·메시지 문구는 코드의 영문 그대로입니다.
+이 문서는 10개 user story가 인터페이스마다 어떻게 동작해야 하는지를 단계별로 정의합니다. 기능 테스트(QA)와 AI 벤치마크는 이 표에서 뽑습니다. 흐름과 문구는 이전 문서가 아니라 구현 코드에서 가져왔고, 화면·메시지 문구는 코드의 영문 그대로입니다.
 
 ↳ 표시 행은 그 단계에서 정해진 흐름을 벗어난 입력입니다. 각 행에는 지금 코드가 그 기대 동작을 지원하는지 표시했습니다.
 
@@ -23,6 +23,7 @@
 - [G03. 게스트 진행 상황 확인·후속 대화·결과 수신](#g03-게스트-진행-상황-확인후속-대화결과-수신)
 - [M01. 확정된 미팅 취소·재조정](#m01-확정된-미팅-취소재조정)
 - [A01. 계정 및 외부 서비스 연결 관리](#a01-계정-및-외부-서비스-연결-관리)
+- [R01. 한 계정으로 호스트와 게스트 겸하기](#r01-한-계정으로-호스트와-게스트-겸하기)
 
 ## H01. 호스트 가입 및 온보딩
 
@@ -167,7 +168,7 @@ findmeatime.com/?flow=imessage (Telegram은 ?flow=telegram)
 - 호스트에게 가는 서비스 메시지(캡션·요약·알림)는 호스트가 마지막으로 쓴 메시지의 언어를 따릅니다(channel-language.ts:26). 한국어로 답한 뒤에는 한국어로 나갑니다. 표의 문구는 영어판입니다.
 - 새 요청이 들어온 순간의 메신저 알림은 더 이상 보내지 않습니다(#122, 코드 주석 "No longer queued"). 호스트의 첫 메시지는 게스트가 시간에 동의한 뒤의 "Ready for your approval." 요약입니다.
 - 호스트가 게스트에게 자유 질문을 보내는 도구가 없습니다. 호스트가 바꿀 수 있는 것은 공유 세부(시간·길이·방식·장소·링크) 제안뿐입니다.
-- 메신저에는 이동 시간 허용(allow_host_trip)과 주간 한도 예외(waive_weekly_limit) 도구가 없습니다. 웹 카드와 MCP에만 있습니다.
+- 호스트 웹에서는 요청을 승인·거절하고 자세한 내용을 보는 것만 합니다. 그 밖의 것(세부 변경, 주간 한도 예외, 이동 시간 입력, 질문)은 모두 메신저에서 합니다. 지금 코드에는 호스트 웹 채팅(Private messages), Request changes 카드, 규칙 카드가 남아 있어 해당 행을 코드와 다름으로 표시했습니다. 메신저에는 아직 allow_host_trip과 waive_weekly_limit이 없습니다(M-8.1, M-8.3).
 
 ### Web · 요청 검토
 
@@ -176,17 +177,13 @@ findmeatime.com/?flow=imessage (Telegram은 ?flow=telegram)
 | Step | 전제 (Given) | 사용자 동작 (When) | 화면 · 메시지 (Then) | 분기 · 판정 · 코드 상태 | 근거 코드 |
 |---|---|---|---|---|---|
 | W-1 | 셋업 완료, 요청이 있음 | Open menu → Requests | "Every meeting request you sent or received, in one place." 필터(Filter requests)와 목록. 각 요청에 상태: Needs your decision · Waiting for your approval · Choosing a time · Gathering details · Booking in progress · Declined · Withdrawn · Cancelled | **분기**: 요청 없음 → "No requests in this view yet."<br>**실패**: 요청을 열 수 없음 → "That request is not available." | _components/host/host-requests.tsx |
-| W-2 | 요청 목록 | 요청 하나 열기 | 결정 카드: 게스트가 동의했으면 "Approve this meeting?", 아니면 "Waiting for the requester" + "The requester has not agreed to this version yet."<br><br>When · Length · Mode · Place 또는 Meeting link · With {이름 <이메일>} (확인 안 된 주소면 "(address not confirmed)") · Purpose<br><br>아래에 "Your rules for this request" 카드와 Private messages (Thyme와 비공개 대화) | **하면 안 됨**: 게스트와의 대화 내용이 보이기<br>**하면 안 됨**: 아무 버튼도 미리 선택된 상태 | host-request-cards.tsx (DecisionCard) |
+| W-2 | 요청 목록 | 요청 하나 열기 | 결정 카드: 게스트가 동의했으면 "Approve this meeting?", 아니면 "Waiting for the requester" + "The requester has not agreed to this version yet."<br><br>When · Length · Mode · Place 또는 Meeting link · With {이름 <이메일>} (확인 안 된 주소면 "(address not confirmed)") · Purpose<br><br>승인·거절과 세부만 있음. 그 아래 한 줄: "To change anything or ask about this request, message Thyme in {messenger}." | **하면 안 됨**: 게스트와의 대화 내용이 보이기<br>**하면 안 됨**: 아무 버튼도 미리 선택된 상태<br>**하면 안 됨**: 호스트 웹에 대화창, 수정 폼, 규칙 카드<br>**코드와 다름**: 카드 아래에 "Your rules for this request"와 Private messages(호스트 웹 채팅)가 있음 | host-request-cards.tsx (DecisionCard) · host-requests.tsx:383 |
 | W-3 | 게스트가 현재 버전에 동의함 | Approve this proposal | request.approve(version) → 예약 카드 "Booking in progress" → Google Calendar에 이벤트가 생기면 "Booked" | **성공**: 현재 버전 하나만 승인, 캘린더 이벤트 1건<br>**실패**: 다른 곳에서 먼저 바뀜 → "This request changed since you last saw it. Check it and try again."<br>**실패**: 새 버전이 대체함 → "A newer proposal replaced this one. The current one is shown."<br>**실패**: 승인 직전 시간이 막힘 → "The time no longer fits your calendar, so nothing was booked. The requester can choose another time."<br>**실패**: 캘린더 확인 불가 → "Your calendar could not be checked just before booking, so nothing was booked. Retry when ready."<br>**실패**: Google이 거부 → "Google Calendar refused the event. Check your booking calendar, then retry."<br>**하면 안 됨**: 게스트가 동의하지 않은 버전에서 승인 버튼이 눌림 (비활성) | host-request-cards.tsx (DecisionCard, BookingCard) |
 | ↳ W-3.1 | 벗어난 입력. 승인 후 응답이 늦음 | Check booking status | 이미 생긴 이벤트를 찾으면 Booked로 표시, 두 번째 이벤트는 만들지 않음 | **성공**: 이벤트 1건 유지<br>**분기**: 지연 중 → 메신저에 "The booking for request {ref} ({시간}) is taking longer than usual to confirm. …" | host-request-cards.tsx · booking.check |
 | ↳ W-3.2 | 벗어난 입력. 같은 요청을 웹과 메신저에서 거의 동시에 승인 | 두 곳에서 승인 | 승인 1건만 기록, 캘린더 이벤트 1건 | **성공**: 중복 예약 없음<br>**하면 안 됨**: 이벤트 2건 | commands.ts (retryKey, expectedRevision) |
 | W-4 | 결정 카드 | Decline → "Decline this request? {이름} is told by email, and the request closes." → Decline request | 요청이 닫히고 게스트에게 이메일 | **분기**: Keep it → 아무것도 안 바뀜<br>**성공**: 닫힌 뒤 늦은 답장으로 예약되지 않음 | host-request-cards.tsx (Confirm decline) |
-| W-5 | 결정 카드 | Request changes → "What should change?"에서 Date · Start time · Length · Mode · Place · Meeting link 중 바꿀 것 입력 | "Share these changes?" 카드: 현재 값과 제안 값 비교 + "Sharing replaces the current proposal, so {이름} agrees again and you approve again." → Share revised details 또는 Dismiss suggestions | **실패**: 아무것도 안 바꿈 → "Change at least one detail."<br>**실패**: 없는 시간·불완전 → "That local time does not exist or is incomplete. Give a date and a time."<br>**실패**: 이미 지난 시간 → "That time has already started. Suggest a later one."<br>**하면 안 됨**: Share 전에 게스트에게 무엇이든 전달 | host-request-cards.tsx (RequestChangesCard, SuggestionCard) |
-| W-6 | 제안 카드 | Share revised details | "Checking the time" → 통과하면 "Shared with the requester" (새 버전, 게스트 재동의 필요) | **실패**: 시간 검사 실패 → "That time does not work" + "The details were shared, but no new proposal was sent. The requester can still find other times."<br>**성공**: 게스트가 새 버전에 동의해야 다시 승인 가능 | host-request-cards.tsx (SuggestionCard) |
-| W-6a | 요청 화면 | 요청 화면 아래 Private messages 대화창 보기 | 요청마다 호스트 전용 Thyme 대화가 있음: 안내 "Ask Thyme about this request: why a time works, or what to suggest instead. The requester never sees this conversation.", 입력칸 "Message Thyme privately about this request"<br><br>같은 요청을 메신저로 이야기한 내용도 이 대화와 같은 세션 | **코드 지원**: 웹에도 AI 대화가 있음 (요청 검토용 host-review 세션). 셋업용 웹 대화는 셋업 미완료 호스트에게는 연결 화면에 막혀 안 보임<br>**하면 안 됨**: 게스트에게 이 대화가 보이기 | _components/host/host-requests.tsx:382–438 · instructions/host-review.ts |
-| ↳ W-7 | 벗어난 입력. Private messages | "승인해" / "book it"을 웹 대화에 입력 | AI 기대 동작: 아무것도 기록하지 않고 Approve this proposal 버튼을 이름으로 안내 | **하면 안 됨**: 웹 대화 문장으로 승인·거절<br>**코드 지원**: 지시문과 도구(웹 턴 거부)에 있음 | instructions/host-review.ts · agent/tools/request.ts |
-| ↳ W-8 | 벗어난 입력. Private messages | "왜 3시는 안 돼?" | AI 기대 동작: read_request의 비공개 근거(시간대·버퍼·바쁜 시간·이동)로 설명 | **코드 지원**: 호스트에게는 비공개 근거 설명 가능<br>**하면 안 됨**: 게스트에게 이 근거가 전달 | instructions/host-review.ts |
-| W-9 | 호스트가 주간 미팅 한도(예: 주 5건)를 정해 둠. 게스트 요청의 가능한 시간이 모두 이미 한도가 찬 주에 있음 | 요청 열기 → 규칙·이동 검토 카드 "Every time falls in a full week" → Allow this request beyond my weekly limit | 이 상태에서는 게스트에게 후보 시간이 하나도 나가지 않고, 요청이 호스트 목록에 Needs your decision으로 표시됨<br><br>예외 허용 → 이 요청만 한도를 넘겨 후보를 다시 계산 (Find times) → "You allowed this request beyond your weekly limit."<br><br>이동 시간을 추정할 수 없는 후보는 "Some trips need your estimate"에서 이동 시간을 입력 | **하면 안 됨**: 바쁜 시간·호스트 시간대·맞지 않는 이동은 예외 불가 ("Busy time, your hours and trips that do not fit cannot be waived.") | host-request-cards.tsx (RuleReviewCard) |
+| ↳ W-5 | 벗어난 입력. 결정 카드 | 시간·장소·길이를 바꿀 방법을 찾음 | 웹에는 수정 기능이 없음. 카드 아래 한 줄이 메신저로 안내하고, 변경은 메신저에서 함(M-4, M-5) | **하면 안 됨**: 웹에서 세부 변경<br>**코드와 다름**: 웹에 Request changes 카드("What should change?")와 Share revised details가 있음 | host-request-cards.tsx (RequestChangesCard, SuggestionCard) |
+| W-6 | 가능한 시간이 모두 주간 한도가 찬 주에 있음, 또는 이동 시간을 호스트가 정해야 함 | 요청 열기 | 요청이 상태를 말로 보여줌("Every time falls in a week at your limit of {N}." / "A trip needs your estimate.")과 함께 메신저로 안내하고, 결정은 메신저에서 함(M-8~M-8.3) | **하면 안 됨**: 웹에서 한도 예외나 이동 시간 설정<br>**코드와 다름**: 웹 규칙 카드에 Allow this request beyond my weekly limit과 이동 시간 입력이 있음 | host-request-cards.tsx (RuleReviewCard) |
 
 ### Message · 알림과 자연어 결정
 
@@ -206,10 +203,10 @@ findmeatime.com/?flow=imessage (Telegram은 ?flow=telegram)
 | M-5 | 변경 초안 있음 | "보내줘" / "됐어 취소" | AI 기대 동작: share_changes 또는 dismiss_changes(현재 제안 id)<br><br>정확한 명령어(예: approve {REF}-{버전})나 Telegram 버튼일 때만 나가는 고정 답장: "Shared. I'll check the new time and send it to the requester for agreement." 또는 "Dropped those suggestions; nothing was shared.". 말로 하면 AI가 같은 뜻을 직접 씀 | **성공**: share → 시간 재검사 → 새 버전, 게스트 재동의 후 다시 M-1<br>**실패**: 지난 초안 → "Those aren't the current suggestions; the current ones are {ref}. Ask me to show them."<br>**실패**: 초안 없음 → "There are no suggested changes to act on."<br>**하면 안 됨**: 아직 조정 중·조건부·질문에 share | agent/tools/request.ts (share_changes, dismiss_changes) |
 | M-6 | 아무 대화 | "요청 뭐 있어?" / "박도현 요청 얘기하자" / "6ADSRV" | AI 기대 동작: list_host_requests로 요청자·목적·상태를 말함 / switch_conversation으로 전환<br><br>"We're now talking about this request." | **분기**: 여러 개가 맞음 → 요청자·목적·참조로 나열하고 어느 것인지 물음<br>**실패**: 모르는 참조 → "I don't recognize that reference. …"<br>**실패**: 사라진 요청 → "That request isn't available any more. …" | agent/tools/request.ts (switch_conversation) · channel-texts.ts |
 | ↳ M-7 | 벗어난 입력. 요약을 받음 | "게스트한테 주차 필요한지 물어봐줘" | AI 기대 동작: 게스트에게 자유 질문을 보낼 수는 없다고 말하고, 시간·장소 등 세부 변경 제안은 할 수 있다고 안내 | **코드 미지원**: 호스트가 게스트에게 질문을 보내는 도구 없음<br>**하면 안 됨**: 보냈다고 말하기 | agent/tools/request.ts (host-review 도구 목록) |
-| ↳ M-8 | 벗어난 입력. 주간 한도가 찬 주에만 시간이 있는 요청 (W-9 상황). 게스트는 후보를 못 받고 있음 | (알림 없음) | 메신저로 따로 알려주지 않음. 승인 요청 요약은 게스트가 시간에 동의해야 나가는데, 후보가 없으니 동의도 없음 | **코드 미지원**: 호스트 알림 종류에 한도 보류가 없음. 호스트가 웹 목록을 보거나 물어봐야 알 수 있음 | evaluation.ts:918–923 (weeklyLimitHold) · imessage-notices.ts (HostNotice) |
-| ↳ M-8.1 | 벗어난 입력. M-8 상황 | "이 요청은 이번만 한도 넘어도 돼" | AI 기대 동작: 이 요청만 예외로 할 수는 없으니 주간 한도 자체를 바꿔야 한다고 설명하고, 바꿀지 물음: "이 요청만 따로 한도를 넘길 수는 없어서, 주간 한도를 {현재}개에서 {필요한 수}개로 올려야 해요. 그렇게 할까요?" → 호스트가 동의하면 M-8.2 흐름(설정 대화로 전환 → weeklyLimit 기록 → 새 이미지 → yes → 저장) | **AI 판단**: 동의하지 않음 → 아무것도 바꾸지 않고, 이 요청만 예외로 두려면 {origin}/app 요청 화면의 규칙 카드에서 할 수 있다고 안내<br>**하면 안 됨**: 묻지 않고 한도를 바꾸기 · 이 요청만 허용했다고 말하기<br>**코드 미지원**: 메신저에 waive_weekly_limit 없음. 위 질문 문구는 지시문에 없는 기대값 | agent/tools/request.ts (host-review 도구 목록) |
+| ↳ M-8 | 벗어난 입력. 주간 한도가 찬 주에만 시간이 있는 요청 (W-6). 게스트는 후보를 못 받고 있음 | (자동) 호스트 알림 | 서비스 메시지: Request {REF} from {이름} has no open time: every time falls in a week at your limit of {N}. Allow this one beyond the limit? | **하면 안 됨**: 게스트가 기다리는 동안 호스트가 모르게 둠<br>**코드 미지원**: 한도 보류에 대한 호스트 알림 종류가 없음 | evaluation.ts:918–923 (weeklyLimitHold) · imessage-notices.ts (HostNotice) |
+| ↳ M-8.1 | 벗어난 입력. M-8 | "이 요청은 이번만 한도 넘어도 돼" | AI 기대 동작: 이 요청에만 waive_weekly_limit → 시간을 다시 찾음 → 이제 게스트가 후보를 받는다고 말함 | **AI 판단**: 호스트가 한도 자체를 올리고 싶어 함 → M-8.2<br>**하면 안 됨**: 이 요청만 물었는데 주간 한도를 바꿈<br>**코드 미지원**: 메신저에 waive_weekly_limit 없음 | agent/tools/request.ts (host-review 도구 목록) |
 | ↳ M-8.2 | 벗어난 입력. M-8 상황 | "주간 한도를 8개로 올려줘" | AI 기대 동작: 설정 대화로 전환(switch_conversation) → weeklyLimit 기록 → 새 슬롯 이미지 → yes → confirm_settings. 저장되면 설정이 바뀌어 이 요청의 후보도 다시 계산됨 | **코드 지원**: 한도 자체 변경은 메신저에서 가능 (H02 M-4)<br>**확인 필요**: 요청 대화에서 바로 요청했을 때 AI가 설정 대화로 알아서 전환하는지 확인 필요 (H02 M-1.1과 같음). 저장 후 이 요청이 실제로 다시 계산되는지도 확인하지 못함 | agent/tools/setup.ts · lib/contracts/setup.ts (weeklyLimit) |
-| ↳ M-8.3 | 벗어난 입력. 이동 시간을 추정할 수 없는 후보만 있음 | "이동 30분이면 돼" | AI 기대 동작: 여기서는 이동 시간을 정할 수 없고 {origin}/app 요청 화면에서 입력하라고 안내 | **코드 미지원**: 메신저에 allow_host_trip 없음<br>**하면 안 됨**: 허용했다고 말하기 | agent/tools/request.ts (host-review 도구 목록) |
+| ↳ M-8.3 | 벗어난 입력. 이동 시간을 추정할 수 없는 후보만 있음 | "이동 30분이면 돼" | AI 기대 동작: 그 이동에 allow_host_trip(30) → 시간을 다시 찾음 | **하면 안 됨**: 도구 결과 없이 허용했다고 말함<br>**코드 미지원**: 메신저에 allow_host_trip 없음 | agent/tools/request.ts (host-review 도구 목록) |
 | ↳ M-9 | 벗어난 입력. Telegram 요약 | Approve / Decline / Show details 버튼 | 버튼은 그 요약의 버전에 묶여 있음 | **실패**: 지난 버전 버튼 → "This proposal has changed. Here is the current one." + 현재 요약<br>**성공**: 현재 버전 버튼 → M-2 / M-3과 같은 결과 | telegram.ts · channel-texts.ts (callbackStale) |
 
 ### MCP · 에이전트로 검토·결정
@@ -461,6 +458,7 @@ G01 W-10.2~10.3에서 연결한 메신저
 - 취소·변경은 미팅 시작 전까지만 됩니다. 변경 협상에는 요청 기본 기간(7일)이 주어지지만 미팅 시작 시각을 넘지 않습니다(booking-cancellation.ts).
 - 변경 중에도 확정 예약은 그대로이고, 철회·거절·만료되면 원래대로 남습니다. 승인되면 같은 캘린더 이벤트를 수정합니다.
 - 게스트 웹에는 취소·변경 버튼이 없습니다. 예약 페이지 대화로만 할 수 있습니다.
+- 호스트 웹은 확정된 미팅의 세부만 보여줍니다. 취소와 변경은 메신저(M-1, M-2)나 에이전트(P-1, P-2)에서 합니다.
 
 ### Web · 호스트
 
@@ -468,8 +466,7 @@ G01 W-10.2~10.3에서 연결한 메신저
 
 | Step | 전제 (Given) | 사용자 동작 (When) | 화면 · 메시지 (Then) | 분기 · 판정 · 코드 상태 | 근거 코드 |
 |---|---|---|---|---|---|
-| W-H1 | 예약 확정, 미팅 시작 전 | Cancel meeting | "Cancel this meeting? {이름} is told, and the event is removed from your calendar. This cannot be undone." → Cancel meeting / Keep it | **성공**: 요청 취소됨, 게스트에게 알림, Google 이벤트 삭제(게스트에게 Google 취소 메일)<br>**분기**: Keep it → 아무것도 안 바뀜<br>**실패**: 이벤트 삭제 실패 → 호스트에게 "… its event couldn't be removed from Google Calendar. Please delete it there yourself: {link}"<br>**실패**: 이미 시작함 → 취소 버튼 없음 | host/host-request-cards.tsx (BookingCard) · booking-cancellation.ts |
-| W-H2 | 예약 확정, 시작 전 | Change meeting | 예약을 변경 상태로 다시 엶(booking.change) → Request changes 흐름(H03 W-5, W-6)으로 새 세부 공유 → 게스트 재동의 → 호스트 승인 | **성공**: 승인되면 같은 이벤트가 새 시간·장소로 수정됨, 새 이벤트 없음<br>**분기**: 게스트가 거절·철회하거나 기간 만료 → 원래 예약 유지, 게스트에게 "{호스트} kept your meeting as it was, so it stays at {시간}." 또는 만료 문구<br>**하면 안 됨**: 변경 중에 원래 예약이 사라지거나 바뀜 | host/host-request-cards.tsx (change) · booking-cancellation.ts (booking.change) |
+| W-H1 | 예약 확정, 미팅 시작 전 | 요청 열기 | 미팅 세부(When · Length · Mode · Place 또는 Meeting link · With)와 한 줄: "To cancel or move it, message Thyme in {messenger}." | **하면 안 됨**: 호스트 웹에 취소·변경 버튼<br>**코드와 다름**: 예약 카드에 Cancel meeting과 Change meeting이 있음 | host/host-request-cards.tsx (BookingCard) |
 
 ### Web · 게스트
 
@@ -567,3 +564,49 @@ G01 W-10.2~10.3에서 연결한 메신저
 | P-1 | 에이전트가 연결을 요청 | consent 페이지에서 권한 확인 | 호스트: "Connect {agent} to your account?" host:read · host:write · host:decide / 게스트: "Let {agent} request a meeting for you?" → Allow | **성공**: 허용한 범위만 사용 가능<br>**실패**: 거절 → 연결 안 됨 | connect/consent/page.tsx |
 | P-2 | 연결됨 | 웹에서 Revoke 또는 oauth/revoke | 이후 도구 호출 거부 | **성공**: 다음 호출 401, 에이전트는 요청을 보여주지 못함 | api/agent-grants/revoke · app/oauth/revoke/route.ts |
 | P-3 | 연결됨 | "내 계정 지워줘" / "권한 끊어줘" | AI 기대 동작: 에이전트로는 할 수 없고 {origin}/app에서 하라고 안내 | **코드 미지원**: MCP에 계정 삭제·권한 철회 도구 없음<br>**하면 안 됨**: 했다고 말하기 | agent-host-tools.ts (HOST_TOOLS) |
+
+## R01. 한 계정으로 호스트와 게스트 겸하기
+
+다른 호스트와도 미팅이 필요한 호스트로서, 이미 쓰고 있는 메신저 대화나 하나의 MCP 연결에서 상대의 예약 링크나 @handle을 보내 미팅을 잡고 싶다. 그래서 요청이 내 호스트 계정에 있는 캘린더와 연락처로 진행되고, 호스트 알림과 게스트 알림이 같은 곳으로 오며, 내가 보낸 메시지가 그 내용에 맞는 역할로 전달되었으면 한다.
+
+**코드로 확인하지 못한 것 · 차이**
+
+- 이 섹션의 코드 상태는 `main` `5915bc44`(2026-11-19) 기준입니다. 계정 MCP 연결(#266, `6255a6dd`)이 이 문서의 기준 코드 이후에 들어왔기 때문입니다.
+- 같은 사람의 웹 경로는 G01 W-1의 로그인 상태 분기입니다(Continue as {name}, Continue your request, Back to your workspace; host-as-guest-session). 이 섹션은 대화 하나 또는 연결 하나가 두 역할을 함께 갖는 메신저와 MCP를 다룹니다.
+- 한 대화란 채널마다 어시스턴트 대화가 하나라는 뜻입니다. 링크나 @handle만으로 요청이 시작되고 "전환" 명령은 필요 없습니다. 역할 간 전달은 메시지의 맥락과 가장 최근 알림을 따르고, 열린 대화 둘이 똑같이 맞을 때만 묻습니다.
+- 상대 호스트는 게스트-호스트의 설정이나 캘린더를 볼 수 없습니다. 게스트 역할의 어시스턴트도 상대 호스트의 캘린더나 규칙을 볼 수 없습니다(G01과 같음).
+
+### Message · 연결된 대화 하나
+
+메신저가 연결된 설정 완료 호스트(H01). 상대 호스트는 @dodo(박도현)
+
+| Step | 전제 (Given) | 사용자 동작 (When) | 화면 · 메시지 (Then) | 분기 · 판정 · 코드 상태 | 근거 코드 |
+|---|---|---|---|---|---|
+| M-1 | 설정 완료 호스트, @dodo와의 요청 없음 | "findmeatime.com/dodo" / "다음 주에 @dodo랑 미팅 잡아줘" | AI 기대 동작: 다른 호스트의 링크나 handle로 알아봄 → 계정 주인 명의로 @dodo에게 요청 시작 → "Now talking about your request with 박도현." → @dodo의 미팅 길이·방식과 함께 미팅 목적을 물음(G01 W-5와 같음) | **실패**: 없는 handle, 준비 안 됨, 정지, 요청 일시중지 → "I can't find a host taking requests at that link."(G01 W-1처럼 중립)<br>**분기**: @dodo와 열린 요청이 이미 있음 → 그 요청을 이어가고 그렇다고 말함. 호스트가 다른 미팅을 원할 때만 새 요청<br>**하면 안 됨**: 링크를 자기 설정 변경으로 처리 · 시작하려면 웹 페이지를 열라고 안내<br>**코드 미지원**: 호스트·setup 도구에 요청 생성이 없음. 게스트 요청은 웹 예약 링크에서만 시작됨(G01 W-1) | agent/tools/request.ts:138-204 · agent/tools/setup.ts |
+| ↳ M-1.1 | 벗어난 입력. 아무 때나 | 자기 링크나 @handle을 보냄 | AI 기대 동작: 본인 예약 링크라고 말하고 공유를 제안. 요청은 만들지 않음 | **하면 안 됨**: 자기 자신에게 요청 생성<br>**코드 미지원**: M-1과 같음(MCP 경로는 거절함: P-9) | agent-account-requester-tools.ts (createCommand) |
+| M-2 | M-1로 시작됨 | (자동) | 요청이 계정의 표시 이름과 로그인한 Google 주소로 식별되고 연락처는 확인된 것으로 처리됨. 호스트의 충돌 확인 캘린더가 게스트의 바쁜 시간으로 쓰임. 캘린더·연락처 질문 없음. AI 기대 동작: 어떤 캘린더를 보는지 한 번 말함("I'll check your calendars {names} for busy times.") | **분기**: 호스트의 Google 권한 실패 → Calendar 재연결({origin}/auth/sign-in?consent=calendar)을 요청하고 검색 중단. 비어 있다고 가정하지 않음<br>**하면 안 됨**: 호스트의 일정이나 설정을 @dodo나 그의 어시스턴트에게 보여줌<br>**코드 미지원**: 메신저 시작이 없음(M-1). 웹에서는 **Use your host settings for this request** → Use these settings 후에만 캘린더가 쓰임. `requester_host_profiles.items` 기본값은 없음 | requester-host-profiles.ts · requester_host_profiles.sql · guest-flow-completion D8 |
+| ↳ M-2.1 | 벗어난 입력. M-2 | "이번 건은 회사 캘린더 빼줘" / "개인 캘린더만 봐줘" | AI 기대 동작: 이 요청에 쓰는 캘린더만 바꿈. 호스트 설정은 그대로 | **하면 안 됨**: 호스트 자신의 캘린더 역할을 바꿈<br>**코드 미지원**: 요청별 캘린더 선택은 웹 카드에만 있음 | requester/cards.tsx (HostProfileCard) |
+| M-3 | 게스트 역할로 정보 수집 중 | "투자 상담이고 대면, 목요일 오후" | AI 기대 동작: G01 W-6~W-8의 요청자 흐름을 말로 진행. 후보는 번호 목록, 선택과 동의도 말로(G02 M-1) | **AI 판단**: G01과 같은 판정<br>**하면 안 됨**: 이 요청에 호스트용 도구(승인, 변경 공유) 사용 | instructions/requester.ts |
+| M-4 | @dodo와 게스트 역할로 대화 중, 이은우가 보낸 요청이 승인 대기 | (자동) 호스트 알림 | 호스트 알림이 같은 대화로 오고 역할을 밝힘("New request from 이은우 …") | **성공**: 두 알림이 한 대화로 옴<br>**코드 지원**: 호스트 알림은 호스트 바인딩으로 감 | imessage-outbox.ts |
+| M-5 | M-4 알림이 방금 옴 | "승인해줘" | AI 기대 동작: 이은우 요청에 대한 호스트 결정으로 읽음(가장 최근 알림) → H03 M-2처럼 승인 | **AI 판단**: 맥락이 둘 다 맞음 → 사람 이름으로 구분해 한 번 물음("이은우님이 보낸 요청인가요, 박도현님께 보낸 요청인가요?")<br>**하면 안 됨**: 다른 역할의 요청을 승인하거나 동의<br>**코드와 다름**: 열린 대화가 여럿이면 보낸 사람이 하나를 고를 때까지 자유 입력을 보류함("Which conversation is this message for? …", `request <ref>`, "I'm the host"). 대화로 고르는 기능은 후속 항목(guest-flow-completion design 3) | imessage-receipts.ts:365-400 (namedConversation) · channel-texts.ts (picker) |
+| M-6 | @dodo에게 보낸 요청이 승인 대기 | (자동) @dodo가 승인, 변경 제안, 또는 거절 | 게스트 알림이 같은 대화로 오고 상대 호스트를 밝힘("박도현 approved: Thu 11/26 15:00 …") | **성공**: G03의 게스트 알림과 같은 내용<br>**코드와 다름**: 게스트 알림은 예약 페이지의 **Get updates in iMessage**와 연결 코드를 거친 뒤에만 메신저로 옴(guest-flow-completion design 1). 호스트 대화가 자동으로 연결되지 않음 | requester-imessage-bindings.ts · imessage-outbox.ts |
+| M-7 | @dodo에게 보낸 요청에 대해 대화 중 | "그리고 내 미팅은 45분으로 해줘" | AI 기대 동작: 호스트 설정(H02 M-3)으로 처리 → 미리보기 → 저장. @dodo에게 보낸 요청은 그대로 | **하면 안 됨**: @dodo 요청의 미팅 길이로 적용<br>**AI 판단**: "45분으로 해줘"("내 미팅" 없음) → 이 요청의 길이<br>**코드와 다름**: 전환하려면 선택이나 switch_conversation이 필요. 게스트 대화에는 setup 도구가 없음 | imessage-receipts.ts (guestRoute) · agent/tools/setup.ts |
+| M-8 | 받은 요청과 보낸 요청이 열려 있음 | "이번 주 내 미팅 뭐 있어?" | AI 기대 동작: 받은 요청과 보낸 요청을 나눠서 사람·목적·상태별로 나열("받은 요청: … / 보낸 요청: …") | **하면 안 됨**: 둘을 섞거나 보낸 요청을 빠뜨림<br>**코드 미지원**: list_host_requests는 받은 요청만 반환 | agent/tools/request.ts (list_host_requests) |
+| ↳ M-8.1 | 벗어난 입력. 게스트 역할 | "박도현 목요일 일정 어때?" / "금요일은 왜 안 돼?" | AI 기대 동작: 그의 캘린더나 이유는 볼 수 없다고 말하고 가능한 시간을 제안 | **하면 안 됨**: 상대 호스트의 일정이나 규칙을 추측하거나 공개<br>**코드 지원**: 요청자 도구는 호스트 캘린더를 읽지 않음(G01) | agent/tools/request.ts (requester read_request) |
+| ↳ M-8.2 | 벗어난 입력. 게스트 역할 | @dodo의 어시스턴트가 묻거나 게스트-호스트가 "내 평소 시간대 알려줘"라고 함 | AI 기대 동작: 게스트-호스트가 이 요청에 대해 말한 것만 공유 | **하면 안 됨**: 게스트-호스트의 호스트 설정, 캘린더, 다른 요청을 @dodo에게 보냄<br>**코드 지원**: host-profile 데이터는 요청의 호스트에게 가지 않음(requester-host-profiles spec) | requester-host-profiles.ts:9-16 |
+
+### MCP · 연결 하나
+
+호스트의 에이전트가 이미 {origin}/mcp에 연결됨(H01 P-2)
+
+| Step | 전제 (Given) | 사용자 동작 (When) | 화면 · 메시지 (Then) | 분기 · 판정 · 코드 상태 | 근거 코드 |
+|---|---|---|---|---|---|
+| P-1 | 호스트 권한만으로 연결됨 | "@dodo랑 미팅 잡아줘" / findmeatime.com/dodo 붙여넣기 | AI 기대 동작: get_host(dodo) → create_request가 권한 부족으로 거절됨 → 같은 서버에서 추가 권한 승인을 요청 → 동의 페이지에 요청 권한 표시 → Allow | **성공**: 같은 서버, 두 번째 MCP 서버 없음<br>**실패**: 거부 → 요청 없음, 호스트 도구는 그대로 동작<br>**코드 지원**: 호스트 전용 토큰이 요청자 도구를 부르면 같은 리소스에서 추가 동의가 필요함(account-requester-mcp spec)<br>**확인 필요**: 공용 배포에서 실제 클라이언트(Claude, ChatGPT, Codex)로 테스트하지 않음 | agent-account-requester-tools.ts · agent-mcp.ts |
+| P-2 | 요청 권한 승인됨 | (계속) | AI 기대 동작: 계정의 이름과 확인된 Google 이메일로 create_request(hostHandle, 목적, 세부사항) → "The private link was emailed" → get_sent_request | **하면 안 됨**: 사람에게 이름이나 이메일을 물음 · 비공개 링크를 반환<br>**코드와 다름**: create_request는 이름과 이메일을 입력으로 요구함("using only their stated identity"). 에이전트가 물어봐야 함 | agent-requests.ts:37-38 (createRequestInput) · agent-account-requester-tools.ts |
+| P-3 | 요청 생성됨 | find_times | AI 기대 동작: 호스트의 충돌 확인 캘린더가 게스트의 바쁜 시간으로 쓰임(M-2와 같음) | **하면 안 됨**: 비어 있다고 가정<br>**코드와 다름**: 요청이 host-profile 항목 없이 계정에 연결되어 호스트 캘린더가 쓰이지 않음. 이를 정하는 것은 웹 카드의 request.host_profile.decide | agent-account-requester-tools.ts (createCommand) · requester_host_profiles.sql (items 기본값) |
+| P-4 | 후보 찾음 | "목요일 3시" → "응 그걸로" | AI 기대 동작: requestId로 choose_time → 사람이 받아들인 정확한 제안에 agree_to_proposal. @dodo의 승인이 아직 필요하다고 말함 | **하면 안 됨**: @dodo 승인 전에 확정됐다고 말함<br>**코드 지원**: 보낸 요청 도구가 requestId로 요청자 도구를 재사용함 | agent-account-requester-tools.ts (sentTools) |
+| P-5 | 받은 요청과 보낸 요청이 모두 열려 있음 | "나한테 뭐 남아 있어?" | AI 기대 동작: list_requests(받은 요청)와 list_sent_requests를 나눠 보고하고, 결정이 필요한 것을 짚음 | **하면 안 됨**: 둘을 섞음<br>**코드 지원**: 연결 하나에 두 도구 모두 있음(H04 P-1.1은 이 변경 이전 기준) | agent-host-tools.ts (list_requests) · agent-account-requester-tools.ts |
+| P-6 | P-5 | "목요일 거 승인해줘" | AI 기대 동작: 받은 요청만 approve_proposal로 승인. 보낸 제안에 동의하는 것은 agree_to_proposal. 둘 다 목요일이면 물음 | **하면 안 됨**: 잘못된 역할로 승인하거나 동의<br>**AI 판단**: 역할에 따른 도구 선택 | agent-host-tools.ts · agent-account-requester-tools.ts |
+| P-7 | 보낸 요청이 승인 대기 | "박도현이 승인했어?" | AI 기대 동작: check_sent_booking / get_sent_request → 기록된 상태 보고 | **분기**: MCP에는 푸시가 없음. 소식은 조회와 이메일로 옴<br>**코드 지원**: 지원 | agent-account-requester-tools.ts (check_sent_booking) |
+| P-8 | 보낸 요청이 열려 있음 | "내 설정 45분으로 바꿔줘" | AI 기대 동작: 호스트 설정 도구(H02 P-2). 보낸 요청은 그대로 | **하면 안 됨**: 보낸 요청의 길이를 바꿈<br>**AI 판단**: M-7과 같음 | agent-host-tools.ts (update_setup_field) |
+| ↳ P-9 | 벗어난 입력. 아무 때나 | 자기 handle | AI 기대 동작: 본인 예약 링크라고 말함 | **실패**: create_request가 거절됨(forbidden)<br>**확인 필요**: 거절 사유가 나오지 않음. 에이전트가 설명하는지 | agent-account-requester-tools.ts (createCommand) |
