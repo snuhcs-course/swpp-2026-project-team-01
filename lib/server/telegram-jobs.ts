@@ -1,7 +1,7 @@
 import { database, type Database, type Transaction } from "./database";
 import { activeBindingOfHost, bindingRecipient } from "./imessage-links";
 import { TELEGRAM_BUTTONS_JOB } from "./imessage-notices";
-import { recordOutbound, signalText } from "./imessage-outbox";
+import { recordOutbound, signalText, TURN_REPLY_WAIT_MINUTES } from "./imessage-outbox";
 import type { JobHandler } from "./jobs";
 import { publishJob } from "./jobs";
 import { TELEGRAM_EDIT_HOURS, type TelegramButtons } from "./telegram";
@@ -17,13 +17,11 @@ import { type TokenKey, tokenKeyFromEnvironment } from "./token-encryption";
 // within Telegram's 48-hour edit limit and only while the binding it went to is
 // active. The message text stays as it was.
 //
-// telegram_typing (design 8) repeats the typing indicator while a forwarded
-// message's turn runs: every 4 seconds while its reply still waits for the
-// turn, at most 12 indicators in all, each a best-effort signal row.
+// telegram_typing (design 8) refreshes typing every four seconds while a
+// forwarded message's reply is pending, within the reply wait limit.
 
 export const TELEGRAM_TYPING_JOB = "telegram_typing";
 export const TYPING_INTERVAL_SECONDS = 4;
-export const TYPING_MAX = 12;
 
 export type TelegramJobDependencies = {
   readonly db: Database;
@@ -126,19 +124,16 @@ export function createTelegramTypingHandler(load: () => TelegramJobDependencies 
   return async (tx, job) => {
     const receiptId = typeof job.payload.receiptId === "string" ? job.payload.receiptId : null;
     const turnOutboxId = typeof job.payload.turnOutboxId === "string" ? job.payload.turnOutboxId : null;
-    const count = typeof job.payload.count === "number" ? job.payload.count : TYPING_MAX + 1;
-    if (!receiptId || !turnOutboxId || count > TYPING_MAX) return { typing: false };
+    const count = job.payload.count;
+    if (!receiptId || !turnOutboxId || typeof count !== "number") return { typing: false };
 
-    // The reply is ready once its turn ended (or its session failed), even
-    // before the send job freezes it.
-    const [turn] = await tx<{ state: string; turn_over: boolean; binding_id: string | null; host_account_id: string | null }[]>`
-      select o.state, coalesce(i.state = 'completed' or s.state = 'failed', true) as turn_over, o.binding_id, o.host_account_id
-      from app.imessage_outbox o
-      left join app.conversation_inputs i on i.id = o.input_id
-      left join app.agent_sessions s on s.session_id = i.session_id
-      where o.id = ${turnOutboxId}
+    const [turn] = await tx<{ input_id: string | null; binding_id: string | null; host_account_id: string | null }[]>`
+      select input_id, binding_id, host_account_id
+      from app.imessage_outbox
+      where id = ${turnOutboxId} and completed_at is null
+        and created_at > now() - make_interval(mins => ${TURN_REPLY_WAIT_MINUTES})
     `;
-    if (turn?.state !== "waiting" || turn.turn_over || !turn.binding_id || !turn.host_account_id) return { typing: false };
+    if (!turn?.input_id || !turn.binding_id || !turn.host_account_id) return { typing: false };
 
     const deps = load();
     const binding = await activeBindingOfHost(tx, turn.host_account_id);
@@ -149,21 +144,20 @@ export function createTelegramTypingHandler(load: () => TelegramJobDependencies 
       channel: "telegram",
       dedupeKey: `receipt:${receiptId}:typing:${count}`,
       hostAccountId: turn.host_account_id,
+      inputId: turn.input_id,
       kind: "signal",
       recipient: bindingRecipient(deps.tokenKeys, binding),
       recipientHash: binding.sender_hash,
       text: signalText({ messageId: null, reaction: null, typing: true }),
       tokenKey: deps.tokenKey,
     });
-    if (count < TYPING_MAX) {
-      await publishJob(tx, {
-        dedupeKey: `receipt:${receiptId}:typing:${count + 1}`,
-        kind: TELEGRAM_TYPING_JOB,
-        maxAttempts: 1,
-        payload: { count: count + 1, receiptId, turnOutboxId },
-        runAfter: new Date(Date.now() + TYPING_INTERVAL_SECONDS * 1000),
-      });
-    }
+    await publishJob(tx, {
+      dedupeKey: `receipt:${receiptId}:typing:${count + 1}`,
+      kind: TELEGRAM_TYPING_JOB,
+      maxAttempts: 1,
+      payload: { count: count + 1, receiptId, turnOutboxId },
+      runAfter: new Date(Date.now() + TYPING_INTERVAL_SECONDS * 1000),
+    });
     return { typing: true };
   };
 }

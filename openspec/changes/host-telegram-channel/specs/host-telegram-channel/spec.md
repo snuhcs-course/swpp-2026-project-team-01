@@ -75,11 +75,16 @@ A Telegram summary that asks the host to decide SHALL carry buttons whose callba
 - **THEN** nothing is decided and they get the unlinked-sender answer
 
 ### Requirement: Telegram conversation behavior
-The bot SHALL accept every exact command with or without a leading `/` and a trailing bot mention, and SHALL register `requests`, `review`, `help` and `stop` in its command menu. It SHALL show a typing indicator while the assistant composes a reply. It SHALL send notices that need no decision without notification sound and every summary that asks for a decision with it. It SHALL send plain text with no formatting mode. Commands, references, approval in the host's own words, forwarding with a `[Telegram]` transcript prefix, summaries, setup over chat, admission, ordering, retention and production-only messaging SHALL behave as on iMessage. No messaging window or template SHALL apply.
+The bot SHALL accept every exact command with or without a leading `/` and a trailing bot mention, and SHALL register `requests`, `review`, `help` and `stop` in its command menu. It SHALL refresh the typing indicator while a linked host awaits a pending reply, including after generation finishes. Refreshes stop when delivery reaches a final state or the reply wait limit passes. It SHALL send notices that need no decision without notification sound and every summary that asks for a decision with it. It SHALL send plain text with no formatting mode. Commands, references, approval in the host's own words, forwarding with a `[Telegram]` transcript prefix, summaries, setup over chat, admission, ordering, retention and production-only messaging SHALL behave as on iMessage. No messaging window or template SHALL apply.
 
 #### Scenario: Command menu
 - **WHEN** the host taps `/requests` in the bot menu
 - **THEN** they get the same open-request list as typing `requests`
+
+#### Scenario: A generated reply awaits delivery
+- **WHEN** a host's reply has finished generating and is still pending delivery
+- **THEN** the bot continues refreshing the typing indicator within the reply wait limit
+- **AND** it stops refreshing once Telegram accepts the reply or delivery otherwise reaches a final state
 
 #### Scenario: Requester text with markup
 - **WHEN** a requester's message containing HTML or Markdown is summarized to the host

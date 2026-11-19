@@ -151,7 +151,7 @@ export type RecordOutbound = {
   readonly requesterBindingId?: string | null;
   readonly linkId?: string | null;
   readonly requestId?: string | null;
-  // A turn reply waits for its input. A preview that replaces it names the same input.
+  // A turn reply, its Telegram typing signals and a preview that replaces it name the same input.
   readonly inputId?: string;
   // The frozen text; none for a turn reply or a contact card.
   readonly text?: string;
@@ -483,6 +483,19 @@ export function createImessageSendHandler(load: () => ImessageSendDependencies =
       }
 
       if (row.state !== "waiting" && row.state !== "queued") return { state: row.state };
+
+      // A Telegram typing signal can be queued before its reply and claimed after it.
+      if (row.channel === "telegram" && row.kind === "signal" && row.input_id) {
+        const [reply] = await claimTx<{ id: string }[]>`
+          select id from app.imessage_outbox
+          where kind = 'turn' and dedupe_key = ${`input:${row.input_id}`}
+            and completed_at is null and created_at > now() - make_interval(mins => ${TURN_REPLY_WAIT_MINUTES})
+        `;
+        if (!reply) {
+          await finish(claimTx, row.id, row.state, "suppressed", { category: "reply_finished" });
+          return { state: "suppressed" as const };
+        }
+      }
 
       let inWindow = row.fresh;
 
