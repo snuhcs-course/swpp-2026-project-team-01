@@ -1,6 +1,10 @@
+import { randomUUID } from "node:crypto";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { asRequester } from "./support/scheduling";
 import { CALLBACK_TEXTS, requestRef, reviewRef } from "../../lib/server/imessage-commands";
+import { runCommand } from "../../lib/server/commands";
+import { chooseTutorialCommand } from "../../lib/server/host-tutorial";
+import { listHostRequests } from "../../lib/server/host-requests";
 import { changeAgreementCommand } from "../../lib/server/request-proposals";
 import { agreedRequest } from "./support/booking";
 import { testDatabase } from "./support/database";
@@ -8,7 +12,8 @@ import { type FakeGoogle, startFakeGoogle } from "./support/fake-google";
 import { type FakePhoton, startFakePhoton } from "./support/fake-photon";
 import { type FakeTelegram, startFakeTelegram } from "./support/fake-telegram";
 import { imessageHarness } from "./support/imessage";
-import { newTelegramUpdateId, newTelegramUser, telegramCallback } from "./support/telegram";
+import { hostCommandDeps } from "./support/setup-host";
+import { newTelegramUpdateId, newTelegramUser, telegramCallback, telegramMessage } from "./support/telegram";
 import { sentTexts, telegramHarness } from "./support/telegram-host";
 
 // Decision buttons on Telegram (host-telegram-channel task 4.1, design 7, D8 and
@@ -69,6 +74,50 @@ async function stateOf(requestId: string) {
 const answers = (calls: { method: string; params: Record<string, unknown> }[]) => calls.filter((call) => call.method === "answerCallbackQuery").map((call) => call.params);
 
 describe("decision buttons", () => {
+  it.each(["a", "d", "stop"])("keeps the sample selected and finishes it for %s without touching real requests", async (action) => {
+    let bound: Awaited<ReturnType<typeof tg.bind>> | undefined;
+    const real = await agreedRequest(db, google, {
+      beforeAgree: async ({ hostAccountId }) => { bound = await tg.bind(hostAccountId); },
+    });
+    const { hostAccountId } = real;
+    const { bindingId, userId } = bound!;
+    await db`update app.host_settings set tutorial_offered = true where host_account_id = ${hostAccountId}`;
+    const started = await runCommand(hostCommandDeps(db, hostAccountId), chooseTutorialCommand("en", bindingId), {
+      input: { start: true },
+      resourceId: hostAccountId,
+      retryKey: randomUUID(),
+    });
+    if (!started.ok || !started.result.requestId) throw new Error("sample did not start");
+    const { requestId } = started.result;
+    await tg.runNotices(requestId);
+    const [message] = (await tg.flush(userId)).filter((call) => call.method === "sendMessage");
+    expect(message?.params.text).toContain("Sample request");
+    expect(message?.params.text).toContain("Ask me for more details");
+    expect(message?.params.reply_markup).toMatchObject({
+      inline_keyboard: [
+        [{ text: "Approve" }, { text: "Decline" }],
+        [{ text: "Show details" }],
+      ],
+    });
+    expect(await im.bindingOf(hostAccountId)).toMatchObject({ selected_request_id: requestId });
+
+    await tg.runNotices(real.requestId);
+    await tg.flush(userId);
+    expect(await im.bindingOf(hostAccountId)).toMatchObject({ selected_request_id: requestId });
+
+    const decision = action === "stop"
+      ? telegramMessage({ text: "stop", userId })
+      : telegramCallback({ callbackId: "cb-practice", data: `${action}:${reviewRef(requestId, 1)}`, userId });
+    expect((await tg.deliver(decision)).outcome).toBe("command");
+    expect(sentTexts(await tg.flush(userId))).toEqual([expect.stringContaining("Tutorial complete.")]);
+    expect(await tg.runRetirement(requestId)).toBe(1);
+    expect((await listHostRequests(db, hostAccountId)).map((item) => item.requestId)).toEqual([real.requestId]);
+    expect(await im.bindingOf(hostAccountId)).toMatchObject({ state: "active" });
+    expect(await approvalsOf(real.requestId)).toBe(0);
+    expect(await approvalsOf(requestId)).toBe(0);
+    expect(await db`select id from app.bookings where request_id = ${requestId}`).toEqual([]);
+  });
+
   it("puts Approve, Decline and Show details under the summary awaiting approval", async () => {
     const { calls, notice, ref } = await awaitingOnTelegram();
     const [sent] = calls.filter((call) => call.method === "sendMessage");

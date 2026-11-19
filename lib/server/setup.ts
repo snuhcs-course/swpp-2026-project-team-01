@@ -106,6 +106,7 @@ export type SetupLinks = { readonly booking: string; readonly skill: string };
 
 export type SetupStateView = {
   readonly nextAction: SetupNextAction;
+  readonly tutorialOffered: boolean;
   readonly account: { readonly googleEmail: string | null };
   readonly calendar: {
     readonly connected: boolean;
@@ -440,6 +441,7 @@ type SetupRecords = {
   readonly draftFields: DraftFields;
   readonly analysisSkipped: boolean;
   readonly confirmed: ConfirmedSettings | null;
+  readonly tutorialOffered: boolean;
   readonly confirmedAt: string | null;
 };
 
@@ -452,6 +454,7 @@ async function readSetupRecords(q: Queryable, hostAccountId: string): Promise<Se
     email: string | null;
     calendar_usable: boolean;
     confirmed_at: Date | null;
+    tutorial_offered: boolean | null;
     invalidated: boolean;
     settings: ConfirmedSettings | null;
     status: string;
@@ -459,7 +462,7 @@ async function readSetupRecords(q: Queryable, hostAccountId: string): Promise<Se
     select a.status, a.display_name, i.email,
            ${calendarUsable(q)} as calendar_usable, coalesce(g.invalidated_at is not null, false) as invalidated,
            d.revision as draft_revision, d.fields as draft_fields, d.analysis_skipped,
-           s.settings, s.confirmed_at
+           s.settings, s.confirmed_at, s.tutorial_offered
     from app.host_accounts a
     left join app.google_identities i on i.host_account_id = a.id
     left join app.provider_grants g on g.host_account_id = a.id
@@ -474,6 +477,7 @@ async function readSetupRecords(q: Queryable, hostAccountId: string): Promise<Se
     analysisSkipped: row.analysis_skipped ?? false,
     calendarConnected: row.calendar_usable,
     confirmed: row.settings,
+    tutorialOffered: row.tutorial_offered ?? false,
     confirmedAt: row.confirmed_at ? row.confirmed_at.toISOString() : null,
     draftFields: row.draft_fields ?? {},
     draftRevision: row.draft_revision ?? 0,
@@ -647,6 +651,7 @@ export async function readSetupState(
     links: readiness.ready && readiness.handle ? setupLinks(deps.appOrigin, readiness.handle) : null,
     missingFields: proposal.missingFields,
     nextAction,
+    tutorialOffered: readiness.ready && records.tutorialOffered,
     pendingChanges:
       readiness.ready && records.confirmed !== null && differsFromConfirmed(proposal.proposed, roles, records.confirmed),
     placeHint: proposal.placeHint,

@@ -1,7 +1,9 @@
 "use client";
 
 import { CheckIcon, CircleCheckIcon, CopyIcon, ShareIcon } from "lucide-react";
-import { useEffect, useState } from "react";
+import { useRouter } from "next/navigation";
+import { useEffect, useRef, useState } from "react";
+import { runSetupCommand } from "@/lib/setup/client";
 import { Button } from "@/components/ui/button";
 import { cardHeadingId } from "./card";
 import { useSetup } from "./setup-context";
@@ -15,7 +17,11 @@ import { useSetup } from "./setup-context";
 export const LINKS_CARD_ID = "setup-links";
 
 export function ShareLinksCard() {
-  const { state } = useSetup();
+  const { state, reload } = useSetup();
+  const router = useRouter();
+  const [tutorialBusy, setTutorialBusy] = useState(false);
+  const [tutorialError, setTutorialError] = useState("");
+  const retryKeys = useRef(new Map<boolean, string>());
   const links = state.links;
   const [status, setStatus] = useState<"idle" | "copied" | "failed">("idle");
   const [canShare, setCanShare] = useState(false);
@@ -41,6 +47,28 @@ export function ShareLinksCard() {
       setStatus("failed");
     }
   };
+
+  async function chooseTutorial(start: boolean) {
+    const retryKey = retryKeys.current.get(start) ?? crypto.randomUUID();
+    retryKeys.current.set(start, retryKey);
+    setTutorialBusy(true);
+    setTutorialError("");
+    const outcome = await runSetupCommand<{ requestId: string | null }>({
+      expectedRevision: null,
+      input: { start },
+      operation: "setup.request_tutorial",
+      retryKey,
+    });
+    if (outcome.kind !== "uncertain") retryKeys.current.delete(start);
+    if (outcome.kind !== "ok") {
+      setTutorialError(outcome.message);
+    } else if (outcome.result.requestId) {
+      router.push(`/app?request=${encodeURIComponent(outcome.result.requestId)}`);
+    } else {
+      await reload();
+    }
+    setTutorialBusy(false);
+  }
 
   return (
     <section
@@ -71,6 +99,14 @@ export function ShareLinksCard() {
           {status === "copied" ? "Copied" : status === "failed" ? "Couldn't copy; select the link instead." : ""}
         </span>
       </div>
+      {state.tutorialOffered ? (
+        <div className="mt-2 flex basis-full flex-wrap items-center gap-2 border-t pt-2">
+          <p className="mr-auto">Would you like to try a sample request?</p>
+          <Button disabled={tutorialBusy} onClick={() => void chooseTutorial(true)} size="sm" type="button">Try it</Button>
+          <Button disabled={tutorialBusy} onClick={() => void chooseTutorial(false)} size="sm" type="button" variant="ghost">Skip</Button>
+          {tutorialError ? <p className="basis-full text-destructive" role="alert">{tutorialError}</p> : null}
+        </div>
+      ) : null}
     </section>
   );
 }

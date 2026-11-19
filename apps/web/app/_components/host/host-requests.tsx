@@ -165,7 +165,7 @@ function RequestListCard({ item, onChanged, onNotice, onToggle, open }: { readon
       <span className="mb-3 flex w-full flex-wrap items-center justify-between gap-x-3 gap-y-2">
         <span className={`inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs font-semibold ${received ? "border-primary bg-primary text-primary-foreground" : "border-primary bg-card text-primary"}`}>
           {received ? <ArrowLeftIcon aria-hidden className="size-3.5" /> : <ArrowRightIcon aria-hidden className="size-3.5" />}
-          {received ? "Received request" : "Sent request"}
+          {item.sample ? "Sample request" : received ? "Received request" : "Sent request"}
         </span>
         <span className={`text-xs font-semibold ${item.needsDecision ? "text-[#c62828]" : item.state === "booked" ? "text-success" : "text-muted-foreground"}`}>{status}</span>
       </span>
@@ -237,6 +237,9 @@ function RequestPanel({ onChanged, onUnavailable, requestId }: { readonly onChan
 }
 
 function OpenCard({ context, editing, setEditing }: { readonly context: HostCardContext; readonly editing: boolean; readonly setEditing: (value: boolean) => void }) {
+  if (context.view.sample && context.view.state !== "awaiting_host_approval") {
+    return <GuestCard id="tutorial-complete" title="Tutorial complete" description="No calendar event was created and no guest was notified." />;
+  }
   const step = nextHostStep(context.view, editing);
   const requestChanges = () => setEditing(true);
   const card = stepCard(step, context, requestChanges, () => setEditing(false));

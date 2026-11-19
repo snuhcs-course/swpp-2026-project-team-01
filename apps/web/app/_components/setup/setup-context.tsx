@@ -57,6 +57,7 @@ export type SetupContextValue = {
   readonly editingCalendars: boolean;
   readonly run: (anchor: string, steps: readonly SetupStep[]) => Promise<boolean>;
   readonly retry: () => Promise<boolean>;
+  readonly reload: () => Promise<void>;
   readonly dismissNotice: () => void;
   readonly setEditingCalendars: (editing: boolean) => void;
 };
@@ -281,6 +282,7 @@ export function useSetupController() {
             editing,
             editingCalendars,
             notice,
+            reload,
             retry,
             run: execute,
             setEarly,
@@ -291,7 +293,7 @@ export function useSetupController() {
             state,
           }
         : null,
-    [busy, early, editing, editingCalendars, execute, notice, retry, setEditingCalendars, skipped, state],
+    [busy, early, editing, editingCalendars, execute, notice, reload, retry, setEditingCalendars, skipped, state],
   );
 
   return { loadError, reload, state, value };

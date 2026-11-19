@@ -104,16 +104,19 @@ export function ProposalReviewCard({ context, onRequestChanges }: { readonly con
     ["Length", `${proposal.durationMinutes} minutes`],
     ["Mode", MODE_LABELS[proposal.mode]],
     ...(proposal.mode === "in_person" ? ([["Place", proposal.location ?? "Not set"]] as const) : []),
-    ...(proposal.mode === "online" ? ([["Meeting link", linkText(proposal.linkPlan) ?? "Not set"]] as const) : []),
-    ["With", `${view.requester.name} <${view.requester.email}>${view.requester.emailConfirmed ? "" : " (address not confirmed)"}`],
+    ...(proposal.mode === "online" ? ([["Meeting link", view.sample ? "Example Google Meet" : linkText(proposal.linkPlan) ?? "Not set"]] as const) : []),
+    ["With", view.requester.email
+      ? `${view.requester.name} <${view.requester.email}>${view.requester.emailConfirmed ? "" : " (address not confirmed)"}`
+      : view.requester.name],
     ...(view.details.purpose ? ([["Purpose", view.details.purpose]] as const) : []),
   ];
 
   return (
     <section aria-labelledby="proposal-review-heading" className="flex min-w-0 flex-col gap-5 pt-5" id="proposal-review">
       <div>
+        {view.sample ? <p className="mb-1 text-xs font-semibold uppercase tracking-wide text-primary">Sample request</p> : null}
         <h3 className="text-[21px] leading-[1.3] font-semibold tracking-tight" id="proposal-review-heading">{closed ? view.state === "withdrawn" ? "Request withdrawn" : view.state === "cancelled" ? "Meeting cancelled" : view.state === "expired" ? "Expired" : "Declined" : awaiting ? "Approve this meeting?" : "Waiting for the requester"}</h3>
-        <p className="mt-1 text-sm text-muted-foreground">{closed ? "This request is closed." : awaiting ? `${view.requester.name} has agreed to the proposed details. Once you approve, we’ll check your calendar and confirm the booking.` : "We’re waiting for the requester to confirm the proposed details."}</p>
+        <p className="mt-1 text-sm text-muted-foreground">{view.sample ? "Try an action to complete this sample. No calendar event will be created and no guest will be notified." : closed ? "This request is closed." : awaiting ? `${view.requester.name} has agreed to the proposed details. Once you approve, we’ll check your calendar and confirm the booking.` : "We’re waiting for the requester to confirm the proposed details."}</p>
       </div>
       <div className="grid grid-cols-[90px_1fr] items-center gap-3 rounded-2xl bg-secondary px-4 py-4 sm:grid-cols-[110px_1fr]">
         <div className="border-r border-border text-primary"><span className="block font-display text-[26px] leading-none">{day}</span><span className="text-xs font-semibold uppercase">{weekday}</span></div>
@@ -136,15 +139,16 @@ export function ProposalReviewCard({ context, onRequestChanges }: { readonly con
         </div>
       ) : (
         <div className="border-t border-border pt-4"><GuestCardActions>
-          <Button disabled={busy || !awaiting} onClick={() => void act("request.approve", { version: proposal.version })} type="button">
+          <Button disabled={busy || !awaiting} onClick={() => void act(view.sample ? "tutorial.finish" : "request.approve", { version: proposal.version })} type="button">
             Approve this proposal
           </Button>
-          <Button disabled={busy} onClick={onRequestChanges} type="button" variant="outline">
+          <Button disabled={busy} onClick={view.sample ? () => void act("tutorial.finish", {}) : onRequestChanges} type="button" variant="outline">
             Request changes
           </Button>
-          <Button disabled={busy} onClick={() => setConfirmDecline(true)} type="button" variant="ghost">
+          <Button disabled={busy} onClick={() => view.sample ? void act("tutorial.finish", {}) : setConfirmDecline(true)} type="button" variant="ghost">
             Decline
           </Button>
+          {view.sample ? <Button disabled={busy} onClick={() => void act("tutorial.finish", {})} type="button" variant="ghost">End tutorial</Button> : null}
         </GuestCardActions></div>
       )}
       <StatusLine message={error} />

@@ -4,6 +4,7 @@ import { channelOfTurn, linkedMessagingTurn } from "./channel-selection";
 import { CommandError, runCommand } from "./commands";
 import { CalendarAccessError, openHostCalendar } from "./google-calendar";
 import { hostRequestsForModel, QUOTED_NOTE, SELECT_NOTE } from "./host-review-tools";
+import { chooseTutorialCommand, TUTORIAL_TEXT, tutorialChoiceInput } from "./host-tutorial";
 import { listHostRequests } from "./host-requests";
 import { settingsRef } from "./request-ref";
 import { computeSetupProposal, differsFromConfirmed, readSetupState, missingFields, setupDependenciesFromEnvironment, withStatedAnswers, type SetupDependencies } from "./setup";
@@ -109,7 +110,13 @@ export async function confirmSettingsForTool(deps: SetupDependencies, call: Setu
   if (outcome.ok) {
     // Older Confirm settings buttons on Telegram stop working, as after `confirm <ref>`.
     await deps.db.begin((tx) => enqueueSettingsButtonRetirement(tx, actor.id, retryKey));
-    return { links: outcome.result.links, message: "Saved. Repeat only these links to the host.", saved: true as const };
+    const language = await hostConversationLanguage(deps.db, actor.id);
+    return {
+      links: outcome.result.links,
+      message: "Saved. Share the booking link.",
+      saved: true as const,
+      tutorialOffer: outcome.result.tutorialOffered ? TUTORIAL_TEXT[language].offer : null,
+    };
   }
   if (outcome.error.reason === "destination_not_writable") {
     await recordDestinationAccess(deps.db, actor.id, live);
@@ -118,6 +125,31 @@ export async function confirmSettingsForTool(deps: SetupDependencies, call: Setu
   return {
     problem: outcome.error.category === "stale_revision" ? "The settings changed meanwhile; nothing was saved. Read setup again." : "The settings could not be saved here; the host can save them in the browser.",
     saved: false as const,
+  };
+}
+
+export async function chooseTutorialForTool(deps: SetupDependencies, call: SetupToolCall, input: z.infer<typeof tutorialChoiceInput>) {
+  const actor = await authorizeSetupTool(deps.db, call.auth, call.sessionId);
+  const channel = await channelOfTurn(deps.db, call.sessionId, actor.id);
+  const binding = channel ? await activeBindingOfHost(deps.db, actor.id) : null;
+  if (!binding || binding.channel !== channel) {
+    return { started: false, message: "On the web, use the tutorial buttons beside the booking link." };
+  }
+  const language = await hostConversationLanguage(deps.db, actor.id);
+  const outcome = await runCommand({ authenticate: async () => actor, db: deps.db }, chooseTutorialCommand(language, binding.id), {
+    input,
+    resourceId: actor.id,
+    retryKey: `tool:${call.callId}`,
+  });
+  if (!outcome.ok) return { started: false, message: "The tutorial couldn't be updated. Try again shortly." };
+  if (!input.start) return { started: false, message: "The host skipped the tutorial." };
+  return {
+    started: outcome.result.requestId !== null,
+    message: outcome.result.sampleNotice
+      ? "The sample request is sent separately in this conversation with instructions. Briefly acknowledge the host without repeating the sample or its instructions."
+      : outcome.result.requestId
+        ? "The sample request is already available in your Requests inbox."
+        : "The one-time tutorial is no longer available.",
   };
 }
 

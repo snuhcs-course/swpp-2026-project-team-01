@@ -3,6 +3,7 @@ import type { StoredChannel } from "../contracts/messaging-channel";
 import { agentUrlFromEnvironment, type ConversationRuntime, eveRuntime } from "./conversations";
 import { database, type Database, type Transaction } from "./database";
 import { turnReplyText } from "./email-replies";
+import { SAMPLE_NOTICE_PREFIX } from "./imessage-notices";
 import { internalSigningKey, signInternalBearer } from "./internal-bearer";
 import { type JobHandler, publishJob } from "./jobs";
 import { assertMessagingAdmitted } from "./messaging";
@@ -509,6 +510,17 @@ export function createImessageSendHandler(load: () => ImessageSendDependencies =
           return { state: "suppressed" as const };
         }
         if (binding) inWindow = binding.in_window;
+      }
+
+      if (row.request_id && row.kind === "notice" && row.dedupe_key.startsWith(SAMPLE_NOTICE_PREFIX)) {
+        const [sample] = await claimTx`
+          select 1 from app.requests
+          where id = ${row.request_id} and is_sample and closed_at is null and expires_at > now()
+        `;
+        if (!sample) {
+          await finish(claimTx, row.id, row.state, "suppressed", { category: "sample_finished" });
+          return { state: "suppressed" as const };
+        }
       }
 
       // Free-form WhatsApp text outside the window is never sent (D8).

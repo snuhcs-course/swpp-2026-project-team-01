@@ -8,16 +8,16 @@
       "agent_ms": 2122100,
       "models": {
         "gpt-6-sol": {
-          "input": 314941,
-          "cache_read": 21573888,
+          "input": 344235,
+          "cache_read": 23487360,
           "cache_write_5m": 0,
           "cache_write_1h": 0,
-          "output": 101142,
-          "reasoning": 42254
+          "output": 107465,
+          "reasoning": 43965
         }
       },
       "first": "2026-11-19T06:01:46.239Z",
-      "last": "2026-11-19T06:56:37.880Z"
+      "last": "2026-11-19T07:02:19.617Z"
     }
   }
 }
