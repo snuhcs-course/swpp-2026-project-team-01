@@ -42,7 +42,7 @@ export function HostWorkspace({ dashboardAvailable = false }: { readonly dashboa
   const request = params.get("request");
   const inbox = params.get("view") === "requests" || request !== null;
   const openRequests = useCallback(() => router.push("/app?view=requests"), [router]);
-  const openDashboard = useCallback(() => router.push("/app"), [router]);
+  const openDashboard = useCallback(() => router.push("/app?view=dashboard"), [router]);
 
   if (inbox) {
     return <HostRequests onOpenDashboard={dashboardAvailable ? openDashboard : undefined} request={request} />;
@@ -85,7 +85,7 @@ function SetupWorkspace({ initialImessageOpen, onOpenDashboard, onOpenRequests }
   const setupState = setup.state;
   const setupValue = setup.value;
   const showSetup = setupValue !== null && reveal.done;
-  const showImessage = imessageOpened || (showSetup && setupState?.nextAction === "ready" && !imessageLater);
+  const showImessage = imessageOpened || (showSetup && setupState?.nextAction === "ready" && !setupState.tutorialOffered && !imessageLater);
   // Answered setup cards, as receipts placed among the messages by time.
   const receipts = useMemo(
     () => (showSetup && setupValue ? deriveReceipts(setupValue.state, setupValue.skipped) : []),

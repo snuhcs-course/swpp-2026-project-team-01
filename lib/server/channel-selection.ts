@@ -124,7 +124,12 @@ export async function switchConversationForTool(db: Database, call: SwitchConver
   }
 
   const [chosen] = matches;
-  await db`update app.imessage_bindings set selected_request_id = ${chosen!.requestId} where id = ${binding.id} and state = 'active'`;
+  await db.begin(async (tx) => {
+    const selected = await tx`update app.imessage_bindings set selected_request_id = ${chosen!.requestId} where id = ${binding.id} and state = 'active'`;
+    if (selected.count && !chosen!.sample) {
+      await tx`update app.host_settings set tutorial_binding_id = null where host_account_id = ${hostAccountId.data} and tutorial_binding_id = ${binding.id}`;
+    }
+  });
   return {
     message: `From the host's next message, this conversation is about request ${requestRef(chosen!.requestId)} with ${chosen!.requesterName}. Tell them so; the current reply still comes from this discussion.`,
     ref: requestRef(chosen!.requestId),
