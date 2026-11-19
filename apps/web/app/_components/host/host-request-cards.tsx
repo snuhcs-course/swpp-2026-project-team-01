@@ -113,12 +113,14 @@ export function ProposalReviewCard({ context, onRequestChanges }: { readonly con
   return (
     <GuestCard
       description={
-        awaiting
+        view.sample
+          ? "You can approve or decline this sample. Ask Thyme for details or if you want to change anything."
+          : awaiting
           ? `${view.requester.name} agreed to these exact details. Approving books the meeting in your calendar.`
           : "The requester has not agreed to this version yet."
       }
       id="proposal-review"
-      label={`Proposal, version ${proposal.version}`}
+      label={view.sample ? "Sample request" : `Proposal, version ${proposal.version}`}
       title={awaiting ? "Approve this meeting?" : "Waiting for the requester"}
     >
       <DetailList
@@ -127,8 +129,10 @@ export function ProposalReviewCard({ context, onRequestChanges }: { readonly con
           ["Length", `${proposal.durationMinutes} minutes`],
           ["Mode", MODE_LABELS[proposal.mode]],
           ...(proposal.mode === "in_person" ? ([["Place", proposal.location ?? "Not set"]] as const) : []),
-          ...(proposal.mode === "online" ? ([["Meeting link", linkText(proposal.linkPlan) ?? "Not set"]] as const) : []),
-          ["With", `${view.requester.name} <${view.requester.email}>${view.requester.emailConfirmed ? "" : " (address not confirmed)"}`],
+          ...(proposal.mode === "online" ? ([["Meeting link", view.sample ? "Example Google Meet" : linkText(proposal.linkPlan) ?? "Not set"]] as const) : []),
+          ["With", view.requester.email
+            ? `${view.requester.name} <${view.requester.email}>${view.requester.emailConfirmed ? "" : " (address not confirmed)"}`
+            : view.requester.name],
           ...(view.details.purpose ? ([["Purpose", view.details.purpose]] as const) : []),
         ]}
       />
@@ -146,15 +150,20 @@ export function ProposalReviewCard({ context, onRequestChanges }: { readonly con
         </div>
       ) : (
         <GuestCardActions>
-          <Button disabled={busy || !awaiting} onClick={() => void act("request.approve", { version: proposal.version })} type="button">
+          <Button disabled={busy || !awaiting} onClick={() => void act(view.sample ? "tutorial.finish" : "request.approve", { version: proposal.version })} type="button">
             Approve this proposal
           </Button>
-          <Button disabled={busy} onClick={onRequestChanges} type="button" variant="outline">
+          <Button disabled={busy} onClick={view.sample ? () => void act("tutorial.finish", {}) : onRequestChanges} type="button" variant="outline">
             Request changes
           </Button>
-          <Button disabled={busy} onClick={() => setConfirmDecline(true)} type="button" variant="ghost">
+          <Button disabled={busy} onClick={() => view.sample ? void act("tutorial.finish", {}) : setConfirmDecline(true)} type="button" variant="ghost">
             Decline
           </Button>
+          {view.sample ? (
+            <Button disabled={busy} onClick={() => void act("tutorial.finish", {})} type="button" variant="ghost">
+              End tutorial
+            </Button>
+          ) : null}
         </GuestCardActions>
       )}
       <StatusLine message={error} />

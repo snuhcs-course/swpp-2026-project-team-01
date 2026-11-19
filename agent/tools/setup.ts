@@ -8,8 +8,9 @@ import {
   confirmNoteItemsForTool,
   confirmNoteItemsToolInput,
 } from "../../lib/server/note-weekly-check";
+import { tutorialChoiceInput } from "../../lib/server/host-tutorial";
 import { setupDependenciesFromEnvironment } from "../../lib/server/setup";
-import { confirmSettingsForTool, confirmSettingsToolInput, listHostRequestsForSetupTool, setCalendarRolesForTool, setCalendarRolesToolInput, previewNextWeekForTool, previewNextWeekToolInput } from "../../lib/server/setup-channel-tools";
+import { chooseTutorialForTool, confirmSettingsForTool, confirmSettingsToolInput, listHostRequestsForSetupTool, setCalendarRolesForTool, setCalendarRolesToolInput, previewNextWeekForTool, previewNextWeekToolInput } from "../../lib/server/setup-channel-tools";
 import {
   draftSettingsForTool,
   draftSettingsToolInput,
@@ -67,7 +68,7 @@ export default defineDynamic({
               execute: (input, ctx) => setCalendarRolesForTool(setupDependenciesFromEnvironment(), { auth: ctx.session.auth.current, callId: ctx.callId, sessionId: ctx.session.id }, input),
             }),
             preview_next_week: defineTool({
-              description: "Send next week's open times as a slot image to the linked conversation, using the current draft. Record the host's hours, meeting mode, place and travel answers first. Returns the review reference and open ranges. When the scan found entries that may be notes, it sends the note review link instead (noteReviewSent), and the image follows by itself after the host confirms that page; pass skipNoteReview true only when the host says to skip that review. Before setup is first saved, when the image for the current settings was already sent, it sends no copy and reports alreadySent. Before setup is first saved, ask whether to open the times; confirm only after the host agrees. Once setup is saved, use it only when the host asks to see their open times; a change needs no image.",
+              description: "Send next week's open times as an image followed by one message in the linked conversation, using the current draft. Record the host's answers first and pass a short changeSummary if they just answered or changed anything. When queued, the service sends the whole reply, including whether to open the times. When the scan found entries that may be notes, it sends the note review link instead (noteReviewSent), and the image follows by itself after the host confirms that page; pass skipNoteReview true only when the host says to skip that review. Before setup is first saved, when the image for the current settings was already sent, it sends no copy and reports alreadySent; then reply yourself. Before setup is first saved, confirm only after the host agrees. Once setup is saved, use it only when the host asks to see their open times; a change needs no image.",
               inputSchema: previewNextWeekToolInput,
               execute: (input, ctx) => previewNextWeekForTool(setupDependenciesFromEnvironment(), { auth: ctx.session.auth.current, callId: ctx.callId, sessionId: ctx.session.id }, input),
             }),
@@ -81,6 +82,11 @@ export default defineDynamic({
                   { auth: toolCtx.session.auth.current, callId: toolCtx.callId, sessionId: toolCtx.session.id },
                   input,
                 ),
+            }),
+            choose_request_tutorial: defineTool({
+              description: "Respond to the host's explicit answer to the sample request tutorial offer in linked chat. Pass start true when the host accepts and false when they skip. Never use the same yes that confirmed settings. A separate message delivers the sample.",
+              inputSchema: tutorialChoiceInput,
+              execute: (input, ctx) => chooseTutorialForTool(setupDependenciesFromEnvironment(), { auth: ctx.session.auth.current, callId: ctx.callId, sessionId: ctx.session.id }, input),
             }),
             choose_note_items: defineTool({
               description:

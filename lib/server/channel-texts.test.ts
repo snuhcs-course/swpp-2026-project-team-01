@@ -40,7 +40,7 @@ const WEEKLY: WeeklyListEntry[] = [
 const SAMPLE_ARGS = new Map<unknown, unknown[]>(
   (["en", "ko"] as const).flatMap((language) => [
     [CHANNEL_REPLIES[language].onboarding.hoursQuestion, [HOURS]],
-    [CHANNEL_REPLIES[language].onboarding.slotCaption, [PREVIEW]],
+    [CHANNEL_REPLIES[language].onboarding.slotSummary, [PREVIEW]],
     [CHANNEL_REPLIES[language].notes.weeklyList, [WEEKLY, 12, "Asia/Seoul", "https://findmeatime.com/app/notes"]],
     [CHANNEL_REPLIES[language].notes.outsideList, [[5, 6], 3]],
     [CHANNEL_REPLIES[language].notes.changed, [[2], "https://findmeatime.com/app/notes"]],

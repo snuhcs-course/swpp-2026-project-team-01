@@ -432,7 +432,7 @@ export const THANKS_REACTION = "👍";
 // one second apart; the last part carries the row's buttons, and a notice that
 // needs nothing is sent with disable_notification. The slot preview goes out
 // with sendPhoto as the timetable PNG with its one-line caption, in plain text
-// too; when the image cannot be rendered the caption alone is sent and the send
+// too; when the image cannot be rendered the summary alone is sent and the send
 // is uncertain, as on iMessage and WhatsApp, since the host never saw the
 // timetable. A signal is setMessageReaction
 // on the host's message and sendChatAction typing. An edit removes a sent
@@ -472,17 +472,21 @@ export function telegramTransport(
         return fromTelegram(await client.send({ method: "answerCallbackQuery", params }), chatId, null);
       }
       if (content.kind === "image") {
-        const caption = channelReplies(content.language).onboarding.slotCaption(content.preview);
+        const { preview, language, summary = channelReplies(language).onboarding.slotSummary(preview) } = content;
         let png: Buffer;
         try {
-          png = await render(content.preview);
+          png = await render(preview);
         } catch {
-          const fallback = await client.send({ method: "sendMessage", params: { chat_id: chatId, text: caption } });
+          const fallback = await client.send({ method: "sendMessage", params: { chat_id: chatId, text: summary } });
           return fallback.status === "accepted" ? { status: "uncertain" } : fromTelegram(fallback, chatId, null);
         }
-        const file = { data: png, field: "photo", mimeType: "image/png", name: `slots-${content.preview.weekStart}.png` };
-        const sent = await client.send({ file, method: "sendPhoto", params: { caption, chat_id: chatId } });
-        return fromTelegram(sent, chatId, sent.status === "accepted" ? messageIdOf(sent.result) : null);
+        const file = { data: png, field: "photo", mimeType: "image/png", name: `slots-${preview.weekStart}.png` };
+        const sent = await client.send({ file, method: "sendPhoto", params: { chat_id: chatId } });
+        if (sent.status !== "accepted") return fromTelegram(sent, chatId, null);
+        await wait(TELEGRAM_CHAT_SPACING_MS);
+        const followup = await client.send({ method: "sendMessage", params: { chat_id: chatId, text: summary } });
+        if (followup.status !== "accepted") return { status: "uncertain" };
+        return fromTelegram(sent, chatId, messageIdOf(sent.result));
       }
       if (content.kind !== "text") return { category: "provider_rejected", status: "rejected" };
 

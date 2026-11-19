@@ -1,10 +1,9 @@
-import type { SlotPreview } from "../contracts/slot-preview";
-import { type ChannelLanguage } from "./channel-language";
 import type { MessageStreamEvent } from "eve/client";
 import type { StoredChannel } from "../contracts/messaging-channel";
 import { agentUrlFromEnvironment, type ConversationRuntime, eveRuntime } from "./conversations";
 import { database, type Database, type Transaction } from "./database";
 import { turnReplyText } from "./email-replies";
+import { SAMPLE_NOTICE_PREFIX } from "./imessage-notices";
 import { internalSigningKey, signInternalBearer } from "./internal-bearer";
 import { type JobHandler, publishJob } from "./jobs";
 import { assertMessagingAdmitted } from "./messaging";
@@ -131,6 +130,8 @@ export type OutboxKind =
 
 export type OutboxState = "waiting" | "queued" | "dispatching" | "accepted" | "failed" | "uncertain" | "suppressed";
 
+type SlotImage = Omit<Extract<PhotonContent, { kind: "image" }>, "kind">;
+
 export type RecordOutbound = {
   // The platform; by default the binding's or the link attempt's, else iMessage.
   readonly channel?: StoredChannel;
@@ -150,7 +151,7 @@ export type RecordOutbound = {
   readonly requesterBindingId?: string | null;
   readonly linkId?: string | null;
   readonly requestId?: string | null;
-  // A turn reply names its input and waits for its turn.
+  // A turn reply waits for its input. A preview that replaces it names the same input.
   readonly inputId?: string;
   // The frozen text; none for a turn reply or a contact card.
   readonly text?: string;
@@ -165,7 +166,7 @@ export type RecordOutbound = {
   // own, so a message that must follow another waits (the card after linking).
   readonly delaySeconds?: number;
 } & (
-  | { readonly kind: "image"; readonly image: { readonly preview: SlotPreview; readonly language: ChannelLanguage }; readonly reviewHash: string }
+  | { readonly kind: "image"; readonly image: SlotImage; readonly reviewHash: string }
   | { readonly kind: Exclude<OutboxKind, "image">; readonly image?: never; readonly reviewHash?: never }
 );
 
@@ -369,7 +370,7 @@ export class TurnNotEndedError extends Error {
 
 // The final text of the turn that served a reply's input, from the session's
 // recorded events; null when the turn produced none or its session failed.
-async function turnText(deps: ImessageSendDependencies, inputId: string) {
+async function turnReply(deps: ImessageSendDependencies, outboxId: string) {
   const [input] = await deps.db<
     {
       state: string;
@@ -380,17 +381,26 @@ async function turnText(deps: ImessageSendDependencies, inputId: string) {
       principal_id: string | null;
       principal_type: string | null;
       session_state: string | null;
+      preview_queued: boolean;
     }[]
   >`
     select i.state, i.delivery_ids, i.session_id, i.discussion_id, s.generation, s.principal_id, s.principal_type,
-           s.state as session_state
-    from app.conversation_inputs i left join app.agent_sessions s on s.session_id = i.session_id
-    where i.id = ${inputId}
+           s.state as session_state,
+           exists (
+             select 1 from app.imessage_outbox preview
+             where preview.host_account_id = o.host_account_id and preview.binding_id = o.binding_id
+               and preview.input_id = i.id and preview.kind = 'image'
+           ) as preview_queued
+    from app.imessage_outbox o
+    join app.conversation_inputs i on i.id = o.input_id
+    left join app.agent_sessions s on s.session_id = i.session_id
+    where o.id = ${outboxId}
   `;
 
-  if (!input || input.session_state === "failed") return null;
+  if (input?.preview_queued) return { previewQueued: true } as const;
+  if (!input || input.session_state === "failed") return { text: null };
   if (input.state !== "completed") throw new TurnNotEndedError();
-  if (!input.session_id || input.delivery_ids.length === 0) return null;
+  if (!input.session_id || input.delivery_ids.length === 0) return { text: null };
 
   const bearer = signInternalBearer(
     {
@@ -408,7 +418,7 @@ async function turnText(deps: ImessageSendDependencies, inputId: string) {
     events.push(event);
   }
 
-  return turnReplyText(events, input.delivery_ids);
+  return { text: turnReplyText(events, input.delivery_ids) };
 }
 
 export type SendJobOutcome = { readonly outboxId: string | null; readonly state: OutboxState | "missing" };
@@ -444,7 +454,12 @@ export function createImessageSendHandler(load: () => ImessageSendDependencies =
 
     if (peek.kind === "turn" && peek.state === "waiting" && peek.input_id) {
       try {
-        readText = await turnText(deps, peek.input_id);
+        const reply = await turnReply(deps, outboxId);
+        if (reply.previewQueued) {
+          await finish(deps.db, outboxId, "waiting", "suppressed", { category: "slot_preview" });
+          return { outboxId, state: "suppressed" };
+        }
+        readText = reply.text;
       } catch (error) {
         if (!(error instanceof TurnNotEndedError)) throw error;
         // A turn that has not ended within the wait gets no reply.
@@ -495,6 +510,17 @@ export function createImessageSendHandler(load: () => ImessageSendDependencies =
           return { state: "suppressed" as const };
         }
         if (binding) inWindow = binding.in_window;
+      }
+
+      if (row.request_id && row.kind === "notice" && row.dedupe_key.startsWith(SAMPLE_NOTICE_PREFIX)) {
+        const [sample] = await claimTx`
+          select 1 from app.requests
+          where id = ${row.request_id} and is_sample and closed_at is null and expires_at > now()
+        `;
+        if (!sample) {
+          await finish(claimTx, row.id, row.state, "suppressed", { category: "sample_finished" });
+          return { state: "suppressed" as const };
+        }
       }
 
       // Free-form WhatsApp text outside the window is never sent (D8).
@@ -661,11 +687,14 @@ const UNSPACED: ReadonlySet<OutboxKind> = new Set(["signal", "callback_answer"])
 
 // The wait before the next send to a Telegram chat may start, reserved under a
 // per-chat lock: the row claimed here dispatches at least a second after the
-// last one claimed for the same chat.
+// last one claimed for the same chat. A preview also reserves a slot for its text.
 async function telegramSlot(tx: Transaction, recipientHash: string) {
   await tx`select pg_advisory_xact_lock(hashtextextended(${`app.telegram_chat:${recipientHash}`}, 0))`;
+  const spacingSeconds = TELEGRAM_CHAT_SPACING_MS / 1000;
   const [slot] = await tx<{ wait_ms: number }[]>`
-    select greatest(0, ceil(extract(epoch from (max(dispatched_at) + make_interval(secs => ${TELEGRAM_CHAT_SPACING_MS / 1000}) - now())) * 1000))::int as wait_ms
+    select greatest(0, ceil(extract(epoch from (
+      max(dispatched_at + make_interval(secs => ${spacingSeconds}::double precision * case when kind = 'image' then 2 else 1 end)) - now()
+    )) * 1000))::int as wait_ms
     from app.imessage_outbox
     where channel = 'telegram' and recipient_hash = ${recipientHash} and dispatched_at is not null
   `;
@@ -802,14 +831,14 @@ const SILENT_NOTICES = ["notice:booking_confirmed:", "notice:booking_pending:"];
 // suppressed and a template queued), so buttons need only the switch; a template
 // never carries them. A Telegram row carries its keyboard from the row itself.
 // The slot preview is an image on every channel; each transport sends the
-// timetable with its caption.
+// timetable and its summary.
 export function contentOf(
   row: Pick<OutboxRow, "kind" | "template_name" | "channel" | "buttons" | "dedupe_key">,
   text: string | null,
   buttonsOn: boolean,
 ): PhotonContent {
   if (row.kind === "image") {
-    const image = JSON.parse(text!) as { preview: SlotPreview; language: ChannelLanguage };
+    const image = JSON.parse(text!) as SlotImage;
     return { kind: "image", ...image };
   }
   if (row.kind === "edit_markup") return { kind: "edit_markup", messageId: text ?? "" };

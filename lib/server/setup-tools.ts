@@ -151,6 +151,7 @@ export type SetupModelProjection = {
   readonly ready: boolean;
   readonly links: SetupLinks | null;
   readonly pendingChanges: boolean;
+  readonly tutorialOffered: boolean;
   // The settings review's reference, which confirm_settings takes
   // (channel-actions-in-words D1).
   readonly reviewRef: string;
@@ -207,6 +208,7 @@ export function modelProjection(state: SetupStateView): SetupModelProjection {
     missingFields: state.missingFields,
     nextAction: state.nextAction,
     pendingChanges: state.pendingChanges,
+    tutorialOffered: state.tutorialOffered,
     placeHint: state.placeHint ? { sampleSize: state.placeHint.sampleSize } : null,
     ready: state.readiness.ready,
     reviewRef: settingsRef(state.proposalHash),

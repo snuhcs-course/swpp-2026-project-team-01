@@ -4,6 +4,7 @@ import type { RequestState } from "./request";
 // the guest's verified Google subject or signed-in account session matched it.
 export type WorkspaceRequestItem = {
   readonly requestId: string;
+  readonly sample: boolean;
   readonly direction: "received" | "sent";
   readonly counterpartyName: string;
   readonly purpose: string | null;

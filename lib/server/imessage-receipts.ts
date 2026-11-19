@@ -166,6 +166,25 @@ async function forward(tx: Transaction, deps: ImessageReceiptDependencies, messa
     where d.principal_type = 'host_account' and d.principal_id = ${message.hostAccountId} and i.client_input_id = ${message.receipt.id}
   `;
   let requestId = earlier ? earlier.request_id : message.selectedRequestId;
+  if (!earlier && requestId) {
+    const [tutorial] = await tx<{ offer: boolean; sample_id: string | null; finished: boolean }[]>`
+      select s.tutorial_offered and s.tutorial_binding_id = ${message.bindingId} as offer,
+             active.id as sample_id,
+             coalesce(selected.is_sample and (selected.closed_at is not null or selected.expires_at <= now()), false) as finished
+      from app.host_accounts h
+      left join app.host_settings s on s.host_account_id = h.id
+      left join app.requests selected on selected.id = ${requestId}
+      left join app.requests active on active.host_account_id = h.id and active.is_sample and active.closed_at is null
+        and active.expires_at > now() and s.tutorial_binding_id = ${message.bindingId}
+      where h.id = ${message.hostAccountId}
+    `;
+    if (tutorial?.finished) {
+      await tx`update app.imessage_bindings set selected_request_id = null where id = ${message.bindingId} and selected_request_id = ${requestId}`;
+      requestId = null;
+    } else if (tutorial?.offer || tutorial?.sample_id) {
+      requestId = tutorial.sample_id;
+    }
+  }
   let fellBack = false;
 
   for (;;) {

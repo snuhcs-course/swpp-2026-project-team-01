@@ -6,6 +6,8 @@ CREATE TABLE "app"."host_settings" (
   "revision" integer NOT NULL DEFAULT 1 CHECK ("revision" >= 1),
   "settings" jsonb NOT NULL CHECK (jsonb_typeof("settings") = 'object'),
   "draft_revision" integer NOT NULL,
+  "tutorial_offered" boolean NOT NULL DEFAULT false,
+  "tutorial_binding_id" uuid,
   "confirmed_at" timestamptz NOT NULL DEFAULT now(),
   "created_at" timestamptz NOT NULL DEFAULT now(),
   "updated_at" timestamptz NOT NULL DEFAULT now()

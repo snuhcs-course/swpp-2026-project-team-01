@@ -64,6 +64,7 @@ function viewFor(state: HostReviewState, language: "en" | "ko"): HostRequestView
     requester: { email: "kim@example.test", emailConfirmed: true, language, name: "Minji Kim", timezone: "Asia/Seoul" },
     revisedFrom: null,
     revision: 7,
+    sample: false,
     state: "awaiting_host_approval",
     suggestion: null,
     weeklyLimit: null,

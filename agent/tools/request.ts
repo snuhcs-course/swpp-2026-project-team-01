@@ -27,6 +27,7 @@ import {
   declineRequestForTool,
   declineRequestToolInput,
   evaluateCandidatesForHostTool,
+  finishSampleForTool,
   isHostReviewSession,
   listHostRequestsForTool,
   proposeSharedChangesForTool,
@@ -158,6 +159,11 @@ function hostReviewTools() {
         "Draft changed shared details the host asked for (another time, duration, mode, place or meeting link) for the Review proposed shared changes card. It never shares them: the host presses Share revised details, which checks the time and sends the requester a new version to agree to.",
       inputSchema: proposeSharedChangesToolInput,
       execute: (input, toolCtx) => proposeSharedChangesForTool(database(), call(toolCtx), input),
+    }),
+    finish_sample_tutorial: defineTool({
+      description: "Only when read_request reports sample: true, finish the host tutorial after the host approves, declines, asks to change the request, or asks to end the tutorial. Works in words from web or linked chat. Asking what other times are available is a question and does not finish it.",
+      inputSchema: z.object({}),
+      execute: (_input, toolCtx) => finishSampleForTool(database(), call(toolCtx)),
     }),
     approve_proposal: defineTool({
       description:

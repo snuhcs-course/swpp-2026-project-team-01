@@ -122,7 +122,7 @@ export const updateDraftCommand: CommandDefinition<UpdateDraftInput, { revision:
 
 const confirmInput = z.object({ proposalHash: z.string().regex(/^[0-9a-f]{64}$/) }).strict();
 
-export type ConfirmSettingsResult = { readonly handle: string; readonly links: SetupLinks };
+export type ConfirmSettingsResult = { readonly handle: string; readonly links: SetupLinks; readonly tutorialOffered: boolean };
 
 function toRef(calendar: CalendarRef): CalendarRef {
   return {
@@ -273,8 +273,8 @@ export function confirmSettingsCommand(
       } as unknown as ConfirmedSettings;
 
       await tx`
-        insert into app.host_settings as stored (host_account_id, settings, draft_revision)
-        values (${hostAccountId}, ${tx.json(settings as unknown as Parameters<typeof tx.json>[0])}, ${draft.revision})
+        insert into app.host_settings as stored (host_account_id, settings, draft_revision, tutorial_offered, tutorial_binding_id)
+        values (${hostAccountId}, ${tx.json(settings as unknown as Parameters<typeof tx.json>[0])}, ${draft.revision}, true, ${channelReview?.bindingId ?? null})
         on conflict (host_account_id) do update set
           settings = excluded.settings, draft_revision = excluded.draft_revision,
           revision = stored.revision + 1, confirmed_at = now(), updated_at = now()
@@ -286,7 +286,7 @@ export function confirmSettingsCommand(
         where host_account_id = ${hostAccountId} and booking_calendar ->> 'id' = ${destination.id}
       `;
 
-      return { handle, links: setupLinks(appOrigin, handle) };
+      return { handle, links: setupLinks(appOrigin, handle), tutorialOffered: !proposal.records.confirmed };
     },
   };
 }
