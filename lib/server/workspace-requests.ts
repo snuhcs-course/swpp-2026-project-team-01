@@ -56,6 +56,7 @@ export async function listWorkspaceRequests(db: Queryable, hostAccountId: string
       proposalStart: item.proposalStart,
       purpose: item.purpose,
       requestId: item.requestId,
+      sample: item.sample,
       state: item.state,
       updatedAt: item.updatedAt,
     })),
@@ -77,6 +78,7 @@ export async function listWorkspaceRequests(db: Queryable, hostAccountId: string
         proposalStart: (row.booking_start ?? row.proposal_start)?.toISOString() ?? null,
         purpose: row.details.purpose ?? null,
         requestId: row.id,
+        sample: false,
         state: row.state,
         updatedAt: row.updated_at.toISOString(),
       };

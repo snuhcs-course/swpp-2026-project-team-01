@@ -29,6 +29,7 @@ CREATE TABLE "app"."requests" (
       'cancelled'
     )
   ),
+  "is_sample" boolean NOT NULL DEFAULT false,
   "revision" integer NOT NULL DEFAULT 1 CHECK ("revision" >= 1),
   "details" jsonb NOT NULL DEFAULT '{}'::jsonb CHECK (jsonb_typeof("details") = 'object'),
   "requester_name" text CHECK (char_length("requester_name") BETWEEN 1 AND 200),
@@ -46,14 +47,17 @@ CREATE TABLE "app"."requests" (
     ("state" IN ('booked', 'declined', 'withdrawn', 'expired', 'cancelled')) = ("closed_at" IS NOT NULL)
   ),
   CONSTRAINT "requests_identified_contact" CHECK (
-    "state" = 'draft' OR ("requester_name" IS NOT NULL AND "contact_email" IS NOT NULL)
+    "state" = 'draft' OR ("requester_name" IS NOT NULL AND ("is_sample" OR "contact_email" IS NOT NULL))
   ),
+  CONSTRAINT "requests_sample_no_contact" CHECK (NOT "is_sample" OR ("contact_email" IS NULL AND "contact_confirmed_email" IS NULL)),
   CONSTRAINT "requests_confirmed_contact" CHECK (
     "contact_confirmed_email" IS NULL OR "contact_confirmed_email" = "contact_email"
   )
 );
 
 CREATE INDEX "requests_host_idx" ON "app"."requests" ("host_account_id", "created_at" DESC);
+
+CREATE UNIQUE INDEX "requests_one_sample_per_host_idx" ON "app"."requests" ("host_account_id") WHERE "is_sample";
 
 -- The expiry sweep's due requests and drafts.
 CREATE INDEX "requests_actionable_expiry_idx" ON "app"."requests" ("expires_at")

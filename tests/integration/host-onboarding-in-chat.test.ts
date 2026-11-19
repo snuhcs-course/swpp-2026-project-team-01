@@ -4,9 +4,13 @@ import { createCalendarAnalysisHandler, hoursSuggestion } from "../../lib/server
 import { readCalendarRoles } from "../../lib/server/calendar-roles";
 import { channelReplies } from "../../lib/server/channel-texts";
 import { runCommand } from "../../lib/server/commands";
+import { createImessageNoticeHandler } from "../../lib/server/imessage-notice-job";
+import { IMESSAGE_NOTICE_JOB } from "../../lib/server/imessage-notices";
+import { finishSampleForTool, readRequestForHostTool } from "../../lib/server/host-review-tools";
+import { listHostRequests } from "../../lib/server/host-requests";
 import { resumeImessageOnboarding } from "../../lib/server/imessage-links";
 import { computeSetupProposal } from "../../lib/server/setup";
-import { confirmSettingsForTool, previewNextWeekForTool, setCalendarRolesForTool } from "../../lib/server/setup-channel-tools";
+import { chooseTutorialForTool, confirmSettingsForTool, previewNextWeekForTool, setCalendarRolesForTool } from "../../lib/server/setup-channel-tools";
 import { draftSettingsForTool, modelProjection, readSetupStateForTool, type SetupToolCall } from "../../lib/server/setup-tools";
 import { settingsRef } from "../../lib/server/request-ref";
 import { readSetupState } from "../../lib/server/setup";
@@ -182,9 +186,40 @@ describe("slot preview and acceptance", () => {
     expect(await im.send(reply!.id)).toEqual({ result: "completed", sent: [] });
     const yes = await turn(host, sender, "Yes, open those", channel);
     expect((await im.outbox({ hostAccountId: host.hostAccountId, kind: "turn" })).map(row => row.state).sort()).toEqual(["suppressed", "waiting"]);
-    expect(await confirmSettingsForTool(deps, yes, { reviewRef: ref })).toMatchObject({ saved: true, links: { booking: expect.any(String) } });
+    expect(await confirmSettingsForTool(deps, yes, { reviewRef: ref })).toMatchObject({
+      saved: true,
+      links: { booking: expect.any(String) },
+      tutorialOffer: "Would you like to try a sample request?",
+    });
     const [draft] = await db<{ accepted: boolean }[]>`select (fields -> 'meetingMode' ->> 'accepted')::boolean as accepted from app.setup_drafts where host_account_id = ${host.hostAccountId}`;
     expect(draft!.accepted).toBe(true);
+
+    const accepted = await turn(host, sender, "Yes, I'd like to try the tutorial", channel);
+    expect(await chooseTutorialForTool(deps, accepted, { start: true })).toMatchObject({ started: true });
+    const [sample] = await listHostRequests(db, host.hostAccountId);
+    expect(sample).toMatchObject({ sample: true, state: "awaiting_host_approval" });
+    const requestId = sample!.requestId;
+    const [job] = await db<{ id: string }[]>`
+      select id from app.jobs where kind = ${IMESSAGE_NOTICE_JOB} and payload ->> 'requestId' = ${requestId}
+    `;
+    await runJob(db, job!.id, createImessageNoticeHandler(() => ({ db, origin: deps.appOrigin, tokenKey: testTokenKey, tokenKeys: [testTokenKey] })));
+    const [notice] = await im.outbox({ hostAccountId: host.hostAccountId, kind: "notice" });
+    expect((await im.send(notice!.id)).sent[0]?.content).toMatchObject({ text: expect.stringContaining("Sample request") });
+
+    expect((await im.deliver({ sender, text: "Can we move it to the other time?", channel })).outcome).toBe("forwarded");
+    const [session] = await db<{ session_id: string }[]>`
+      select s.session_id from app.agent_sessions s join app.discussions d on d.id = s.discussion_id
+      where d.request_id = ${requestId} and s.state = 'active'
+    `;
+    const review = {
+      auth: { principalId: host.hostAccountId, principalType: "user" as const, attributes: { audience: "host_review", requestId } },
+      sessionId: session!.session_id,
+      callId: randomUUID(),
+    };
+    expect(await readRequestForHostTool(db, review)).toMatchObject({ sample: true, details: { windows: expect.arrayContaining([expect.any(String)]) } });
+    expect(await finishSampleForTool(db, review)).toMatchObject({ finished: true });
+    expect(await listHostRequests(db, host.hostAccountId)).toEqual([]);
+    expect(await db`select id from app.bookings where request_id = ${requestId}`).toEqual([]);
   });
 
   it("saves a ready host's change in words at once, with no second approval", async () => {

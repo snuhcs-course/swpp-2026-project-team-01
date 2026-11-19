@@ -9,9 +9,11 @@ import { publishJob } from "./jobs";
 // freezes the text from the event's own records into one outbound message.
 
 export const IMESSAGE_NOTICE_JOB = "imessage_notice";
+export const SAMPLE_NOTICE_PREFIX = "notice:sample_request:";
 
 export type HostNotice =
   | { readonly kind: "new_request" }
+  | { readonly kind: "sample_request"; readonly bindingId: string }
   | { readonly kind: "awaiting_approval"; readonly version: number }
   | { readonly kind: "booking_confirmed"; readonly bookingId: string }
   | { readonly kind: "booking_failed"; readonly bookingId: string }
@@ -23,6 +25,8 @@ export type HostNotice =
 
 export function noticeKey(requestId: string, notice: HostNotice) {
   switch (notice.kind) {
+    case "sample_request":
+      return `${SAMPLE_NOTICE_PREFIX}${requestId}:${notice.bindingId}`;
     case "awaiting_approval":
       return `notice:${notice.kind}:${requestId}:v${notice.version}`;
     case "new_request":
@@ -37,14 +41,16 @@ export async function enqueueHostNotice(tx: Transaction, requestId: string, noti
     select true as found from app.requests r
     join app.imessage_bindings b on b.host_account_id = r.host_account_id and b.state = 'active'
     where r.id = ${requestId}
+      and (${notice.kind !== "sample_request"} or b.id = ${notice.kind === "sample_request" ? notice.bindingId : null})
   `;
-  if (!bound) return;
+  if (!bound) return false;
 
   await publishJob(tx, {
     dedupeKey: noticeKey(requestId, notice),
     kind: IMESSAGE_NOTICE_JOB,
     payload: { notice, requestId },
   });
+  return true;
 }
 
 // A guest's status notices in their linked conversation (guest-flow-completion

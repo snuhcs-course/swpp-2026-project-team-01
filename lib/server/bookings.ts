@@ -92,7 +92,7 @@ export async function lockHostRequest(tx: Transaction, actor: Actor, requestId: 
            (r.closed_at is null and r.expires_at > now()) as open, a.status as host_status
     from app.requests r
     join app.host_accounts a on a.id = r.host_account_id
-    where r.id = ${requestId} and r.host_account_id = ${actor.id} and r.state <> 'draft'
+    where r.id = ${requestId} and r.host_account_id = ${actor.id} and r.state <> 'draft' and not r.is_sample
     for update of r
   `;
 
