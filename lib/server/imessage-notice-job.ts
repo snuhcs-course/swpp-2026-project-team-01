@@ -3,6 +3,7 @@ import { hostRequestUrl, type ProposalTermsRow, proposalTerms } from "./booking-
 import { type ChannelLanguage, hostConversationLanguage } from "./channel-language";
 import { channelReplies, locale } from "./channel-texts";
 import { database, type Database, type Transaction } from "./database";
+import { TUTORIAL_TEXT } from "./host-tutorial";
 import { readHostRequest } from "./host-requests";
 import { decisionButtons, requestRef, requestSummary } from "./imessage-commands";
 import { activeBindingOfHost, bindingRecipient } from "./imessage-links";
@@ -167,6 +168,7 @@ async function noticeText(
   hostAccountId: string,
   requestId: string,
   notice: HostNotice,
+  channel: string,
 ): Promise<{ text: string; buttons?: WhatsAppButtons } | null> {
   const view = await readHostRequest(q, hostAccountId, requestId);
   if (!view) return null;
@@ -180,10 +182,18 @@ async function noticeText(
     // No longer queued (#122); kept so a notice queued before the change still reads.
     case "new_request":
       return { text: texts.newRequest([texts.request(ref, view.requester.name, view.details.purpose), follows].filter(Boolean).join(" ")) };
+    case "sample_request": {
+      if (!view.sample || view.state !== "awaiting_host_approval") return null;
+      const tutorial = TUTORIAL_TEXT[language];
+      return {
+        buttons: decisionButtons(view, language),
+        text: [tutorial.sample, requestSummary(view, language), channel === "imessage" ? link : "", tutorial.guide].filter(Boolean).join("\n"),
+      };
+    }
     // The host's first message about a request (#122): the guest has picked and
     // agreed to a time, so the summary names the request and what it follows.
     case "awaiting_approval": {
-      if (view.state !== "awaiting_host_approval" || view.proposal?.version !== notice.version) return null;
+      if (view.sample || view.state !== "awaiting_host_approval" || view.proposal?.version !== notice.version) return null;
       return {
         buttons: decisionButtons(view, language),
         text: [texts.readyForApproval, requestSummary(view, language), follows, texts.selectedRequest].filter(Boolean).join("\n"),
@@ -219,13 +229,15 @@ export function createImessageNoticeHandler(load: () => NoticeJobDependencies = 
     const binding = await activeBindingOfHost(tx, request.host_account_id);
     if (!binding) return { queued: false };
 
-    const summary = await noticeText(tx, deps, request.host_account_id, requestId, notice as HostNotice);
+    const hostNotice = notice as HostNotice;
+    if (hostNotice.kind === "sample_request" && hostNotice.bindingId !== binding.id) return { queued: false };
+    const summary = await noticeText(tx, deps, request.host_account_id, requestId, hostNotice, binding.channel);
     if (!summary) return { queued: false };
 
     await recordOutbound(tx, {
       bindingId: binding.id,
       buttons: summary.buttons,
-      dedupeKey: noticeKey(requestId, notice as HostNotice),
+      dedupeKey: noticeKey(requestId, hostNotice),
       hostAccountId: request.host_account_id,
       kind: "notice",
       recipient: bindingRecipient(deps.tokenKeys, binding),
@@ -236,8 +248,27 @@ export function createImessageNoticeHandler(load: () => NoticeJobDependencies = 
     });
     // The host's next plain reply goes to this request, so "book it" reaches the
     // discussion that can approve it (D23), as request <ref> would select it.
-    if ((notice as HostNotice).kind === "awaiting_approval") {
+    if (hostNotice.kind === "sample_request") {
       await tx`update app.imessage_bindings set selected_request_id = ${requestId} where id = ${binding.id} and state = 'active'`;
+    } else if (hostNotice.kind === "awaiting_approval") {
+      // Keep a tutorial's unqualified replies away from a real request even
+      // when a new guest proposal arrives while the host is practising.
+      await tx`select id from app.imessage_bindings where id = ${binding.id} for no key update`;
+      await tx`
+        update app.imessage_bindings b set selected_request_id = ${requestId}
+        where b.id = ${binding.id} and b.state = 'active'
+          and not exists (
+            select 1 from app.host_settings s where s.host_account_id = b.host_account_id
+              and s.tutorial_offered and s.tutorial_binding_id = b.id
+          )
+          and not exists (
+            select 1 from app.requests r where r.host_account_id = b.host_account_id and r.is_sample
+              and r.closed_at is null and r.expires_at > now()
+              and (r.id = b.selected_request_id or exists (
+                select 1 from app.host_settings s where s.host_account_id = r.host_account_id and s.tutorial_binding_id = b.id
+              ))
+          )
+      `;
     }
     return { queued: true };
   };

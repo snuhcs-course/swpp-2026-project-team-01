@@ -7,6 +7,7 @@ import { authenticatedUserId, chatError, json } from "./chat-routes";
 import { type Actor, type CommandDefinition, type CommandOutcome, runCommand } from "./commands";
 import { CalendarAccessError, type CalendarListEntry, openHostCalendar } from "./google-calendar";
 import { checkHandle } from "./handles";
+import { chooseTutorialCommand } from "./host-tutorial";
 import { HostIneligibleError, readHostStanding } from "./host-eligibility";
 import { type AppOrigins, appOriginsFromEnvironment, crossSiteRefusal } from "./same-origin";
 import { readSetupState, type SetupDependencies, setupDependenciesFromEnvironment } from "./setup";
@@ -138,6 +139,9 @@ export function createSetupCommandHandler(load: () => SetupRouteDependencies = s
 
     try {
       switch (body.data.operation) {
+        case "setup.request_tutorial":
+          outcome = await run(chooseTutorialCommand("en"));
+          break;
         case "setup.suggest_image_windows":
           outcome = await run(suggestImageWindowsCommand);
           break;

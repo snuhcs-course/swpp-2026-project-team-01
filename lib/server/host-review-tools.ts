@@ -3,6 +3,7 @@ import { z } from "zod";
 import { BOOKING_STATUS_TEXT } from "../contracts/booking";
 import type { HostRequestItem, HostRequestView, HostSuggestion } from "../contracts/host-request";
 import { currentTime, displayTime, weekOf } from "../contracts/timezone";
+import { finishSampleCommand, TUTORIAL_TEXT } from "./host-tutorial";
 import { approveCommand, declineCommand, readBookingStatus } from "./bookings";
 import { channelOfTurn } from "./channel-selection";
 import { type Actor, runCommand } from "./commands";
@@ -135,7 +136,9 @@ export function hostModelProjection(view: HostRequestView, now: Date = new Date(
       : null,
     hostTimezone: zone,
     needsDecision: view.needsDecision,
-    next: NEXT_STEPS,
+    next: view.sample
+      ? "Answer about the fictional proposal or example times. Finish the tutorial if the host approves, declines, requests a change, or asks to end it."
+      : NEXT_STEPS,
     proposal: view.proposal
       ? {
           agreedByRequester: view.proposal.agreedAt !== null,
@@ -147,11 +150,12 @@ export function hostModelProjection(view: HostRequestView, now: Date = new Date(
         }
       : null,
     requester: {
-      email: "present",
+      email: view.requester.email ? "present" : "absent",
       emailConfirmed: view.requester.emailConfirmed,
       name: encodeDisplayName(view.requester.name),
       timezone: view.requester.timezone,
     },
+    sample: view.sample,
     state: view.state,
     suggestion: view.suggestion
       ? { changes: view.suggestion.changes, id: view.suggestion.id, rejectionReason: view.suggestion.rejectionReason, state: view.suggestion.state }
@@ -165,6 +169,18 @@ export async function readRequestForHostTool(db: Database, call: HostReviewToolC
   const view = await readHostRequest(db, hostAccountId, requestId);
   if (!view) throw new HostReviewToolDeniedError();
   return hostModelProjection(view);
+}
+
+export async function finishSampleForTool(db: Database, call: HostReviewToolCall) {
+  const { hostAccountId, requestId } = await authorizeHostReviewTool(db, call);
+  const outcome = await runCommand({ authenticate: async () => hostActor(hostAccountId), db }, finishSampleCommand, {
+    input: {},
+    resourceId: requestId,
+    retryKey: `tool:${call.callId}`,
+  });
+  return outcome.ok
+    ? { finished: true, message: TUTORIAL_TEXT.en.done }
+    : { finished: false, message: "This action only applies to the host's sample tutorial request." };
 }
 
 const ACTIVE_STATES = new Set(["gathering", "negotiating", "awaiting_host_approval", "booking"]);

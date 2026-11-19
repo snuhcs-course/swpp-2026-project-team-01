@@ -2,6 +2,14 @@ import { randomUUID } from "node:crypto";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { recordDestinationAccess, saveCalendarRolesCommand } from "../../lib/server/calendar-roles";
 import { runCommand } from "../../lib/server/commands";
+import { approveCommand, declineCommand } from "../../lib/server/bookings";
+import { eveRuntime } from "../../lib/server/conversations";
+import { createHostRequestCommandHandler } from "../../lib/server/host-request-routes";
+import { listHostRequests, readHostRequest } from "../../lib/server/host-requests";
+import { chooseTutorialCommand } from "../../lib/server/host-tutorial";
+import { createSetupCommandHandler } from "../../lib/server/setup-routes";
+import { localAuthConfig, signInHost } from "./support/auth";
+import { asHost } from "./support/booking";
 import { readHostStanding } from "../../lib/server/host-eligibility";
 import { findReadyHostByHandle } from "../../lib/server/readiness";
 import { readSetupState } from "../../lib/server/setup";
@@ -71,7 +79,7 @@ describe("setup.confirm_settings", () => {
     const outcome = await confirm(host, live);
     const links = { booking: `${SETUP_ORIGIN}/${host.local}`, skill: `${SETUP_ORIGIN}/${host.local}/SKILL.md` };
 
-    expect(outcome).toMatchObject({ ok: true, result: { handle: host.local, links } });
+    expect(outcome).toMatchObject({ ok: true, result: { handle: host.local, links, tutorialOffered: true } });
     expect(await readHostStanding(db, host.userId)).toMatchObject({ eligible: true, nextAction: null, ready: true });
     expect(await findReadyHostByHandle(db, host.local)).toEqual({
       displayName: "Alice Kim",
@@ -87,6 +95,68 @@ describe("setup.confirm_settings", () => {
       travelMode: null,
     });
     expect(await readSetupState(deps, host.hostAccountId)).toMatchObject({ links, nextAction: "ready", pendingChanges: false });
+  });
+
+  it("creates one marked sample without a guest or quota charge and finishes it in the web review", async () => {
+    const host = await signInHost(db);
+    await db`
+      insert into app.host_settings (host_account_id, settings, draft_revision, tutorial_offered)
+      values (${host.hostAccountId}, '{"timezone":"Asia/Seoul"}', 1, true)
+    `;
+    const routeDeps = () => ({ ...deps, auth: localAuthConfig() });
+    const post = (path: string, operation: string, input: unknown, expectedRevision?: number) =>
+      new Request(`${SETUP_ORIGIN}${path}`, {
+        body: JSON.stringify({ expectedRevision, input, operation, retryKey: randomUUID() }),
+        headers: { cookie: host.cookie, "content-type": "application/json", origin: SETUP_ORIGIN },
+        method: "POST",
+      });
+    const choose = createSetupCommandHandler(routeDeps);
+    const start = () => choose(post("/api/setup/commands", "setup.request_tutorial", { start: true }));
+    const responses = await Promise.all([start(), start()]);
+    expect(responses.map((response) => response.status)).toEqual([200, 200]);
+    const [first, second] = await Promise.all(responses.map((response) => response.json()));
+    const requestId: string = first.result.requestId;
+    expect(requestId).toEqual(expect.any(String));
+    expect(second.result.requestId).toBe(requestId);
+
+    expect(await listHostRequests(db, host.hostAccountId)).toMatchObject([{ requestId, sample: true, needsDecision: false }]);
+    const view = await readHostRequest(db, host.hostAccountId, requestId);
+    expect(view).toMatchObject({ proposal: { agreedAt: expect.any(String), version: 1 }, requester: { email: null }, sample: true });
+    expect(view?.details.windows).toHaveLength(2);
+    expect(await readHostRequest(db, randomUUID(), requestId)).toBeNull();
+
+    // Ordinary commands refuse to touch a sample even if called directly.
+    expect(await asHost(db, host.hostAccountId, requestId, approveCommand, { version: 1 })).toMatchObject({ ok: false });
+    expect(await asHost(db, host.hostAccountId, requestId, declineCommand(), {})).toMatchObject({ ok: false });
+
+    const route = createHostRequestCommandHandler(() => ({ ...routeDeps(), runtime: eveRuntime("http://127.0.0.1:9"), signingKey: "test" }));
+    const finish = (input: object) => route(
+      post(`/api/host/requests/${requestId}/commands`, "tutorial.finish", input, view?.revision),
+      { params: Promise.resolve({ requestId }) },
+    );
+    expect((await finish({ version: 2 })).status).toBe(409);
+    expect((await finish({ version: 1 })).status).toBe(201);
+    expect(await listHostRequests(db, host.hostAccountId)).toEqual([]);
+    expect(await readHostRequest(db, host.hostAccountId, requestId)).toMatchObject({ state: "withdrawn" });
+    expect((await (await start()).json()).result.requestId).toBeNull();
+    expect(await db`select request_id from app.booking_links where request_id = ${requestId}`).toEqual([]);
+    expect(await db`select id from app.bookings where request_id = ${requestId}`).toEqual([]);
+    expect(await db`select id from app.jobs where payload ->> 'requestId' = ${requestId}`).toEqual([]);
+    expect(await db`select source_hash from app.request_creations where host_account_id = ${host.hostAccountId}`).toEqual([]);
+  });
+
+  it("lets the host skip the offer permanently even when they save settings again", async () => {
+    const host = await seedHost(db, deps, google);
+    const live = await prepareReviewableHost(db, host);
+    expect(await confirm(host, live)).toMatchObject({ ok: true, result: { tutorialOffered: true } });
+    const choose = (start: boolean) => runCommand(hostCommandDeps(db, host.hostAccountId), chooseTutorialCommand("en"), {
+      input: { start },
+      resourceId: host.hostAccountId,
+      retryKey: randomUUID(),
+    });
+    expect(await choose(false)).toMatchObject({ ok: true, result: { requestId: null } });
+    expect(await confirm(host, live)).toMatchObject({ ok: true, result: { tutorialOffered: false } });
+    expect(await choose(true)).toMatchObject({ ok: true, result: { requestId: null } });
   });
 
   it("exposes the confirmation and roles times for the receipts, and leaves the roles' save time to the host's saves", async () => {

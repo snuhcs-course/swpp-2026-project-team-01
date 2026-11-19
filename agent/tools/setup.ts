@@ -8,8 +8,9 @@ import {
   confirmNoteItemsForTool,
   confirmNoteItemsToolInput,
 } from "../../lib/server/note-weekly-check";
+import { tutorialChoiceInput } from "../../lib/server/host-tutorial";
 import { setupDependenciesFromEnvironment } from "../../lib/server/setup";
-import { confirmSettingsForTool, confirmSettingsToolInput, listHostRequestsForSetupTool, setCalendarRolesForTool, setCalendarRolesToolInput, previewNextWeekForTool, previewNextWeekToolInput } from "../../lib/server/setup-channel-tools";
+import { chooseTutorialForTool, confirmSettingsForTool, confirmSettingsToolInput, listHostRequestsForSetupTool, setCalendarRolesForTool, setCalendarRolesToolInput, previewNextWeekForTool, previewNextWeekToolInput } from "../../lib/server/setup-channel-tools";
 import {
   draftSettingsForTool,
   draftSettingsToolInput,
@@ -81,6 +82,11 @@ export default defineDynamic({
                   { auth: toolCtx.session.auth.current, callId: toolCtx.callId, sessionId: toolCtx.session.id },
                   input,
                 ),
+            }),
+            choose_request_tutorial: defineTool({
+              description: "Respond to the host's explicit answer to the sample request tutorial offer in linked chat. Pass start true when the host accepts and false when they skip. Never use the same yes that confirmed settings. A separate message delivers the sample.",
+              inputSchema: tutorialChoiceInput,
+              execute: (input, ctx) => chooseTutorialForTool(setupDependenciesFromEnvironment(), { auth: ctx.session.auth.current, callId: ctx.callId, sessionId: ctx.session.id }, input),
             }),
             choose_note_items: defineTool({
               description:

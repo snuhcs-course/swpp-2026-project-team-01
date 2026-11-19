@@ -7,6 +7,7 @@ import type { CommandDefinition } from "./commands";
 import type { Database, Queryable, Transaction } from "./database";
 import { readHostEvaluation, weeklyLimitHold } from "./evaluation";
 import { allowHostTripCommand, hostEvaluateCommand, waiveWeeklyLimitCommand } from "./request-exceptions";
+import { finishSampleCommand } from "./host-tutorial";
 import { requestRef } from "./request-ref";
 import { dismissChangesCommand, shareChangesCommand, suggestChangesCommand } from "./shared-changes";
 
@@ -20,6 +21,7 @@ type ListRow = {
   details: Partial<RequestDetails>;
   id: string;
   needs: boolean;
+  is_sample: boolean;
   proposal_start: Date | null;
   requester_name: string | null;
   state: RequestState;
@@ -36,12 +38,13 @@ const NEEDS_DECISION = `
 
 export async function listHostRequests(db: Queryable, hostAccountId: string): Promise<HostRequestItem[]> {
   const rows = await db<ListRow[]>`
-    select r.id, r.state, r.details, r.requester_name, r.updated_at,
+    select r.id, r.state, r.details, r.requester_name, r.updated_at, r.is_sample,
            (select p.start_at from app.proposals p where p.request_id = r.id order by p.version desc limit 1) as proposal_start,
            (select b.start_at from app.bookings b where b.request_id = r.id and b.state = 'confirmed' order by b.start_at desc limit 1) as booked_start,
-           (${db.unsafe(NEEDS_DECISION)}) as needs
+           (not r.is_sample and (${db.unsafe(NEEDS_DECISION)})) as needs
     from app.requests r
     where r.host_account_id = ${hostAccountId} and r.state <> 'draft'
+      and (not r.is_sample or (r.closed_at is null and r.expires_at > now()))
     order by r.updated_at desc
     limit 100
   `;
@@ -52,6 +55,7 @@ export async function listHostRequests(db: Queryable, hostAccountId: string): Pr
     proposalStart: row.proposal_start?.toISOString() ?? null,
     purpose: row.details.purpose ?? null,
     requestId: row.id,
+    sample: row.is_sample,
     requesterName: row.requester_name ?? "Guest",
     state: row.state,
     updatedAt: row.updated_at.toISOString(),
@@ -60,10 +64,11 @@ export async function listHostRequests(db: Queryable, hostAccountId: string): Pr
 
 type RequestRow = {
   contact_confirmed_email: string | null;
-  contact_email: string;
+  contact_email: string | null;
   details: Partial<RequestDetails>;
   expires_at: Date;
   id: string;
+  is_sample: boolean;
   requester_name: string;
   revised_from_request_id: string | null;
   revised_from_state: RequestState | null;
@@ -144,8 +149,8 @@ export async function readHostTimezone(q: Queryable, hostAccountId: string) {
 // or an unknown one.
 export async function readHostRequest(db: Database | Transaction, hostAccountId: string, requestId: string): Promise<HostRequestView | null> {
   const [request] = await db<RequestRow[]>`
-    select r.id, r.state, r.revision, r.details, r.requester_name, r.contact_email, r.contact_confirmed_email,
-           r.expires_at, s.settings, s.revision as settings_revision, r.revised_from_request_id,
+    select r.id, case when r.is_sample and r.closed_at is null and r.expires_at <= now() then 'expired' else r.state end as state, r.revision, r.details, r.requester_name, r.contact_email, r.contact_confirmed_email,
+           r.expires_at, r.is_sample, s.settings, s.revision as settings_revision, r.revised_from_request_id,
            p.state as revised_from_state
     from app.requests r left join app.host_settings s on s.host_account_id = r.host_account_id
     left join app.requests p on p.id = r.revised_from_request_id
@@ -169,7 +174,7 @@ export async function readHostRequest(db: Database | Transaction, hostAccountId:
   const waived = Boolean(waiver);
   const hostTimezone = request.settings?.timezone && isValidTimeZone(request.settings.timezone) ? request.settings.timezone : "UTC";
   const suggestion = await hostSuggestion(db, request.id);
-  const evaluation = await evaluationSummary(db, request, waived);
+  const evaluation = request.is_sample ? null : await evaluationSummary(db, request, waived);
   const booking = await readBookingStatus(db, request.id, "host");
   const details = request.details;
 
@@ -208,6 +213,7 @@ export async function readHostRequest(db: Database | Transaction, hostAccountId:
         }
       : null,
     requestId: request.id,
+    sample: request.is_sample,
     requester: {
       email: request.contact_email,
       emailConfirmed: request.contact_confirmed_email !== null,
@@ -218,7 +224,7 @@ export async function readHostRequest(db: Database | Transaction, hostAccountId:
     revision: request.revision,
     state: request.state,
     suggestion,
-    weeklyLimit: request.settings?.weeklyLimit ?? null,
+    weeklyLimit: request.is_sample ? null : request.settings?.weeklyLimit ?? null,
     weeklyLimitWaived: waived,
   };
 }
@@ -226,6 +232,7 @@ export async function readHostRequest(db: Database | Transaction, hostAccountId:
 // The host request view's card commands, by operation.
 export function hostRequestCommands(): Readonly<Record<HostRequestOperation, CommandDefinition<unknown, unknown>>> {
   return {
+    "tutorial.finish": finishSampleCommand,
     "booking.cancel": cancelBookingCommand(),
     "booking.change": changeBookingCommand,
     "booking.check": checkBookingCommand,
