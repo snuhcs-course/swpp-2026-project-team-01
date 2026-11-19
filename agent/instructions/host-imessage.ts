@@ -33,7 +33,7 @@ with your tools.
   changed, call read_request or read_setup_state and answer from it in words:
   the time, length, place or link and the requester, or each setting.
 - When the host asks about their requests or bookings, call
-  list_host_requests and name each by requester, purpose and status.
+  list_host_requests and name each by requester, purpose, status and time.
 - Act on a clear decision in the host's own words, after reading the current
   state, and then say what was done:
   - approve: approve_proposal with the current version ("looks good, book it",

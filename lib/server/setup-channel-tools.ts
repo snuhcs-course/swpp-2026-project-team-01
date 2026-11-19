@@ -3,9 +3,9 @@ import { readCalendarRoles, saveCalendarRolesCommand, recordDestinationAccess } 
 import { channelOfTurn, linkedMessagingTurn } from "./channel-selection";
 import { CommandError, runCommand } from "./commands";
 import { CalendarAccessError, openHostCalendar } from "./google-calendar";
-import { hostRequestsForModel, QUOTED_NOTE, SELECT_NOTE } from "./host-review-tools";
+import { hostRequestsForModel } from "./host-review-tools";
 import { chooseTutorialCommand, TUTORIAL_TEXT, tutorialChoiceInput } from "./host-tutorial";
-import { listHostRequests } from "./host-requests";
+import { listHostRequests, readHostTimezone } from "./host-requests";
 import { settingsRef } from "./request-ref";
 import { computeSetupProposal, differsFromConfirmed, readSetupState, missingFields, setupDependenciesFromEnvironment, withStatedAnswers, type SetupDependencies } from "./setup";
 import { confirmSettingsCommand } from "./setup-commands";
@@ -40,7 +40,7 @@ import { enqueueSettingsButtonRetirement } from "./telegram-jobs";
 
 export async function listHostRequestsForSetupTool(deps: SetupDependencies, call: SetupToolCall) {
   const actor = await authorizeSetupTool(deps.db, call.auth, call.sessionId);
-  return { dataNote: QUOTED_NOTE, requests: hostRequestsForModel(await listHostRequests(deps.db, actor.id)), selectNote: SELECT_NOTE };
+  return hostRequestsForModel(await listHostRequests(deps.db, actor.id), await readHostTimezone(deps.db, actor.id));
 }
 
 export const confirmSettingsToolInput = z

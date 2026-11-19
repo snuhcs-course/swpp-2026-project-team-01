@@ -48,6 +48,47 @@ export function displayTime(instant: Date, timeZone: string) {
   return `${parts.weekday} ${parts.day} ${parts.month}, ${parts.hour}:${parts.minute} ${offsetName(parts.timeZoneName)}`;
 }
 
+// The local date of an instant in the zone, as YYYY-MM-DD.
+function localDate(instant: Date, timeZone: string) {
+  return new Intl.DateTimeFormat("en-CA", { day: "2-digit", month: "2-digit", timeZone, year: "numeric" }).format(instant);
+}
+
+function addDays(date: string, days: number) {
+  const day = new Date(`${date}T00:00:00Z`);
+  day.setUTCDate(day.getUTCDate() + days);
+  return day.toISOString().slice(0, 10);
+}
+
+// The Monday that starts the Monday-to-Sunday week of a YYYY-MM-DD date.
+function mondayOf(date: string) {
+  return addDays(date, -((new Date(`${date}T00:00:00Z`).getUTCDay() + 6) % 7));
+}
+
+// The current date and time in the zone, with its year and weekday, and this
+// and next week (Monday to Sunday), such as
+// { now: "2026-11-19 (Thursday) 14:05 GMT+9", thisWeek: "2026-11-16 to 2026-11-22", nextWeek: "2026-11-23 to 2026-11-29" }.
+export function currentTime(timeZone: string, now: Date = new Date()) {
+  const today = localDate(now, timeZone);
+  const weekday = new Intl.DateTimeFormat("en-GB", { timeZone, weekday: "long" }).format(now);
+  const clock = new Intl.DateTimeFormat("en-GB", { hour: "2-digit", hourCycle: "h23", minute: "2-digit", timeZone }).format(now);
+  const monday = mondayOf(today);
+  return {
+    now: `${today} (${weekday}) ${clock} ${offsetLabel(now, timeZone)}`,
+    thisWeek: `${monday} to ${addDays(monday, 6)}`,
+    nextWeek: `${addDays(monday, 7)} to ${addDays(monday, 13)}`,
+  };
+}
+
+// Which Monday-to-Sunday week, in the zone, an instant falls in relative to now.
+export function weekOf(instant: Date, timeZone: string, now: Date = new Date()) {
+  const weeks = Math.round(
+    (new Date(`${mondayOf(localDate(instant, timeZone))}T00:00:00Z`).getTime() -
+      new Date(`${mondayOf(localDate(now, timeZone))}T00:00:00Z`).getTime()) /
+      (7 * 24 * 60 * 60 * 1000),
+  );
+  return weeks < 0 ? "earlier" : weeks === 0 ? "this_week" : weeks === 1 ? "next_week" : "later";
+}
+
 // The timezone line: "Asia/Seoul (GMT+9)", with the offset at `at`.
 export function zoneLabel(timeZone: string, at: Date = new Date()) {
   return `${timeZone.replaceAll("_", " ")} (${offsetLabel(at, timeZone)})`;
