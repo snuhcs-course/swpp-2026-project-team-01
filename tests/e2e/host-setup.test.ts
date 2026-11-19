@@ -291,10 +291,10 @@ test("a newly onboarded host can try a sample and remove it by requesting a chan
   await expect(links.getByText("Would you like to try a sample request?")).toBeVisible();
   await links.getByRole("button", { name: "Try it" }).click();
 
-  await expect(page.getByRole("heading", { name: "Alex Kim (sample)" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Requests" })).toBeVisible();
+  await expect(page.getByRole("button", { name: /Alex Kim \(sample\)/ })).toHaveAttribute("aria-expanded", "true");
+  await expect(page.getByRole("heading", { name: "Approve this meeting?" })).toBeVisible();
   await page.getByRole("button", { name: "Request changes" }).click();
-  await expect(page.getByRole("heading", { name: "Tutorial complete" })).toBeVisible();
-  await page.getByRole("button", { name: "All requests" }).click();
   await expect(page.getByText("No requests yet.", { exact: false })).toBeVisible();
 });
 

@@ -108,6 +108,13 @@ function Inbox({ initialRequest, onNotice }: { readonly initialRequest: string |
     return () => controller.abort();
   }, []);
 
+  useEffect(() => {
+    if (items && initialRequest && !items.some((item) => item.direction === "received" && item.requestId === initialRequest)) {
+      setOpenId(null);
+      onNotice("That request is not available.");
+    }
+  }, [initialRequest, items, onNotice]);
+
   const received = items?.filter((item) => item.direction === "received").length ?? 0;
   const sent = items?.filter((item) => item.direction === "sent").length ?? 0;
   const shown = items?.filter((item) => filter === "all" || item.direction === filter) ?? [];
