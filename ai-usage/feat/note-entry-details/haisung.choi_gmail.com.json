@@ -1,0 +1,23 @@
+{
+  "branch": "feat/note-entry-details",
+  "user": "haisung.choi@gmail.com",
+  "sessions": {
+    "claude:3877aa38-c23e-41ee-ae59-a6de8b04fe1b": {
+      "agent": "claude-code",
+      "client": "claude-desktop",
+      "agent_ms": 0,
+      "models": {
+        "claude-opus-5-5": {
+          "input": 38,
+          "cache_read": 4493981,
+          "cache_write_5m": 0,
+          "cache_write_1h": 82864,
+          "output": 6439,
+          "reasoning": 0
+        }
+      },
+      "first": "2026-11-19T05:01:18.269Z",
+      "last": "2026-11-19T07:05:26.586Z"
+    }
+  }
+}
