@@ -5,7 +5,7 @@ import { expect, signedInHost, test } from "./support/session";
 
 // The host's review of a request in /app (tasks 3.3, 3.4 and 6.1) against the
 // real web and agent services, the local Supabase stack, the fake Google and the
-// OpenAI stand-in: the inbox, the private discussion with no view of the
+// OpenAI stand-in: the inbox accordion with no view of the
 // requester's conversation, the proposal review, approval, the booking job and
 // the receipt on both sides.
 
@@ -29,13 +29,13 @@ for (const width of [390, 1280]) {
     const card = page.getByRole("button", { name: /Grace Hopper/ });
     await expect(card).toContainText("Needs your decision");
     await card.click();
-    await page.waitForURL((url) => url.searchParams.get("request") === request.requestId);
+    await expect(card).toHaveAttribute("aria-expanded", "true");
 
-    // The private discussion with the proposal review card, and no way to the
-    // requester's own conversation.
-    await expect(page.getByRole("log", { name: "Private messages" })).toBeVisible();
+    // The proposal appears in the list without a private discussion or a way
+    // to the requester's own conversation.
+    await expect(page.getByRole("log", { name: "Private messages" })).toHaveCount(0);
     await expect(page.getByRole("heading", { name: "Approve this meeting?" })).toBeVisible();
-    await expect(page.getByRole("textbox", { name: "Message Thyme" })).toBeVisible();
+    await expect(page.getByRole("textbox", { name: "Message Thyme" })).toHaveCount(0);
     await expect(page.getByRole("tab")).toHaveCount(0);
     expect(await hasNoHorizontalScroll(page)).toBe(true);
     expect((await page.request.get(`/api/host/requests/${request.requestId}/shared`)).status()).toBe(404);

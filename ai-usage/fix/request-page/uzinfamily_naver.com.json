@@ -1,0 +1,23 @@
+{
+  "branch": "fix/request-page",
+  "user": "uzinfamily@naver.com",
+  "sessions": {
+    "codex:01a1f263-b1f8-7a22-869d-97c162b199da": {
+      "agent": "codex",
+      "client": "Codex Desktop",
+      "agent_ms": 2122100,
+      "models": {
+        "gpt-6-sol": {
+          "input": 356528,
+          "cache_read": 25243904,
+          "cache_write_5m": 0,
+          "cache_write_1h": 0,
+          "output": 112031,
+          "reasoning": 45801
+        }
+      },
+      "first": "2026-11-19T06:01:46.239Z",
+      "last": "2026-11-19T07:06:12.688Z"
+    }
+  }
+}
