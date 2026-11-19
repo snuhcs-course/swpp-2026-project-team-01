@@ -1,0 +1,40 @@
+{
+  "branch": "claude/note-step-agent-view-5e291c",
+  "user": "haisung.choi@gmail.com",
+  "sessions": {
+    "claude:1eafcc2f-ef27-4c8b-a878-ffac5369feeb": {
+      "agent": "claude-code",
+      "client": "claude-desktop",
+      "agent_ms": 0,
+      "models": {
+        "claude-opus-5-5": {
+          "input": 8,
+          "cache_read": 927371,
+          "cache_write_5m": 0,
+          "cache_write_1h": 2501,
+          "output": 1654,
+          "reasoning": 0
+        }
+      },
+      "first": "2026-11-19T05:03:12.179Z",
+      "last": "2026-11-19T05:05:24.810Z"
+    },
+    "claude:a69792bd-3e36-4daf-93d2-be0ed4122a05": {
+      "agent": "claude-code",
+      "client": "claude-desktop",
+      "agent_ms": 0,
+      "models": {
+        "claude-opus-5-5": {
+          "input": 118,
+          "cache_read": 8839819,
+          "cache_write_5m": 0,
+          "cache_write_1h": 145685,
+          "output": 38163,
+          "reasoning": 0
+        }
+      },
+      "first": "2026-11-16T04:48:36.672Z",
+      "last": "2026-11-16T05:25:52.352Z"
+    }
+  }
+}

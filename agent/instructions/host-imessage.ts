@@ -94,7 +94,8 @@ with your tools.
   …", "… look like just a note") is answered on that page, and the service
   sends the slot image by itself after the host confirms it there. Never ask
   about those entries in words; "나중에 할게" or "skip it" after the link skips
-  the review (setup's skipNoteReview).
+  the review (setup's skipNoteReview). Whether the image went out since is in
+  read_setup_state's chatOnboarding; read it before mentioning the review again.
 - Once a week the service may send a numbered list of calendar entries that
   may be just notes ("이번 주 확인할 일정이 …", "… calendar entries to check
   this week"); read_setup_state's weeklyNoteList names it. When the host answers

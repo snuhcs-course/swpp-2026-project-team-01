@@ -1,6 +1,7 @@
 import type { Queryable, Transaction } from "./database";
 import { activeBindingOfHost } from "./imessage-links";
 import { publishJob } from "./jobs";
+import { settingsRef } from "./request-ref";
 
 // The note step of the chat onboarding (calendar-note-review design 8). After the
 // place answer, preview_next_week sends the review page link instead of the slot
@@ -34,6 +35,46 @@ export async function noteStepOf(q: Queryable, bindingId: string): Promise<Onboa
     where link.kind = 'notice' and link.dedupe_key = ${noteReviewLinkKey(bindingId)} and link.binding_id = ${bindingId}
   `;
   return row ? { linkId: row.id, waiting: row.waiting } : null;
+}
+
+// The latest slot image recorded for a binding, whoever recorded it (the tool,
+// or the job after 확인 or the wait).
+export async function latestSlotImage(q: Queryable, hostAccountId: string, bindingId: string) {
+  const [row] = await q<{ state: string; review_hash: string }[]>`
+    select state, review_hash from app.imessage_outbox
+    where host_account_id = ${hostAccountId} and binding_id = ${bindingId} and kind = 'image'
+    order by created_at desc, id desc limit 1
+  `;
+  return row ?? null;
+}
+
+export type SlotImageDelivery = "sending" | "delivered" | "not_delivered";
+
+// sending: recorded and not yet answered by the channel; delivered: the channel
+// accepted it; not_delivered: it failed, was held back or suppressed, or its
+// send is uncertain, so the host may not have it and a new one may be sent.
+export function slotImageDelivery(state: string): SlotImageDelivery {
+  if (state === "accepted") return "delivered";
+  return state === "waiting" || state === "queued" || state === "dispatching" ? "sending" : "not_delivered";
+}
+
+// What read_setup_state tells the host assistant about the chat onboarding
+// (issue #216): jobs send the slot image after 확인 or the wait, and that
+// message never enters the agent session, so the assistant reads it here.
+// noteReview is null when no review link went to this chat; slotPreview names
+// the latest image by its settings review reference and whether it is for the
+// current one. Null without a linked chat.
+export async function chatOnboardingForModel(q: Queryable, hostAccountId: string, proposalHash: string) {
+  const binding = await activeBindingOfHost(q, hostAccountId);
+  if (!binding) return null;
+  const step = await noteStepOf(q, binding.id);
+  const image = await latestSlotImage(q, hostAccountId, binding.id);
+  return {
+    noteReview: step ? (step.waiting ? ("waiting" as const) : ("done" as const)) : null,
+    slotPreview: image
+      ? { current: image.review_hash === proposalHash, delivery: slotImageDelivery(image.state), reviewRef: settingsRef(image.review_hash) }
+      : null,
+  };
 }
 
 // Whether the host's linked chat is waiting for the slot image of this review.

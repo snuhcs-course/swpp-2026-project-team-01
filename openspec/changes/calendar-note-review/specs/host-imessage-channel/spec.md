@@ -59,6 +59,10 @@ A linked host SHALL be able to finish setup in the linked conversation without o
 - **WHEN** a day passes after the review link with no 확인 and no reply
 - **THEN** the slot image is sent once with the candidates still busy, followed by one line with the review link, and a later 확인 sends no second image
 
+#### Scenario: Image already sent after the review
+- **WHEN** the image followed the host's 확인 and the host then asks Thyme for the open times
+- **THEN** Thyme says the image is in the conversation and asks whether to open those times, without sending the host back to the review, and no second image is sent while the settings are unchanged
+
 #### Scenario: Slot image and link
 - **WHEN** the host agrees to the slot image
 - **THEN** the settings are saved and the reply carries the booking link
