@@ -1,16 +1,18 @@
 import type { NoteReview, NoteReviewDecision, NoteReviewItem, NoteWeek } from "@lib/contracts/note-review";
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it } from "vitest";
-import { confirmedChoices, NoteReviewDone, NoteReviewWeek } from "./note-review";
+import { confirmedChoices, NoteEntryDetails, NoteReviewDone, NoteReviewWeek } from "./note-review";
+import { NOTE_REVIEW_COPY } from "./note-review-copy";
 import { candidateKeys, firstWindow, layoutWeek, stepWindow, windowWeeks } from "./note-week-layout";
 
 // The week of Monday 2026-11-16 in Seoul (UTC+9).
 const week: NoteWeek = {
   contextUnavailable: false,
   events: [
-    { allDay: false, end: "2026-11-16T02:00:00.000Z", id: "0", start: "2026-11-16T01:00:00.000Z", title: "팀 회의" },
-    { allDay: false, end: "2026-11-18T07:00:00.000Z", id: "1", start: "2026-11-18T06:00:00.000Z", title: "1:1" },
+    { allDay: false, description: "회의실 3층", end: "2026-11-16T02:00:00.000Z", id: "0", start: "2026-11-16T01:00:00.000Z", title: "팀 회의" },
+    { allDay: false, description: null, end: "2026-11-18T07:00:00.000Z", id: "1", start: "2026-11-18T06:00:00.000Z", title: "1:1" },
   ],
+  descriptions: [{ description: "준비물: 운동화", key: "key-헬스", occurrence: "occ-헬스" }],
   next: "2026-11-23",
   previous: null,
   start: "2026-11-16",
@@ -57,11 +59,11 @@ function text(markup: string) {
   return markup.replace(/<[^>]+>/g, "").replaceAll("&#x27;", "'");
 }
 
-// A candidate block's markup, by its occurrence.
+// A candidate block's markup, by its occurrence: its checkbox and its entry button.
 function block(html: string, occurrence: string) {
   const at = html.indexOf(`data-note-occurrence="${occurrence}"`);
   if (at === -1) return null;
-  return html.slice(html.lastIndexOf("<label", at), html.indexOf("</label>", at));
+  return html.slice(html.lastIndexOf("<div", at), html.indexOf("</button>", at) + "</button>".length);
 }
 
 const checked = (markup: string | null) => /<input[^>]*checked=""[^>]*type="checkbox"|<input[^>]*type="checkbox"[^>]*checked=""/.test(markup ?? "");
@@ -82,11 +84,22 @@ describe("layoutWeek", () => {
 
   it("sets overlapping entries side by side", () => {
     const layout = layoutWeek(
-      { ...week, events: [{ allDay: false, end: "2026-11-17T11:30:00.000Z", id: "0", start: "2026-11-17T10:30:00.000Z", title: "Dinner" }] },
+      { ...week, events: [{ allDay: false, description: null, end: "2026-11-17T11:30:00.000Z", id: "0", start: "2026-11-17T10:30:00.000Z", title: "Dinner" }] },
       [items[1]!],
     );
     const lanes = layout.days.find((entry) => entry.date === "2026-11-17")!.timed.map((entry) => [entry.title, entry.lane, entry.lanes]);
     expect(lanes).toEqual([["헬스", 0, 2], ["Dinner", 1, 2]]);
+  });
+
+  it("carries each entry's description for its details, a candidate's by its occurrence", () => {
+    const layout = layoutWeek(week, items);
+    const blocks = layout.days.flatMap((day) => [...day.allDay, ...day.timed]);
+    const of = (title: string) => blocks.find((entry) => entry.title === title)!.description;
+
+    expect(of("헬스")).toBe("준비물: 운동화");
+    expect(of("팀 회의")).toBe("회의실 3층");
+    expect(of("1:1")).toBeNull();
+    expect(of("엄마 생일")).toBeNull();
   });
 });
 
@@ -106,6 +119,35 @@ describe("NoteReviewWeek", () => {
     expect(text(html)).toContain("팀 회의");
     // All-day entries sit in the row under the headings.
     expect(html.slice(html.indexOf('data-note-all-day="2026-11-18"'))).toMatch(/^[^]*?엄마 생일/);
+  });
+
+  it("makes each entry a details button apart from its checkbox, so only the checkbox toggles", () => {
+    const html = render(review, "en");
+    const health = block(html, "occ-헬스")!;
+    const checkbox = /<label[^>]*data-note-check[^>]*>(<input[^>]*>)<\/label>/.exec(health);
+    const entry = /<button[^>]*data-note-entry[^>]*>/.exec(health)?.[0] ?? "";
+
+    // The checkbox sits in its own label, keeps its name, and holds no button.
+    expect(checkbox?.[1]).toMatch(/aria-label="헬스 7:00 PM"/);
+    expect(checkbox?.[1]).toMatch(/type="checkbox"/);
+    // The entry is a separate button, collapsed until pressed, named for its details,
+    // and outside the label, so pressing it cannot reach the checkbox.
+    expect(entry).toMatch(/aria-expanded="false"/);
+    expect(entry).toMatch(/aria-haspopup="dialog"/);
+    expect(entry).toMatch(/aria-label="헬스 7:00 PM, Details"/);
+    expect(entry).toMatch(/type="button"/);
+    expect(health.indexOf("data-note-entry")).toBeGreaterThan(health.indexOf("</label>"));
+    // Grey context entries open their details the same way, with no checkbox.
+    const busy = html.slice(html.indexOf("data-note-busy"), html.indexOf("</button>", html.indexOf("data-note-busy")));
+    expect(busy).toMatch(/<button[^>]*aria-expanded="false"[^>]*aria-label="팀 회의 10:00 AM, Details"|<button[^>]*aria-label="팀 회의 10:00 AM, Details"[^>]*aria-expanded="false"/);
+    expect(busy).not.toContain('type="checkbox"');
+    // The details stay closed until an entry is pressed.
+    expect(html).not.toContain("data-note-details");
+  });
+
+  it("gives the checkbox a corner of its own, at least 24px and larger on a touch screen", () => {
+    const health = block(render(review, "en", true), "occ-헬스")!;
+    expect(health).toMatch(/<label[^>]*class="[^"]*size-6[^"]*pointer-coarse:size-7[^"]*"[^>]*data-note-check/);
   });
 
   it("puts nothing between the week and the confirm button", () => {
@@ -213,6 +255,26 @@ describe("the phone view, three days at a time", () => {
     // Once Thursday to Saturday has been on screen too, Friday's entry counts.
     const both = new Set([...monToWed, ...candidateKeys(layout.days.slice(3, 6))]);
     expect(confirmedChoices(items, both, choices).map((choice) => choice.key)).toContain("key-과제 마감");
+  });
+});
+
+describe("NoteEntryDetails", () => {
+  const t = NOTE_REVIEW_COPY.en;
+
+  it("shows the full title and the description as text, never as markup", () => {
+    const long = "아주 긴 일정 제목이 겹친 칸에서는 잘려 보이지만 여기서는 전부 보여요";
+    const html = renderToStaticMarkup(<NoteEntryDetails description={'첫 줄\n<img src=x onerror="alert(1)">'} t={t} title={long} />);
+
+    expect(html).toMatch(new RegExp(`<h4[^>]*data-note-details-title[^>]*>${long}</h4>`));
+    expect(html).toContain("&lt;img src=x onerror=&quot;alert(1)&quot;&gt;");
+    expect(html).not.toContain("<img");
+    expect(html).toContain("whitespace-pre-line");
+  });
+
+  it("says briefly that there is no description", () => {
+    const html = renderToStaticMarkup(<NoteEntryDetails description={null} t={t} title="헬스" />);
+    expect(html).toContain('data-note-description="none"');
+    expect(text(html)).toBe("헬스No description");
   });
 });
 

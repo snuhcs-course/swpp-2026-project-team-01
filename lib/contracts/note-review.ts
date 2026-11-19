@@ -3,7 +3,8 @@
 // the host's decisions; the browser sends back only item keys and choices, so it
 // can decide nothing the review did not show. The page draws one week at a time
 // like Google Calendar: the candidates in yellow and, for context, the host's
-// other busy entries of that week in grey, read live from Google.
+// other busy entries of that week in grey, read live from Google. Opening an
+// entry shows its full title and description, read live with the week.
 
 export type NoteVerdict = "note" | "event" | "unsure";
 export type NoteScope = "series" | "occurrence";
@@ -57,14 +58,29 @@ export type NoteReviewDecision = {
 };
 
 // A busy entry of the shown week that is not a candidate, drawn for context. Its
-// title reaches only the signed-in host; no attendee is ever part of it.
+// title and description reach only the signed-in host; no attendee is ever part
+// of it.
 export type NoteWeekEvent = {
   readonly id: string;
   readonly title: string;
   readonly start: string;
   readonly end: string;
   readonly allDay: boolean;
+  // Plain text, cut at NOTE_DESCRIPTION_LIMIT characters; null without one.
+  readonly description: string | null;
 };
+
+// A candidate occurrence's description in the shown week, read live with the
+// grey entries and shown when the host opens the entry's details.
+export type NoteWeekDescription = {
+  // The review item and which of its occurrences.
+  readonly key: string;
+  readonly occurrence: string;
+  readonly description: string;
+};
+
+// The longest description the week carries, in characters, before "…".
+export const NOTE_DESCRIPTION_LIMIT = 2000;
 
 export type NoteWeek = {
   // The Monday that starts the week, in the host timezone.
@@ -75,6 +91,9 @@ export type NoteWeek = {
   readonly previous: string | null;
   readonly next: string | null;
   readonly events: readonly NoteWeekEvent[];
+  // The descriptions of this week's candidate occurrences that have one. Read
+  // from Google for the page only: never stored, never sent to a model.
+  readonly descriptions: readonly NoteWeekDescription[];
   // Google could not be read: only the candidates are drawn.
   readonly contextUnavailable: boolean;
 };

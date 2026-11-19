@@ -9,6 +9,8 @@ export type WeekBlock = {
   readonly id: string;
   readonly kind: "candidate" | "busy";
   readonly title: string;
+  // Plain text from Google, shown in the entry's details; null without one.
+  readonly description: string | null;
   readonly start: string;
   readonly end: string | null;
   readonly allDay: boolean;
@@ -99,6 +101,7 @@ export function layoutWeek(week: NoteWeek, items: readonly NoteReviewItem[]): We
   const allDay = new Map(dates.map((date) => [date, [] as WeekBlock[]]));
   const timed = new Map(dates.map((date) => [date, [] as Placed[]]));
   const itemKeys = new Set<string>();
+  const described = new Map(week.descriptions.map((entry) => [`${entry.key}\u0000${entry.occurrence}`, entry.description]));
 
   const place = (block: Omit<Placed, "startMinute" | "endMinute">) => {
     if (block.allDay) {
@@ -126,6 +129,7 @@ export function layoutWeek(week: NoteWeek, items: readonly NoteReviewItem[]): We
       const placed = place({
         allDay: occurrence.allDay,
         end: occurrence.end,
+        description: described.get(`${item.key}\u0000${occurrence.id}`) ?? null,
         id: `${item.key}\u0000${occurrence.id}`,
         itemKey: item.key,
         kind: "candidate",
@@ -137,7 +141,15 @@ export function layoutWeek(week: NoteWeek, items: readonly NoteReviewItem[]): We
     }
   }
   for (const event of week.events) {
-    place({ allDay: event.allDay, end: event.end, id: `busy\u0000${event.id}`, kind: "busy", start: event.start, title: event.title });
+    place({
+      allDay: event.allDay,
+      description: event.description,
+      end: event.end,
+      id: `busy\u0000${event.id}`,
+      kind: "busy",
+      start: event.start,
+      title: event.title,
+    });
   }
 
   const days = dates.map((date) => ({ allDay: allDay.get(date)!, date, timed: withLanes(timed.get(date)!) }));
