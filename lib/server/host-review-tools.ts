@@ -2,7 +2,7 @@ import { cancelBookingCommand, changeBookingCommand } from "./booking-cancellati
 import { z } from "zod";
 import { BOOKING_STATUS_TEXT } from "../contracts/booking";
 import type { HostRequestItem, HostRequestView, HostSuggestion } from "../contracts/host-request";
-import { displayTime } from "../contracts/timezone";
+import { currentTime, displayTime, weekOf } from "../contracts/timezone";
 import { approveCommand, declineCommand, readBookingStatus } from "./bookings";
 import { channelOfTurn } from "./channel-selection";
 import { type Actor, runCommand } from "./commands";
@@ -10,7 +10,7 @@ import type { Database, Queryable } from "./database";
 import { encodeDisplayName } from "./entry-documents";
 import { awaitHostEvaluation } from "./evaluation";
 import { HOST_REVIEW_AUDIENCE } from "./eve-auth";
-import { listHostRequests, readHostRequest } from "./host-requests";
+import { listHostRequests, readHostRequest, readHostTimezone } from "./host-requests";
 import type { NoticeDependencies } from "./booking-notices";
 import { hostEvaluateCommand } from "./request-exceptions";
 import { requestRef } from "./request-ref";
@@ -98,11 +98,14 @@ function when(start: string, end: string, timezone: string) {
   return `${displayTime(new Date(start), timezone)} to ${displayTime(new Date(end), timezone)}`;
 }
 
-// The model's host projection of one request.
-export function hostModelProjection(view: HostRequestView) {
+// The model's host projection of one request, with the current date and time
+// in the host's timezone so a date the host gives without a year, or "next
+// week", can be worked out.
+export function hostModelProjection(view: HostRequestView, now: Date = new Date()) {
   const zone = view.hostTimezone;
 
   return {
+    current: currentTime(zone, now),
     booking: view.booking
       ? { failure: view.booking.failure, state: view.booking.state, text: BOOKING_STATUS_TEXT[view.booking.state].en }
       : null,
@@ -164,17 +167,32 @@ export async function readRequestForHostTool(db: Database, call: HostReviewToolC
   return hostModelProjection(view);
 }
 
+const ACTIVE_STATES = new Set(["gathering", "negotiating", "awaiting_host_approval", "booking"]);
+
+export const WEEK_NOTE =
+  "booked is a confirmed meeting, which stands while a change is negotiated; proposed is a time not yet booked. Each week is Monday to Sunday in the host's timezone, as current gives this and next week. Asked about a week's meetings, name only those whose week matches, each with the requester and the time; when there are none, say so and name any booked this week or next week instead, such as \"다음 주엔 확정된 미팅이 없어요. 이번 주엔 {requester}님과 {date} {time}에 미팅이 있어요.\"";
+
 // The host's requests as the model sees them, newest first: the reference
 // switch_conversation takes, the requester and purpose as quoted data, the
-// state and whether each needs a decision.
-export function hostRequestsForModel(items: readonly HostRequestItem[]) {
-  return items.map((item) => ({
-    needsDecision: item.needsDecision,
-    purpose: item.purpose === null ? null : encodeDisplayName(item.purpose),
-    ref: requestRef(item.requestId),
-    requester: encodeDisplayName(item.requesterName),
-    state: item.state,
-  }));
+// state, whether each needs a decision, and the booked and proposed times with
+// the week each falls in, so "next week's meetings" is worked out from now.
+export function hostRequestsForModel(items: readonly HostRequestItem[], zone: string, now: Date = new Date()) {
+  const slot = (start: string) => ({ time: displayTime(new Date(start), zone), week: weekOf(new Date(start), zone, now) });
+  return {
+    current: currentTime(zone, now),
+    dataNote: QUOTED_NOTE,
+    requests: items.map((item) => ({
+      booked: item.bookedStart ? slot(item.bookedStart) : null,
+      needsDecision: item.needsDecision,
+      proposed: item.proposalStart && item.proposalStart !== item.bookedStart && ACTIVE_STATES.has(item.state) ? slot(item.proposalStart) : null,
+      purpose: item.purpose === null ? null : encodeDisplayName(item.purpose),
+      ref: requestRef(item.requestId),
+      requester: encodeDisplayName(item.requesterName),
+      state: item.state,
+    })),
+    selectNote: SELECT_NOTE,
+    weekNote: WEEK_NOTE,
+  };
 }
 
 export const SELECT_NOTE =
@@ -182,7 +200,7 @@ export const SELECT_NOTE =
 
 export async function listHostRequestsForTool(db: Database, call: HostReviewToolCall) {
   const { hostAccountId } = await authorizeHostReviewTool(db, call);
-  return { dataNote: QUOTED_NOTE, requests: hostRequestsForModel(await listHostRequests(db, hostAccountId)), selectNote: SELECT_NOTE };
+  return hostRequestsForModel(await listHostRequests(db, hostAccountId), await readHostTimezone(db, hostAccountId));
 }
 
 export async function evaluateCandidatesForHostTool(

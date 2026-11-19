@@ -16,6 +16,7 @@ import { dismissChangesCommand, shareChangesCommand, suggestChangesCommand } fro
 // by the host-review tools, which minimize contact fields further.
 
 type ListRow = {
+  booked_start: Date | null;
   details: Partial<RequestDetails>;
   id: string;
   needs: boolean;
@@ -37,6 +38,7 @@ export async function listHostRequests(db: Queryable, hostAccountId: string): Pr
   const rows = await db<ListRow[]>`
     select r.id, r.state, r.details, r.requester_name, r.updated_at,
            (select p.start_at from app.proposals p where p.request_id = r.id order by p.version desc limit 1) as proposal_start,
+           (select b.start_at from app.bookings b where b.request_id = r.id and b.state = 'confirmed' order by b.start_at desc limit 1) as booked_start,
            (${db.unsafe(NEEDS_DECISION)}) as needs
     from app.requests r
     where r.host_account_id = ${hostAccountId} and r.state <> 'draft'
@@ -45,6 +47,7 @@ export async function listHostRequests(db: Queryable, hostAccountId: string): Pr
   `;
 
   return rows.map((row) => ({
+    bookedStart: row.booked_start?.toISOString() ?? null,
     needsDecision: row.needs,
     proposalStart: row.proposal_start?.toISOString() ?? null,
     purpose: row.details.purpose ?? null,
@@ -127,6 +130,14 @@ async function evaluationSummary(db: Queryable, request: RequestRow, waived: boo
     state: view.state,
     weeklyLimitHold: !waived && weeklyLimitHold(view.candidates, request.settings?.weeklyLimit ?? null),
   };
+}
+
+// The host's timezone from their settings, or UTC, as each request view uses.
+export async function readHostTimezone(q: Queryable, hostAccountId: string) {
+  const [row] = await q<{ timezone: string | null }[]>`
+    select settings->>'timezone' as timezone from app.host_settings where host_account_id = ${hostAccountId}
+  `;
+  return row?.timezone && isValidTimeZone(row.timezone) ? row.timezone : "UTC";
 }
 
 // One request as its host sees it, or null for another host's request, a draft

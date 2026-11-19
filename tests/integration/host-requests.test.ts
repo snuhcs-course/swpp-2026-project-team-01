@@ -2,7 +2,9 @@ import { randomUUID } from "node:crypto";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { approveCommand } from "../../lib/server/bookings";
 import { createHostRequestCommandHandler, createHostRequestHandler, createHostRequestListHandler } from "../../lib/server/host-request-routes";
-import { listHostRequests, readHostRequest } from "../../lib/server/host-requests";
+import { displayTime } from "../../lib/contracts/timezone";
+import { listHostRequests, readHostRequest, readHostTimezone } from "../../lib/server/host-requests";
+import { hostRequestsForModel } from "../../lib/server/host-review-tools";
 import { agreeCommand, readCurrentEvaluation } from "../../lib/server/request-proposals";
 import { allowHostTripCommand, hostEvaluateCommand, waiveWeeklyLimitCommand } from "../../lib/server/request-exceptions";
 import { dismissChangesCommand, shareChangesCommand, suggestChangesCommand } from "../../lib/server/shared-changes";
@@ -60,6 +62,26 @@ describe("the host projection", () => {
     expect(JSON.stringify(view)).not.toContain(request.bookingId);
     expect(await readHostRequest(db, request.hostAccountId, other.requestId)).toBeNull();
     expect(await readHostRequest(db, request.hostAccountId, draft.requestId)).toBeNull();
+  });
+
+  it("lists a confirmed booking's time and its week for the model (issue #300)", async () => {
+    const request = await agreedRequest(db, google);
+    const approval = await asHost(db, request.hostAccountId, request.requestId, approveCommand, { version: 1 }, {
+      expectedRevision: await revisionOf(db, request.requestId),
+    });
+    if (!approval.ok) throw new Error("approve failed");
+    await runBooking(db, bookingDeps(db, google), approval.result.bookingId);
+
+    const [item] = await listHostRequests(db, request.hostAccountId);
+    const [booking] = await db<{ start_at: Date }[]>`select start_at from app.bookings where id = ${approval.result.bookingId}`;
+    expect(item?.bookedStart).toBe(booking!.start_at.toISOString());
+
+    const zone = await readHostTimezone(db, request.hostAccountId);
+    const start = booking!.start_at;
+    const weekBefore = new Date(start.getTime() - 7 * 86_400_000);
+    const listed = hostRequestsForModel([item!], zone, weekBefore);
+    expect(listed.requests[0]).toMatchObject({ booked: { time: displayTime(start, zone), week: "next_week" }, proposed: null, state: "booked" });
+    expect(hostRequestsForModel([item!], zone, start).requests[0]?.booked?.week).toBe("this_week");
   });
 
   it("serves the routes only to the request's own signed-in host", async () => {

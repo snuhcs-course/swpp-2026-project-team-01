@@ -1,0 +1,23 @@
+{
+  "branch": "fix/300-273-host-today",
+  "user": "enu3379@gmail.com",
+  "sessions": {
+    "claude:2f3f1643-fbf5-4f2c-bdb3-b32b8afeae09": {
+      "agent": "claude-code",
+      "client": "cli",
+      "agent_ms": 383170,
+      "models": {
+        "claude-opus-5-5": {
+          "input": 134,
+          "cache_read": 6504677,
+          "cache_write_5m": 0,
+          "cache_write_1h": 83963,
+          "output": 27656,
+          "reasoning": 0
+        }
+      },
+      "first": "2026-11-19T06:04:31.354Z",
+      "last": "2026-11-19T06:19:03.986Z"
+    }
+  }
+}

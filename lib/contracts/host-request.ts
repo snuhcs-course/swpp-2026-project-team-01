@@ -14,6 +14,8 @@ export type HostRequestItem = {
   readonly purpose: string | null;
   readonly state: RequestState;
   readonly proposalStart: string | null;
+  // The start of the confirmed booking, which stands while a change is negotiated.
+  readonly bookedStart: string | null;
   readonly needsDecision: boolean;
   readonly updatedAt: string;
 };
