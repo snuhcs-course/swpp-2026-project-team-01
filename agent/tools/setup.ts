@@ -8,8 +8,9 @@ import {
   confirmNoteItemsForTool,
   confirmNoteItemsToolInput,
 } from "../../lib/server/note-weekly-check";
+import { tutorialChoiceInput } from "../../lib/server/host-tutorial";
 import { setupDependenciesFromEnvironment } from "../../lib/server/setup";
-import { confirmSettingsForTool, confirmSettingsToolInput, listHostRequestsForSetupTool, setCalendarRolesForTool, setCalendarRolesToolInput, previewNextWeekForTool, previewNextWeekToolInput } from "../../lib/server/setup-channel-tools";
+import { chooseTutorialForTool, confirmSettingsForTool, confirmSettingsToolInput, listHostRequestsForSetupTool, setCalendarRolesForTool, setCalendarRolesToolInput, previewNextWeekForTool, previewNextWeekToolInput } from "../../lib/server/setup-channel-tools";
 import {
   draftSettingsForTool,
   draftSettingsToolInput,
@@ -41,7 +42,7 @@ export default defineDynamic({
             }),
             draft_settings: defineTool({
               description:
-                "Record setup values in the host's draft, each labeled stated (the host said it in this conversation) or inferred (derived from evidence). It never saves settings and never accepts a value for the host; meeting mode, location and travel mode take only source stated.",
+                "Record setup values in the host's draft, each labeled stated (the host said it in this conversation) or inferred (derived from evidence); meeting mode, location and travel mode take only source stated. Before setup is first saved it never saves settings. Once setup is saved, it saves the change at once and reports savedChange: \"saved\" means guests book against it now; any other value means guests still see the previous settings.",
               inputSchema: draftSettingsToolInput,
               execute: (input, toolCtx) =>
                 draftSettingsForTool(
@@ -62,18 +63,18 @@ export default defineDynamic({
                 }),
             }),
             set_calendar_roles: defineTool({
-              description: "Set the conflict calendars and booking destination the host asked for in the linked conversation. Use the quoted calendar names and zero-based indices from read_setup_state. The destination must be writable.",
+              description: "Set the conflict calendars and booking destination the host asked for in the linked conversation. Use the quoted calendar names and zero-based indices from read_setup_state. The destination must be writable. Once setup is saved, the new calendars are saved at once and savedChange reports it, as for draft_settings.",
               inputSchema: setCalendarRolesToolInput,
               execute: (input, ctx) => setCalendarRolesForTool(setupDependenciesFromEnvironment(), { auth: ctx.session.auth.current, callId: ctx.callId, sessionId: ctx.session.id }, input),
             }),
             preview_next_week: defineTool({
-              description: "Send next week's open times as a slot image to the linked conversation, using the current draft. Record the host's hours, meeting mode, place and travel answers first. Returns the review reference and open ranges. When the scan found entries that may be notes, it sends the note review link instead (noteReviewSent), and the image follows by itself after the host confirms that page; pass skipNoteReview true only when the host says to skip that review. Ask whether to open the times; confirm only after the host agrees.",
+              description: "Send next week's open times as an image followed by one message in the linked conversation, using the current draft. Record the host's answers first and pass a short changeSummary if they just answered or changed anything. When queued, the service sends the whole reply, including whether to open the times. When the scan found entries that may be notes, it sends the note review link instead (noteReviewSent), and the image follows by itself after the host confirms that page; pass skipNoteReview true only when the host says to skip that review. Before setup is first saved, confirm only after the host agrees. Once setup is saved, use it only when the host asks to see their open times; a change needs no image.",
               inputSchema: previewNextWeekToolInput,
               execute: (input, ctx) => previewNextWeekForTool(setupDependenciesFromEnvironment(), { auth: ctx.session.auth.current, callId: ctx.callId, sessionId: ctx.session.id }, input),
             }),
             confirm_settings: defineTool({
               description:
-                "Save the current settings after the host agrees to its delivered slot preview in the linked conversation. Pass read_setup_state's reviewRef. If they change anything, send a new preview first. On the web the host confirms with the card. Return the saved booking link.",
+                "Save the first setup after the host agrees to its delivered slot preview in the linked conversation; once setup is saved, changes are saved as they are recorded. Pass read_setup_state's reviewRef. If they change anything, send a new preview first. On the web the host confirms with the card. Return the saved booking link.",
               inputSchema: confirmSettingsToolInput,
               execute: (input, toolCtx) =>
                 confirmSettingsForTool(
@@ -81,6 +82,11 @@ export default defineDynamic({
                   { auth: toolCtx.session.auth.current, callId: toolCtx.callId, sessionId: toolCtx.session.id },
                   input,
                 ),
+            }),
+            choose_request_tutorial: defineTool({
+              description: "Respond to the host's explicit answer to the sample request tutorial offer in linked chat. Pass start true when the host accepts and false when they skip. Never use the same yes that confirmed settings. A separate message delivers the sample.",
+              inputSchema: tutorialChoiceInput,
+              execute: (input, ctx) => chooseTutorialForTool(setupDependenciesFromEnvironment(), { auth: ctx.session.auth.current, callId: ctx.callId, sessionId: ctx.session.id }, input),
             }),
             choose_note_items: defineTool({
               description:

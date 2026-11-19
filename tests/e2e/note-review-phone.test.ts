@@ -30,11 +30,11 @@ const CANDIDATES = [
 
 test("on a phone the review shows three days at a time and records only the days shown", async ({ baseURL, context, db, page }, testInfo) => {
   test.setTimeout(90_000);
-  const host = await noteReviewHost(db, context, baseURL!, "ko");
+  const host = await noteReviewHost(db, context, baseURL!, "en");
   const { date, today } = seoulDates();
 
   await page.goto("/app/notes");
-  await expect(page.getByRole("heading", { name: "메모 용도의 일정을 체크해주세요" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Check the entries that are just notes" })).toBeVisible();
   const grid = page.locator("[data-note-week-grid]");
   const range = page.locator("[data-note-range]");
   // Three days from today, nothing to scroll sideways, and nothing before today.
@@ -42,13 +42,13 @@ test("on a phone the review shows three days at a time and records only the days
   await expect(range).toHaveAttribute("data-note-range", `${date(today)}/${date(today + 2)}`);
   expect(await grid.evaluate((element) => element.scrollWidth <= element.clientWidth)).toBe(true);
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
-  await expect(page.getByRole("button", { name: "이전 3일" })).toBeDisabled();
+  await expect(page.getByRole("button", { name: "Previous 3 days" })).toBeDisabled();
   await page.screenshot({ fullPage: true, path: testInfo.outputPath("note-review-phone-today.png") });
 
   // Three days ahead at a time, into next week, until 과제 마감's day is on screen.
   let first = today;
   while (first + 2 < NEXT_WEEK + 4) {
-    await page.getByRole("button", { name: "다음 3일" }).click();
+    await page.getByRole("button", { name: "Next 3 days" }).click();
     first += 3;
     await expect(range).toHaveAttribute("data-note-range", `${date(first)}/${date(first + 2)}`);
   }
@@ -60,13 +60,13 @@ test("on a phone the review shows three days at a time and records only the days
   await page.screenshot({ fullPage: true, path: testInfo.outputPath("note-review-phone-next-week.png") });
 
   // Back three days, then ahead again: the same days come back.
-  await page.getByRole("button", { name: "이전 3일" }).click();
+  await page.getByRole("button", { name: "Previous 3 days" }).click();
   await expect(range).toHaveAttribute("data-note-range", `${date(Math.max(today, first - 3))}/${date(Math.max(today, first - 3) + 2)}`);
-  await page.getByRole("button", { name: "다음 3일" }).click();
+  await page.getByRole("button", { name: "Next 3 days" }).click();
   await expect(range).toHaveAttribute("data-note-range", `${date(first)}/${date(last)}`);
 
-  await page.getByRole("button", { name: "확인" }).click();
-  await expect(page.getByRole("heading", { name: "메모 용도의 일정을 체크했습니다" })).toBeVisible();
+  await page.getByRole("button", { name: "Confirm" }).click();
+  await expect(page.getByRole("heading", { name: "Your note entries are checked" })).toBeVisible();
 
   // Only the candidates on days that were on screen are answered.
   const recorded = await db<{ event_id: string; decision: string }[]>`

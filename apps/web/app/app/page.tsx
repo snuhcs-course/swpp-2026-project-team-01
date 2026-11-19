@@ -1,3 +1,5 @@
+import { database } from "@lib/server/database";
+import { tutorialOffered } from "@lib/server/host-tutorial";
 import { openHostWorkspace } from "@lib/server/web-session";
 import { cookies } from "next/headers";
 import { connection } from "next/server";
@@ -55,7 +57,10 @@ async function Workspace({ searchParams }: { readonly searchParams: SearchParams
   }
 
   const params = await searchParams;
-  if (standing.ready && !params.request && (!params.view || params.view === "dashboard")) {
+  // The post-link Home action opens the dashboard even while setup is incomplete.
+  const atDefaultPage = standing.ready && !params.view && !params.request;
+  const offerTutorial = atDefaultPage && standing.hostAccountId && await tutorialOffered(database(), standing.hostAccountId);
+  if (!params.request && (params.view === "dashboard" || (atDefaultPage && !offerTutorial))) {
     return <HostDashboard />;
   }
   return (

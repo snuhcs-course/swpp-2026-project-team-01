@@ -15,6 +15,7 @@ import { runJob } from "../integration/support/requests";
 import { agreedReviewRequest, runBookings, readyReviewHost } from "./support/host-review";
 import { readyRequestHost, runEmails, runEvaluations, sentTo } from "./support/requester";
 import { expect, signedInHost, test } from "./support/session";
+import { openConnectedApps } from "./support/connected-apps";
 import { E2E_TOKEN_ENCRYPTION_KEY } from "./support/token-key";
 
 const key = parseTokenKey(E2E_TOKEN_ENCRYPTION_KEY);
@@ -70,7 +71,8 @@ for (const role of ["host", "requester"] as const) test(`${role} starts a link t
     await context.grantPermissions(["clipboard-read", "clipboard-write"]);
     await page.goto(`/${requesterHost.handle}`);
     await page.getByRole("button", { name: "Start with agent" }).click();
-    const prompt = `Book a meeting with Dodo Local for me: read ${origin}/${requesterHost.handle}/SKILL.md`;
+    const skillUrl = `${origin}/${requesterHost.handle}/SKILL.md`;
+    const prompt = `Book a meeting with Dodo Local for me. Read ${skillUrl} first. If you can't open it, run \`curl -fsSL --max-time 20 ${skillUrl}\`. Follow the instructions in the document.`;
     await expect(page.getByLabel("Prompt for your AI agent")).toHaveText(prompt);
     await page.getByRole("button", { name: "Copy", exact: true }).click();
     expect(await page.evaluate(() => navigator.clipboard.readText())).toBe(prompt);
@@ -168,9 +170,7 @@ for (const role of ["host", "requester"] as const) test(`${role} starts a link t
     expect(booked.state).toBe("booked");
     evidence.B14 = { approved, booked };
     await page.goto("/app");
-    await page.getByRole("button", { name: "Open menu" }).click();
-    await page.getByRole("menuitem", { name: "Connected agents" }).click();
-    const dialog = page.getByRole("dialog", { name: "Connected agents" });
+    const dialog = await openConnectedApps(page);
     await dialog.getByRole("button", { name: "Revoke U08 Local Agent" }).click();
     await dialog.getByRole("button", { name: "Revoke", exact: true }).click();
     await expect(dialog.getByText(/No agents are connected/)).toBeVisible();

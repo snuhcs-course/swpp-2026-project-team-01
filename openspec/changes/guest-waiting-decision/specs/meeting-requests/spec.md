@@ -1,7 +1,17 @@
 ## ADDED Requirements
 
 ### Requirement: Explain the guest's wait after agreement
-When the guest agrees to the current proposal, the booking page SHALL immediately show a dismissible success dialog containing only the successful-send confirmation and a **View request** button. Closing the dialog SHALL return focus to the persistent waiting card. A failed agreement SHALL show a failure alert asking the guest to try again, without claiming success. An unavailable time SHALL direct the guest to choose another time; an uncertain outcome SHALL ask them to check status before retrying. Closing the failure alert SHALL return focus to the relevant request card. Reloading the page SHALL NOT reopen either alert. The waiting card SHALL say that the request awaits host approval, that no meeting is booked yet, and that the host's decision will be emailed to the displayed contact address. It SHALL explain that updates can also arrive through a linked iMessage or WhatsApp channel. It SHALL say an agreement copy was sent only when the agreement email flow has confirmed delivery, and SHALL name the actual recipient of that send.
+When the guest agrees to the current proposal, the booking page SHALL immediately show a dismissible success dialog containing only the successful-send confirmation and a **View request** button. Closing the dialog SHALL return focus to the persistent waiting card. A failed agreement SHALL show a failure alert asking the guest to try again, without claiming success. An unavailable time SHALL direct the guest to choose another time; an uncertain outcome SHALL ask them to check status before retrying. Closing the failure alert SHALL return focus to the relevant request card. Reloading the page SHALL NOT reopen either alert. The waiting card SHALL name pending host approval in its heading and confirm submission in a separate introductory sentence. Its following paragraph SHALL explain email delivery to the displayed contact address when the host approves and optional linked iMessage or Telegram updates. It SHALL say an agreement copy was sent only when the agreement email flow has confirmed delivery, and SHALL name the actual recipient of that send.
+
+The waiting card SHALL offer **Email updates only** beside available messaging channels instead of an optional-email footnote. Only the authorized requester MAY save this request-scoped preference through the command pipeline. Saving SHALL end active messaging bindings, suppress their unsent outbound messages and cancel pending linking attempts atomically with the preference. It SHALL NOT change request state or scheduling details. Successful persistence SHALL replace channel buttons with an email-only receipt and show a Thyme acknowledgment below the card. These SHALL survive reloads. No **Change** action SHALL be shown. Failed saves SHALL retain the choices and show a retryable error without claiming success.
+
+#### Scenario: Guest chooses email only
+- **WHEN** the guest selects **Email updates only** and the command succeeds
+- **THEN** the preference is stored for that request, messaging delivery is ended, and the receipt and Thyme acknowledgment remain visible after a reload without a **Change** control
+
+#### Scenario: Email-only preference cannot be saved
+- **WHEN** the command fails before saving
+- **THEN** the channel choices remain available with an error and no successful-save acknowledgment
 
 #### Scenario: Agreement succeeds
 - **WHEN** the guest agrees to the current proposal and the command records the agreement
@@ -21,7 +31,7 @@ When the guest agrees to the current proposal, the booking page SHALL immediatel
 
 #### Scenario: Waiting without a sent agreement email
 - **WHEN** a guest agrees and the agreement email has not reported a confirmed send
-- **THEN** the waiting card names pending host approval, the absence of a booking, the contact email and the optional messaging channels, without claiming that an agreement email was sent
+- **THEN** the waiting card names pending host approval, confirms submission, and explains the contact email and optional messaging channels, without claiming that an agreement email was sent
 
 #### Scenario: Agreement email sent
 - **WHEN** the agreement email flow reports a confirmed send for the current agreement

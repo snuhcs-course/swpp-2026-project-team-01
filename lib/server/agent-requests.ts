@@ -4,8 +4,8 @@ import { REQUEST_LANGUAGES } from "../contracts/request";
 import { isValidTimeZone } from "../contracts/timezone";
 import { type CommandFailure } from "../contracts/command-errors";
 import type { GrantAccess } from "./agent-grants";
-import { CommandError, commandFailure } from "./commands";
-import type { Database } from "./database";
+import { CommandError, commandFailure, type CommandContext } from "./commands";
+import type { Database, Transaction } from "./database";
 import { lockOpenRequest, hostAcceptsRequests } from "./request-guard";
 import { localPatchSchema, updateDetailsCommand } from "./request-reviews";
 import { admitCreation, CREATION_LIMITS, type CreationLimits, identifyDraft, insertDraftRequest } from "./request-start";
@@ -78,31 +78,9 @@ export async function createRequestForGrant(
       if (!(await hostAcceptsRequests(tx, grant.host_account_id))) throw new CommandError("forbidden");
       await admitCreation(tx, grant.source_hash, limits);
 
-      const language = input.language ?? "en";
-      const requestId = await insertDraftRequest(tx, {
-        hostAccountId: grant.host_account_id,
-        language,
-        sourceHash: grant.source_hash,
-        timezone: input.timezone,
-        tokenKey: deps.tokenKey,
+      const requestId = await createIdentifiedAgentRequest(tx, deps, grant.host_account_id, grant.source_hash, input, {
+        correlationId, retryKey: `mcp:${access.grantId}:${input.retryKey}`,
       });
-      const identified = await identifyDraft(
-        tx,
-        await lockOpenRequest(tx, requestId),
-        { email: input.email, language, name: input.name, timezone: input.timezone },
-        { origin: deps.origin, tokenKey: deps.tokenKey },
-      );
-
-      if (input.details && Object.keys(input.details).length > 0) {
-        await updateDetailsCommand({ origin: deps.origin, tokenKey: deps.tokenKey }).run(tx, {
-          actor: { id: requestId, kind: "requester_request" },
-          correlationId,
-          expectedRevision: identified.revision,
-          input: { details: input.details, timezone: input.timezone },
-          resourceId: requestId,
-          retryKey: `mcp:${access.grantId}:${input.retryKey}`,
-        });
-      }
 
       await tx`
         update app.agent_grants
@@ -114,4 +92,42 @@ export async function createRequestForGrant(
   } catch (error) {
     return { error: commandFailure(error, correlationId, CREATE_REQUEST_OPERATION), ok: false };
   }
+}
+
+// Shared creation transaction for anonymous grants and signed-in account grants.
+export async function createIdentifiedAgentRequest(
+  tx: Transaction,
+  deps: { readonly origin: string; readonly tokenKey: TokenKey },
+  hostAccountId: string,
+  sourceHash: string,
+  input: Omit<CreateRequestInput, "retryKey">,
+  context: Pick<CommandContext<unknown>, "correlationId" | "retryKey">,
+) {
+  const language = input.language ?? "en";
+  const requestId = await insertDraftRequest(tx, {
+    hostAccountId: hostAccountId,
+    language,
+    sourceHash: sourceHash,
+    timezone: input.timezone,
+    tokenKey: deps.tokenKey,
+  });
+  const identified = await identifyDraft(
+    tx,
+    await lockOpenRequest(tx, requestId),
+    { email: input.email, language, name: input.name, timezone: input.timezone },
+    { origin: deps.origin, tokenKey: deps.tokenKey },
+  );
+
+  if (input.details && Object.keys(input.details).length > 0) {
+    await updateDetailsCommand({ origin: deps.origin, tokenKey: deps.tokenKey }).run(tx, {
+      actor: { id: requestId, kind: "requester_request" },
+      correlationId: context.correlationId,
+      expectedRevision: identified.revision,
+      input: { details: input.details, timezone: input.timezone },
+      resourceId: requestId,
+      retryKey: context.retryKey,
+    });
+  }
+
+  return requestId;
 }

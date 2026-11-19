@@ -1,18 +1,21 @@
 import { z } from "zod";
 import { readCalendarRoles, saveCalendarRolesCommand, recordDestinationAccess } from "./calendar-roles";
-import { channelOfTurn } from "./channel-selection";
+import { channelOfTurn, linkedMessagingTurn } from "./channel-selection";
 import { CommandError, runCommand } from "./commands";
 import { CalendarAccessError, openHostCalendar } from "./google-calendar";
 import { hostRequestsForModel, QUOTED_NOTE, SELECT_NOTE } from "./host-review-tools";
+import { chooseTutorialCommand, TUTORIAL_TEXT, tutorialChoiceInput } from "./host-tutorial";
 import { listHostRequests } from "./host-requests";
 import { settingsRef } from "./request-ref";
-import { computeSetupProposal, readSetupState, missingFields, setupDependenciesFromEnvironment, withStatedAnswers, type SetupDependencies } from "./setup";
+import { computeSetupProposal, differsFromConfirmed, readSetupState, missingFields, setupDependenciesFromEnvironment, withStatedAnswers, type SetupDependencies } from "./setup";
 import { confirmSettingsCommand } from "./setup-commands";
+import { saveReadyHostChange } from "./setup-saved-change";
 import { authorizeSetupTool, type SetupToolCall } from "./setup-tools";
 import { activeBindingOfHost, bindingRecipient } from "./imessage-links";
 import { encodeDisplayName } from "./entry-documents";
-import { hostConversationLanguage } from "./channel-language";
+import { hostConversationLanguage, textLanguage } from "./channel-language";
 import { recordOutbound } from "./imessage-outbox";
+import { redactCredentials } from "./redaction";
 import { lockCalendarRoles, lockDraft } from "./analysis";
 import { normalizeBusy } from "./feasibility";
 import { computeSlotPreview, nextWeekRange } from "./slot-preview";
@@ -107,7 +110,13 @@ export async function confirmSettingsForTool(deps: SetupDependencies, call: Setu
   if (outcome.ok) {
     // Older Confirm settings buttons on Telegram stop working, as after `confirm <ref>`.
     await deps.db.begin((tx) => enqueueSettingsButtonRetirement(tx, actor.id, retryKey));
-    return { links: outcome.result.links, message: "Saved. Repeat only these links to the host.", saved: true as const };
+    const language = await hostConversationLanguage(deps.db, actor.id);
+    return {
+      links: outcome.result.links,
+      message: "Saved. Share the booking link.",
+      saved: true as const,
+      tutorialOffer: outcome.result.tutorialOffered ? TUTORIAL_TEXT[language].offer : null,
+    };
   }
   if (outcome.error.reason === "destination_not_writable") {
     await recordDestinationAccess(deps.db, actor.id, live);
@@ -116,6 +125,31 @@ export async function confirmSettingsForTool(deps: SetupDependencies, call: Setu
   return {
     problem: outcome.error.category === "stale_revision" ? "The settings changed meanwhile; nothing was saved. Read setup again." : "The settings could not be saved here; the host can save them in the browser.",
     saved: false as const,
+  };
+}
+
+export async function chooseTutorialForTool(deps: SetupDependencies, call: SetupToolCall, input: z.infer<typeof tutorialChoiceInput>) {
+  const actor = await authorizeSetupTool(deps.db, call.auth, call.sessionId);
+  const channel = await channelOfTurn(deps.db, call.sessionId, actor.id);
+  const binding = channel ? await activeBindingOfHost(deps.db, actor.id) : null;
+  if (!binding || binding.channel !== channel) {
+    return { started: false, message: "On the web, use the tutorial buttons beside the booking link." };
+  }
+  const language = await hostConversationLanguage(deps.db, actor.id);
+  const outcome = await runCommand({ authenticate: async () => actor, db: deps.db }, chooseTutorialCommand(language, binding.id), {
+    input,
+    resourceId: actor.id,
+    retryKey: `tool:${call.callId}`,
+  });
+  if (!outcome.ok) return { started: false, message: "The tutorial couldn't be updated. Try again shortly." };
+  if (!input.start) return { started: false, message: "The host skipped the tutorial." };
+  return {
+    started: outcome.result.requestId !== null,
+    message: outcome.result.sampleNotice
+      ? "The sample request is sent separately in this conversation with instructions. Briefly acknowledge the host without repeating the sample or its instructions."
+      : outcome.result.requestId
+        ? "The sample request is already available in your Requests inbox."
+        : "The one-time tutorial is no longer available.",
   };
 }
 
@@ -159,11 +193,16 @@ export async function setCalendarRolesForTool(deps: SetupDependencies, call: Set
     input: { conflictCalendarIds: conflicts.filter((id): id is string => id !== null), bookingCalendarId: booking },
     resourceId: actor.id, retryKey: `tool:${call.callId}`,
   });
-  return outcome.ok ? { saved: true, analysisStarted: true } : { saved: false, problem: "The calendars could not be saved. The destination must be writable; read setup again." };
+  if (!outcome.ok) return { saved: false, problem: "The calendars could not be saved. The destination must be writable; read setup again." };
+  // A host whose settings are already confirmed books against the new calendars at once.
+  const savedChange = await saveReadyHostChange(deps, actor, { call, retryKey: `tool:${call.callId}:save` });
+  return { saved: true, analysisStarted: true, savedChange };
 }
 
 export const previewNextWeekToolInput = z
   .object({
+    changeSummary: z.string().trim().min(1).max(240).optional()
+      .describe("One short statement in the host’s language saying what you just recorded or changed, if anything. Omit for a simple preview request. Leave out the open times and any question."),
     skipNoteReview: z
       .boolean()
       .optional()
@@ -205,7 +244,9 @@ export async function composeNextWeekPreview(deps: SetupDependencies, db: Querya
     bufferAfterMinutes: SETUP_FIELD_SCHEMAS.bufferAfterMinutes.parse(fields.bufferAfterMinutes?.value),
     reviewRef: settingsRef(proposal.proposalHash),
   }, busy, now);
-  return { missing, preview };
+  const confirmed = proposal.records.confirmed;
+  const saved = confirmed !== null && !differsFromConfirmed(proposal.proposed, proposal.roles, confirmed);
+  return { missing, preview: saved ? { ...preview, saved: true } : preview };
 }
 
 function openRanges(preview: SlotPreview) {
@@ -223,15 +264,15 @@ async function onboardingNoteCandidates(db: Queryable, hostAccountId: string) {
 
 export async function previewNextWeekForTool(deps: SetupDependencies, call: SetupToolCall, input: z.infer<typeof previewNextWeekToolInput> = {}) {
   const actor = await authorizeSetupTool(deps.db, call.auth, call.sessionId);
-  const channel = await channelOfTurn(deps.db, call.sessionId, actor.id);
+  const turn = await linkedMessagingTurn(deps.db, call.sessionId, actor.id);
   const binding = await activeBindingOfHost(deps.db, actor.id);
-  if (!channel || binding?.channel !== channel) return { queued: false, problem: "A preview can be sent only from the linked conversation." };
+  if (!turn || binding?.channel !== turn.channel) return { queued: false, problem: "A preview can be sent only from the linked conversation." };
   const proposal = await computeSetupProposal(deps.db, actor.id);
   if (!proposal?.roles) return { queued: false, problem: "Choose calendars first." };
   const missing = missingFields(withStatedAnswers(proposal.proposed), proposal.handleAvailability === "available");
   if (missing.length) return { queued: false, missingFields: missing, problem: "Record the missing host answers before the preview." };
   const skip = input.skipNoteReview === true;
-  const language = await hostConversationLanguage(deps.db, actor.id);
+  const language = textLanguage(turn.message) ?? await hostConversationLanguage(deps.db, actor.id);
 
   // The note step (calendar-note-review design 8): the review link goes first,
   // once per linked chat, and the image follows the review's 확인.
@@ -249,7 +290,7 @@ export async function previewNextWeekForTool(deps: SetupDependencies, call: Setu
       input: z.object({ proposalHash: z.string() }).strict(),
       async run(tx, context) {
         await authorizeSetupTool(tx, call.auth, call.sessionId, { lock: true });
-        if (await channelOfTurn(tx, call.sessionId, actor.id) !== channel) throw new CommandError("forbidden");
+        if ((await linkedMessagingTurn(tx, call.sessionId, actor.id))?.inputId !== turn.inputId) throw new CommandError("forbidden");
         const active = await activeBindingOfHost(tx, actor.id);
         if (active?.id !== binding.id) throw new CommandError("stale_revision");
         const link = await recordOutbound(tx, {
@@ -276,21 +317,24 @@ export async function previewNextWeekForTool(deps: SetupDependencies, call: Setu
     if (error instanceof CalendarAccessError) return { queued: false, problem: "Google Calendar could not be read; no free times were inferred." };
     throw error;
   }
-  const preview = composed.preview;
-  if (!preview) return { queued: false, missingFields: composed.missing, problem: "Record the missing host answers before the preview." };
+  if (!composed.preview) return { queued: false, missingFields: composed.missing, problem: "Record the missing host answers before the preview." };
+  const { preview } = composed;
+  const times = channelReplies(language).onboarding.slotSummary(preview);
+  const change = input.changeSummary && redactCredentials(input.changeSummary, { bareUuids: true }).trim();
+  const summary = change ? `${change} ${times}` : times;
   const outcome = await runCommand({ authenticate: async () => actor, db: deps.db }, {
     operation: "setup.preview_next_week",
     input: z.object({ proposalHash: z.string() }).strict(),
     async run(tx, context) {
       await authorizeSetupTool(tx, call.auth, call.sessionId, { lock: true });
-      if (await channelOfTurn(tx, call.sessionId, actor.id) !== channel) throw new CommandError("forbidden");
+      if ((await linkedMessagingTurn(tx, call.sessionId, actor.id))?.inputId !== turn.inputId) throw new CommandError("forbidden");
       await lockCalendarRoles(tx, actor.id);
       await lockDraft(tx, actor.id);
       const current = await computeSetupProposal(tx, actor.id);
       const active = await activeBindingOfHost(tx, actor.id);
       if (active?.id !== binding.id || current?.proposalHash !== context.input.proposalHash) throw new CommandError("stale_revision");
       await recordOutbound(tx, {
-        kind: "image", image: { preview, language }, reviewHash: current.proposalHash,
+        kind: "image", image: { preview, language, summary }, inputId: turn.inputId, reviewHash: current.proposalHash,
         dedupeKey: `slot-preview:${binding.id}:${call.callId}`, hostAccountId: actor.id, bindingId: binding.id,
         recipient: bindingRecipient(deps.calendar.tokenKeys, binding), recipientHash: binding.sender_hash, tokenKey: deps.calendar.tokenKeys[0]!,
       });
@@ -339,20 +383,14 @@ export function createOnboardingSlotImageHandler(load: () => SetupDependencies =
     const language = await hostConversationLanguage(tx, hostAccountId);
     const recipient = bindingRecipient(deps.calendar.tokenKeys, binding);
     // 확인 and the wait share this key, so one image goes out whichever comes first.
-    const image = await recordOutbound(tx, {
-      kind: "image", image: { preview: composed.preview, language }, reviewHash: proposal.proposalHash,
+    const words = channelReplies(language).onboarding;
+    const times = words.slotSummary(composed.preview);
+    const summary = job.payload.waited === true ? `${words.noteReviewLater(`${deps.appOrigin}/app/notes`)}\n${times}` : times;
+    await recordOutbound(tx, {
+      kind: "image", image: { preview: composed.preview, language, summary }, reviewHash: proposal.proposalHash,
       dedupeKey: `slot-preview:${binding.id}:notes:${linkId}`, hostAccountId, bindingId: binding.id,
       recipient, recipientHash: binding.sender_hash, tokenKey: deps.calendar.tokenKeys[0]!,
     });
-    // After the wait, one line under the image says the notes can still be
-    // chosen later; it waits a little so it arrives after the image.
-    if (job.payload.waited === true && image.created) {
-      await recordOutbound(tx, {
-        kind: "notice", dedupeKey: `onboarding-notes-later:${linkId}`, hostAccountId, bindingId: binding.id, delaySeconds: 5,
-        recipient, recipientHash: binding.sender_hash, tokenKey: deps.calendar.tokenKeys[0]!,
-        text: channelReplies(language).onboarding.noteReviewLater(`${deps.appOrigin}/app/notes`),
-      });
-    }
     return { queued: true, reviewRef: composed.preview.reviewRef, waited: job.payload.waited === true };
   };
 }

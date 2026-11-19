@@ -165,7 +165,7 @@ describe("setup over Telegram", () => {
     // The seeded setup session was not started by the harness runtime; let it record events.
     if (!im.sessions.has(input!.session_id!)) im.sessions.set(input!.session_id!, { events: [], sent: [] });
 
-    // Typing at once, then every five seconds while the reply waits, at most twelve times.
+    // Typing at once, then every few seconds while the reply waits, at most twelve times.
     expect((await tg.flush(userId)).map((call) => call.method)).toEqual(["sendChatAction"]);
     const [turn] = (await tg.outbox(userId)).filter((row) => row.kind === "turn");
     expect(turn).toMatchObject({ state: "waiting" });
@@ -201,9 +201,10 @@ describe("setup over Telegram", () => {
     await db`update app.agent_sessions set current_input_id = ${input!.id} where session_id = ${host.host.sessionId}`;
     expect(await previewNextWeekForTool(setupDeps, { auth: { principalId: host.hostAccountId, principalType: "user", attributes: { audience: "host_setup" } }, sessionId: host.host.sessionId, callId: crypto.randomUUID() })).toMatchObject({ queued: true });
     const previewCalls = await tg.flush(host.userId);
-    const photos = previewCalls.filter((call) => call.method === "sendPhoto");
-    expect(photos).toHaveLength(1);
-    expect(String(photos[0]!.params.caption)).toMatch(/^Next week's open times/);
+    const messages = previewCalls.filter((call) => call.method === "sendPhoto" || call.method === "sendMessage");
+    expect(messages.map((call) => call.method)).toEqual(["sendPhoto", "sendMessage"]);
+    expect(messages[0]!.params).not.toHaveProperty("caption");
+    expect(messages[1]!.params.text).toMatch(/^Next week's open times.*Shall I open these for booking\?$/);
     await tg.deliver(telegramMessage({ text: "/review", userId: host.userId }));
     const [review] = (await tg.flush(host.userId)).filter((call) => call.method === "sendMessage");
     expect(review!.params.text).toContain("If these look right, tell me to save them.");

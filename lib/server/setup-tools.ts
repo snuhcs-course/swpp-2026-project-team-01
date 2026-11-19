@@ -19,6 +19,7 @@ import { checkHandle } from "./handles";
 import { weeklyNoteListForModel } from "./note-weekly-store";
 import { settingsRef } from "./request-ref";
 import { draftedEntry, readSetupState, type SetupDependencies, type SetupLinks, type SetupStateView } from "./setup";
+import { saveReadyHostChange, type SavedChangeOutcome } from "./setup-saved-change";
 
 // The setup assistant's two tools (design decision 10), behind the agent's
 // dynamic tool resolver. They exist only in host setup sessions; each call
@@ -149,6 +150,7 @@ export type SetupModelProjection = {
   readonly ready: boolean;
   readonly links: SetupLinks | null;
   readonly pendingChanges: boolean;
+  readonly tutorialOffered: boolean;
   // The settings review's reference, which confirm_settings takes
   // (channel-actions-in-words D1).
   readonly reviewRef: string;
@@ -205,6 +207,7 @@ export function modelProjection(state: SetupStateView): SetupModelProjection {
     missingFields: state.missingFields,
     nextAction: state.nextAction,
     pendingChanges: state.pendingChanges,
+    tutorialOffered: state.tutorialOffered,
     placeHint: state.placeHint ? { sampleSize: state.placeHint.sampleSize } : null,
     ready: state.readiness.ready,
     reviewRef: settingsRef(state.proposalHash),
@@ -384,7 +387,15 @@ export async function readSetupStateForTool(deps: SetupDependencies, call: Setup
 }
 
 export type DraftSettingsToolResult =
-  | { readonly saved: true; readonly changed: boolean; readonly revision: number; readonly state: SetupModelProjection }
+  | {
+      readonly saved: true;
+      readonly changed: boolean;
+      readonly revision: number;
+      // For a host whose settings are already confirmed, whether the change is
+      // now what guests book against ("saved") or why not.
+      readonly savedChange: SavedChangeOutcome;
+      readonly state: SetupModelProjection;
+    }
   | {
       readonly saved: false;
       readonly error: "invalid_input" | "stale_revision";
@@ -423,9 +434,12 @@ export async function draftSettingsForTool(
     };
   }
 
+  // A host whose settings are already confirmed changes them at once; there is
+  // no second approval (first-time setup still ends with the host's own save).
+  const savedChange = await saveReadyHostChange(deps, actor, { call, retryKey: `tool:${call.callId}:save` });
   const state = await readSetupState(deps, actor.id, { includeCalendars: true });
 
   if (!state) throw new SetupToolDeniedError();
 
-  return { changed: outcome.result.changed, revision: outcome.result.revision, saved: true, state: modelProjection(state) };
+  return { changed: outcome.result.changed, revision: outcome.result.revision, saved: true, savedChange, state: modelProjection(state) };
 }

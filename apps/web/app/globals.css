@@ -275,7 +275,7 @@ body {
   padding-right: 36px;
 }
 
-[data-slot="dialog-content"] [data-slot="dialog-close"] {
+[data-slot="dialog-content"] [data-dialog-close-icon] {
   display: flex;
   align-items: center;
   justify-content: center;

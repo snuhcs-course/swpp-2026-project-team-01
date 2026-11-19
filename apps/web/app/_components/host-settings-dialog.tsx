@@ -22,6 +22,18 @@ function editableLocation(answer: LocationAnswer | null | undefined) {
   return answer?.kind === "places" && answer.areas.length === 1 && answer.venue === null ? answer.areas[0] ?? "" : "";
 }
 
+
+// What the server did with a change of confirmed settings (setup-saved-change).
+type SavedChange = "saved" | "not_ready" | "unchanged" | "incomplete" | "calendar_unavailable" | "destination_not_writable" | "not_saved";
+
+function savedChangeNotice(savedChange: SavedChange | undefined) {
+  if (savedChange === "saved") return "Saved. Guests now see your new settings.";
+  if (savedChange === "unchanged" || savedChange === undefined) return "";
+  if (savedChange === "calendar_unavailable") return "Your change is recorded, but Google Calendar could not be read, so guests still see your previous settings. Try again in a moment.";
+  if (savedChange === "destination_not_writable") return "Your change is recorded, but bookings can no longer be added to your booking calendar. Choose another calendar so guests see your new settings.";
+  return "Your change is recorded, but guests still see your previous settings. Review and confirm the changes below.";
+}
+
 export function HostSettingsDialog() {
   const [open, setOpen] = useState(false);
   const [setup, setSetup] = useState<SetupState | null>(null);
@@ -65,7 +77,7 @@ export function HostSettingsDialog() {
   async function saveWindows(windows: WeeklyWindow[]) {
     if (!setup) return;
     setBusy(true);
-    const result = await runSetupCommand({
+    const result = await runSetupCommand<{ revision: number; savedChange?: SavedChange }>({
       expectedRevision: setup.draft.revision,
       input: { action: "adjust", field: "weeklyWindows", value: windows },
       operation: "setup.update_draft",
@@ -74,7 +86,7 @@ export function HostSettingsDialog() {
     setBusy(false);
     if (result.kind !== "ok") { setNotice(result.message); await refresh(); return; }
     setEditing(false);
-    setNotice("");
+    setNotice(savedChangeNotice(result.result.savedChange));
     await refresh();
   }
 
@@ -113,8 +125,9 @@ export function HostSettingsDialog() {
 
     setBusy(true);
     let revision = setup.draft.revision;
+    let savedChange: SavedChange | undefined;
     for (const change of changes) {
-      const result = await runSetupCommand<{ revision: number }>({
+      const result = await runSetupCommand<{ revision: number; savedChange?: SavedChange }>({
         expectedRevision: revision,
         input: { action: "adjust", field: change.field, value: change.value },
         operation: "setup.update_draft",
@@ -127,9 +140,10 @@ export function HostSettingsDialog() {
         return;
       }
       revision = result.result.revision;
+      savedChange = result.result.savedChange;
     }
     setBusy(false);
-    setNotice("Preferences saved as a draft. Review and confirm them to update your settings.");
+    setNotice(savedChangeNotice(savedChange));
     await refresh();
   }
 

@@ -175,8 +175,8 @@ export function createRequestExpiryHandler(
   loadNotices: () => NoticeDependencies = noticeDependenciesFromEnvironment,
 ): JobHandler {
   return async (tx, job) => {
-    const due = await tx<{ id: string }[]>`
-      select id from app.requests
+    const due = await tx<{ id: string; is_sample: boolean }[]>`
+      select id, is_sample from app.requests
       where state in ('gathering', 'negotiating', 'awaiting_host_approval') and expires_at <= now()
       order by expires_at
       limit ${EXPIRY_BATCH}
@@ -189,7 +189,7 @@ export function createRequestExpiryHandler(
         if (await dropChange(tx, request.id, "expired")) await enqueueChangeDropped(tx, loadNotices(), request.id, "expired");
         continue;
       }
-      if (await closeRequest(tx, request.id, "expired")) {
+      if (await closeRequest(tx, request.id, "expired") && !request.is_sample) {
         await enqueueStatusNotice(tx, loadNotices(), request.id, { kind: "status_expired" });
       }
     }

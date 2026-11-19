@@ -20,7 +20,7 @@ export type SlotPreviewDay = {
   readonly open: readonly LocalRange[];
 };
 
-// Next week's open slots for one settings review, as the image and its caption show them (design 5).
+// Next week's open slots for one settings review, as the image and its summary show them (design 5).
 export type SlotPreview = {
   readonly timezone: string;
   // The Monday the week starts on, YYYY-MM-DD.
@@ -35,4 +35,7 @@ export type SlotPreview = {
   readonly travelMode: TravelMode | null;
   readonly durationMinutes: number;
   readonly reviewRef: string;
+  // True when these are the host's saved settings (guests already book these
+  // times), so the caption shows them instead of asking whether to open them.
+  readonly saved?: boolean;
 };

@@ -231,7 +231,7 @@ test("at 1280px a guest links and unlinks Telegram updates by keyboard", async (
   await page.goto(`/booking/${request.bookingId}`);
 
   await expect(page.getByRole("button", { exact: true, name: "Get updates in Telegram" })).toBeVisible({ timeout: 20_000 });
-  await expect(page.getByText("If iMessage or Telegram is linked, updates can arrive there too.")).toBeVisible();
+  await expect(page.getByRole("button", { exact: true, name: "Email updates only" })).toBeVisible();
   await pressByKeyboard(page, "Get updates in Telegram");
 
   // No number: the code is made at once.

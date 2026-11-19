@@ -10,6 +10,7 @@ import { newWhatsAppSender, signedWebhook, TEST_WEBHOOK_ID, TEST_WEBHOOK_SECRET,
 import { unreachableSetup } from "../integration/support/imessage";
 import { runJob } from "../integration/support/requests";
 import { expect, signedInHost, test } from "./support/session";
+import { openMessagingCard } from "./support/connected-apps";
 import { E2E_TOKEN_ENCRYPTION_KEY } from "./support/token-key";
 
 // Linking WhatsApp from the browser (host-whatsapp-channel design 5, 6 and 8; D5 to D7, D12; task 3.2),
@@ -84,15 +85,7 @@ async function activeChannel(db: Database, hostAccountId: string) {
 }
 
 async function openCard(page: Page) {
-  await page.goto("/app");
-  const menu = page.getByRole("button", { name: "Open menu" });
-  await expect(menu).toBeVisible({ timeout: 45_000 });
-  await expect(page.getByRole("textbox", { name: "Message Thyme" })).toBeEnabled({ timeout: 45_000 });
-  await menu.click();
-  await page.getByRole("menuitem", { name: "iMessage" }).click();
-  const card = page.locator("[data-imessage-card]");
-  await expect(card).toBeVisible({ timeout: 15_000 });
-  return card;
+  return openMessagingCard(page);
 }
 
 test.describe("on Android", () => {
@@ -129,7 +122,8 @@ test.describe("on Android", () => {
 
     await expect(page.getByRole("link", { name: "Open WhatsApp" })).toHaveAttribute("href", `https://wa.me/${WHATSAPP}`);
     await page.getByRole("link", { name: "Go to Home" }).click();
-    await expect(page).toHaveURL("/");
+    await expect(page).toHaveURL("/app?view=dashboard");
+    await expect(page.getByRole("region", { name: "Calendar" })).toBeVisible();
   });
 
   test("the card's Connect WhatsApp makes the code, then opens wa.me with the message", async ({ baseURL, context, db, page }) => {

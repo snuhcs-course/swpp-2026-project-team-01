@@ -39,7 +39,8 @@ test("a signed-in host books another host with the same account and returns to t
   await page.getByRole("button", { name: "Open menu" }).click();
   await page.getByRole("menuitem", { name: "Requests" }).click();
   await expect(page.getByRole("heading", { name: "Requests" })).toBeVisible();
-  await expect(page.getByRole("button", { name: /Barbara Liskov/ })).toContainText("Sent request");
+  // A sent request is a link to its guest page.
+  await expect(page.getByRole("link", { name: /Barbara Liskov/ })).toContainText("Sent request");
 
   // The booking link now offers to continue that request.
   await page.goto(`/${other.handle}`);

@@ -177,7 +177,7 @@ function RequestListCard({ item, onSelect }: { readonly item: WorkspaceRequestIt
       <span className="mb-3 flex w-full flex-wrap items-center justify-between gap-x-3 gap-y-2">
         <span className={`inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs font-semibold ${received ? "border-primary bg-primary text-primary-foreground" : "border-primary bg-card text-primary"}`}>
           {received ? <ArrowLeftIcon aria-hidden className="size-3.5" /> : <ArrowRightIcon aria-hidden className="size-3.5" />}
-          {received ? "Received request" : "Sent request"}
+          {item.sample ? "Sample request" : received ? "Received request" : "Sent request"}
         </span>
         <span className={`text-xs font-semibold ${item.needsDecision ? "text-[#c62828]" : item.state === "booked" ? "text-success" : "text-muted-foreground"}`}>{status}</span>
       </span>
@@ -255,7 +255,7 @@ function RequestView({ onBack, onUnavailable, requestId }: { readonly onBack: ()
           </h2>
           {view ? (
             <p className="text-sm text-muted-foreground" role="status">
-              {STATE_LABELS[view.state]}
+              {view.sample ? "Sample request" : STATE_LABELS[view.state]}
               {view.details.purpose ? ` · ${view.details.purpose}` : ""}
               {view.revisedFrom
                 ? view.revisedFrom.outcome === "declined"
@@ -278,6 +278,9 @@ function RequestView({ onBack, onUnavailable, requestId }: { readonly onBack: ()
 }
 
 function OpenCard({ context, editing, setEditing }: { readonly context: HostCardContext; readonly editing: boolean; readonly setEditing: (value: boolean) => void }) {
+  if (context.view.sample && context.view.state !== "awaiting_host_approval") {
+    return <GuestCard id="tutorial-complete" title="Tutorial complete" description="No calendar event was created and no guest was notified." />;
+  }
   const step = nextHostStep(context.view, editing);
   const requestChanges = () => setEditing(true);
   const card = stepCard(step, context, requestChanges, () => setEditing(false));
@@ -381,11 +384,6 @@ function PrivateDiscussion({
       ) : null}
       <ChatConversation>
         <ChatConversationContent aria-busy={busy} aria-label="Private messages">
-          {chat.messages.length === 0 && chat.phase === "ready" ? (
-            <p className="px-3 text-sm text-muted-foreground">
-              Ask Thyme about this request: why a time works, or what to suggest instead. The requester never sees this conversation.
-            </p>
-          ) : null}
           {chat.messages.map((message, index) => (
             <ChatItem key={message.id} messageId={message.id} scrollAnchor={message.role === "user"}>
               <AgentMessage
@@ -435,7 +433,7 @@ function PrivateDiscussion({
             onChange={chat.setDraft}
             onStop={() => {}}
             onSubmit={chat.send}
-            placeholder="Message Thyme privately about this request"
+            placeholder="Ask Thyme about this request."
             value={chat.draft}
           />
         </div>

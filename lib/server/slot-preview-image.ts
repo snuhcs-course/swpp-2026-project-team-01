@@ -10,7 +10,7 @@ import { clockText, dayShort, durationText, MEETING_MODE_TEXTS, TRAVEL_MODE_TEXT
 // soft board holding a white card with the week (days across, hours down, open
 // time as panel-me blocks), and the meeting details as plain text under it.
 //
-// The image is English in every conversation; the caption sent with it carries
+// The image is English in every conversation; the message that follows carries
 // the host's language. Only the place is shown as the host wrote it, so it falls
 // back to the bundled Noto Sans KR subset for Hangul. Geist, Instrument Serif and
 // that subset are bundled (THIRD_PARTY_NOTICES.md): next/og fetches glyphs that

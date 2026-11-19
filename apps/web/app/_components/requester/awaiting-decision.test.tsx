@@ -6,9 +6,10 @@ describe("AwaitingDecisionDetails", () => {
   it("names the approval state and decision channels without claiming an email was sent", () => {
     const html = renderToStaticMarkup(<AwaitingDecisionDetails email="grace@example.test" />);
 
-    expect(html).toContain("waiting for the host’s approval");
-    expect(html).toContain("Nothing is booked yet");
-    expect(html).toContain("We’ll email the host’s decision to");
+    expect(html).toContain("Your meeting request has been submitted.");
+    expect(html).not.toContain("Nothing is booked yet");
+    expect(html).toContain("You’ll receive an email at");
+    expect(html).toContain("as soon as the host approves your request. You can also link");
     expect(html).toContain("grace@example.test");
     expect(html).toContain("iMessage or Telegram");
     expect(html).not.toContain("We sent a copy of your agreement");

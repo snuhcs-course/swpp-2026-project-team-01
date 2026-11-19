@@ -23,7 +23,7 @@ import { newTelegramUser } from "./support/telegram";
 // refused connection is unavailable and a lost answer uncertain, never resent;
 // sends to one chat are a second apart; a preview is refused before any
 // network access; and the slot preview goes out with sendPhoto as the timetable
-// PNG with its caption, or as the caption alone, uncertain, when the image
+// PNG followed by one message, or as text alone, uncertain, when the image
 // cannot be rendered (issue #211).
 
 const db = testDatabase();
@@ -225,7 +225,7 @@ describe("imessage_send on Telegram", () => {
     expect(sentTo(first.chatId).map((call) => call.params.text).sort()).toEqual(["One", "Two"]);
   });
 
-  it("sends the slot preview as the timetable PNG with sendPhoto and its caption", async () => {
+  it("sends the slot preview as the timetable PNG with sendPhoto followed by the summary", async () => {
     const { chatId, id } = await queueImage();
     expect(await run(id)).toBe("completed");
     expect(await rowOf(id)).toMatchObject({ channel: "telegram", provider_message_id: expect.stringMatching(/^\d+$/), state: "accepted" });
@@ -233,21 +233,21 @@ describe("imessage_send on Telegram", () => {
     const photos = telegram.callsOf("sendPhoto").filter((call) => call.params.chat_id === chatId);
     expect(photos).toHaveLength(1);
     const photo = photos[0]!.params.photo as { name: string; type: string; bytes: Buffer };
-    expect(photos[0]!.params.caption).toBe(channelReplies("en").onboarding.slotCaption(preview));
+    expect(photos[0]!.params).not.toHaveProperty("caption");
     expect(photos[0]!.params).not.toHaveProperty("parse_mode");
     expect({ name: photo.name, type: photo.type }).toEqual({ name: "slots-2026-11-16.png", type: "image/png" });
     expect(photo.bytes.subarray(0, 8)).toEqual(Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]));
-    expect(sentTo(chatId)).toHaveLength(0);
+    expect(sentTo(chatId).map((call) => call.params.text)).toEqual([channelReplies("en").onboarding.slotSummary(preview)]);
   });
 
-  it("sends the caption alone and leaves the row uncertain when the image cannot be rendered", async () => {
+  it("sends the summary alone and leaves the row uncertain when the image cannot be rendered", async () => {
     const { chatId, id } = await queueImage();
     const client = telegramClient(telegramConfig({ TELEGRAM_API_URL: telegram.baseUrl, TELEGRAM_BOT_TOKEN: TOKEN }), {});
     const broken = telegramTransport(client, undefined, async () => Promise.reject(new Error("no fonts")));
 
     expect(await run(id, deps({ telegramTransport: broken }))).toBe("completed");
     expect(await rowOf(id)).toMatchObject({ state: "uncertain" });
-    expect(sentTo(chatId).map((call) => call.params.text)).toEqual([channelReplies("en").onboarding.slotCaption(preview)]);
+    expect(sentTo(chatId).map((call) => call.params.text)).toEqual([channelReplies("en").onboarding.slotSummary(preview)]);
     expect(telegram.callsOf("sendPhoto").filter((call) => call.params.chat_id === chatId)).toHaveLength(0);
   });
 

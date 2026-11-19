@@ -18,11 +18,11 @@ import { type TokenKey, tokenKeyFromEnvironment } from "./token-encryption";
 // active. The message text stays as it was.
 //
 // telegram_typing (design 8) repeats the typing indicator while a forwarded
-// message's turn runs: every 5 seconds while its reply still waits for the
+// message's turn runs: every 4 seconds while its reply still waits for the
 // turn, at most 12 indicators in all, each a best-effort signal row.
 
 export const TELEGRAM_TYPING_JOB = "telegram_typing";
-export const TYPING_INTERVAL_SECONDS = 5;
+export const TYPING_INTERVAL_SECONDS = 4;
 export const TYPING_MAX = 12;
 
 export type TelegramJobDependencies = {

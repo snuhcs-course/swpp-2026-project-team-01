@@ -1,0 +1,23 @@
+{
+  "branch": "fix/ready-host-changes-save-at-once",
+  "user": "haisung.choi@gmail.com",
+  "sessions": {
+    "claude:eb1ff4c1-0954-4efa-87e0-aecb88182ab4": {
+      "agent": "claude-code",
+      "client": "claude-desktop",
+      "agent_ms": 0,
+      "models": {
+        "claude-opus-5-5": {
+          "input": 2,
+          "cache_read": 206209,
+          "cache_write_5m": 0,
+          "cache_write_1h": 997,
+          "output": 722,
+          "reasoning": 0
+        }
+      },
+      "first": "2026-11-18T13:45:00.764Z",
+      "last": "2026-11-18T13:45:00.764Z"
+    }
+  }
+}

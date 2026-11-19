@@ -1,7 +1,7 @@
 # Find Me a Time — Personal-Agent Clients
 
 Status: connection paths written; no named client has been run yet\
-Date: 2026-11-14\
+Date: 2026-11-18\
 Companions: [`agent-access` design](../../openspec/changes/agent-access/design.md#11-per-client-acceptance), [CLI direction](05_cli.md), [acceptance record](07_acceptance_record.md)
 
 This document records, for each named client of PRD FR-24, how it finds the Find Me a Time instructions, how it connects, and the result of its last run in each role. It is the per-client acceptance plan of AC-14, AC-15 and AC-19 to AC-25. A row says "not yet run" until a team member runs it and records the evidence in the acceptance record; nothing here claims that a client works before then.
@@ -11,13 +11,24 @@ This document records, for each named client of PRD FR-24, how it finds the Find
 | Role | Instructions | MCP endpoint | Permissions |
 |---|---|---|---|
 | Host | `https://findmeatime.com/SKILL.md`, linked from `https://findmeatime.com` | `https://findmeatime.com/mcp` | `host:read`, `host:write`, `host:decide` |
-| Requester | `https://findmeatime.com/{handle}/SKILL.md`, linked from `https://findmeatime.com/{handle}` | `https://findmeatime.com/{handle}/mcp` | `request:read`, `request:write`, `request:decide` |
+| Account requester | `https://findmeatime.com/{handle}/SKILL.md` | Existing `https://findmeatime.com/mcp` | Explicit `request:read`, `request:write`, `request:decide` |
+| Account-free requester | `https://findmeatime.com/{handle}/SKILL.md`, linked from `https://findmeatime.com/{handle}` | `https://findmeatime.com/{handle}/mcp` | `request:read`, `request:write`, `request:decide` |
 
 Both endpoints speak MCP `2026-07-28` and the handshake revisions `2025-11-25`, `2025-06-18` and `2025-03-26`, over Streamable HTTP with OAuth. A client registers through a client ID metadata document or dynamic client registration, opens the consent page in the person's browser, and receives tokens bound to that one endpoint. A client that cannot use a remote MCP server can still read the instructions and send the person to the web page; the CLI `fmat` is the path for agents that only have a shell.
 
-The entry documents (instruction version 5) tell the agent to ask before adding a server and never to handle a token. After connecting, the host's agent starts with `get_host_status`, follows `get_setup.nextStep` through Calendar connection, calendar choice and analysis, and proposes settings only with the host's agreement. `update_setup_field` and `confirm_setup` require the host's own words as `hostWords`; these words are not stored. After setup, it shares the booking link and tells the host to ask it to check requests: agents are not notified.
+The entry documents (instruction version 6) tell the agent to ask before adding a server and never to handle a token. After connecting, the host's agent starts with `get_host_status`, follows `get_setup.nextStep` through Calendar connection, calendar choice and analysis, and proposes settings only with the host's agreement. `update_setup_field` and `confirm_setup` require the host's own words as `hostWords`; these words are not stored. After setup, it shares the booking link and tells the host to ask it to check requests: agents are not notified.
 
 For chat linking, the host's agent calls `start_chat_link` (iMessage, WhatsApp or Telegram); the requester's agent calls `start_updates_link` (iMessage or WhatsApp) after its request exists. The tool returns a short-lived `/connect/link/{token}` browser link for one attempt. The person sends the code from their own phone, checks the masked sender and presses **Confirm and link** there. Host links require that host's sign-in; requester links authorize only that attempt without showing the booking link or request details. `get_host_status.chat` and `get_request.updates` report `none`, `pending` or `linked`. The agent never confirms a link. After a requester agrees to a time, the service's next step says that the host must still approve, nothing is booked yet, and the outcome arrives by email; the person can ask the agent to check again.
+
+## One account connection for hosting and requesting
+
+An account connection can explicitly consent to requester scopes on `/mcp`. Existing host-only tokens do not gain authority, and refresh cannot widen their scopes. Reauthorize the same server for the desired request scopes; for Codex, `codex mcp login findmeatime --scopes host:read,host:write,host:decide,request:read,request:write,request:decide` requests both roles. Preserve the person's chosen host permissions when requesting additional scopes. This requires browser consent once, not a new server for each host.
+
+Use `get_host({hostHandle})` before `create_request({hostHandle, name, email, timezone, details?, language?, retryKey})`. Each new meeting uses a fresh retry key; an exact retry returns the same request, and changed arguments conflict. The private continuation link is emailed and never returned to the agent. Self-booking is refused.
+
+`list_sent_requests({limit?, offset?})` lists verified account-linked requests with live access. `get_sent_request({requestId})` reads one. Requester actions use `{requestId, arguments: {retryKey, expectedRevision?, input?}}`; the nested arguments retain the anonymous tool's schema. Sent booking actions are `check_sent_booking`, `cancel_sent_booking` and `change_sent_booking`. Existing received-request tools (`get_request`, `cancel_booking`, `change_booking`, `check_booking`) retain their host meaning. Consent does not share the account's calendars with a request.
+
+The service checks the verified account/request association and live private-link boundary on every sent-request call. Matching contact emails never establishes ownership. Read, write and decision scopes stay separate; exact-proposal requester agreement and the other host's approval remain required. Account-free per-host endpoints retain the one-future-request model. The local integration suite is `tests/integration/agent-mcp-account-requester.test.ts`; named-client production acceptance remains pending.
 
 ## Test environment
 

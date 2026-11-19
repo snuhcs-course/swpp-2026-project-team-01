@@ -9,6 +9,7 @@ import {
   WEEKLY_LIMIT_COUNT_LABELS,
   type WeeklyWindow,
 } from "../contracts/setup";
+import { finishSampleCommand, TUTORIAL_TEXT } from "./host-tutorial";
 import { approveCommand, declineCommand } from "./bookings";
 import { type ChannelLanguage, hostConversationLanguage } from "./channel-language";
 import { channelReplies, FIELD_LABELS, locale, STATE_WORDS, weekdayShort } from "./channel-texts";
@@ -141,7 +142,7 @@ export function requestSummary(view: HostRequestView, language: ChannelLanguage 
 
   lines.push(texts.status(STATE_WORDS[language][view.state]));
 
-  if (view.state === "awaiting_host_approval" && view.proposal?.agreedAt) lines.push(texts.decideInWords);
+  if (!view.sample && view.state === "awaiting_host_approval" && view.proposal?.agreedAt) lines.push(texts.decideInWords);
   return lines.join("\n");
 }
 
@@ -339,6 +340,7 @@ async function decide(
   if (!view) return { text: texts.unknownRef(deps.origin) };
   const current = view.proposal ? reviewRef(view.requestId, view.proposal.version) : null;
 
+  if (view.sample && CLOSED.includes(view.state)) return { requestId: view.requestId, text: TUTORIAL_TEXT[language].done };
   if (CLOSED.includes(view.state)) return { requestId: view.requestId, text: texts.closedNothingChanged(STATE_WORDS[language][view.state]) };
   if (!view.proposal || view.proposal.version !== version) {
     // A stale tap shows the current proposal, since WhatsApp cannot take the
@@ -352,6 +354,10 @@ async function decide(
     return { requestId: view.requestId, text: current ? texts.notCurrent(current) : texts.noProposal };
   }
 
+  if (view.sample) {
+    const outcome = await run(deps, message, finishSampleCommand, view.requestId, { version }, view.revision);
+    return { requestId: view.requestId, text: outcome.ok ? TUTORIAL_TEXT[language].done : decisionRefusal(deps, outcome.error.category, current, language) };
+  }
   if (kind === "approve") {
     // The reference names the version; the revision read with it makes sure
     // nothing changed between this read and the decision.
@@ -445,7 +451,10 @@ async function confirmSettings(deps: CommandDependencies, message: BoundMessage,
   }
 
   const outcome = await run(deps, message, confirmSettingsCommand(live, deps.setup.appOrigin, { bindingId: message.bindingId }), message.hostAccountId, { proposalHash: proposal.proposalHash }, proposal.records.draftRevision);
-  if (outcome.ok) return { saved: true, text: texts.saved(outcome.result.links.booking) };
+  if (outcome.ok) {
+    const saved = texts.saved(outcome.result.links.booking);
+    return { saved: true, text: outcome.result.tutorialOffered ? `${saved}\n\n${TUTORIAL_TEXT[language].offer}` : saved };
+  }
   if (outcome.error.reason === "destination_not_writable") {
     await recordDestinationAccess(deps.db, message.hostAccountId, live);
     return { text: texts.destinationGone(deps.origin) };
@@ -470,6 +479,8 @@ async function savedDecisionReply(
   const requestId = saved.operation === "setup.confirm_settings" ? null : saved.resource_id;
 
   switch (saved.operation) {
+    case "tutorial.finish":
+      return { requestId, text: TUTORIAL_TEXT[language].done };
     case "request.approve":
       return { requestId, text: saved.result?.repeated ? texts.alreadyApproved : texts.approved };
     case "request.decline":
@@ -480,7 +491,8 @@ async function savedDecisionReply(
       return { requestId, text: texts.dropped };
     case "setup.confirm_settings": {
       const links = saved.result?.links as { booking?: string } | undefined;
-      return { requestId, text: texts.saved(links?.booking ?? `${deps.origin}/app`) };
+      const text = texts.saved(links?.booking ?? `${deps.origin}/app`);
+      return { requestId, text: saved.result?.tutorialOffered ? `${text}\n\n${TUTORIAL_TEXT[language].offer}` : text };
     }
     default:
       return null;
@@ -510,6 +522,14 @@ export async function executeCommand(tx: Transaction, deps: CommandDependencies,
       result = { text: helpText(deps.origin, language, telegram) };
       break;
     case "stop": {
+      if (message.text.trim().toLowerCase() === "stop" && message.selectedRequestId) {
+        const sample = await readHostRequest(deps.db, message.hostAccountId, message.selectedRequestId);
+        if (sample?.sample) {
+          const finished = await run(deps, message, finishSampleCommand, sample.requestId, {}, sample.revision);
+          result = { requestId: sample.requestId, text: finished.ok ? TUTORIAL_TEXT[language].done : texts.requestGoneHere };
+          break;
+        }
+      }
       // Ends the binding as Unlink does (D12); the confirmation is not host-private,
       // so it still goes out after the binding ended, and nothing queued does.
       const ended = await tx<{ id: string; channel: StoredChannel }[]>`
@@ -554,6 +574,9 @@ export async function executeCommand(tx: Transaction, deps: CommandDependencies,
       }
       await tx`update app.imessage_bindings set selected_request_id = ${found.requestId} where id = ${message.bindingId} and state = 'active'`;
       const view = await readHostRequest(deps.db, message.hostAccountId, found.requestId);
+      if (view && !view.sample) {
+        await tx`update app.host_settings set tutorial_binding_id = null where host_account_id = ${message.hostAccountId} and tutorial_binding_id = ${message.bindingId}`;
+      }
       result = {
         buttons: view ? decisionButtons(view, language) : undefined,
         requestId: found.requestId,

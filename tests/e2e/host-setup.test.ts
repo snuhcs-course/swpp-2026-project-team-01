@@ -277,6 +277,27 @@ test("a new host completes setup one card at a time, from the authored messages 
   expect(await skill.text()).toContain(handle);
 });
 
+test("a newly onboarded host can try a sample and remove it by requesting a change", async ({ baseURL, context, db, page }) => {
+  const host = await signedInHost(db, context, baseURL!);
+  await reviewableHost(db, host.hostAccountId);
+  await acceptSuggestions(db, host.hostAccountId, { displayName: "Tutorial Host", handle: uniqueHandle() });
+  await page.goto("/app");
+
+  await expectOnlyCard(page, "Review your booking settings");
+  await card(page, "Review your booking settings").getByRole("button", { name: "Confirm and save proposed settings" }).click();
+  await expectOnlyCard(page, "You're ready.");
+  await page.reload();
+  const links = card(page, "You're ready.");
+  await expect(links.getByText("Would you like to try a sample request?")).toBeVisible();
+  await links.getByRole("button", { name: "Try it" }).click();
+
+  await expect(page.getByRole("heading", { name: "Alex Kim (sample)" })).toBeVisible();
+  await page.getByRole("button", { name: "Request changes" }).click();
+  await expect(page.getByRole("heading", { name: "Tutorial complete" })).toBeVisible();
+  await page.getByRole("button", { name: "All requests" }).click();
+  await expect(page.getByText("No requests yet.", { exact: false })).toBeVisible();
+});
+
 test("declined Calendar scopes show Connect Google Calendar with the consent link", async ({ baseURL, context, db, page }) => {
   await signedInHost(db, context, baseURL!);
   await page.goto("/app");
@@ -473,12 +494,10 @@ test("the identity step and the review work by keyboard alone", async ({ baseURL
   const identity = card(page, "What should your booking page show?");
   await expectOnlyCard(page, "What should your booking page show?");
 
-  // The menu's Setup item moves focus to the current step's card.
-  await page.getByRole("button", { name: "Open menu" }).focus();
-  await page.keyboard.press("Enter");
-  await expect(page.getByRole("menuitem", { name: "Setup" })).toBeFocused();
-  await page.keyboard.press("Enter");
-  await expect(identity.getByRole("heading", { name: "What should your booking page show?" })).toBeFocused();
+  // The menu's Setup item went with #213; start from the current step's heading.
+  const heading = identity.getByRole("heading", { name: "What should your booking page show?" });
+  await heading.focus();
+  await expect(heading).toBeFocused();
 
   const tabTo = async (name: string) => {
     for (let step = 0; step < 60; step += 1) {

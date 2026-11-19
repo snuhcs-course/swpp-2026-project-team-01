@@ -9,6 +9,7 @@ import type { MeetingMode } from "./setup";
 // booking link.
 
 export type HostRequestItem = {
+  readonly sample: boolean;
   readonly requestId: string;
   readonly requesterName: string;
   readonly purpose: string | null;
@@ -73,6 +74,7 @@ export type HostEvaluationSummary = {
 };
 
 export type HostRequestView = {
+  readonly sample: boolean;
   readonly requestId: string;
   readonly state: RequestState;
   readonly revision: number;
@@ -80,7 +82,7 @@ export type HostRequestView = {
   readonly hostTimezone: string;
   readonly requester: {
     readonly name: string;
-    readonly email: string;
+    readonly email: string | null;
     readonly emailConfirmed: boolean;
     readonly timezone: string;
     readonly language: "en" | "ko";
@@ -107,6 +109,7 @@ export type HostRequestView = {
 
 // The host commands of the request view, each a card action.
 export const HOST_REQUEST_OPERATIONS = [
+  "tutorial.finish",
   "request.approve",
   "request.decline",
   "request.suggest_changes",

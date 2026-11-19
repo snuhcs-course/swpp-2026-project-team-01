@@ -40,20 +40,25 @@ export function DeleteAccountCard({ handle, focus = false }: { readonly handle: 
     setBusy(false);
   }
 
+  // Closed, it is a quiet link in the dialog's corner, not a card of its own.
+  if (step === "closed") {
+    return (
+      <div className="flex justify-end px-1">
+        <button
+          className="min-h-11 cursor-pointer text-xs text-muted-foreground underline underline-offset-2 transition-colors duration-150 hover:text-foreground"
+          onClick={() => setStep("confirm")}
+          type="button"
+        >
+          Delete account
+        </button>
+      </div>
+    );
+  }
+
   return (
     <section aria-label="Delete account" className="space-y-3 rounded-2xl bg-card p-4 sm:p-5" id="delete-account" ref={card}>
       <h3 className="font-semibold">Delete account</h3>
-      {step === "closed" ? (
-        <>
-          <p className="text-sm text-muted-foreground">
-            Delete your account and its data. You get 7 days to change your mind.
-          </p>
-          <Button onClick={() => setStep("confirm")} size="sm" type="button" variant="outline">
-            Delete account…
-          </Button>
-        </>
-      ) : (
-        <>
+      <>
           <div className="rounded-2xl bg-[color-mix(in_srgb,var(--destructive)_9%,white)] p-4 text-sm text-destructive">
             <p className="font-semibold">Your account will be deleted in 7 days.</p>
             <ul className="mt-2 list-disc space-y-1 pl-5">
@@ -95,8 +100,7 @@ export function DeleteAccountCard({ handle, focus = false }: { readonly handle: 
               Keep my account
             </Button>
           </div>
-        </>
-      )}
+      </>
     </section>
   );
 }

@@ -50,6 +50,20 @@ describe("display name encoding", () => {
 });
 
 describe("entry documents", () => {
+  it.each([
+    [hostEntryDocument(origin), "findmeatime", "host", "get_host_status"],
+    [requesterEntryDocument(origin, { displayName: "Ada", handle: "ada" }), "findmeatime-ada", "request", "tools/list"],
+  ])("guides Codex through authorization and verifies tool availability", (document, name, role, probe) => {
+    const guidance = document.split("\n").find((line) => line.startsWith("- **Codex:**"));
+
+    expect(guidance).toContain("`codex --version`");
+    expect(guidance).toContain("Desktop's bundled CLI");
+    expect(guidance).toContain("Wait for the active login command to exit successfully");
+    expect(guidance).toContain("missing required issuer");
+    expect(guidance).toContain(`mcp login ${name} --scopes ${role}:read,${role}:write,${role}:decide`);
+    expect(guidance).toContain(`\`${probe}\``);
+  });
+
   it("gives the host document its version, origin links and honest continuation", () => {
     const document = hostEntryDocument(origin);
 
@@ -129,4 +143,14 @@ describe("Markdown negotiation", () => {
   ])("keeps HTML for %s", (accept) => {
     expect(prefersMarkdown(accept)).toBe(false);
   });
+});
+
+
+it("reuses an account connection before offering anonymous per-host setup", () => {
+  const document = requesterEntryDocument("https://findmeatime.com", { handle: "dodo", displayName: "Dodo" });
+  expect(document.indexOf("If you already have an account connection")).toBeLessThan(document.indexOf("For an account-free requester"));
+  expect(document).toContain('hostHandle "dodo"');
+  expect(document).toContain("get_sent_request");
+  expect(document).toContain("request:read,request:write,request:decide");
+  expect(hostEntryDocument("https://findmeatime.com")).toContain("Existing host-only connections need explicit additional requester consent");
 });

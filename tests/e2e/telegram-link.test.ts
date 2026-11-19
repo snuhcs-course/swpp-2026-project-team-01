@@ -13,6 +13,7 @@ import { newSender } from "../integration/support/photon";
 import { runJob } from "../integration/support/requests";
 import { newTelegramUser, telegramDelivery, telegramMessage, TEST_TELEGRAM_SECRET } from "../integration/support/telegram";
 import { expect, signedInHost, test } from "./support/session";
+import { openMessagingCard } from "./support/connected-apps";
 import { E2E_TOKEN_ENCRYPTION_KEY } from "./support/token-key";
 
 // Linking Telegram from the browser (host-telegram-channel design 3, 5, 6 and 11; D5 to D7, D13; task 3.2),
@@ -91,15 +92,7 @@ async function withoutWhatsApp(page: Page) {
 }
 
 async function openCard(page: Page) {
-  await page.goto("/app");
-  const menu = page.getByRole("button", { name: "Open menu" });
-  await expect(menu).toBeVisible({ timeout: 45_000 });
-  await expect(page.getByRole("textbox", { name: "Message Thyme" })).toBeEnabled({ timeout: 45_000 });
-  await menu.click();
-  await page.getByRole("menuitem", { name: "iMessage" }).click();
-  const card = page.locator("[data-imessage-card]");
-  await expect(card).toBeVisible({ timeout: 15_000 });
-  return card;
+  return openMessagingCard(page);
 }
 
 test.describe("on Android", () => {
@@ -141,7 +134,8 @@ test.describe("on Android", () => {
 
     await expect(page.getByRole("link", { name: "Open Telegram" })).toHaveAttribute("href", `https://t.me/${BOT}`);
     await page.getByRole("link", { name: "Go to Home" }).click();
-    await expect(page).toHaveURL("/");
+    await expect(page).toHaveURL("/app?view=dashboard");
+    await expect(page.getByRole("region", { name: "Calendar" })).toBeVisible();
   });
 
   test("without WhatsApp, the link step offers Telegram", async ({ baseURL, context, db, page }) => {
@@ -272,7 +266,9 @@ test.describe("on a Windows computer", () => {
     await expect(card.getByText("This replaces your iMessage link.")).toBeVisible();
     await expect(card.getByText(PRIVACY)).toBeVisible();
     await card.getByRole("button", { name: "Confirm and link" }).click();
-    await expect(card.getByRole("button", { name: "Telegram linked Dohyeon (@dohyeon)" })).toBeVisible({ timeout: 10_000 });
+    // Opened from Connected apps, the card stays expanded once linked.
+    await expect(card.getByRole("heading", { name: "Telegram is linked" })).toBeVisible({ timeout: 10_000 });
+    await expect(card).toContainText("Dohyeon (@dohyeon)");
     expect(await activeChannel(db, host.hostAccountId)).toEqual([{ channel: "telegram" }]);
   });
 

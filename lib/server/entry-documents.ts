@@ -6,7 +6,11 @@
 // the MCP endpoints and the user CLI (agent-access); version 4 lets the host's
 // agent approve and decline in the host's words (agent-decisions-in-words).
 
-export const ENTRY_INSTRUCTION_VERSION = 5;
+export const ENTRY_INSTRUCTION_VERSION = 6;
+
+function codexConnection(name: string, endpoint: string, role: "host" | "request", verification: string, continuation: string) {
+  return `- **Codex:** Check \`codex --version\` and which executable the shell resolves. In Codex Desktop, use Desktop's bundled CLI if an older standalone install takes precedence. Ask the person before running \`codex mcp add ${name} --url ${endpoint}\`. Wait for the active login command to exit successfully while the person completes browser consent. If login reports \`missing required issuer\`, switch to the bundled CLI or update the CLI before retrying. If the server was registered and login exited with a scope error, retry with \`codex mcp login ${name} --scopes ${role}:read,${role}:write,${role}:decide\`. Use the same scoped login command after switching CLIs. After login succeeds, verify the connection with ${verification}. If the tools are missing, open a new Codex session and verify again. If you still cannot connect, continue at ${continuation}.`;
+}
 
 // Characters that could start Markdown, HTML, an entity or an autolink, plus line
 // breaks and the JSON quote. Each becomes a \uXXXX escape, so the encoded value is
@@ -53,12 +57,18 @@ Connecting opens a browser page where the person signs in with Google and allows
 
 If you cannot connect to a remote MCP server, send the person to the web continuation at ${origin}/app. Do not ask for, copy or store any credential. Do not say that sign-in, Calendar connection, setup or a booking is complete unless the service shows it.
 
+## Request meetings with other hosts
+
+If this account connection has request:read, request:write and request:decide, reuse it to book with any other host; do not add a server per host. Call get_host with hostHandle, then create_request with hostHandle, the person's stated name, email, timezone and meeting details, and a fresh retryKey. Exact retries reuse the same key and arguments. Use list_sent_requests and get_sent_request with requestId. Requester actions take requestId plus an arguments object containing the action's usual arguments. Sent booking actions are check_sent_booking, cancel_sent_booking and change_sent_booking; received-request host tools keep their names.
+
+Existing host-only connections need explicit additional requester consent on this same endpoint. For Codex, run \`codex mcp login findmeatime --scopes host:read,host:write,host:decide,request:read,request:write,request:decide\` with the person's agreement. Other clients can reauthorize this same connection for the request scopes. Never infer these permissions from host scopes. Agree only when the person accepts that exact proposal; the other host must still approve. Report booked only when get_sent_request shows booked. No calendar access is implied by these request permissions.
+
 ## Connect from your client
 
 - **Claude Code:** Ask the person before running \`claude mcp add --transport http findmeatime ${origin}/mcp\`. Then ask them to run \`/mcp\`, choose findmeatime and authenticate in the browser. If the server does not appear in \`/mcp\`, ask them to restart Claude Code and continue the conversation.
 - **Claude:** Add the endpoint as a custom connector in settings (remote MCP, Streamable HTTP, OAuth).
 - **ChatGPT:** Add the endpoint as a connector in developer mode settings (remote MCP, Streamable HTTP, OAuth).
-- **Codex:** Ask the person before running \`codex mcp add findmeatime --url ${origin}/mcp\`, which opens the browser to sign in and allow. If that did not finish, run \`codex mcp login findmeatime --scopes host:read,host:write,host:decide\`. If the tools do not appear, ask them to restart Codex and continue the conversation.
+${codexConnection("findmeatime", `${origin}/mcp`, "host", "`get_host_status`", `${origin}/app`)}
 - **Dots, Muse and Instinct:** Use a remote MCP server in the client's settings if offered; otherwise continue on the web.
 - **Other clients:** Add ${origin}/mcp as a remote MCP server (Streamable HTTP, OAuth) in the client's settings. If the client cannot, continue at ${origin}/app.
 
@@ -100,7 +110,11 @@ This host is accepting meeting requests. The person can open the web page at ${o
 
 ## For personal agents
 
-Reading this document does not connect you. To request a meeting with this host for the person you act for, connect to:
+If you already have an account connection to ${origin}/mcp, reuse it. Do not add this host's MCP server. Use get_host with hostHandle "${host.handle}", then create_request with that hostHandle and the person's own name, email, timezone, stated meeting details and retryKey. Use get_sent_request with requestId from creation, or list_sent_requests to resume. Requester actions take requestId and an arguments object with their usual arguments; use check_sent_booking, cancel_sent_booking and change_sent_booking for sent meetings. Agree only to the exact proposal the person accepts; the host must still approve. Report booked only when get_sent_request shows booked.
+
+If that account connection lacks request scopes, ask for explicit request:read, request:write and request:decide consent on the same connection; for Codex, use \`codex mcp login findmeatime --scopes host:read,host:write,host:decide,request:read,request:write,request:decide\`. Follow the person's existing host permission choices; request scopes do not require all host scopes. Reading this document grants no permission.
+
+For an account-free requester without the common account connection, the existing single-request flow follows. Reading this document does not connect you. To request a meeting with this host for the person you act for, connect to:
 
 - MCP endpoint (Streamable HTTP, OAuth): ${origin}/${host.handle}/mcp
 - Permissions: request:read, request:write and request:decide (agreeing to a proposed time and withdrawing).
@@ -119,7 +133,7 @@ Connecting opens a browser page that names this host; the person allows one new 
 - **Claude Code:** Ask the person before running \`claude mcp add --transport http findmeatime-${host.handle} ${origin}/${host.handle}/mcp\`. Then ask them to run \`/mcp\`, choose findmeatime-${host.handle} and authenticate in the browser. If the server does not appear in \`/mcp\`, ask them to restart Claude Code and continue the conversation.
 - **Claude:** Add the endpoint as a custom connector in settings (remote MCP, Streamable HTTP, OAuth).
 - **ChatGPT:** Add the endpoint as a connector in developer mode settings (remote MCP, Streamable HTTP, OAuth).
-- **Codex:** Ask the person before running \`codex mcp add findmeatime-${host.handle} --url ${origin}/${host.handle}/mcp\`, which opens the browser to allow. If that did not finish, run \`codex mcp login findmeatime-${host.handle} --scopes request:read,request:write,request:decide\`. If the tools do not appear, ask them to restart Codex and continue the conversation.
+${codexConnection(`findmeatime-${host.handle}`, `${origin}/${host.handle}/mcp`, "request", "a read-only `tools/list` response for this server", `${origin}/${host.handle}`)}
 - **Dots, Muse and Instinct:** Use a remote MCP server in settings if offered; otherwise continue on the web.
 - **Other clients:** Add ${origin}/${host.handle}/mcp as a remote MCP server (Streamable HTTP, OAuth) in settings. If the client cannot, continue at ${origin}/${host.handle}.
 
