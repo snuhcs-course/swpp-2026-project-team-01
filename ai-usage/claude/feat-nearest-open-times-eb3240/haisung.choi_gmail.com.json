@@ -1,0 +1,23 @@
+{
+  "branch": "claude/feat-nearest-open-times-eb3240",
+  "user": "haisung.choi@gmail.com",
+  "sessions": {
+    "claude:9c77f19f-74b8-4157-9f27-ac3fda3c40b4": {
+      "agent": "claude-code",
+      "client": "claude-desktop",
+      "agent_ms": 0,
+      "models": {
+        "claude-opus-5-5": {
+          "input": 232,
+          "cache_read": 23776010,
+          "cache_write_5m": 0,
+          "cache_write_1h": 222289,
+          "output": 61136,
+          "reasoning": 0
+        }
+      },
+      "first": "2026-11-19T11:38:05.036Z",
+      "last": "2026-11-19T12:24:38.461Z"
+    }
+  }
+}

@@ -1,6 +1,6 @@
 "use client";
 
-import { EVALUATION_FAILURE_MESSAGES, noMatchMessage, TIMES_SHOWN } from "@lib/contracts/feasibility";
+import { EVALUATION_FAILURE_MESSAGES, nearestTimesMessage, noMatchMessage, TIMES_SHOWN } from "@lib/contracts/feasibility";
 import type { LinkPlan, RequesterCandidate, RequestLanguage, RequestWindow, ReviewPatch } from "@lib/contracts/request";
 import { displayTime, zoneLabel } from "@lib/contracts/timezone";
 import { type FormEvent, type ReactNode, useEffect, useId, useState } from "react";
@@ -777,10 +777,22 @@ export function CandidatesCard({ context }: { readonly context: RequesterCardCon
   const linkMissing = (candidate: RequesterCandidate) =>
     candidate.mode === "online" && !candidate.linkPlan && request.details.linkPlan?.kind !== "requester_link";
   const needsLink = offered.some(linkMissing);
+  // Nothing fits the guest's windows: the nearest open times around them, to
+  // name in the chat or add as availability (nearest-open-times design 2).
+  const nearest = !evaluation.failure && offered.length === 0 && trips.length === 0 ? evaluation.nearest : undefined;
+  const nearestTimes = nearest
+    ? [
+        ...(nearest.before ? [{ candidate: nearest.before, side: "Before your times" }] : []),
+        ...(nearest.after ? [{ candidate: nearest.after, side: "After your times" }] : []),
+      ]
+    : [];
+  const place = request.details.mode === "in_person" ? (request.details.location ?? null) : null;
   const message = evaluation.failure
     ? EVALUATION_FAILURE_MESSAGES[evaluation.failure][lang]
     : offered.length === 0 && trips.length === 0
-      ? noMatchMessage(lang, request.details.mode === "in_person" ? (request.details.location ?? null) : null)
+      ? nearestTimes.length > 0
+        ? nearestTimesMessage(lang, place)
+        : noMatchMessage(lang, place)
       : null;
 
   async function choose(candidate: RequesterCandidate) {
@@ -796,9 +808,22 @@ export function CandidatesCard({ context }: { readonly context: RequesterCardCon
       className="mx-auto w-[94%] max-w-xl"
       id="candidates"
       label="Times"
-      title={offered.length > 0 ? "Choose a time" : trips.length > 0 ? "These times depend on your trip" : "No times found yet"}
+      title={offered.length > 0 ? "Choose a time" : trips.length > 0 ? "These times depend on your trip" : nearestTimes.length > 0 ? "Nearest open times" : "No times found yet"}
     >
       {message ? <p>{message}</p> : null}
+      {nearestTimes.length > 0 ? (
+        <>
+          <ul aria-label="Nearest open times" className="flex flex-col gap-2">
+            {nearestTimes.map(({ candidate, side }) => (
+              <li className="flex flex-col gap-1 rounded-2xl bg-secondary p-3" key={candidate.id}>
+                <p className="text-muted-foreground">{side}</p>
+                <CandidateTime candidate={candidate} timeZone={context.timezone} />
+              </li>
+            ))}
+          </ul>
+          <p className="text-muted-foreground">Tell the assistant which one works, or edit your times.</p>
+        </>
+      ) : null}
       {needsLink && offered.length > 0 ? <p>The host cannot create a Google Meet link, so add your own meeting link to choose a time.</p> : null}
       {offered.length > 0 ? (
         <ul aria-label="Candidate times" className="flex flex-col gap-2">
