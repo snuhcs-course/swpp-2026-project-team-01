@@ -273,6 +273,32 @@ describe("deletion on request", () => {
     expect(unknown.err.join("\n")).toMatch(/no request matches/);
   });
 
+  it("deletes a request whose sent guest replies name the request, the input and the binding", async () => {
+    const hostAccountId = await newHostAccount(db);
+    const request = await createTestRequest(db, { hostAccountId });
+    const conversation = await conversationFor(request.requestId);
+    // A sent turn reply reaches the request through request_id (set null), its
+    // input (set null) and its binding (cascade). Deleting the conversation
+    // first updates the row, so the request's own deletion then checked the
+    // binding the cascade had already removed (#269).
+    const [binding] = await db<{ id: string }[]>`
+      insert into app.requester_imessage_bindings (request_id, sender_hash, sender_ciphertext, sealed_key_id)
+      values (${request.requestId}, ${"e".repeat(64)}, 'sealed', 'k')
+      returning id
+    `;
+    const [outbox] = await db<{ id: string }[]>`
+      insert into app.imessage_outbox (kind, dedupe_key, recipient_hash, requester_binding_id, request_id, input_id, state, completed_at)
+      values ('turn', ${randomUUID()}, ${"e".repeat(64)}, ${binding!.id}, ${request.requestId}, ${conversation.inputId}, 'accepted', now())
+      returning id
+    `;
+
+    const run = admin();
+    expect(await runAdmin(["delete-request", "--request", request.requestId, "--reason", "requester asked", "--operator", "dana", "--local", "--yes"], run.deps)).toBe(0);
+    expect(await exists("app.requests", "id", request.requestId)).toBe(false);
+    expect(await exists("app.requester_imessage_bindings", "id", binding!.id)).toBe(false);
+    expect(await exists("app.imessage_outbox", "id", outbox!.id)).toBe(false);
+  });
+
   it("needs --yes or the typed subject", async () => {
     const request = await createTestRequest(db);
     const run = admin();
