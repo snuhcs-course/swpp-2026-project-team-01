@@ -22,7 +22,7 @@ import { clock, isPhone, SendPanel, shownNumber, useNow, usePlatform } from "./s
 // /?flow=whatsapp starts the same way from WhatsApp (host-whatsapp-channel D7): the start asks for a WhatsApp
 // code ({"channel":"whatsapp"}), a phone opens wa.me, and the popup shows the WhatsApp number, its QR code
 // and Open WhatsApp. An attempt this browser already has keeps its own channel.
-// /?flow=telegram starts from Telegram (host-telegram-channel D7): a Telegram code, the bot's t.me start link on a
+// /?flow=telegram starts from Telegram (host-telegram-channel D7): a Telegram code, the bot's telegram.me start link on a
 // phone, and on a computer the popup with the link's QR code, Open Telegram and Copy. The received screen shows
 // the sender's Telegram name.
 // An iMessage start asks for the number first (imessage-number-registration D1, D3): the server registers it

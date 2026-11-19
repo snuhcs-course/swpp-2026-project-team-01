@@ -8,6 +8,7 @@ import {
   type DeviceKind,
   type MessagingChannel,
   switchChannels,
+  telegramChatLinkFor,
 } from "@lib/contracts/messaging-channel";
 import { type ReactNode, useCallback, useEffect, useRef, useState } from "react";
 import { appLinkFor, readStatus, rememberedLater, sendCommand } from "@/app/_components/imessage/imessage-card";
@@ -458,7 +459,7 @@ export function LinkStep({ children, locale, ready }: { readonly children: React
     case "connected": {
       const linked = status as Extract<ImessageStatus, { state: "linked" }>;
       const appUrl = linked.channel === "telegram"
-        ? "https://t.me/" + linked.lineNumber.replace(/^@/, "")
+        ? telegramChatLinkFor(linked.lineNumber)
         : linked.channel === "whatsapp"
           ? "https://wa.me/" + linked.lineNumber.replace(/^\+/, "")
           : platform === "ios" || platform === "mac" ? "sms:" + linked.lineNumber : null;

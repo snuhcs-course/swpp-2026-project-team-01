@@ -50,7 +50,7 @@ import { openToken, sealToken, type TokenKey } from "./token-encryption";
 // sender of one channel ends the binding on the other and suppresses what was
 // still queued for it. The fallback code and the contact card are iMessage only.
 // Telegram links the same way (host-telegram-channel design 5 and 6, D5, D6): the
-// card opens t.me/<bot>?start=<code>, and /start <code> (or the code as text)
+// card opens telegram.me/<bot>?start=<code>, and /start <code> (or the code as text)
 // from the host's private chat with the bot completes a Telegram attempt. No
 // reply goes out then, so the bot's first message is the welcome after Confirm
 // and link. The sender's first name and @username are sealed beside the sender
@@ -828,7 +828,7 @@ async function openAttemptStatus(
 }
 
 // The message an attempt asks the host to send: the link message, or for
-// Telegram the bare code, which the t.me start link carries (design 6).
+// Telegram the bare code, which the telegram.me start link carries (design 6).
 export function attemptMessage(channel: MessagingChannel, code: string) {
   return channel === "telegram" ? code : linkMessage(code);
 }

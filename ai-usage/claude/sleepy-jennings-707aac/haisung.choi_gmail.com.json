@@ -1,0 +1,23 @@
+{
+  "branch": "claude/sleepy-jennings-707aac",
+  "user": "haisung.choi@gmail.com",
+  "sessions": {
+    "claude:f9d1b5ba-f09f-4a18-afdd-f8a4669351d2": {
+      "agent": "claude-code",
+      "client": "claude-desktop",
+      "agent_ms": 0,
+      "models": {
+        "claude-opus-5-5": {
+          "input": 92,
+          "cache_read": 5542011,
+          "cache_write_5m": 0,
+          "cache_write_1h": 252207,
+          "output": 20881,
+          "reasoning": 0
+        }
+      },
+      "first": "2026-11-18T08:02:20.188Z",
+      "last": "2026-11-19T11:38:01.551Z"
+    }
+  }
+}

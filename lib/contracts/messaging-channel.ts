@@ -56,14 +56,22 @@ export function displayWhatsAppNumber(number: string) {
 export const TELEGRAM_USERNAME = /^[A-Za-z][A-Za-z0-9_]{3,31}$/;
 const START_PAYLOAD = /^[A-Za-z0-9_-]{1,64}$/;
 
-// Telegram's start link (D6): t.me/<bot>?start=<code>. On a phone it opens
+// Telegram's start link (D6): telegram.me/<bot>?start=<code>. On a phone it opens
 // Telegram at the bot with Start, which sends /start <code> from the host's own
 // account; on a computer it opens Telegram Desktop or Telegram Web, and the QR
 // code carries the same URL.
 export function telegramLinkFor(username: string, code: string) {
   const bot = username.replace(/^@/, "");
   if (!TELEGRAM_USERNAME.test(bot) || !START_PAYLOAD.test(code)) return null;
-  return `https://t.me/${bot}?start=${code}`;
+  return `${telegramChatLinkFor(bot)}?start=${code}`;
+}
+
+// The bot's chat with no code, for a host already linked. Every Telegram link
+// uses telegram.me, Telegram's own alias of t.me with the same paths and
+// ?start=: some networks' DNS (the SNU campus Wi-Fi among them) send t.me
+// alone to an address that never answers, so t.me timed out there.
+export function telegramChatLinkFor(username: string) {
+  return `https://telegram.me/${username.replace(/^@/, "")}`;
 }
 
 // What a deployment can link to, null where a channel is not configured: the

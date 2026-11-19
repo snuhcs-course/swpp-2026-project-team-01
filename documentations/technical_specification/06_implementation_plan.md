@@ -457,7 +457,7 @@ Scope. Prerequisites: Phases 6 and 9, whose receipts, tables with their `channel
 
 **Lane B — linking in the browser**
 
-- [x] **Connect Telegram** with the `t.me` start link, QR code, **Copy**, the Telegram name and **Confirm and link**; the device rule across three channels; the replacement notice and the privacy sentence; the link step after sign-in and `/?flow=telegram`.
+- [x] **Connect Telegram** with the `telegram.me` start link, QR code, **Copy**, the Telegram name and **Confirm and link**; the device rule across three channels; the replacement notice and the privacy sentence; the link step after sign-in and `/?flow=telegram`.
 
 **Lane C — buttons, extras and channel behavior**
 

@@ -34,7 +34,7 @@ import { E2E_TOKEN_ENCRYPTION_KEY } from "./support/token-key";
 // link** binds it; **Unlink iMessage** returns to the start. **Get updates in
 // WhatsApp** (guest-whatsapp-link design 2) does the same with the WhatsApp
 // number and a wa.me link, and **Get updates in Telegram** (guest-telegram-link
-// design 2) with no number and the bot's t.me start link.
+// design 2) with no number and the bot's telegram.me start link.
 
 const tokenKey = parseTokenKey(E2E_TOKEN_ENCRYPTION_KEY);
 const LINE = "+15550001111";
@@ -219,7 +219,7 @@ test("at 1280px a guest links and unlinks WhatsApp updates", async ({ db, page }
 });
 
 // **Get updates in Telegram** (guest-telegram-link design 2): no number, then on
-// a computer the bot, the code, a QR code and **Open Telegram** with the t.me
+// a computer the bot, the code, a QR code and **Open Telegram** with the telegram.me
 // start link; the guest's Start shows their Telegram name with where Telegram
 // keeps the chat, and **Confirm and link** binds it on Telegram, with no
 // contact card.
@@ -241,7 +241,7 @@ test("at 1280px a guest links and unlinks Telegram updates by keyboard", async (
   await expect(card.getByText(`@${BOT}`)).toBeVisible();
   const code = (await card.locator("[data-imessage-link-message]").textContent())!.trim();
   expect(code).toMatch(/^FMAT-[0-9A-HJKMNP-TV-Z]{10}$/);
-  await expect(card.getByRole("link", { name: "Open Telegram" })).toHaveAttribute("href", `https://t.me/${BOT}?start=${code}`);
+  await expect(card.getByRole("link", { name: "Open Telegram" })).toHaveAttribute("href", `https://telegram.me/${BOT}?start=${code}`);
   await expect(card.getByRole("img", { name: /QR code/ })).toBeVisible();
   expect(new URL(page.url()).pathname).toBe(`/booking/${request.bookingId}`);
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= document.documentElement.clientWidth)).toBe(true);
@@ -274,16 +274,16 @@ test.describe("on an Android phone", () => {
 
   test("Get updates in Telegram opens the bot's start link", async ({ db, page }) => {
     const request = await agreedRequest(db);
-    // Telegram's link is caught here, so the test never leaves for t.me.
+    // Telegram's link is caught here, so the test never leaves for telegram.me.
     let opened: string | null = null;
-    await page.route("https://t.me/**", async (route) => {
+    await page.route("https://telegram.me/**", async (route) => {
       opened = route.request().url();
       await route.fulfill({ body: "", status: 204 });
     });
     await page.goto(`/booking/${request.bookingId}`);
     await expect(page.getByRole("button", { exact: true, name: "Get updates in Telegram" })).toBeVisible({ timeout: 20_000 });
     await pressByKeyboard(page, "Get updates in Telegram");
-    await expect.poll(() => opened, { timeout: 20_000 }).toMatch(new RegExp(`^https://t\\.me/${BOT}\\?start=FMAT-[0-9A-HJKMNP-TV-Z]{10}$`));
+    await expect.poll(() => opened, { timeout: 20_000 }).toMatch(new RegExp(`^https://telegram\\.me/${BOT}\\?start=FMAT-[0-9A-HJKMNP-TV-Z]{10}$`));
     const [attempt] = await db<{ channel: string }[]>`select channel from app.imessage_links where request_id = ${request.requestId} and state = 'pending'`;
     expect(attempt).toEqual({ channel: "telegram" });
   });

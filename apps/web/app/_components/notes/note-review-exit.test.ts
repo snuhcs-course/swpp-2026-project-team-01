@@ -20,7 +20,7 @@ describe("noteReviewExit", () => {
     expect(noteReviewExit(linked("imessage", "+15550001111"), "ios")).toEqual({ channel: "imessage", href: "sms:+15550001111" });
     expect(noteReviewExit(linked("imessage", "+15550001111"), "android")).toEqual({ channel: "imessage", href: "sms:+15550001111" });
     expect(noteReviewExit(linked("whatsapp", "15550002222"), "other")).toEqual({ channel: "whatsapp", href: "https://wa.me/15550002222" });
-    expect(noteReviewExit(linked("telegram", "findmeatime_bot"), "other")).toEqual({ channel: "telegram", href: "https://t.me/findmeatime_bot" });
+    expect(noteReviewExit(linked("telegram", "findmeatime_bot"), "other")).toEqual({ channel: "telegram", href: "https://telegram.me/findmeatime_bot" });
   });
 
   it("goes to the workspace without a linked chat, or where Messages cannot open", () => {

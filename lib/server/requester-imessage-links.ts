@@ -41,7 +41,7 @@ import { openToken, sealToken, type TokenKey } from "./token-encryption";
 // one open attempt and one active binding across both channels.
 // Telegram links the same way (guest-telegram-link design 2 and 3): create takes
 // channel telegram with no number, nothing is registered, and the card opens
-// t.me/<bot>?start=<code>; /start <code> from the guest's private chat with the
+// telegram.me/<bot>?start=<code>; /start <code> from the guest's private chat with the
 // bot completes the attempt, with the sender's name sealed for the card. The
 // open attempt and the active binding stay one each across the three channels.
 
