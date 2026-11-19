@@ -139,16 +139,16 @@ export function ProposalReviewCard({ context, onRequestChanges }: { readonly con
         </div>
       ) : (
         <div className="border-t border-border pt-4"><GuestCardActions>
-          <Button disabled={busy || !awaiting} onClick={() => void act(view.sample ? "tutorial.finish" : "request.approve", { version: proposal.version })} type="button">
+          <Button disabled={busy || !awaiting} onClick={() => view.sample ? void act("tutorial.finish", { action: "approve", version: proposal.version }) : void act("request.approve", { version: proposal.version })} type="button">
             Approve this proposal
           </Button>
-          <Button disabled={busy} onClick={view.sample ? () => void act("tutorial.finish", {}) : onRequestChanges} type="button" variant="outline">
+          <Button disabled={busy} onClick={view.sample ? () => void act("tutorial.finish", { action: "change" }) : onRequestChanges} type="button" variant="outline">
             Request changes
           </Button>
-          <Button disabled={busy} onClick={() => view.sample ? void act("tutorial.finish", {}) : setConfirmDecline(true)} type="button" variant="ghost">
+          <Button disabled={busy} onClick={() => view.sample ? void act("tutorial.finish", { action: "decline" }) : setConfirmDecline(true)} type="button" variant="ghost">
             Decline
           </Button>
-          {view.sample ? <Button disabled={busy} onClick={() => void act("tutorial.finish", {})} type="button" variant="ghost">End tutorial</Button> : null}
+          {view.sample ? <Button disabled={busy} onClick={() => void act("tutorial.finish", { action: "end" })} type="button" variant="ghost">End tutorial</Button> : null}
         </GuestCardActions></div>
       )}
       <StatusLine message={error} />

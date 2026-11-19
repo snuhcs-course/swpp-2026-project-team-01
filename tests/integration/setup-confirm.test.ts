@@ -104,9 +104,9 @@ describe("setup.confirm_settings", () => {
       values (${host.hostAccountId}, '{"timezone":"Asia/Seoul"}', 1, true)
     `;
     const routeDeps = () => ({ ...deps, auth: localAuthConfig() });
-    const post = (path: string, operation: string, input: unknown, expectedRevision?: number) =>
+    const post = (path: string, operation: string, input: unknown, expectedRevision?: number, retryKey: string = randomUUID()) =>
       new Request(`${SETUP_ORIGIN}${path}`, {
-        body: JSON.stringify({ expectedRevision, input, operation, retryKey: randomUUID() }),
+        body: JSON.stringify({ expectedRevision, input, operation, retryKey }),
         headers: { cookie: host.cookie, "content-type": "application/json", origin: SETUP_ORIGIN },
         method: "POST",
       });
@@ -130,12 +130,20 @@ describe("setup.confirm_settings", () => {
     expect(await asHost(db, host.hostAccountId, requestId, declineCommand(), {})).toMatchObject({ ok: false });
 
     const route = createHostRequestCommandHandler(() => ({ ...routeDeps(), runtime: eveRuntime("http://127.0.0.1:9"), signingKey: "test" }));
-    const finish = (input: object) => route(
-      post(`/api/host/requests/${requestId}/commands`, "tutorial.finish", input, view?.revision),
+    const finish = (input: object, retryKey?: string) => route(
+      post(`/api/host/requests/${requestId}/commands`, "tutorial.finish", input, view?.revision, retryKey),
       { params: Promise.resolve({ requestId }) },
     );
     expect((await finish({ version: 2 })).status).toBe(409);
-    expect((await finish({ version: 1 })).status).toBe(201);
+    const approval = { action: "approve", version: 1 };
+    const retryKey = randomUUID();
+    const finished = await finish(approval, retryKey);
+    expect(finished.status).toBe(201);
+    expect(await finished.json()).toMatchObject({ result: { action: "approve", sample: true } });
+    const replayed = await finish(approval, retryKey);
+    expect(replayed.status).toBe(200);
+    expect(await replayed.json()).toMatchObject({ result: { action: "approve", sample: true } });
+    expect(await (await finish({ action: "decline" })).json()).toMatchObject({ result: { action: null, sample: true } });
     expect(await listHostRequests(db, host.hostAccountId)).toEqual([]);
     expect(await readHostRequest(db, host.hostAccountId, requestId)).toMatchObject({ state: "withdrawn" });
     expect((await (await start()).json()).result.requestId).toBeNull();

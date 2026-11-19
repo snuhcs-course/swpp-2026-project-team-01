@@ -1,5 +1,6 @@
 "use client";
 
+import { TUTORIAL_FEEDBACK, tutorialFinishResult } from "@lib/contracts/host-tutorial";
 import type { HostRequestOperation, HostRequestView } from "@lib/contracts/host-request";
 import type { RequestState } from "@lib/contracts/request";
 import type { WorkspaceRequestItem } from "@lib/contracts/workspace-request";
@@ -90,11 +91,16 @@ export function HostRequests({ onOpenDashboard, request }: { readonly onOpenDash
 // ---------------------------------------------------------------------------
 // The inbox
 
+const tutorialFeedback = TUTORIAL_FEEDBACK.en;
+type TutorialCompletion = Exclude<keyof typeof tutorialFeedback, "practice">;
+
 function Inbox({ initialRequest, onNotice }: { readonly initialRequest: string | null; readonly onNotice: (message: string) => void }) {
   const [items, setItems] = useState<WorkspaceRequestItem[] | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [filter, setFilter] = useState<"all" | "received" | "sent">("all");
   const [openId, setOpenId] = useState<string | null>(initialRequest);
+
+  const [tutorialCompletion, setTutorialCompletion] = useState<{ requestId: string; action: TutorialCompletion } | null>(null);
 
   const refresh = useCallback(() => readWorkspaceRequests().then(setItems).catch((cause) => setError(errorMessage(cause))), []);
 
@@ -111,9 +117,9 @@ function Inbox({ initialRequest, onNotice }: { readonly initialRequest: string |
   useEffect(() => {
     if (items && initialRequest && !items.some((item) => item.direction === "received" && item.requestId === initialRequest)) {
       setOpenId(null);
-      onNotice("That request is not available.");
+      if (initialRequest !== tutorialCompletion?.requestId) onNotice("That request is not available.");
     }
-  }, [initialRequest, items, onNotice]);
+  }, [initialRequest, items, onNotice, tutorialCompletion]);
 
   const received = items?.filter((item) => item.direction === "received").length ?? 0;
   const sent = items?.filter((item) => item.direction === "sent").length ?? 0;
@@ -141,6 +147,9 @@ function Inbox({ initialRequest, onNotice }: { readonly initialRequest: string |
             </button>
           ))}
         </div>
+        <div role="status">
+          {tutorialCompletion ? <GuestCard id="tutorial-complete" title={tutorialFeedback[tutorialCompletion.action]} description={tutorialFeedback.practice} /> : null}
+        </div>
         {error ? <p role="alert">{error}</p> : null}
         {items === null && !error ? (
           <p className="text-muted-foreground" role="status">
@@ -155,7 +164,19 @@ function Inbox({ initialRequest, onNotice }: { readonly initialRequest: string |
         <ul className="flex flex-col gap-2">
           {shown.map((item) => (
             <li key={item.requestId}>
-              <RequestListCard item={item} onChanged={() => void refresh()} onNotice={onNotice} onToggle={() => setOpenId(openId === item.requestId ? null : item.requestId)} open={openId === item.requestId} />
+              <RequestListCard
+                item={item}
+                onChanged={(action) => {
+                  if (action) {
+                    setTutorialCompletion({ requestId: item.requestId, action });
+                    setOpenId((current) => current === item.requestId ? null : current);
+                  }
+                  void refresh();
+                }}
+                onNotice={onNotice}
+                onToggle={() => setOpenId(openId === item.requestId ? null : item.requestId)}
+                open={openId === item.requestId}
+              />
             </li>
           ))}
         </ul>
@@ -164,7 +185,7 @@ function Inbox({ initialRequest, onNotice }: { readonly initialRequest: string |
   );
 }
 
-function RequestListCard({ item, onChanged, onNotice, onToggle, open }: { readonly item: WorkspaceRequestItem; readonly onChanged: () => void; readonly onNotice: (message: string) => void; readonly onToggle: () => void; readonly open: boolean }) {
+function RequestListCard({ item, onChanged, onNotice, onToggle, open }: { readonly item: WorkspaceRequestItem; readonly onChanged: (tutorialCompletion?: TutorialCompletion) => void; readonly onNotice: (message: string) => void; readonly onToggle: () => void; readonly open: boolean }) {
   const received = item.direction === "received";
   const status = item.needsDecision ? "Needs your decision" : !received && item.state === "awaiting_host_approval" ? "Awaiting host approval" : STATE_LABELS[item.state];
   const content = (
@@ -194,7 +215,7 @@ function RequestListCard({ item, onChanged, onNotice, onToggle, open }: { readon
 // ---------------------------------------------------------------------------
 // One request
 
-function RequestPanel({ onChanged, onUnavailable, requestId }: { readonly onChanged: () => void; readonly onUnavailable: () => void; readonly requestId: string }) {
+function RequestPanel({ onChanged, onUnavailable, requestId }: { readonly onChanged: (tutorialCompletion?: TutorialCompletion) => void; readonly onUnavailable: () => void; readonly requestId: string }) {
   const [view, setView] = useState<HostRequestView | null>(null);
   const [editing, setEditing] = useState(false);
   const retryKeys = useRef(new Map<string, string>());
@@ -230,7 +251,8 @@ function RequestPanel({ onChanged, onUnavailable, requestId }: { readonly onChan
       const outcome = await postHostCommand(requestId, operation, input, expectedRevision, retryKey);
       retryKeys.current.delete(identity);
       if (outcome.request) setView(outcome.request);
-      onChanged();
+      const completion = outcome.ok && operation === "tutorial.finish" ? tutorialFinishResult.safeParse(outcome.result) : null;
+      onChanged(completion?.success ? completion.data.action ?? "complete" : undefined);
       return outcome.ok ? { ok: true as const } : { error: outcome.error, ok: false as const };
     },
     [onChanged, requestId, view?.revision],
@@ -245,7 +267,7 @@ function RequestPanel({ onChanged, onUnavailable, requestId }: { readonly onChan
 
 function OpenCard({ context, editing, setEditing }: { readonly context: HostCardContext; readonly editing: boolean; readonly setEditing: (value: boolean) => void }) {
   if (context.view.sample && context.view.state !== "awaiting_host_approval") {
-    return <GuestCard id="tutorial-complete" title="Tutorial complete" description="No calendar event was created and no guest was notified." />;
+    return <GuestCard id="tutorial-complete" title={tutorialFeedback.complete} description={tutorialFeedback.practice} />;
   }
   const step = nextHostStep(context.view, editing);
   const requestChanges = () => setEditing(true);

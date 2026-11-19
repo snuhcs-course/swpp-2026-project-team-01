@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { TUTORIAL_FEEDBACK, tutorialAction, tutorialFinishResult } from "../contracts/host-tutorial";
 import { isValidTimeZone } from "../contracts/timezone";
 import type { ChannelLanguage } from "./channel-language";
 import { lockActiveHost } from "./analysis";
@@ -11,15 +12,19 @@ export const TUTORIAL_TEXT = {
     offer: "Would you like to try a sample request?",
     sample: "Sample request",
     guide: "You can approve or decline this request. Ask me for more details or if you want to change anything.",
-    done: "Tutorial complete. No calendar event was created and no guest was notified.",
   },
   ko: {
     offer: "그럼 튜토리얼 해보실래요?",
     sample: "샘플 요청",
     guide: "위 요청에 대해서 승인하거나, 거절하실 수 있어요. 자세한 정보를 원하시거나 조정이 필요하시면 저에게 말해주세요.",
-    done: "튜토리얼이 끝났어요. 캘린더 일정이나 게스트 알림은 생성되지 않았어요.",
   },
 } as const;
+
+export function tutorialCompletionText(language: ChannelLanguage, result: unknown) {
+  const feedback = TUTORIAL_FEEDBACK[language];
+  const parsed = tutorialFinishResult.safeParse(result);
+  return `${feedback[parsed.data?.action ?? "complete"]} ${feedback.practice}`;
+}
 
 export async function tutorialOffered(db: Queryable, hostAccountId: string) {
   const [settings] = await db<{ tutorial_offered: boolean }[]>`
@@ -103,9 +108,9 @@ export function chooseTutorialCommand(
   };
 }
 
-const finishInput = z.object({ version: z.number().int().positive().optional() }).strict();
+const finishInput = z.object({ action: tutorialAction.optional(), version: z.number().int().positive().optional() }).strict();
 
-export const finishSampleCommand: CommandDefinition<z.infer<typeof finishInput>, { sample: true }> = {
+export const finishSampleCommand: CommandDefinition<z.infer<typeof finishInput>, z.infer<typeof tutorialFinishResult>> = {
   input: finishInput,
   operation: "tutorial.finish",
   async run(tx, { actor, resourceId, expectedRevision, input }) {
@@ -119,7 +124,7 @@ export const finishSampleCommand: CommandDefinition<z.infer<typeof finishInput>,
       order by p.version desc limit 1 for update of r
     `;
     if (!sample) throw new CommandError("forbidden");
-    if (sample.closed) return { sample: true };
+    if (sample.closed) return { sample: true, action: null };
     if (expectedRevision !== null) assertRevision(sample.revision, expectedRevision);
     if (input.version !== undefined && input.version !== sample.version) throw new CommandError("stale_revision");
 
@@ -128,6 +133,6 @@ export const finishSampleCommand: CommandDefinition<z.infer<typeof finishInput>,
       where id = ${resourceId}
     `;
     await enqueueButtonRetirement(tx, resourceId);
-    return { sample: true };
+    return { sample: true, action: input.action ?? null };
   },
 };

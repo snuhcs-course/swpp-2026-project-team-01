@@ -9,7 +9,7 @@ import {
   WEEKLY_LIMIT_COUNT_LABELS,
   type WeeklyWindow,
 } from "../contracts/setup";
-import { finishSampleCommand, TUTORIAL_TEXT } from "./host-tutorial";
+import { finishSampleCommand, tutorialCompletionText, TUTORIAL_TEXT } from "./host-tutorial";
 import { approveCommand, declineCommand } from "./bookings";
 import { type ChannelLanguage, hostConversationLanguage } from "./channel-language";
 import { channelReplies, FIELD_LABELS, locale, STATE_WORDS, weekdayShort } from "./channel-texts";
@@ -340,7 +340,7 @@ async function decide(
   if (!view) return { text: texts.unknownRef(deps.origin) };
   const current = view.proposal ? reviewRef(view.requestId, view.proposal.version) : null;
 
-  if (view.sample && CLOSED.includes(view.state)) return { requestId: view.requestId, text: TUTORIAL_TEXT[language].done };
+  if (view.sample && CLOSED.includes(view.state)) return { requestId: view.requestId, text: tutorialCompletionText(language, null) };
   if (CLOSED.includes(view.state)) return { requestId: view.requestId, text: texts.closedNothingChanged(STATE_WORDS[language][view.state]) };
   if (!view.proposal || view.proposal.version !== version) {
     // A stale tap shows the current proposal, since WhatsApp cannot take the
@@ -355,8 +355,8 @@ async function decide(
   }
 
   if (view.sample) {
-    const outcome = await run(deps, message, finishSampleCommand, view.requestId, { version }, view.revision);
-    return { requestId: view.requestId, text: outcome.ok ? TUTORIAL_TEXT[language].done : decisionRefusal(deps, outcome.error.category, current, language) };
+    const outcome = await run(deps, message, finishSampleCommand, view.requestId, { action: kind, version }, view.revision);
+    return { requestId: view.requestId, text: outcome.ok ? tutorialCompletionText(language, outcome.result) : decisionRefusal(deps, outcome.error.category, current, language) };
   }
   if (kind === "approve") {
     // The reference names the version; the revision read with it makes sure
@@ -480,7 +480,7 @@ async function savedDecisionReply(
 
   switch (saved.operation) {
     case "tutorial.finish":
-      return { requestId, text: TUTORIAL_TEXT[language].done };
+      return { requestId, text: tutorialCompletionText(language, saved.result) };
     case "request.approve":
       return { requestId, text: saved.result?.repeated ? texts.alreadyApproved : texts.approved };
     case "request.decline":
@@ -499,7 +499,7 @@ async function savedDecisionReply(
   }
 }
 
-const DECISIONS = new Set(["approve", "decline", "share", "dismiss", "confirm"]);
+const DECISIONS = new Set(["approve", "decline", "share", "dismiss", "confirm", "stop"]);
 
 // Runs a parsed command for a bound host and queues its reply, in the language
 // of the host's conversation (D4): a command word or a button says nothing
@@ -525,8 +525,8 @@ export async function executeCommand(tx: Transaction, deps: CommandDependencies,
       if (message.text.trim().toLowerCase() === "stop" && message.selectedRequestId) {
         const sample = await readHostRequest(deps.db, message.hostAccountId, message.selectedRequestId);
         if (sample?.sample) {
-          const finished = await run(deps, message, finishSampleCommand, sample.requestId, {}, sample.revision);
-          result = { requestId: sample.requestId, text: finished.ok ? TUTORIAL_TEXT[language].done : texts.requestGoneHere };
+          const finished = await run(deps, message, finishSampleCommand, sample.requestId, { action: "end" }, sample.revision);
+          result = { requestId: sample.requestId, text: finished.ok ? tutorialCompletionText(language, finished.result) : texts.requestGoneHere };
           break;
         }
       }
