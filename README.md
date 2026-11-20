@@ -4,6 +4,8 @@ Find Me a Time is an AI scheduling assistant for one-to-one meetings. Thyme help
 
 ## Iteration 4 demo video
 
+https://github.com/user-attachments/assets/317e3fd0-a76b-4dc9-87fe-78e1a81b99f9
+
 [Watch / download the Iteration 4 demo](demos/iteration-4-demo.mp4) (MP4, 8.6 MB).
 
 ## How to run the demo
