@@ -1,62 +1,56 @@
-# Find Me a Time
+# Find Me a Time — Iteration 4 Demo
 
-An AI scheduling agent for external one-to-one meetings. **Thyme** negotiates times; booking requires the host's explicit approval of the current proposal.
-
-Domain: [findmeatime.com](https://findmeatime.com) · SNU SWPP Project Team 01
+Find Me a Time is an AI scheduling assistant for one-to-one meetings. Thyme helps find a suitable time; a booking is made only after the host approves it.
 
 ## Iteration 4 demo video
 
 [Watch / download the Iteration 4 demo](demos/iteration-4-demo.mp4) (MP4, 8.6 MB).
 
-This branch preserves `main` at [`a1cda013`](https://github.com/snuhcs-course/swpp-2026-project-team-01/commit/a1cda0134203a7ebaa5fe07a14bcc7bce434774b) and adds the recording for the Iteration 4 working demo.
+## How to run the demo
 
-## Status
+### Hosted demo
 
-**Phases 1 and 2 implemented.** The product direction, user experience, architecture, provider setup, visual design and capability specifications are agreed in this repository. The [`application-foundation`](openspec/changes/application-foundation/proposal.md) change built Google sign-in, the `/app` workspace and the platform mechanics, and [`host-onboarding`](openspec/changes/host-onboarding/proposal.md) added suggestion-first host setup, public host pages and skill documents, and the administrator CLI. Both are deployed on `findmeatime.com` and `release.findmeatime.com`; the [acceptance record](documentations/technical_specification/07_acceptance_record.md) holds their evidence and open gaps. Requester intake and booking arrive with later phases.
+1. Open [findmeatime.com](https://findmeatime.com) with a team-provided Google test account.
+2. As a host, connect a calendar and iMessage or Telegram. Continue setup in the chat: review Thyme's suggested meeting hours and places, confirm calendar notes, and preview available times.
+3. Open the resulting booking link in a separate guest browser. Request a meeting, choose a proposed time, and observe the waiting-for-host status.
+4. Return to the host's chat or workspace to review and approve the request. Check the booking in Google Calendar and the request status in the app.
 
-Read the [one-pager](documentations/01_one_pager.md) and the [PRD](documentations/02_product_requirements.md). The [documentation index](documentations/README.md) lists every document.
+An agent service can also follow the [MCP instructions](documentations/technical_specification/09_agent_clients.md) to connect Find Me a Time and guide host setup or a meeting request.
 
-Shared Supabase project: **`anelszynxtvxoxqvzgqt`** (**FindMeATime**, `us-east-2`). Teammates develop against personal Supabase projects and local `eve dev`; the shared project tracks `main` through CI, and a release environment is split off before the first external user. See [environments and collaboration](documentations/technical_specification/03_provider_setup.md#environments-and-collaboration).
+### Local development
 
-## Repository layout
+The project uses Node.js 24, npm, Next.js, Eve, and Supabase. The hosted demo runs on Vercel with Google Calendar and the configured messaging services. For a local run, install Docker and Supabase CLI 2.119.0, then:
 
-| Path | Contents |
-|---|---|
-| `agent/` | eve agent definition, instructions and channels |
-| `apps/web/` | Next.js web app: public entry at `/`, conversation at `/app` |
-| `lib/` | Contracts and server code shared by the agent and the web app |
-| `tests/` | Integration and browser tests; unit tests live beside their modules |
-| `documentations/` | Product direction, UX, architecture and provider setup |
-| `DESIGN.md` | Thyme visual direction and brand assets |
-| `openspec/specs/` | Agreed capability behavior; the contract the implementation must satisfy |
-| `openspec/changes/` | Pending change proposals; completed changes are archived here after verification |
-| `supabase/` | Local Supabase configuration, the desired schema, the reviewed migration chain and database tests |
-| `ai-usage/` | Per-branch AI token and agent-time records required by the course |
-| `.agents/skills/` | Shared project workflows and reference material |
+```sh
+git clone --branch iteration-4-demo https://github.com/snuhcs-course/swpp-2026-project-team-01.git
+cd swpp-2026-project-team-01
+npm ci
+cp .env.example .env
+```
 
-## Documents awaiting review
+Set the required Google, model, and application values in `.env` as described in [provider setup](documentations/technical_specification/03_provider_setup.md). Start the local Supabase stack, use `supabase status -o env` to obtain its connection values, and put local overrides in `.env.local`:
 
-These documents were copied unchanged from the iteration 1 prototype so the team can review and update them against the documents above.
+```sh
+supabase start
+supabase status -o env
+npm run dev
+```
 
-- [Transplant guide](documentations/transplant/en/transplant-guide.md): the prototype's features F01–F11, journeys and design decomposed for reuse.
-- [AI usage records](ai-usage/README.md): see [agent guidance](AGENTS.md#ai-usage-records) for the hook setup.
+Open `http://localhost:3000`. In another terminal, run `npm run jobs:dev` to process locally created background jobs. Use the hosted demo for the configured iMessage and Telegram flows.
 
 ## Checks
 
-Use Node.js 24 and OpenSpec CLI **1.14.0**. The link checker runs without installing dependencies:
+Run `npm run check:docs`, `npm run lint`, `npm run typecheck`, and `npm test`. Integration and browser tests also need the local Supabase stack; see [agent guidance](AGENTS.md#tooling-prerequisites).
 
-```sh
-npm run check:docs
-openspec validate --all --strict
-```
+## What the demo demonstrates
 
-Install the application with `npm ci`, then run the checks CI runs:
+### Features newly implemented in Iteration 4
 
-```sh
-npm run build
-npm run lint
-npm run typecheck
-npm test
-```
+- **Chat-based host setup:** Hosts can complete setup in iMessage or Telegram, respond to calendar-based suggestions, review note-like calendar events, and confirm a preview of their available times.
+- **A clearer schedule and settings:** The calendar dashboard brings Google events, service bookings, and sent requests into week and month views. Hosts can review and edit preferences in the settings dialog.
+- **A more complete meeting flow:** Guests see feasible in-person times paired with the host's places. After choosing a time, they see that host approval is still pending. Hosts can review sent and received requests, approve bookings, and cancel a booked meeting.
+- **Guest updates:** Guests can choose email-only updates or receive updates in Telegram. A revised proposal shows what the host changed, and a host can request a meeting with another host using the same account.
+- **Personal-agent access:** An external agent service can connect through MCP, guide host setup or a meeting request step by step, and start a messaging-channel link. Settings changes still require the host's own agreement.
+- **Usability improvements:** Sign-in persists across page refreshes, fixed interface text is in English, and Thyme replies in the user's language. Telegram is offered in place of WhatsApp in the current interface.
 
-`npm run test:integration` runs the integration tests, and `npm run test:e2e` runs the Playwright browser tests (install a browser once with `npx playwright install chromium`); both need the local stack from `supabase start` and never call OpenAI, except the opt-in `E2E_LIVE_MODEL=1 npm run test:e2e`, which runs the sign-in-to-first-reply journey against the real model. `npm run dev` runs the web and agent services from the root `.env`, with `.env.local` overrides. Operators suspend, restore and inspect hosts with `npm run admin -- <show|suspend|restore> --host <handle-or-id> --operator <name> (--local | --project <ref>)`, the `fmat-admin` CLI described in the [CLI direction](documentations/technical_specification/05_cli.md#administrator-cli). Supabase CLI **2.119.0** is the team version; schema generation, database reset and deployment follow [agent guidance](AGENTS.md#supabase-schema-changes).
+Together, these changes extend the demo beyond the earlier web-based setup into a connected flow across chat, the calendar, the requests workspace, and personal agents. The first UAT cycle also showed where the test scenario needs to focus more tightly on core tasks.
