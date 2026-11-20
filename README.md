@@ -4,6 +4,12 @@ An AI scheduling agent for external one-to-one meetings. **Thyme** negotiates ti
 
 Domain: [findmeatime.com](https://findmeatime.com) · SNU SWPP Project Team 01
 
+## Iteration 4 demo video
+
+[Watch / download the Iteration 4 demo](demos/iteration-4-demo.mp4) (MP4, 8.6 MB).
+
+This branch preserves `main` at [`a1cda013`](https://github.com/snuhcs-course/swpp-2026-project-team-01/commit/a1cda0134203a7ebaa5fe07a14bcc7bce434774b) and adds the recording for the Iteration 4 working demo.
+
 ## Status
 
 **Phases 1 and 2 implemented.** The product direction, user experience, architecture, provider setup, visual design and capability specifications are agreed in this repository. The [`application-foundation`](openspec/changes/application-foundation/proposal.md) change built Google sign-in, the `/app` workspace and the platform mechanics, and [`host-onboarding`](openspec/changes/host-onboarding/proposal.md) added suggestion-first host setup, public host pages and skill documents, and the administrator CLI. Both are deployed on `findmeatime.com` and `release.findmeatime.com`; the [acceptance record](documentations/technical_specification/07_acceptance_record.md) holds their evidence and open gaps. Requester intake and booking arrive with later phases.
