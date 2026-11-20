@@ -1,4 +1,4 @@
-import type { RequesterEvaluation } from "./request";
+import type { RequesterCandidate, RequesterEvaluation } from "./request";
 
 // What the requester audience learns about one evaluation (design decision 8),
 // shared by the evaluate_candidates tool, the Find times action and the candidate
@@ -19,6 +19,15 @@ export type RequesterEvaluationView = RequesterEvaluation & {
   // Whether the booking destination can create Google Meet, for an online
   // request; null when it was not read (in person, or not finished).
   readonly meetAvailable: boolean | null;
+  // When no time fits the requester's windows: the nearest open time before
+  // and after them (nearest-open-times design 1). Like every candidate, they
+  // carry no reason why the windows did not work.
+  readonly nearest?: NearestOpenTimes;
+};
+
+export type NearestOpenTimes = {
+  readonly before: RequesterCandidate | null;
+  readonly after: RequesterCandidate | null;
 };
 
 // The authored requester messages for an evaluation without candidates (design
@@ -42,6 +51,20 @@ export function noMatchMessage(language: "en" | "ko", place: string | null) {
   return language === "ko"
     ? `${place}에서는 아직 맞는 시간이 없어요. 다른 지역이나 다른 날짜, 또는 호스트가 안내한 장소로 다시 찾아보세요.`
     : `No time works at ${place} yet. Try another area, other days or one of the host's places.`;
+}
+
+// The no-match message when the nearest open times around the requester's
+// windows are known: it offers them and, like every requester message, gives
+// no reason.
+export function nearestTimesMessage(language: "en" | "ko", place: string | null) {
+  if (language === "ko") {
+    return place
+      ? `${place}에서는 말씀하신 시간대에 맞는 시간이 없어요. 그 앞뒤로 가장 가까운 가능한 시간은 다음과 같고, 다른 지역이나 호스트가 안내한 장소로 찾아볼 수도 있어요.`
+      : "말씀하신 시간대에는 맞는 시간이 없어요. 그 앞뒤로 가장 가까운 가능한 시간은 다음과 같아요.";
+  }
+  return place
+    ? `No time in your windows works at ${place}. The nearest open times before and after them are these, or try another area or one of the host's places.`
+    : "No time in your windows works. The nearest open times before and after them are these.";
 }
 
 export const EVALUATION_FAILURE_MESSAGES: Readonly<Record<RequesterEvaluationFailure, { readonly en: string; readonly ko: string }>> = {

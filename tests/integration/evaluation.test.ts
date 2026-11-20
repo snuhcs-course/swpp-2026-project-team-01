@@ -454,6 +454,31 @@ describe("evaluation job", () => {
     expect(new Set(days).size).toBe(8);
   });
 
+  it("stores the nearest open times around the windows when none fits, outside them and with no reason", async () => {
+    const tuesday = new Date(Date.parse(`${MONDAY}T00:00:00Z`) + 86_400_000).toISOString().slice(0, 10);
+    const friday = new Date(Date.parse(`${MONDAY}T00:00:00Z`) - 3 * 86_400_000).toISOString().slice(0, 10);
+    const host = await seedHost({ events: [busyEvent("09:00", "17:00", { summary: "Offsite with Initech" })] });
+    const requestId = await seedRequest(host.hostAccountId);
+    const { evaluationId } = await evaluate(requestId);
+    const view = await awaitEvaluation(db, evaluationId, 1_000);
+
+    expect(view).toMatchObject({ candidates: [], failure: null, state: "completed" });
+    // Monday is busy all day: the nearest times are Friday's last slot and Tuesday's first.
+    expect(view!.nearest?.before?.start).toBe(at("16:30", friday).toISOString());
+    expect(view!.nearest?.after?.start).toBe(at("10:00", tuesday).toISOString());
+    expect(JSON.stringify(view)).not.toMatch(/Initech|Offsite|basis|legs|buffer/i);
+  });
+
+  it("stores no nearest open times when a time fits the windows", async () => {
+    const host = await seedHost();
+    const requestId = await seedRequest(host.hostAccountId);
+    const { evaluationId } = await evaluate(requestId);
+    const view = await awaitEvaluation(db, evaluationId, 1_000);
+
+    expect(view!.candidates.length).toBeGreaterThan(0);
+    expect(view).not.toHaveProperty("nearest");
+  });
+
   it("returns a pending evaluation when the wait ends first", async () => {
     const host = await seedHost();
     const requestId = await seedRequest(host.hostAccountId);

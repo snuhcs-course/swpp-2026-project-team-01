@@ -1,6 +1,6 @@
 import { z } from "zod";
 import { clarificationQuestion } from "../contracts/clarifications";
-import { EVALUATION_FAILURE_MESSAGES, noMatchMessage, type RequesterEvaluationView, TIMES_SHOWN } from "../contracts/feasibility";
+import { EVALUATION_FAILURE_MESSAGES, nearestTimesMessage, noMatchMessage, type RequesterEvaluationView, TIMES_SHOWN } from "../contracts/feasibility";
 import {
   CLARIFICATION_CATEGORIES,
   type ClarificationCategory,
@@ -198,16 +198,26 @@ function requestedPlace(details: Partial<RequestDetails>) {
 }
 
 export function minimizedEvaluation(view: RequesterEvaluationView, timezone: string, language: RequestLanguage, place: string | null = null) {
-  const offered = view.candidates
-    .filter((candidate) => !candidate.unresolvedRequesterLeg)
-    .map((candidate) => ({
-      durationMinutes: candidate.durationMinutes,
-      id: candidate.id,
-      location: candidate.location,
-      meetingLink: linkPlanLabel(candidate.linkPlan),
-      mode: candidate.mode,
-      time: window(candidate, timezone),
-    }));
+  const shown = (candidate: RequesterEvaluationView["candidates"][number]) => ({
+    durationMinutes: candidate.durationMinutes,
+    id: candidate.id,
+    location: candidate.location,
+    meetingLink: linkPlanLabel(candidate.linkPlan),
+    mode: candidate.mode,
+    time: window(candidate, timezone),
+  });
+  const offered = view.candidates.filter((candidate) => !candidate.unresolvedRequesterLeg).map(shown);
+  // When nothing fits the guest's windows: the nearest open time before and
+  // after them (nearest-open-times design 2), outside the windows, so they are
+  // offered in words and become times to choose once the guest picks one and
+  // their availability is drafted for it. No id: choose_time cannot take them.
+  const nearest = view.state === "completed" && offered.length === 0 && view.nearest ? view.nearest : null;
+  const nearestTime = (candidate: RequesterEvaluationView["candidates"][number] | null) => {
+    if (!candidate) return null;
+    const { id: _id, ...rest } = shown(candidate);
+    return rest;
+  };
+  const nearestTimes = nearest && (nearest.before || nearest.after) ? { after: nearestTime(nearest.after), before: nearestTime(nearest.before) } : null;
 
   // The same three the times card shows first; laterCandidates are what
   // **Find other times** shows next, in groups of three, before searching again.
@@ -222,8 +232,11 @@ export function minimizedEvaluation(view: RequesterEvaluationView, timezone: str
         : view.failure
           ? EVALUATION_FAILURE_MESSAGES[view.failure][language]
           : view.state === "completed" && offered.length === 0
-            ? noMatchMessage(language, place)
+            ? nearestTimes
+              ? nearestTimesMessage(language, place)
+              : noMatchMessage(language, place)
             : null,
+    ...(nearestTimes ? { nearestTimes } : {}),
     state: view.state,
     tripsToConfirm: view.candidates.length - offered.length,
   };

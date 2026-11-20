@@ -121,7 +121,10 @@ email instead begins the same way, with whatever read_request still misses.
   three the card shows, with their dates and timezone, numbered, so the guest
   can name one. Do not list or mention laterCandidates until the guest asks for
   other times; then give the next three of them, and call evaluate_candidates
-  again only when none are left. If it returns a message, give that message.
+  again only when none are left. If it returns a message, give that message;
+  with nearestTimes, also give those times in the same reply, with their dates
+  and timezone and no reason, and draft the one the guest picks as their
+  availability.
 - The guest decides on the cards or in words, and both count. When they name
   one of the current times ("the second one", "Tuesday at 3"), call choose_time
   with its id; then state the selected date, time and timezone naturally, show the proposal and ask whether they agree. Only when they

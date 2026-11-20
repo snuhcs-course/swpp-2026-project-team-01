@@ -1,6 +1,6 @@
 import { randomUUID } from "node:crypto";
 import { generateText, type LanguageModel } from "ai";
-import type { RequesterEvaluationFailure, RequesterEvaluationView } from "../contracts/feasibility";
+import type { NearestOpenTimes, RequesterEvaluationFailure, RequesterEvaluationView } from "../contracts/feasibility";
 import type { EvaluationState, RequestDetails } from "../contracts/request";
 import { type ConfirmedSettings, groupTripsOf, isValidTimeZone, WEEKDAYS, weeklyLimitCountsOf } from "../contracts/setup";
 import { CommandError } from "./commands";
@@ -14,6 +14,7 @@ import {
   evaluateFeasibility,
   type Exclusion,
   type FeasibilityInput,
+  type FeasibilityResult,
   type LegQuery,
   legQueryKey,
   localParts,
@@ -271,11 +272,13 @@ function requesterFailure(state: EvaluationState, category: string | null): Requ
 }
 
 function requesterView(row: EvaluationRow): RequesterEvaluationView {
+  const nearest = row.state === "completed" ? row.requester_projection?.nearest : undefined;
   return {
     candidates: row.state === "completed" ? (row.requester_projection?.candidates ?? []) : [],
     failure: requesterFailure(row.state, row.failure_category),
     id: row.id,
     meetAvailable: row.requester_projection?.meetAvailable ?? null,
+    ...(nearest ? { nearest } : {}),
     state: row.state,
   };
 }
@@ -508,8 +511,10 @@ function readRange(windows: readonly { start: Date; end: Date }[], timezone: str
   };
 }
 
+type Nearest = { readonly before: EvaluatedCandidate | null; readonly after: EvaluatedCandidate | null };
+
 type Outcome =
-  | { readonly kind: "result"; readonly input: FeasibilityInput; readonly candidates: StoredCandidate[]; readonly ordered: EvaluatedCandidate[]; readonly ranking: string[] | null; readonly meetAvailable: boolean | null; readonly failure: "needs_details" | null }
+  | { readonly kind: "result"; readonly input: FeasibilityInput; readonly candidates: StoredCandidate[]; readonly ordered: EvaluatedCandidate[]; readonly ranking: string[] | null; readonly meetAvailable: boolean | null; readonly failure: "needs_details" | null; readonly nearest: Nearest }
   | { readonly kind: "failed"; readonly category: EvaluationFailureCategory }
   | { readonly kind: "incomplete"; readonly category: EvaluationFailureCategory };
 
@@ -526,6 +531,21 @@ class FailedEvaluation extends Error {
 // The search range when the requester gave no windows (guest-flow-completion
 // U9): from now to two weeks ahead, within the host's weekly windows as always.
 export const DEFAULT_SEARCH_DAYS = 14;
+
+// How far before and after the requester's windows the nearest open times are
+// looked for (nearest-open-times design 1), one day at a time outward, and the
+// part of the deadline kept for the main result: the nearest search stops when
+// less than NEAREST_RESERVE_MS remain.
+export const NEAREST_SEARCH_DAYS = 7;
+export const NEAREST_RESERVE_MS = 4_000;
+const DAY_MS = 86_400_000;
+
+// The extra range the nearest search may read, around the requested windows.
+function nearestRange(windows: readonly { start: Date; end: Date }[], now: Date) {
+  const first = Math.min(...windows.map((window) => window.start.getTime()));
+  const last = Math.max(...windows.map((window) => window.end.getTime()));
+  return { end: new Date(last + NEAREST_SEARCH_DAYS * DAY_MS), start: new Date(Math.max(now.getTime(), first - NEAREST_SEARCH_DAYS * DAY_MS)) };
+}
 
 function windowsOf(details: RequestDetails) {
   return (details.windows ?? [])
@@ -616,9 +636,14 @@ async function evaluate(
     input,
     kind: "result",
     meetAvailable: null,
+    nearest: NO_NEAREST,
     ordered: [],
     ranking: null,
   });
+  // The requester's own search over their windows looks around them too when
+  // nothing fits (nearest-open-times design 1); a fixed interval, the default
+  // two-week search and the host's review do not.
+  const searchAround = audience === "requester" && !options.interval && !searchDefault;
   const baseInput: FeasibilityInput = {
     allowances: [],
     host: {
@@ -654,7 +679,7 @@ async function evaluate(
 
   if (windows.length === 0 || mode === null) return emptyResult("needs_details", baseInput);
 
-  const range = readRange(windows, settings.timezone);
+  const range = readRange(searchAround ? [...windows, nearestRange(windows, now)] : windows, settings.timezone);
 
   // A change after booking (post-booking-changes design 5): the meeting being
   // changed is not busy time for its own new time, on either calendar.
@@ -804,6 +829,14 @@ async function evaluate(
   const ranked: FeasibilityInput = { ...input, estimate: lookup(new Map()) };
   const estimates = await estimate(travelQueries(ranked).filter((query) => !trips.has(legQueryKey(query))));
   const result = evaluateFeasibility({ ...input, estimate: lookup(estimates) });
+  const nearest =
+    searchAround && !result.candidates.some((candidate) => candidate.status === "offered")
+      ? await nearestOpenTimes(input, windows, {
+          estimate,
+          known: new Map([...trips, ...estimates]),
+          remainingMs: () => deadline.at.getTime() - (deps.now ?? Date.now)(),
+        })
+      : NO_NEAREST;
 
   // Ranking may only reorder the first valid candidates; a failed or invalid
   // ranking keeps the deterministic order, and the deadline still applies.
@@ -841,9 +874,83 @@ async function evaluate(
     input,
     kind: "result",
     meetAvailable: mode === "online" ? meetAvailable : null,
+    nearest,
     ordered,
     ranking,
   };
+}
+
+const NO_NEAREST: Nearest = { after: null, before: null };
+
+// The nearest open times before and after the requested windows, when none of
+// them fits (nearest-open-times design 1): the same deterministic checks over
+// one day at a time, moving outward from the windows for up to
+// NEAREST_SEARCH_DAYS, with the requester's preferences left out. Only an
+// offered time counts, and below the host's weekly limit when one is set, so
+// the guest is never offered a time the host would have to waive a rule for.
+// It stops early, keeping what it found, when the deadline nears or a route
+// estimate fails; nothing it returns says why the windows did not work.
+async function nearestOpenTimes(
+  input: FeasibilityInput,
+  requested: readonly { start: Date; end: Date }[],
+  routes: {
+    readonly estimate: (queries: readonly LegQuery[]) => Promise<Map<string, RouteEstimate>>;
+    readonly known: Map<string, RouteEstimate>;
+    readonly remainingMs: () => number;
+  },
+): Promise<Nearest> {
+  const first = Math.min(...requested.map((window) => window.start.getTime()));
+  const last = Math.max(...requested.map((window) => window.end.getTime()));
+  const now = input.now.getTime();
+  const lookup = (query: LegQuery) => routes.known.get(legQueryKey(query));
+  const inRequested = (candidate: EvaluatedCandidate) =>
+    requested.some((window) => Date.parse(candidate.start) < window.end.getTime() && Date.parse(candidate.end) > window.start.getTime());
+  const open = (candidate: EvaluatedCandidate) =>
+    candidate.status === "offered" && (input.host.weeklyLimit === null || candidate.belowWeeklyLimit) && !inRequested(candidate);
+
+  const search = async (window: { start: Date; end: Date }): Promise<FeasibilityResult | null> => {
+    const day: FeasibilityInput = {
+      ...input,
+      request: { ...input.request, lessPreferredWindows: [], preferredWeeklyWindows: [], preferredWindows: [], spreadDays: false, windows: [window] },
+    };
+    try {
+      const missing = travelQueries({ ...day, estimate: lookup }).filter((query) => !routes.known.has(legQueryKey(query)));
+      for (const [key, value] of await routes.estimate(missing)) routes.known.set(key, value);
+    } catch {
+      // A failed or late estimate ends the search; what was found stands.
+      return null;
+    }
+    return evaluateFeasibility({ ...day, estimate: lookup });
+  };
+
+  let before: EvaluatedCandidate | null = null;
+  let after: EvaluatedCandidate | null = null;
+  let beforeDone = first <= now;
+  let afterDone = false;
+
+  for (let day = 1; day <= NEAREST_SEARCH_DAYS && !(beforeDone && afterDone); day += 1) {
+    if (!beforeDone) {
+      if (routes.remainingMs() < NEAREST_RESERVE_MS) break;
+      const end = first - (day - 1) * DAY_MS;
+      const result = await search({ end: new Date(end), start: new Date(Math.max(now, end - DAY_MS)) });
+      if (!result) beforeDone = true;
+      else {
+        before = result.candidates.filter(open).sort((a, b) => Date.parse(b.start) - Date.parse(a.start))[0] ?? null;
+        beforeDone = before !== null || end - DAY_MS <= now;
+      }
+    }
+    if (!afterDone) {
+      if (routes.remainingMs() < NEAREST_RESERVE_MS) break;
+      const result = await search({ end: new Date(last + day * DAY_MS), start: new Date(last + (day - 1) * DAY_MS) });
+      if (!result) afterDone = true;
+      else {
+        after = result.candidates.filter(open).sort((a, b) => Date.parse(a.start) - Date.parse(b.start))[0] ?? null;
+        afterDone = after !== null;
+      }
+    }
+  }
+
+  return { after, before };
 }
 
 // ---------------------------------------------------------------------------
@@ -956,6 +1063,14 @@ function fixedInterval(value: unknown) {
   return Number.isNaN(start.getTime()) || Number.isNaN(end.getTime()) || end <= start ? null : { end, start };
 }
 
+// The nearest open times as the requester may see them: the same fields as a
+// candidate, nothing of why the windows did not work.
+function nearestProjection(nearest: Nearest, displayTimezone: string, id: string): NearestOpenTimes {
+  const shown = (candidate: EvaluatedCandidate | null) =>
+    candidate ? (requesterProjection([candidate], { displayTimezone, id, state: "completed" }).candidates[0] ?? null) : null;
+  return { after: shown(nearest.after), before: shown(nearest.before) };
+}
+
 export function createEvaluationHandler(
   loadDependencies: () => EvaluationDependencies | Promise<EvaluationDependencies> = defaultDependencies,
 ): JobHandler {
@@ -1030,14 +1145,18 @@ export function createEvaluationHandler(
         ? []
         : outcome.ordered;
 
+    const shown = requesterProjection(offered, {
+      displayTimezone: outcome.input.request.timezone,
+      id: evaluationId!,
+      state: "completed",
+    });
     const projection: RequesterEvaluationView = {
-      ...requesterProjection(offered, {
-        displayTimezone: outcome.input.request.timezone,
-        id: evaluationId!,
-        state: "completed",
-      }),
+      ...shown,
       failure: outcome.failure,
       meetAvailable: outcome.meetAvailable,
+      ...(!fixed && !held && shown.candidates.length === 0 && (outcome.nearest.before || outcome.nearest.after)
+        ? { nearest: nearestProjection(outcome.nearest, outcome.input.request.timezone, evaluationId!) }
+        : {}),
     };
 
     await tx`

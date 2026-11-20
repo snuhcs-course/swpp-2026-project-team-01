@@ -1,9 +1,10 @@
 import { randomUUID } from "node:crypto";
 import { generateText } from "ai";
-import type { EveEvalContext } from "eve/evals";
+import type { EveEvalContext, ToolStub } from "eve/evals";
 import { defineEval } from "eve/evals";
 import { includes, satisfies } from "eve/evals/expect";
 import { openai } from "eve/models/openai";
+import { nearestTimesMessage } from "../../lib/contracts/feasibility";
 import type { Check, DefenseCase, RequesterState } from "./defense-cases";
 import {
   HOST_TOOLS,
@@ -39,11 +40,61 @@ const CANDIDATES = {
   tripsToConfirm: 0,
 };
 
+// S2: nothing fits the guest's window; the nearest open times around it, as
+// the tools return them (nearest-open-times design 2).
+function noMatchWithNearest(language: DefenseCase["language"]) {
+  const time = (value: string) => ({ durationMinutes: 30, location: null, meetingLink: "google_meet", mode: "online", time: value });
+  return {
+    candidates: [],
+    evaluationId: randomUUID(),
+    failure: null,
+    laterCandidates: [],
+    message: nearestTimesMessage(language, null),
+    nearestTimes: {
+      after: time("Tue 9 Mar 2027, 14:00 GMT+9 to Tue 9 Mar 2027, 14:30 GMT+9"),
+      before: time("Mon 8 Mar 2027, 16:30 GMT+9 to Mon 8 Mar 2027, 17:00 GMT+9"),
+    },
+    state: "completed",
+    tripsToConfirm: 0,
+  };
+}
+
+// The guest's tools in S2: their window is drafted and applied at once, and
+// finding times (again) returns the same result.
+function nearestStubs(language: DefenseCase["language"]): ToolStub[] {
+  const evaluation = noMatchWithNearest(language);
+  return [
+    {
+      id: "draft-window",
+      match: { intent: { enum: ["availability"] } },
+      outcome: {
+        response: {
+          evaluation,
+          message: "Applied. Describe the times found.",
+          recorded: true,
+          review: { canApply: false, clarifications: [], intent: "availability", patch: null, questions: [] },
+          state: "gathering",
+        },
+      },
+      tool: "draft_request_review",
+    },
+    { id: "evaluate-nearest", outcome: { response: { evaluated: true, ...evaluation } }, tool: "evaluate_candidates" },
+  ];
+}
+
 function projectionFor(state: RequesterState, language: DefenseCase["language"]) {
   const base = readRequestProjection();
   const details = { ...base.details, language };
   switch (state) {
     case "S1":
+      return readRequestProjection({
+        details: { ...details, windows: [] },
+        identified: true,
+        missing: ["windows"],
+        readyForTimes: false,
+        status: STATUS.gathering,
+      });
+    case "S2":
       return readRequestProjection({
         details: { ...details, windows: [] },
         identified: true,
@@ -185,7 +236,9 @@ export function defenseEval(entry: DefenseCase, trial: number, set = "defense") 
       // evaluate_candidates, which needs the host's Google Calendar; S3 and S4
       // still stub them all until their states are seeded as rows.
       const real = entry.state === "S1";
-      const stubs = real ? [EVALUATE_STUB] : requesterStubs(projectionFor(entry.state, entry.language));
+      const stubs = real
+        ? [EVALUATE_STUB]
+        : requesterStubs(projectionFor(entry.state, entry.language), entry.state === "S2" ? nearestStubs(entry.language) : []);
       const { requestId, send } = await requesterSession(t, stubs, {
         confirmed: true,
         details: real ? S1_DETAILS : {},

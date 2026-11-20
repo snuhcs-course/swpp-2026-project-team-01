@@ -1,6 +1,6 @@
 import { randomUUID } from "node:crypto";
 import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
-import { NO_MATCH_MESSAGE, noMatchMessage } from "../../lib/contracts/feasibility";
+import { NO_MATCH_MESSAGE, nearestTimesMessage } from "../../lib/contracts/feasibility";
 import { EVALUATION_JOB } from "../../lib/server/evaluation";
 import { closeRequest } from "../../lib/server/request-lifecycle";
 import { applyReviewCommand } from "../../lib/server/request-reviews";
@@ -28,6 +28,7 @@ import {
   indexRequesterSession,
   runEvaluation,
   seedSchedulingRequest,
+  seoul,
 } from "./support/scheduling";
 
 // The requester tools (task 6.1; design decision 12): the fence (open request,
@@ -158,8 +159,28 @@ describe("evaluate_candidates", () => {
     expect((result as { evaluationId: string }).evaluationId).toMatch(/^[0-9a-f-]{36}$/);
   });
 
-  it("gives the authored no-match message with no rule or reason when nothing fits", async () => {
+  it("offers the nearest open times before and after the windows, with no rule or reason, when nothing fits", async () => {
     const r = await requester({ events: [busy("09:00", "12:00")] });
+    const call = r.call();
+    const waiting = evaluateCandidatesForTool(db, call, { waitMs: 10_000 });
+    await runEvaluation(db, evaluationDeps(db, google), await evaluationJobFor(r.requestId, call.callId));
+
+    const result = (await waiting) as { nearestTimes: { after: { time: string } | null; before: { time: string } | null } };
+
+    expect(result).toMatchObject({ candidates: [], message: nearestTimesMessage("en", null), state: "completed" });
+    // The window was Monday 10:00 to 11:00: the Friday before ends at 17:00,
+    // and Monday is open again at 12:00.
+    expect(result.nearestTimes.before?.time).toMatch(/^Fri .*16:30 GMT\+9 to .*17:00 GMT\+9$/);
+    expect(result.nearestTimes.after?.time).toMatch(/^Mon .*12:00 GMT\+9 to .*12:30 GMT\+9$/);
+    expect(result.nearestTimes.after).not.toHaveProperty("id");
+    expect(JSON.stringify(result)).not.toMatch(/busy|rule|buffer|basis|legs/i);
+  });
+
+  it("gives the authored no-match message when nothing is open within a week of the windows either", async () => {
+    const around = (days: number) => new Date(Date.parse(seoul("10:00")) + days * 86_400_000).toISOString();
+    const r = await requester({
+      events: [{ end: { dateTime: around(9) }, id: `event-${randomUUID()}`, start: { dateTime: around(-9) }, status: "confirmed" }],
+    });
     const call = r.call();
     const waiting = evaluateCandidatesForTool(db, call, { waitMs: 10_000 });
     await runEvaluation(db, evaluationDeps(db, google), await evaluationJobFor(r.requestId, call.callId));
@@ -167,6 +188,7 @@ describe("evaluate_candidates", () => {
     const result = await waiting;
 
     expect(result).toMatchObject({ candidates: [], message: NO_MATCH_MESSAGE.en, state: "completed" });
+    expect(result).not.toHaveProperty("nearestTimes");
     expect(JSON.stringify(result)).not.toMatch(/busy|rule|buffer/i);
   });
   it("reuses a pending evaluation and bounds new ones to 10 per request per hour", async () => {
@@ -408,7 +430,7 @@ describe("time and place pairs", () => {
     expect((await readRequestForTool(db, r.call())).missing).toEqual(["location"]);
   });
 
-  it("names the other area when no time works there, with no reason", async () => {
+  it("names the other area and its nearest open times when no time works there, with no reason", async () => {
     const r = await requester({ details: { ...inPerson, location: "Hongdae" }, events: [busy("09:00", "12:00")], settings: places });
     const call = r.call();
     const waiting = evaluateCandidatesForTool(db, call, { waitMs: 10_000 });
@@ -416,7 +438,12 @@ describe("time and place pairs", () => {
 
     const result = await waiting;
 
-    expect(result).toMatchObject({ candidates: [], message: noMatchMessage("en", "Hongdae"), state: "completed" });
+    expect(result).toMatchObject({
+      candidates: [],
+      message: nearestTimesMessage("en", "Hongdae"),
+      nearestTimes: { after: { location: "Hongdae", mode: "in_person" }, before: { location: "Hongdae", mode: "in_person" } },
+      state: "completed",
+    });
     expect(JSON.stringify(result)).not.toMatch(/busy|rule|buffer|travel|AA Cafe/i);
   });
 });

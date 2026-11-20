@@ -217,7 +217,7 @@ A host who links Telegram gets the same interaction in a private chat with the F
 | FR-07 | Clarify ambiguous or incomplete input. | Expressions such as “next Friday afternoon” are resolved to an explicit date, timezone, and time window before agreement. An uncertain physical location triggers a clarification. |
 | FR-08 | Preserve one request across channels. | A securely linked email reply, booking-link interaction, host iMessage or WhatsApp reply, or agent action updates the same request with role-appropriate permissions. Unverified identity or a similar name is not enough to merge requests or expose their history. |
 | FR-09 | Support alternatives and requester withdrawal before booking. | A requester can reject offered times, suggest alternatives, or withdraw. A withdrawal accepted before booking begins blocks event creation; during an uncertain booking attempt, the system reports the pending outcome accurately. |
-| FR-10 | Handle no-match cases without inventing availability. | When no candidate satisfies current constraints, the assistant requests a wider window or missing details, or asks the host privately for a decision. It never silently relaxes a rule. |
+| FR-10 | Handle no-match cases without inventing availability. | When no candidate satisfies current constraints, the assistant offers the nearest open times before and after the requested windows in the same reply, with no reason ([nearest open times](../openspec/changes/nearest-open-times/design.md)), or requests a wider window or missing details when there are none, or asks the host privately for a decision. It never silently relaxes a rule. |
 
 ### Candidate feasibility and AI behavior
 
