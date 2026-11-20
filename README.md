@@ -1,16 +1,24 @@
 # Find Me a Time
 
-An AI scheduling agent for external one-to-one meetings. **Thyme** negotiates times; booking requires the host's explicit approval of the current proposal.
+Find Me a Time helps people arrange external one-to-one meetings. **Thyme** gathers the meeting details, finds times that fit the host's calendar and preferences, and coordinates the proposal. A calendar booking is created only after the guest agrees and the host approves the current proposal.
 
 Domain: [findmeatime.com](https://findmeatime.com) · SNU SWPP Project Team 01
 
-## Status
+## How to use Find Me a Time
 
-**Phases 1 and 2 implemented.** The product direction, user experience, architecture, provider setup, visual design and capability specifications are agreed in this repository. The [`application-foundation`](openspec/changes/application-foundation/proposal.md) change built Google sign-in, the `/app` workspace and the platform mechanics, and [`host-onboarding`](openspec/changes/host-onboarding/proposal.md) added suggestion-first host setup, public host pages and skill documents, and the administrator CLI. Both are deployed on `findmeatime.com` and `release.findmeatime.com`; the [acceptance record](documentations/technical_specification/07_acceptance_record.md) holds their evidence and open gaps. Requester intake and booking arrive with later phases.
+### Host a meeting
 
-Read the [one-pager](documentations/01_one_pager.md) and the [PRD](documentations/02_product_requirements.md). The [documentation index](documentations/README.md) lists every document.
+1. Open [findmeatime.com](https://findmeatime.com) and sign in with Google.
+2. Link iMessage or Telegram, then connect Google Calendar through the setup flow. In that conversation, review Thyme's suggestions for meeting hours and places, confirm your preferences, and get your booking link.
+3. Share the link with someone who wants to meet. Review their request in your conversation or the web workspace, then approve, revise, or decline the proposal. Your calendar dashboard shows Google events, bookings, and requests together.
 
-Shared Supabase project: **`anelszynxtvxoxqvzgqt`** (**FindMeATime**, `us-east-2`). Teammates develop against personal Supabase projects and local `eve dev`; the shared project tracks `main` through CI, and a release environment is split off before the first external user. See [environments and collaboration](documentations/technical_specification/03_provider_setup.md#environments-and-collaboration).
+### Request a meeting
+
+1. Open a host's booking link. You do not need a Find Me a Time account.
+2. Describe the meeting and your preferred times. Thyme checks the host's availability and meeting preferences before offering suitable options.
+3. Agree to a proposal, and review any changes the host makes. The request waits for the host's approval; after approval and a successful calendar booking, you receive a confirmation email and invitation.
+
+The [Iteration 4 demo](https://github.com/snuhcs-course/swpp-2026-project-team-01/tree/iteration-4-demo) shows the working service. For product details, read the [one-pager](documentations/01_one_pager.md), [PRD](documentations/02_product_requirements.md), and [documentation index](documentations/README.md).
 
 ## Repository layout
 
@@ -27,13 +35,6 @@ Shared Supabase project: **`anelszynxtvxoxqvzgqt`** (**FindMeATime**, `us-east-2
 | `supabase/` | Local Supabase configuration, the desired schema, the reviewed migration chain and database tests |
 | `ai-usage/` | Per-branch AI token and agent-time records required by the course |
 | `.agents/skills/` | Shared project workflows and reference material |
-
-## Documents awaiting review
-
-These documents were copied unchanged from the iteration 1 prototype so the team can review and update them against the documents above.
-
-- [Transplant guide](documentations/transplant/en/transplant-guide.md): the prototype's features F01–F11, journeys and design decomposed for reuse.
-- [AI usage records](ai-usage/README.md): see [agent guidance](AGENTS.md#ai-usage-records) for the hook setup.
 
 ## Checks
 
