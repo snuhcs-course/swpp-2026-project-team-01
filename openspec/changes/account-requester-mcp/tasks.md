@@ -3,6 +3,7 @@
 - [x] 1.1 Extend explicit account OAuth consent and common MCP requester routing.
 - [x] 1.2 Reuse creation and requester commands with verified account ownership and retry safety.
 - [x] 1.3 Update public entry instructions and owning API documentation.
+- [x] 1.4 Name the request scopes in the `/mcp` `401` challenge, derived from the tool list, so a fresh connection can consent to them (2026-11-20). Verify a unit test that the challenge covers every tool's scope and matches the resource metadata, and the host MCP integration test.
 
 ## 2. Verification
 

@@ -403,11 +403,90 @@ describe("codes and refresh tokens", () => {
     expect(narrowed.scope).toBe("host:read");
     expect(narrowed.refresh_token).not.toBe(first.refresh_token);
 
+    // The family moves on once the successor is used; the old token is then a replay.
+    const rotated = (await (await refresh(narrowed.refresh_token)).json()) as Tokens;
+    expect(rotated.scope).toBe("host:read");
+
     const replay = await refresh(first.refresh_token);
     expect(await replay.json()).toMatchObject({ error: "invalid_grant" });
-    const afterReplay = await refresh(narrowed.refresh_token);
+    const afterReplay = await refresh(rotated.refresh_token);
     expect(await afterReplay.json()).toMatchObject({ error: "invalid_grant" });
     expect(await currentGrantAccess(db, grantIdOf(first.access_token))).toBeNull();
+  });
+
+  it("keeps the resource the refresh token is bound to when the refresh omits it", async () => {
+    const deps = agentDependencies(db);
+    const { authorization, code } = await codeFor(deps);
+    const first = (await (await exchange(deps, authorization, code)).json()) as Tokens;
+
+    const response = await tokenRequest(deps, { client_id: authorization.clientId, grant_type: "refresh_token", refresh_token: first.refresh_token });
+    expect(response.status).toBe(200);
+    const refreshed = (await response.json()) as Tokens;
+    expect(JSON.parse(Buffer.from(refreshed.access_token.split(".")[1]!, "base64url").toString("utf8"))).toMatchObject({ aud: HOST_RESOURCE });
+
+    // The code exchange still names its resource.
+    const again = await codeFor(deps);
+    const { resource: _omitted, ...withoutResource } = {
+      client_id: again.authorization.clientId,
+      code: again.code,
+      code_verifier: again.authorization.verifier,
+      grant_type: "authorization_code",
+      redirect_uri: again.authorization.redirectUri,
+      resource: HOST_RESOURCE,
+    };
+    expect(await (await tokenRequest(deps, withoutResource)).json()).toMatchObject({ error: "invalid_target" });
+  });
+
+  it("answers a retried or concurrent refresh within the grace window without revoking the grant", async () => {
+    const deps = agentDependencies(db);
+    const { authorization, code } = await codeFor(deps);
+    const first = (await (await exchange(deps, authorization, code)).json()) as Tokens;
+    const grantId = grantIdOf(first.access_token);
+    const refresh = (token: string, clientId = authorization.clientId) =>
+      tokenRequest(deps, { client_id: clientId, grant_type: "refresh_token", refresh_token: token, resource: HOST_RESOURCE });
+
+    // Two concurrent refreshes of one token both succeed, in the same family.
+    const [one, two] = await Promise.all([refresh(first.refresh_token), refresh(first.refresh_token)]);
+    expect([one.status, two.status]).toEqual([200, 200]);
+    const pairs = [(await one.json()) as Tokens, (await two.json()) as Tokens];
+    expect(pairs[0]!.refresh_token).not.toBe(pairs[1]!.refresh_token);
+    const families = await db<{ families: number }[]>`
+      select count(distinct family_id)::int as families from app.agent_refresh_tokens where grant_id = ${grantId}
+    `;
+    expect(families[0]!.families).toBe(1);
+
+    // A third retry is the last pair the token may produce; a fourth is refused
+    // without revoking, and the pairs already issued keep working.
+    expect((await refresh(first.refresh_token)).status).toBe(200);
+    expect(await (await refresh(first.refresh_token)).json()).toMatchObject({ error: "invalid_grant" });
+    expect(await currentGrantAccess(db, grantId)).not.toBeNull();
+
+    const kept = (await (await refresh(pairs[1]!.refresh_token)).json()) as Tokens;
+    expect(kept.access_token).toBeTruthy();
+    expect(await currentGrantAccess(db, grantId)).not.toBeNull();
+  });
+
+  it("revokes the grant when a rotated refresh token returns after the window or from another client", async () => {
+    const deps = agentDependencies(db);
+    const late = await codeFor(deps);
+    const lateTokens = (await (await exchange(deps, late.authorization, late.code)).json()) as Tokens;
+    const refresh = (token: string, clientId: string) =>
+      tokenRequest(deps, { client_id: clientId, grant_type: "refresh_token", refresh_token: token, resource: HOST_RESOURCE });
+
+    expect((await refresh(lateTokens.refresh_token, late.authorization.clientId)).status).toBe(200);
+    await db`
+      update app.agent_refresh_tokens set consumed_at = now() - interval '2 minutes'
+      where grant_id = ${grantIdOf(lateTokens.access_token)} and consumed_at is not null
+    `;
+    expect(await (await refresh(lateTokens.refresh_token, late.authorization.clientId)).json()).toMatchObject({ error: "invalid_grant" });
+    expect(await currentGrantAccess(db, grantIdOf(lateTokens.access_token))).toBeNull();
+
+    const stolen = await codeFor(deps);
+    const stolenTokens = (await (await exchange(deps, stolen.authorization, stolen.code)).json()) as Tokens;
+    expect((await refresh(stolenTokens.refresh_token, stolen.authorization.clientId)).status).toBe(200);
+    const otherClient = await registerTestClient(deps);
+    expect(await (await refresh(stolenTokens.refresh_token, otherClient)).json()).toMatchObject({ error: "invalid_grant" });
+    expect(await currentGrantAccess(db, grantIdOf(stolenTokens.access_token))).toBeNull();
   });
 
   it("issues nothing without a signing key and leaves the code for later", async () => {

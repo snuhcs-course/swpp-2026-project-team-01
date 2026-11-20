@@ -1,7 +1,7 @@
 # Find Me a Time — Personal-Agent Clients
 
 Status: connection paths written; no named client has been run yet\
-Date: 2026-11-18\
+Date: 2026-11-20\
 Companions: [`agent-access` design](../../openspec/changes/agent-access/design.md#11-per-client-acceptance), [CLI direction](05_cli.md), [acceptance record](07_acceptance_record.md)
 
 This document records, for each named client of PRD FR-24, how it finds the Find Me a Time instructions, how it connects, and the result of its last run in each role. It is the per-client acceptance plan of AC-14, AC-15 and AC-19 to AC-25. A row says "not yet run" until a team member runs it and records the evidence in the acceptance record; nothing here claims that a client works before then.
@@ -23,6 +23,10 @@ For chat linking, the host's agent calls `start_chat_link` (iMessage, WhatsApp o
 ## One account connection for hosting and requesting
 
 An account connection can explicitly consent to requester scopes on `/mcp`. Existing host-only tokens do not gain authority, and refresh cannot widen their scopes. Reauthorize the same server for the desired request scopes; for Codex, `codex mcp login findmeatime --scopes host:read,host:write,host:decide,request:read,request:write,request:decide` requests both roles. Preserve the person's chosen host permissions when requesting additional scopes. This requires browser consent once, not a new server for each host.
+
+A client that picks its scopes from the `401` challenge, as the MCP authorization specification recommends, gets all six on a fresh connection: the `/mcp` challenge names every scope a tool of that endpoint needs (`host:read host:write host:decide request:read request:write request:decide`), the same list as the resource metadata's `scopes_supported`, and the consent page offers each as a checked box the person may clear. Before 2026-11-20 the challenge named only the host scopes, so a client such as Claude that connected earlier holds a host-only grant and does not see `get_host`, `create_request` or the sent-request tools; remove and reconnect it (or revoke it in **Connected agents** and connect again) to consent to the request scopes.
+
+Connections survive the client's own refresh behaviour. A refresh may omit `resource` and keeps the resource its token is bound to; a different resource is still refused. Presenting a refresh token again within 60 seconds of its rotation, from the same client and before the newer token has been used, returns another token pair in the same family instead of revoking the grant, so a retried request after a lost response or two concurrent refreshes do not disconnect the agent; one token yields at most three pairs. Any other reuse of a rotated token still revokes the grant, and the person reconnects.
 
 Use `get_host({hostHandle})` before `create_request({hostHandle, name, email, timezone, details?, language?, retryKey})`. Each new meeting uses a fresh retry key; an exact retry returns the same request, and changed arguments conflict. The private continuation link is emailed and never returned to the agent. Self-booking is refused.
 

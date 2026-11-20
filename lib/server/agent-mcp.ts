@@ -1,4 +1,4 @@
-import type { AgentRole } from "../contracts/agent-access";
+import { type AgentRole, roleScopes } from "../contracts/agent-access";
 import { normalizeHandle } from "../contracts/handles";
 import { accessFromClaims, type GrantAccess, touchGrant } from "./agent-grants";
 import { ACCOUNT_REQUESTER_TOOLS } from "./agent-account-requester-tools";
@@ -127,8 +127,12 @@ function resourceFor(role: AgentRole, origin: string, handle: string | null) {
   return role === "host" ? hostResource(origin) : requesterResource(origin, normalizeHandle(handle ?? ""));
 }
 
-function challengeScopes(role: AgentRole) {
-  return role === "host" ? ["host:read", "host:write", "host:decide"] : ["request:read", "request:write", "request:decide"];
+// Every scope some tool of this endpoint needs, in the fixed scope order, so a
+// client that requests the challenged scopes can reach every tool: on /mcp the
+// host scopes and the request scopes of the account requester tools.
+export function challengeScopes(role: AgentRole) {
+  const tools = toolsFor(role);
+  return roleScopes(role).filter((scope) => tools.some((tool) => tool.scope === scope));
 }
 
 export function createMcpHandler(role: AgentRole, load: () => McpDependencies = mcpDependenciesFromEnvironment) {

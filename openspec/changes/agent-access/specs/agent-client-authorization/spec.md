@@ -1,5 +1,35 @@
 ## MODIFIED Requirements
 
+### Requirement: Resource-bound authorization protocol
+Authorization and code exchange SHALL require the exact configured resource. Refresh SHALL keep the resource its token is bound to: a refresh that omits the resource SHALL use that resource, and one that names a different resource SHALL be refused. The service SHALL support authorization codes with S256 PKCE and registered exact callbacks, rejecting duplicate parameters, malformed input, unsupported grants and missing or unknown scopes. Registration SHALL grant no application authority.
+
+#### Scenario: Changed resource
+- **WHEN** code exchange requests a different or omitted resource, or refresh requests a different resource
+- **THEN** no usable token is issued even with otherwise valid credentials
+
+#### Scenario: Refresh without a resource
+- **WHEN** a client refreshes with a valid refresh token and no resource
+- **THEN** the new access token is bound to the resource of the original grant
+
+#### Scenario: Wrong verifier or callback
+- **WHEN** a caller changes the registered callback or lacks the S256 verifier
+- **THEN** code redemption fails without authorizing that caller
+
+### Requirement: Durable single-use token lifecycle
+Code consumption and refresh rotation SHALL be atomic. Code reuse SHALL NOT issue another token family. Refresh SHALL preserve or narrow the existing resource, client, actor, permission and expiry boundary. Reuse of a consumed refresh credential SHALL revoke its family, except that the same client presenting it again within a short grace window after its rotation, before any credential issued since has been used or revoked, SHALL receive another bounded credential pair in the same family. Retries beyond that bound SHALL be refused without revocation. Lost code-exchange responses SHALL require safe reauthorization rather than a new implicit grant.
+
+#### Scenario: Concurrent code redemption
+- **WHEN** two callers redeem the same code concurrently
+- **THEN** at most one receives a usable token family
+
+#### Scenario: Refresh replay
+- **WHEN** an already-consumed refresh credential is reused after the grace window, by another client, or after its successor was used
+- **THEN** no new access is issued and the affected family loses authority
+
+#### Scenario: Refresh retried after a lost response
+- **WHEN** the same client presents the refresh credential it just rotated again within the grace window, or sends two refreshes of it concurrently
+- **THEN** each answer carries a usable pair in the same family with the same expiry, and the grant stays live
+
 ### Requirement: Explicit scoped client consent
 The initiating protected browser SHALL display client identity, the redirect host and the requested permissions, SHALL let the person narrow the permissions, and SHALL require explicit grant or deny. A grant SHALL bind one current admitted host, one currently authorized request, or one future request for the displayed host. Read, write and decision permissions SHALL remain distinct. Host consent SHALL require a signed-in eligible host and SHALL survive the sign-in it needs without losing the authorization transaction. Account-free requester consent SHALL require no product login. The decision SHALL be accepted only from the browser that opened the transaction, from the application's own origin, while the transaction is live and undecided.
 
@@ -45,7 +75,7 @@ Every protected operation and refresh SHALL check active client/grant state and 
 ## ADDED Requirements
 
 ### Requirement: Discoverable resource-bound authorization
-Each MCP endpoint SHALL be a protected resource whose identifier is its exact URL: `{origin}/mcp` for hosts and `{origin}/{handle}/mcp` for the requesters of one ready host. The service SHALL publish protected-resource metadata for each resource, authorization-server metadata for each served origin, and a key set with only public verification keys. Unauthenticated or invalid calls SHALL answer `401` with a challenge naming the resource metadata and the role's scopes; insufficient permissions SHALL answer `403` with `insufficient_scope` and the permissions the operation needs. Authorization responses SHALL carry the issuer.
+Each MCP endpoint SHALL be a protected resource whose identifier is its exact URL: `{origin}/mcp` for hosts and `{origin}/{handle}/mcp` for the requesters of one ready host. The service SHALL publish protected-resource metadata for each resource, authorization-server metadata for each served origin, and a key set with only public verification keys. Unauthenticated or invalid calls SHALL answer `401` with a challenge naming the resource metadata and every scope the endpoint's tools need; insufficient permissions SHALL answer `403` with `insufficient_scope` and the permissions the operation needs. Authorization responses SHALL carry the issuer.
 
 #### Scenario: Client discovers the server
 - **WHEN** a client calls `/mcp` without a token

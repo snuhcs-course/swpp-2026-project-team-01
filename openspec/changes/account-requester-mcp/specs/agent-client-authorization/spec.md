@@ -28,6 +28,10 @@ A signed-in account with requester scopes SHALL create multiple requests for oth
 - **WHEN** a host-only token calls a requester tool
 - **THEN** access requires additional consent on the same resource
 
+#### Scenario: Fresh connection discovers the request scopes
+- **WHEN** a client calls `/mcp` without a token and requests the scopes the challenge names
+- **THEN** the challenge and the resource metadata name the host and request scopes, and the consent page offers all of them
+
 #### Scenario: Meeting decisions
 - **WHEN** an account agrees to a proposed time
 - **THEN** the existing exact-proposal agreement and separate host approval remain required
