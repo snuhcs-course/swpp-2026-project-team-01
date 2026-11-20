@@ -11,7 +11,7 @@ Find Me a Time is an AI scheduling assistant for one-to-one meetings. Thyme help
 ### Hosted demo
 
 1. Open [findmeatime.com](https://findmeatime.com) with a team-provided Google test account.
-2. As a host, connect a calendar and iMessage or Telegram. Continue setup in the chat: review Thyme's suggested meeting hours and places, confirm calendar notes, and preview available times.
+2. As a host, connect a calendar and iMessage or Telegram. Continue setup in the imessage/Telegram chat: review Thyme's suggested meeting hours and places, confirm calendar notes, and preview available times.
 3. Open the resulting booking link in a separate guest browser. Request a meeting, choose a proposed time, and observe the waiting-for-host status.
 4. Return to the host's chat or workspace to review and approve the request. Check the booking in Google Calendar and the request status in the app.
 
