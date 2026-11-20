@@ -4,6 +4,7 @@ import type { DashboardData, DashboardEvent } from "@lib/server/host-dashboard";
 import { ChevronLeftIcon, ChevronRightIcon, Clock3Icon, MapPinIcon } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
+import { detailNote, detailSource, sentState, sourceLabel } from "./host-dashboard-labels";
 import { HostSettingsDialog } from "./host-settings-dialog";
 import { WorkspaceMenu } from "./workspace-menu";
 import "./host-dashboard.css";
@@ -40,19 +41,6 @@ function eventTime(event: DashboardEvent, zone: string) {
   if (event.allDay) return "All day";
   const format = new Intl.DateTimeFormat("en-US", { timeZone: zone, hour: "numeric", minute: "2-digit" });
   return `${format.format(new Date(event.start))} – ${format.format(new Date(event.end))}`;
-}
-
-function sourceLabel(event: DashboardEvent) {
-  if (event.source === "sent") return "Sent request";
-  return event.source === "thyme" ? "Find Me a Time meeting" : "Google Calendar event";
-}
-
-function sentState(event: DashboardEvent) {
-  if (event.source !== "sent") return "";
-  if (event.state === "awaiting_host_approval") return "Awaiting approval";
-  if (event.state === "booked") return "Booked";
-  if (event.state === "booking") return "Booking in progress";
-  return "Choosing a time";
 }
 
 function periodTitle(anchor: Date, view: View) {
@@ -133,7 +121,7 @@ export function HostDashboard() {
             <div className="hd-month">{["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"].map((name) => <span className="hd-month-head" key={name}>{name}</span>)}{days.map((date) => { const key = dayKey(date), dayItems = eventsFor(key); return <div className={`hd-month-day ${date.getUTCMonth() !== anchor.getUTCMonth() ? "hd-outside" : ""} ${key === selectedDay ? "hd-selected-day" : ""}`} key={key} onClick={() => { setSelectedDay(key); setSelectedId(null); }}><strong>{date.getUTCDate()}</strong>{dayItems.slice(0, 3).map((event) => <button className={`hd-month-event hd-${event.source}`} key={event.id} onClick={(click) => { click.stopPropagation(); selectEvent(event); }} title={event.title} type="button">{event.allDay ? "" : `${eventTime(event, zone).split(" – ")[0]} `}{event.title}</button>)}{dayItems.length > 3 ? <small>+{dayItems.length - 3} more</small> : null}</div>; })}</div>}
         </section>
       </main>
-      <aside className="hd-detail" aria-label="Selected day and event details"><span className="hd-kicker">SELECTED DAY</span><h2>{new Intl.DateTimeFormat("en-US", { weekday: "long", month: "long", day: "numeric", timeZone: "UTC" }).format(dateAt(selectedDay))}</h2><p>{selectedEvents.length} {selectedEvents.length === 1 ? "event" : "events"}</p><div className="hd-agenda">{selectedEvents.map((event) => <button aria-pressed={selected?.id === event.id} className={`hd-agenda-item hd-${event.source}`} key={event.id} onClick={() => selectEvent(event)} type="button"><small>{eventTime(event, zone)} · {event.source === "thyme" ? "Thyme meeting" : "Google Calendar"}</small><strong>{event.title}</strong></button>)}{selectedEvents.length === 0 ? <span className="hd-empty">No events to show for this day.</span> : null}</div><div className="hd-detail-rule" /><span className="hd-detail-label">EVENT DETAILS</span>{selected ? <><span className={`hd-source hd-${selected.source}`}>{selected.source === "thyme" ? "Thyme meeting" : "Google Calendar"}</span><h3>{selected.title}</h3><p className="hd-detail-row"><Clock3Icon />{selected.allDay ? "All day" : eventTime(selected, zone)}</p>{selected.location ? <p className="hd-detail-row"><MapPinIcon />{selected.location}</p> : null}<p className="hd-detail-note">{selected.source === "thyme" ? "Booked by Thyme. This meeting is shown only once, even if it also appears in Google Calendar." : "From your private Google Calendar. Only you can see its details here."}</p></> : <p className="hd-empty">Select a day or event to see details.</p>}</aside>
+      <aside className="hd-detail" aria-label="Selected day and event details"><span className="hd-kicker">SELECTED DAY</span><h2>{new Intl.DateTimeFormat("en-US", { weekday: "long", month: "long", day: "numeric", timeZone: "UTC" }).format(dateAt(selectedDay))}</h2><p>{selectedEvents.length} {selectedEvents.length === 1 ? "event" : "events"}</p><div className="hd-agenda">{selectedEvents.map((event) => <button aria-pressed={selected?.id === event.id} className={`hd-agenda-item hd-${event.source}`} key={event.id} onClick={() => selectEvent(event)} type="button"><small>{eventTime(event, zone)} · {detailSource(event)}</small><strong>{event.title}</strong></button>)}{selectedEvents.length === 0 ? <span className="hd-empty">No events to show for this day.</span> : null}</div><div className="hd-detail-rule" /><span className="hd-detail-label">EVENT DETAILS</span>{selected ? <><span className={`hd-source hd-${selected.source}`}>{detailSource(selected)}</span><h3>{selected.title}</h3><p className="hd-detail-row"><Clock3Icon />{selected.allDay ? "All day" : eventTime(selected, zone)}</p>{selected.location ? <p className="hd-detail-row"><MapPinIcon />{selected.location}</p> : null}<p className="hd-detail-note">{detailNote(selected)}</p></> : <p className="hd-empty">Select a day or event to see details.</p>}</aside>
     </div>
   </div>;
 }
