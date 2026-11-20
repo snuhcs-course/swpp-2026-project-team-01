@@ -172,7 +172,9 @@ export function createTokenHandler(load: () => AgentOAuthDependencies = agentOAu
       return oauthError("unsupported_grant_type", "Only authorization_code and refresh_token are supported.");
     }
     if (!clientId) return oauthError("invalid_client", "Name the client.", 401);
-    if (!resource) return oauthError("invalid_target", "Name the resource.");
+    // RFC 8707 and the MCP authorization spec: the code exchange names the
+    // resource; a refresh may omit it and keeps the one its token is bound to.
+    if (!resource && grantType === "authorization_code") return oauthError("invalid_target", "Name the resource.");
 
     try {
       await admitAttempt(deps.db, "token", [{ bound: AGENT_LIMITS.tokenPerClient, key: clientId }]);
@@ -199,7 +201,7 @@ export function createTokenHandler(load: () => AgentOAuthDependencies = agentOAu
       const code = params.get("code");
       const redirectUri = params.get("redirect_uri");
       const codeVerifier = params.get("code_verifier");
-      if (!code || !redirectUri || !codeVerifier) return oauthError("invalid_request", "Send the code, redirect URI and code verifier.");
+      if (!code || !redirectUri || !codeVerifier || !resource) return oauthError("invalid_request", "Send the code, redirect URI and code verifier.");
       return tokenResponse(await exchangeCode(deps.db, key, origin, { clientId, code, codeVerifier, redirectUri, resource }));
     }
 
@@ -210,7 +212,7 @@ export function createTokenHandler(load: () => AgentOAuthDependencies = agentOAu
       await refreshTokens(deps.db, key, origin, {
         clientId,
         refreshToken,
-        resource,
+        resource: resource || null,
         scope: scope === null ? null : scope.trim().split(/ +/).filter(Boolean),
       }),
     );

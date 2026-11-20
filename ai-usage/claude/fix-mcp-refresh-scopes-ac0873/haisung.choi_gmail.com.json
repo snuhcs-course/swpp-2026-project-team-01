@@ -1,0 +1,23 @@
+{
+  "branch": "claude/fix-mcp-refresh-scopes-ac0873",
+  "user": "haisung.choi@gmail.com",
+  "sessions": {
+    "claude:3fa81f4f-2cd2-491c-a143-19cf3ef80e41": {
+      "agent": "claude-code",
+      "client": "claude-desktop",
+      "agent_ms": 0,
+      "models": {
+        "claude-opus-5-5": {
+          "input": 132,
+          "cache_read": 11419206,
+          "cache_write_5m": 0,
+          "cache_write_1h": 166276,
+          "output": 40793,
+          "reasoning": 0
+        }
+      },
+      "first": "2026-11-20T02:07:24.159Z",
+      "last": "2026-11-20T02:20:45.517Z"
+    }
+  }
+}

@@ -12,11 +12,18 @@ import type { Database, Queryable, Transaction } from "./database";
 // the authority under it. Codes are single-use and live 60 seconds; refresh
 // tokens rotate on every use within a family whose 30-day boundary never moves.
 // A replayed code or refresh token revokes the grant, so every token of that
-// consent loses authority at once.
+// consent loses authority at once. The one exception is a refresh retry: the
+// same client presenting the token it just rotated, within the grace window and
+// before the family has moved on, gets another pair in the same family, so a
+// lost response or two concurrent refreshes do not end the connection.
 
 export const CODE_SECONDS = 60;
 export const REFRESH_DAYS = 30;
 export const BOOTSTRAP_HOURS = 24;
+// How long after rotation a refresh token may be presented again as a retry,
+// and how many pairs one rotated token may produce in all.
+export const REFRESH_GRACE_SECONDS = 60;
+export const REFRESH_GRACE_PAIRS = 3;
 
 export type GrantRow = {
   readonly id: string;
@@ -284,14 +291,16 @@ export async function exchangeCode(
 export type RefreshExchange = {
   readonly refreshToken: string;
   readonly clientId: string;
-  readonly resource: string;
+  // The resource the client named, or null to keep the one the token is bound
+  // to (RFC 8707 makes it optional on refresh).
+  readonly resource: string | null;
   // A narrower scope, or null to keep the current one.
   readonly scope: readonly string[] | null;
 };
 
 // refresh_token: rotates within the family, keeping its resource, client and
-// expiry; the scope may only narrow. A consumed or revoked token presented
-// again revokes the grant.
+// expiry; the scope may only narrow. A revoked token presented again revokes
+// the grant, and so does a consumed one unless it is a retry (refreshRetry).
 export async function refreshTokens(
   db: Database,
   key: AgentSigningKey,
@@ -309,11 +318,14 @@ export async function refreshTokens(
         scopes: AgentScope[];
         expires_at: Date;
         live: boolean;
-        spent: boolean;
+        consumed: boolean;
+        revoked: boolean;
+        in_grace: boolean;
       }[]
     >`
       select token_hash, grant_id, family_id, client_id, resource, scopes, expires_at,
-             expires_at > now() as live, (consumed_at is not null or revoked_at is not null) as spent
+             expires_at > now() as live, consumed_at is not null as consumed, revoked_at is not null as revoked,
+             (consumed_at is not null and consumed_at > now() - make_interval(secs => ${REFRESH_GRACE_SECONDS})) as in_grace
       from app.agent_refresh_tokens
       where token_hash = ${tokenHash(exchange.refreshToken)}
       for update
@@ -321,13 +333,17 @@ export async function refreshTokens(
 
     if (!token) return invalidGrant;
 
-    if (token.spent) {
-      await revokeGrant(tx, token.grant_id, "family_replay");
-      return invalidGrant;
+    if (token.revoked || token.consumed) {
+      const retry = token.revoked ? "replay" : await refreshRetry(tx, token, exchange.clientId);
+      if (retry === "replay") {
+        await revokeGrant(tx, token.grant_id, "family_replay");
+        return invalidGrant;
+      }
+      if (retry === "exhausted") return invalidGrant;
     }
 
     if (!token.live || token.client_id !== exchange.clientId) return invalidGrant;
-    if (token.resource !== exchange.resource) {
+    if (exchange.resource !== null && token.resource !== exchange.resource) {
       return { description: "The resource does not match this grant.", error: "invalid_target" } satisfies TokenError;
     }
 
@@ -339,9 +355,35 @@ export async function refreshTokens(
     const access = await currentGrantAccess(tx, token.grant_id);
     if (!access) return invalidGrant;
 
-    await tx`update app.agent_refresh_tokens set consumed_at = now() where token_hash = ${token.token_hash}`;
+    // A retry keeps the first rotation time, so the grace window never moves.
+    if (!token.consumed) await tx`update app.agent_refresh_tokens set consumed_at = now() where token_hash = ${token.token_hash}`;
     return issueTokens(tx, key, issuer, access, scopes as AgentScope[], { expiresAt: token.expires_at, id: token.family_id });
   })) as TokenSuccess | TokenError;
+}
+
+// Whether a consumed refresh token presented again is a retry of its own
+// rotation: the same client, within the grace window, while no token issued
+// since that rotation has been used or revoked. A retry past the pair bound is
+// refused without revoking; anything else is a replay. The caller holds the
+// token's row lock, so the retries of one token are decided one at a time.
+async function refreshRetry(
+  tx: Transaction,
+  token: { readonly token_hash: string; readonly family_id: string; readonly client_id: string; readonly in_grace: boolean },
+  clientId: string,
+): Promise<"retry" | "exhausted" | "replay"> {
+  if (!token.in_grace || token.client_id !== clientId) return "replay";
+
+  // Tokens of the family issued at or after this token's rotation: the pairs
+  // it produced and anything rotated from them.
+  const [since] = await tx<{ pairs: number; moved_on: boolean }[]>`
+    select count(*)::int as pairs, coalesce(bool_or(consumed_at is not null or revoked_at is not null), false) as moved_on
+    from app.agent_refresh_tokens
+    where family_id = ${token.family_id}
+      and created_at >= (select consumed_at from app.agent_refresh_tokens where token_hash = ${token.token_hash})
+  `;
+
+  if (!since || since.moved_on) return "replay";
+  return since.pairs >= REFRESH_GRACE_PAIRS ? "exhausted" : "retry";
 }
 
 // RFC 7009: a refresh token of the client revokes its grant; anything else is

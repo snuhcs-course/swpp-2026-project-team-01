@@ -1,6 +1,8 @@
 -- Rotating refresh tokens (agent-access design 5), stored by SHA-256 only. Each
 -- use consumes the token and issues the next in the same family. Presenting a
--- consumed or revoked token revokes the whole family and its grant.
+-- consumed or revoked token revokes the whole family and its grant, except a
+-- retry by the same client shortly after rotation, which created_at and
+-- consumed_at identify (refreshRetry in lib/server/agent-grants.ts).
 CREATE TABLE "app"."agent_refresh_tokens" (
   "token_hash" text PRIMARY KEY,
   "grant_id" uuid NOT NULL REFERENCES "app"."agent_grants" ("id") ON DELETE CASCADE,

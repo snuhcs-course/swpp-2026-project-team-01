@@ -60,7 +60,7 @@ describe("authentication", () => {
     const missing = await rpc(handler, { method: "tools/list" });
     expect(missing.response.status).toBe(401);
     expect(missing.response.headers.get("www-authenticate")).toBe(
-      `Bearer resource_metadata="${ORIGIN}/.well-known/oauth-protected-resource/mcp", scope="host:read host:write host:decide"`,
+      `Bearer resource_metadata="${ORIGIN}/.well-known/oauth-protected-resource/mcp", scope="host:read host:write host:decide request:read request:write request:decide"`,
     );
 
     const requesterToken = await issueToken(agent, {
