@@ -22,4 +22,4 @@ In the same session, pressing **Apply these details** updated the meeting detail
 
 ## Impact
 
-`lib/server/feasibility.ts` (`spreadOrder`, the spread in `plan()` and in `applyRanking`), `lib/server/evaluation.ts` (the ranked order is spread in the requester's zone; the `spreadDays` input is removed), `lib/server/request-lifecycle.ts` (`readyForTimes`), `lib/server/request-reviews.ts` (`findTimes` on the apply result), `lib/server/request-tools.ts`, `apps/web/app/_components/requester/request-cards.tsx` and the [guest booking flow](../../../documentations/user_experience/06_guest_booking_flow.md). No schema change.
+`lib/server/feasibility.ts` (`spreadOrder`, the spread in `plan()` and in `applyRanking`), `lib/server/evaluation.ts` (the ranked order is spread in the requester's zone; the `spreadDays` input is removed), `lib/server/request-lifecycle.ts` (`readyForTimes`), `lib/server/request-reviews.ts` (`findTimes` on the apply result), `lib/server/request-tools.ts`, `apps/web/app/_components/requester/request-cards.tsx` and the [guest booking flow](../../../../documentations/user_experience/06_guest_booking_flow.md). No schema change.

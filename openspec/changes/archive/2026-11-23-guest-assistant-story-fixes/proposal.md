@@ -1,6 +1,6 @@
 # Proposal
 
-Tracking issues: #277, #278, #279, #280, #281, #282 and #283, the guest assistant failures the story path evaluation found ([documentation 13](../../../documentations/technical_specification/13_story_path_evaluation.md), PR #271). They land together in one pull request because they change the same requester fragment and the same `read_request` texts.
+Tracking issues: #277, #278, #279, #280, #281, #282 and #283, the guest assistant failures the story path evaluation found ([documentation 13](../../../../documentations/technical_specification/13_story_path_evaluation.md), PR #271). They land together in one pull request because they change the same requester fragment and the same `read_request` texts.
 
 ## Why
 
