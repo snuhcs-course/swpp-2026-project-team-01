@@ -15,5 +15,5 @@
 ## Documents and review
 
 - [x] Update the product requirements (FR-10) and the guest booking flow (G6).
-- [ ] Regenerate the Korean mirrors of the changed documents.
-- [ ] Review with the team, then archive the change into `openspec/specs/meeting-feasibility/spec.md` and close #201.
+- [x] Regenerate the Korean mirrors of the changed documents.
+- [x] Review with the team, then archive the change into `openspec/specs/meeting-feasibility/spec.md` and close #201.
