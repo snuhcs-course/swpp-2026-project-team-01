@@ -44,7 +44,7 @@ Compiled on 2026-10-23 by the [`operations-and-release`](../../openspec/changes/
 | AC-30 | `lib/server/whatsapp.test.ts`, `tests/integration/imessage-receiver.test.ts` (WhatsApp Business), `whatsapp-links.test.ts`, `whatsapp-channel.test.ts` | — | A controlled Android phone |
 | AC-31 | `tests/integration/whatsapp-window.test.ts`, `whatsapp-outbox.test.ts`, `whatsapp-channel.test.ts` | — | A controlled Android phone, a closed window and an approved template |
 
-Two earlier gaps changed since their phases were recorded: every migration through Phase 6 is now on the shared project (read on 2026-10-23), and the current production deployment (2026-10-23 07:02 KST) predates the Phase 6 merge, so Phases 6 to 8 are not deployed.
+Two earlier gaps changed since their phases were recorded: every migration through Phase 6 was on the shared project by 2026-10-23, and on 2026-10-30 five more migrations were pushed by hand and revision `7c317609`, which includes Phases 6 to 8, was deployed to production ([below](#shared-push-and-deploy-2026-10-30)). Since 2026-11-14 the [`Deploy production`](../../.github/workflows/deploy-production.yml) workflow pushes the migrations and deploys production on every push to `main` ([provider setup](03_provider_setup.md#deploying-to-the-shared-environment)).
 
 ## Phase 1 — `application-foundation`
 
@@ -118,7 +118,7 @@ Run by the lead on 2026-10-19 against the **production** deployment of revision 
 
 ### Known gaps
 
-- **Deploy workflow secrets.** The `Deploy shared Supabase` workflow's repository secrets and variables are not set, so it has never run; task 2.3 stays open. The one push so far was by hand, as [provider setup](03_provider_setup.md#environments-and-collaboration) records.
+- **Deploy workflow secrets.** Until 2026-11-03 the `Deploy shared Supabase` workflow's repository secrets and variables were not set, so its runs failed at `supabase link` and the pushes were by hand, as [provider setup](03_provider_setup.md#environments-and-collaboration) records. They have since been set: the workflow first succeeded on 2026-11-03 (`gh run list --workflow deploy-shared.yml`) and since 2026-11-14 runs inside `Deploy production` on every push to `main`. Whether task 2.3's remaining checks (the Vault entries, the Auth configuration and an empty `supabase db diff --linked` after a run) hold is not recorded here; task 2.3 stays open in [#21](https://github.com/snuhcs-course/swpp-2026-project-team-01/issues/21).
 - **Second origin sign-in.** No person has signed in on `https://release.findmeatime.com`; only its redirect and allowlist entry are verified.
 - **Google OAuth publishing status** is not recorded, and the sandbox callback registration of task 2.8 is open.
 - **`pg_net` grants.** The platform grants `PUBLIC` access to `net.http_request_queue` and `net._http_response`, and `postgres` cannot revoke it. The application keeps `net` outside the Data API (`tests/integration/data-api-exposure.test.ts`), but queued wake-ups carry the worker secret briefly. Not inspected on the hosted project.
@@ -364,7 +364,7 @@ Fixture and local-stack evidence only; each names the test that shows it.
 | AC-17 | The same journey: a plain "yes" and an outdated `approve <ref>-1` record nothing; "gives an unlinked sender and a group conversation nothing private"; `tests/integration/imessage-channel.test.ts` (unlinked and suspended senders, group conversations, reactions) and `imessage-commands.test.ts` (stale and unknown references) |
 | AC-18 | The journey and `imessage-commands.test.ts` "approves the current proposal once, also when replayed and after a web approval": the same message delivered twice is one receipt, the receipt reprocessed as after a restart replays the saved approval, and a concurrent web approval leaves one booking; a refused delivery of the booked summary shows on the `/app` card while the request stays booked (`imessage-notices.test.ts` too) |
 | Backpressure | `imessage-forwarding.test.ts` "defers a message an admission budget refuses by at least a minute, keeping later ones behind it"; `imessage-channel.test.ts` keeps a later message behind an unprocessed earlier one |
-| Summaries (D12) | `tests/integration/imessage-notices.test.ts`: new request, awaiting approval (once, with commands), confirmed, not confirmed and still pending; none without a binding; an outdated version skipped |
+| Summaries (D12) | `tests/integration/imessage-notices.test.ts`: new request, awaiting approval (once, with commands), confirmed and not confirmed, and nothing for a booking still pending (#173); none without a binding; an outdated version skipped |
 | Setup over iMessage | `tests/integration/imessage-setup.test.ts` and `imessage-commands.test.ts` "reviews settings with their reference and saves them only for the current one" |
 | Retention (D14) | `supabase/tests/imessage_channel.test.sql`; `imessage-setup.test.ts` "retention" |
 | iMessage start (D15) | `tests/integration/imessage-start.test.ts`: the sender recorded for this browser only and bound after sign-in and **Confirm and link**; replaced and expired starts; a sender another host holds refused at confirmation; the per-source bound. `google-sign-in.test.ts` "gives this browser's iMessage start to the host who signs in, and clears its cookie (D15)"; `tests/e2e/imessage-link.test.ts` "the landing's iMessage start opens the send popup, and the arriving message asks for Google" |
@@ -379,7 +379,7 @@ Fixture and local-stack evidence only; each names the test that shows it.
 - **No production line, webhook or device run:** provisioning the production Photon line, setting the `PHOTON_*` variables on production, registering the webhook and the remaining checks on a controlled iPhone (the link step on a phone, the QR code from a desktop, the sender identifier a real iPhone sends, Google sign-in from a phone, the conditional welcomes on a device, AC-16 to AC-18 against production, device and client versions) are pending (decision log, "Blocked on the user"). The PR #39 device check above used the `fmat-spike` line and a local receiver only.
 - **Spectrum send path assumed from the SDK:** `space.get`, `space.create`, `send` and `shareContactCard` are typed against `@spectrum-ts` 12.14.0 and exercised only through the stand-in.
 - **Real model replies over iMessage** were not graded; the journey used the OpenAI stand-in.
-- **Production deploy.** The migration was applied to the shared project on 2026-10-23 with `supabase db push --linked` from `873804b`, after a dry run that listed only it; a dry run afterwards reported the remote database up to date. `findmeatime-release` has not been redeployed with Phase 6.
+- **Production deploy.** The migration was applied to the shared project on 2026-10-23 with `supabase db push --linked` from `873804b`, after a dry run that listed only it; a dry run afterwards reported the remote database up to date. `findmeatime-release` was redeployed with Phase 6 on 2026-10-30 ([shared push and deploy, 2026-10-30](#shared-push-and-deploy-2026-10-30)).
 
 ## Phase 7 — `requester-email-channel`
 
@@ -460,6 +460,17 @@ Run by the implementing session on 2026-10-23 (06:55 UTC) against the current **
 | `dev.findmeatime.com` | `curl` of `/` | 404: `findmeatime-dev` has no current deployment serving it, so staging is not live |
 | Latency (D4) | `npm run perf:check -- --origin https://findmeatime.com` and `--origin https://release.findmeatime.com`, 20 sequential samples per route from Seoul | All routes pass. `findmeatime.com`: `/` p50 155 ms, p95 267 ms; `/SKILL.md` 269 and 431 ms; `/llms.txt` 255 and 286 ms; `/eve/v1/health` 250 and 470 ms. `release.findmeatime.com`: 200 and 446; 262 and 287; 250 and 831; 273 and 321 ms. Approval-to-booking and first-reply times are not measured |
 | Release project | Read-only `supabase db query --linked --project-ref mriseqztcwmezvtawnbo` | Still the iteration-1 prototype ([provider setup](03_provider_setup.md#supabase-project)); not emptied |
+
+### Shared push and deploy, 2026-10-30
+
+Recorded on 2026-11-23 from [#50](https://github.com/snuhcs-course/swpp-2026-project-team-01/issues/50), the only source for this entry apart from the Git comparison named below; nothing was re-run against the project. **Unverified** marks what the issue does not state.
+
+| Step | Date | Revision | Command | Result |
+|---|---|---|---|---|
+| Shared-project migrations | 2026-10-30 | Unverified: the issue names `7c317609` as the deployed revision, not the checkout the push ran from | A manual push to `anelszynxtvxoxqvzgqt`. The exact command, the dry run before it and who approved it are unverified | Five migrations applied. The issue does not name them. The chain at `7c317609` adds exactly five after `873804b`, where the Phase 6 push of 2026-10-23 left the project (`git diff --name-status 873804b 7c317609 -- supabase/migrations`): `20261023062139_operational_diagnostics.sql`, `20261023063140_operator_recovery.sql`, `20261023063957_data_stewardship.sql`, `20261023070353_operations_review_fixes.sql` and `20261023134957_imessage_start.sql`. That list comes from Git, not from `supabase migration list --linked` |
+| Production deployment | 2026-10-30 | `7c317609` | Unverified | Deployed to `findmeatime-release` Production. The deployment ID, the aliases and any smoke test are unverified |
+
+The push was an exception to the CI-only rule, taken because the `Deploy shared Supabase` workflow had failed at `supabase link` on all 11 of its runs through 2026-10-29: the repository had no secrets or variables set. iMessage stayed off on production: the Photon project had no dedicated line and no webhook, so `PHOTON_WEBHOOK_ID`, `PHOTON_WEBHOOK_SECRET` and `PHOTON_LINE_NUMBER` were unset.
 
 ## Phase 9 — `host-whatsapp-channel`
 

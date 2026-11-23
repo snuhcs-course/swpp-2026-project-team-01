@@ -95,8 +95,9 @@ const allowInput = z
 
 // request.allow_host_trip (**Allow N minutes for this trip**): the host's own
 // allowance for one unresolved host leg of one candidate of the request's
-// latest evaluation, then a new evaluation that reads it. A leg whose endpoint
-// is unknown cannot take one, because an allowance names both endpoints.
+// latest evaluation, then a new evaluation that reads it. A commitment without
+// a usable place is named by the leg's `unknown:<reason>` key (#324), so its
+// trip can take one too; a leg without a travel mode or meeting place cannot.
 export function allowHostTripCommand(): CommandDefinition<z.infer<typeof allowInput>, EvaluateResult> {
   return {
     input: allowInput,

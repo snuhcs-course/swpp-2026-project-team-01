@@ -100,6 +100,17 @@ describe("turn reply text", () => {
     expect(turnReplyText(events, ["d1"])).toBe("Times\n1. Fri 13 Nov 15:00–15:30 with Ada\nReply with a number; 3 * 4 stays.");
   });
 
+  it("drops a leading channel marker the model copied, on every channel (#410)", () => {
+    const events = [
+      event(["d1"], "[iMessage] [iMessage] Booked for Friday."),
+      event(["d1"], "**[WhatsApp]** See you then."),
+      event(["d1"], "[Telegram]"),
+      event(["d1"], "[Email] Thanks."),
+    ];
+    expect(turnReplyText(events, ["d1"])).toBe("Booked for Friday.\n\nSee you then.\n\nThanks.");
+    expect(turnReplyText([event(["d1"], "[iMessage] ")], ["d1"])).toBeNull();
+  });
+
   it("adds the footer in the request's language", () => {
     expect(withFooter("Hi", "en")).toMatch(/^Hi\n\n--\nTo pick a time/);
     expect(withFooter("안녕하세요", "ko")).toContain("예약 링크");
