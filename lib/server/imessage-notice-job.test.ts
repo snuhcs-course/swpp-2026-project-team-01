@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { GUEST_NOTICE_TEXTS } from "./imessage-notice-job";
+import { followsText, GUEST_NOTICE_TEXTS } from "./imessage-notice-job";
 
 // The guest's new-version notice in their linked conversation mirrors the
 // email (#179) and lists what the host changed (#198).
@@ -19,5 +19,24 @@ describe("the guest's new-version notice", () => {
     expect(GUEST_NOTICE_TEXTS.ko.status_new_version("Ada", "11월 2일 (월), 오전 10:00~10:30 (Asia/Seoul)")).toContain(
       "다시 보냈습니다: 11월 2일 (월)",
     );
+  });
+});
+
+// The host's approval summary of a revised request names the earlier request
+// and how it ended, including the guest's withdrawal (#59).
+
+describe("the host's revised-request sentence", () => {
+  it("names a withdrawn earlier request", () => {
+    expect(followsText({ revisedFrom: { outcome: "withdrawn", ref: "R-ABC123" } }, "en")).toBe("It follows request R-ABC123, which the guest withdrew.");
+    expect(followsText({ revisedFrom: { outcome: "withdrawn", ref: "R-ABC123" } }, "ko")).toBe("게스트가 철회한 요청 R-ABC123에 이어진 요청이에요.");
+  });
+
+  it("keeps the decline and expiry sentences", () => {
+    expect(followsText({ revisedFrom: { outcome: "declined", ref: "R-ABC123" } }, "en")).toBe("It follows your decline of request R-ABC123.");
+    expect(followsText({ revisedFrom: { outcome: "expired", ref: "R-ABC123" } }, "en")).toBe("It follows request R-ABC123, which expired.");
+  });
+
+  it("says nothing for a request that follows none", () => {
+    expect(followsText({ revisedFrom: null }, "en")).toBe("");
   });
 });
