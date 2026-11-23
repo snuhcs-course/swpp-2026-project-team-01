@@ -14,5 +14,7 @@
 ## Documents and review
 
 - [x] Record RV-D01 in the story path evaluation's appended cases.
-- [ ] Run the integration tests, the browser tests and the host review story eval (RV-D01) against the local stack.
+- [x] Run the integration tests, the browser tests and the host review story eval (RV-D01) against the local stack.
+  Passed on 2026-11-23: `tests/integration/bookings.test.ts` 21 of 21; the browser suite with `PORT=3200` (another local app held port 3100): 89 passed, 7 failed under parallel load and passed again on one worker, 1 skipped; RV-D01 3 of 3 runs in the host review story set (documentation 13, Release runs).
 - [ ] Review with the team, then archive the change into `openspec/specs/meeting-requests/spec.md` and close #58.
+  Skipped: merged and archived without a teammate review at the repository owner's request on 2026-11-23.
