@@ -160,7 +160,7 @@
 | D7 | 동의 화면에서 시작한 로그인은 트랜잭션을 HTTP 전용 쿠키에 보관하며, 콜백은 살아 있는 트랜잭션일 때만 그곳으로 돌아가고 아니면 `/app`으로 갑니다 | `next` 쿼리 매개변수 | 제안서; 설계 7; `chat-workspaces` 델타 | 델타와 `google-sign-in.ts` |
 | D8 | `/connect/authorize`는 프로토콜 라우트이고 페이지는 `/connect/consent`입니다 | 라우트 핸들러가 HTML을 렌더링하는 단일 URL | 제안서; 설계 7; 페이지 목록 | 제안서와 라우트 |
 | D9 | 호스트의 승인과 거절에는 항상 `/app`에서의 호스트 클릭이 필요하며, 에이전트의 결정 도구는 검토 링크를 반환합니다. 2026-11-04에 [`agent-decisions-in-words`](#agent-decisions-in-words) D1–D2가 뒤집었습니다: 호스트의 에이전트가 호스트의 말에 따라 승인하고 거절합니다 | 클라이언트의 엘리싯테이션으로 승인 | 제안서; 설계 4; `agent-interfaces` 델타 | 제안서와 호스트 결정 도구 |
-| D10 | `request:decide`를 가진 요청자의 에이전트는 동의와 철회를 할 수 있습니다 | 동의는 요청자의 브라우저에서 | 제안서; 설계 4 | 제안서와 요청자 도구 |
+| D10 | `request:decide`를 가진 요청자의 에이전트는 동의와 철회를 할 수 있고, 호스트 승인을 기다리는 동의를 다시 열 수 있습니다(요청자 결정 결과 참고) | 동의는 요청자의 브라우저에서 | 제안서; 설계 4 | 제안서와 요청자 도구 |
 | D11 | 종료된 요청의 허가는 종료 상태와 영수증만 읽을 수 있고, 예약 링크의 종료 후 접근 수명이 끝날 때까지 그 용도로만 갱신됩니다 | 주 명세대로 종료 시 모든 접근 거부 | 제안서; 설계 5; `agent-client-authorization` 델타 | 델타와 허가 검사 |
 | D12 | 부트스트랩 허가는 24시간 유지됩니다. `create_request`는 요청 하나를 만들고 식별하며, 예약 링크를 이메일로 보내고, 같은 재시도 키에는 같은 요청을 반환하고 다른 키는 거부합니다. 생성은 동의한 브라우저의 출처 한도에 포함됩니다 | 동의 시점에 바인딩 | 제안서; 설계 8; `agent-client-authorization` 델타 "One future request grant" | 델타와 생성 모듈 |
 | D13 | 요청자 동의 페이지는 기존 요청도 예약 링크로 연결하며, 같은 호스트만 허용합니다 | 예약 페이지의 연결 버튼 | 제안서; 설계 8 | 제안서와 동의 페이지 |
@@ -202,6 +202,7 @@
 | 생성 시 세부 정보 | 에이전트가 준 세부 정보는 같은 트랜잭션에서 세부 정보 카드의 검증으로 적용되며, 거절되면 아무것도 만들지 않습니다 | 먼저 만들고 세부 정보를 따로 적용 | `agent-requests.ts` | 같은 파일의 `createRequestForGrant` |
 | 요청자 투영 | 스레드, 대화 상태, 캘린더 연결, 링크를 뺀 예약 페이지의 뷰이며, 호스트 표시 이름은 따옴표로 묶은 데이터로 인코딩합니다 | eve 요청자 도구의 최소화된 뷰 | `agent-requester-tools.ts` | 같은 파일의 `agentRequesterProjection` |
 | 시간 찾기 | `find_times`는 평가를 최대 15초 기다린 뒤 보류 상태로 돌려주며, 끝나면 `get_request`가 보여 줍니다 | eve 도구의 20초 | `agent-requester-tools.ts` | 같은 파일의 `FIND_TIMES_WAIT_MS` |
+| 요청자 결정 결과 | (2026-11-23.) `change_agreement`는 예약 페이지의 **Change** 명령(`request:decide`)으로 승인 대기 중인 동의를 다시 엽니다. 요청이 승인을 기다리는 동안 거부된 `update_request_details`, `find_times`, `choose_time`은 이를 다음 단계로 안내합니다. `choose_time`과 `agree_to_proposal`은 모든 결과에 `next` 문장을 돌려주며, 기록된 동의만 호스트가 승인해야 한다고 말합니다 (#331, #381) | 게스트에게 예약 페이지의 **Change**를 안내함. 동의 이후에만 `next` 문장을 돌려줌 | [`requester-mcp-agreement`](../../openspec/changes/archive/2026-11-23-requester-mcp-agreement/proposal.md) | `agent-requester-tools.ts` |
 | 요청자 에이전트 목록 | 예약 페이지의 스레드 메뉴에 `/app`과 같은 대화상자인 **Connected agents**가 추가되며, 철회는 `agent.revoke_grant`를 거칩니다 | 별도 페이지 | `guest-workspace.tsx` | 같은 파일의 `ThreadMenu` |
 | 진입 문서 | 지침 버전 3은 각 역할의 MCP 엔드포인트와 권한, 동의 단계, 요청자의 번호 매긴 단계, 게시되지 않은 CLI를 명시하고 웹 이어가기를 유지하며, HTML 에이전트 섹션은 같은 내용을 한 문장으로 말합니다 | 클라이언트가 통과할 때까지 버전 2의 "아직 사용할 수 없음" 유지 | `entry-documents.ts`, `apps/web/app/page.tsx`, `apps/web/app/[handle]/page.tsx` | `hostEntryDocument`와 `requesterEntryDocument` |
 | 클라이언트별 메모 | 새 기술 문서 `09_agent_clients.md`는 각 클라이언트가 시도할 연결 경로와 역할별 결과를 담으며, 기록되기 전까지는 "아직 실행되지 않음"입니다 | 인수 기록의 행만 사용 | `09_agent_clients.md` | 해당 문서 |
