@@ -7,12 +7,13 @@ import type { TokenKey } from "./token-encryption";
 // SIGNUP_LIMIT_PER_SOURCE per source address and SIGNUP_LIMIT_SERVICE service-wide
 // in any rolling 24 hours. Only a keyed hash of the address is stored.
 //
-// Hotfix 2026-11-23: the per-source bound is lifted. Hosts who share one network
-// (a campus, an office or a mobile carrier NAT) share one source address, so three
-// sign-ups there blocked everyone else on it for a day. The service-wide bound
-// still caps new accounts, and with them the model allowance they can draw.
+// Hotfix 2026-11-23: both bounds are lifted, so sign-up is unbounded. Hosts who
+// share one network (a campus, an office or a mobile carrier NAT) share one source
+// address, so three sign-ups there blocked everyone else on it for a day, and the
+// team chose not to cap new hosts service-wide either. Attempts are still recorded,
+// so a bound can be restored by setting these numbers again.
 export const SIGNUP_LIMIT_PER_SOURCE = Number.POSITIVE_INFINITY;
-export const SIGNUP_LIMIT_SERVICE = 100;
+export const SIGNUP_LIMIT_SERVICE = Number.POSITIVE_INFINITY;
 
 export type SignUpLimits = {
   readonly perSource: number;
