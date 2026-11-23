@@ -26,7 +26,7 @@ Each case is normal, abnormal or an attack (OWASP Top 10 for LLM Applications, 2
 | Reorder | The same goal reached in another order, split or merged; every variant of a group must end in the same database state |
 | Out of order | The user does not answer what the assistant asked: answers another question, answers ahead, goes back, asks back, sends noise, or mixes Korean and English |
 
-Cases are only ever appended to a case file once it is committed; a defect is fixed by a new case, recorded under Appended cases. Defects the pre-check found before the first commit were fixed in place; they are listed under Pre-check.
+Cases are only ever appended to a case file once it is committed; a defect is fixed by a new case, recorded under Appended cases. The one exception is an expectation the team reverses: that case's checks change to the new decision, and the change is recorded under Appended cases (GU-50 and GU-A04, #378). Defects the pre-check found before the first commit were fixed in place; they are listed under Pre-check.
 
 ## How a case runs and is graded
 

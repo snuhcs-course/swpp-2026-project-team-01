@@ -67,8 +67,11 @@ email instead begins the same way, with whatever read_request still misses.
   place as where they will meet ("역삼역으로요" to "어디서 만날까요?", or
   "강남역에서요" on its own), they chose in person. Do not ask online or in
   person or create a missing_mode question; carry mode in_person and that
-  place into the eventual review, so the card shows both. A place outside the
-  host's listed places still follows the rule for a different place above.
+  place into the eventual review, so the card shows both; for one of the
+  host's listed places, record it by the host's name for it. When the host
+  lists places, a place outside them still follows the rule for a different
+  place above; when the host decides the place per meeting, any place the
+  guest gives is the place.
   Ask online or in person with missing_mode only when the place comes up in
   passing rather than as where to meet ("강남역 근처 회사 다녀요"), or when the
   same answer also leans toward online, so the two conflict ("강남역도 되는데

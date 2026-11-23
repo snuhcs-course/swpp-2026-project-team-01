@@ -5,9 +5,8 @@ import type { StoryCase, StoryContext } from "../story/types";
 
 // The fixed guest story set (Iteration 4): the guest assistant on the revised
 // user stories G01 to G03 and M01, graded on its tool decisions, the request's
-// decision state and its replies. Cases are only ever appended: an existing case
-// is never edited or removed, and every appended case is recorded in
-// documentation 13 with its date. Expected behavior comes from the testing
+// decision state and its replies. Cases are only ever appended, and every
+// appended case is recorded in documentation 13 with its date. Expected behavior comes from the testing
 // baseline (PR #249, documentations/technical_specification/12_testing_baseline.md),
 // the shared base rules and the requester fragment as they stand on the
 // declaring commit; the case sheet was reviewed with Codex (gpt-6.2-sol) and the
@@ -1577,7 +1576,11 @@ export const GUEST_STORY_CASES: readonly StoryCase[] = [
     turns: [
       {
         message: "강남역에서요",
-        checks: [{ kind: "judge", criterion: "온라인인지 대면인지 다시 묻지 않는다." }],
+        checks: [
+          { kind: "judge", criterion: "온라인인지 대면인지 다시 묻지 않는다." },
+          { kind: "judge", criterion: "대면과 강남역을 검토 카드에 담았다고 말한다." },
+          { kind: "noDecisionClaim" },
+        ],
         calls: [
           {
             name: "draft_request_review",
@@ -2482,6 +2485,8 @@ export const GUEST_STORY_CASES: readonly StoryCase[] = [
         message: "Somewhere near Gangnam Station",
         checks: [
           { kind: "judge", criterion: "온라인인지 대면인지 다시 묻지 않는다." },
+          { kind: "judge", criterion: "대면과 강남역을 검토 카드에 담았다고 말한다." },
+          { kind: "noDecisionClaim" },
           { kind: "language", language: "en" },
         ],
         calls: [
