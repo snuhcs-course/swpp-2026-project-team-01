@@ -5,6 +5,7 @@ Openavail update: 2026-10-05
 Howie update: 2026-10-08
 
 Comparison matrix update: 2026-10-19
+Scenario comparison and operating status: 2026-11-23
 
 Scope: External meeting coordination, email scheduling assistants, booking platforms, and conversational calendar agents.
 
@@ -144,33 +145,103 @@ Reclaim's Scheduling Link configuration also documents travel and decompression 
 - **Dola:** Indexed official material describes chat-based calendar creation/editing, multimodal input, and calendar sync. Direct retrieval failed, and current operation and external meeting negotiation were not established. [Official features](https://heydola.com/features)
 - **Older Cal.ai email assistant:** An email-assistant listing remains public, while current Cal.ai marketing emphasizes voice. Do not assume the older email product is currently available. [Older listing](https://cal.com/apps/cal-ai), [Current product](https://cal.com/ai)
 
-## 6. Implications and practical benchmark
+## 6. Comparison by user scenario
 
-This compact matrix compares the selected products with Find Me a Time's **planned** release scope in the [PRD](../02_product_requirements.md); its O marks do not indicate implementation or tested compatibility. For competitors, O means public documentation establishes at least one part of the named capability, △ means only part of the workflow is documented, and X means either unsupported **or not established by the reviewed sources**. X must not be cited as proof that a competitor lacks a feature. The combined personal-agent column accepts either host- or requester-side access; the context column accepts location, travel, or saved scheduling preferences rather than requiring all three. Approval options differ from Find Me a Time's mandatory approval of the current proposal.
+Draft for team review (#170), updated 2026-11-23. This replaces the earlier capability checklist marked O/X. Each scenario below is one moment in a formal external meeting, and each row says what the host and the guest go through with a group of products, why that does not fit, and what Find Me a Time produces. A formal external meeting has to feel right on both sides, so every scenario has a host column and a guest column.
 
-| Capability | Find Me a Time (planned) | Howie | Skej | CalendarBridge | Calendly Callie | Cal.com | SavvyCal | Fyxer |
-|---|:---:|:---:|:---:|:---:|:---:|:---:|:---:|:---:|
-| Multi-turn email coordination | O | O | O | O | O | X | X | X |
-| Personal-agent integration | O | X | X | O | O | O | X | X |
-| Guest chat booking | O | X | O | X | X | X | X | X |
-| Host setup through a personal AI agent | O | X | X | △ | △ | X | X | X |
-| Host approval before booking | O | X | X | X | X | O | O | X |
-| iMessage host channel | O | O | X | X | X | X | X | X |
-| Location, travel, or preference context | O | O | O | O | X | X | O | X |
+How to read it. Competitor rows describe what the cited public documentation establishes, not hands-on tests; "not established" means the sources reviewed did not show it, not that the product lacks it. The Find Me a Time rows describe the behavior in the [user stories](../user_experience/02_user_stories.md) and the [testing baseline](../technical_specification/12_testing_baseline.md); where a row there is not yet built, the cell says so. The groups are:
 
-Guest chat booking means that a guest can converse with the service's assistant on the host's booking page; it is distinct from using the guest's own agent. [Skej documents that page chat](https://skej.com/help/feature-overview/using-your-booking-link). [CalendarBridge](https://help.calendarbridge.com/user-docs/bring-your-own-agent-mcp/) and [Calendly](https://developer.calendly.com/docs/mcp/supported-tools) let a host-connected agent manage some scheduling configuration, but their documented flows do not establish complete agent-led signup and consent. The team reports that Skej lacks a host-side personal-agent integration; its guest-agent path was not verified, so the combined cell follows the matrix's X convention.
+- **Booking links:** Calendly, Cal.com, SavvyCal. The guest picks an open slot on the host's page.
+- **Email assistants:** Howie, Skej, CalendarBridge, Calendly Callie, SkipUp. The host copies an AI assistant into an email thread, which proposes times and books once the participants agree.
+- **Agent-mediated scheduling:** Openavail. A requester's agent asks through an API or MCP and the owner reviews proposals.
 
-Openavail and SkipUp are excluded from this current matrix because the team reports that they no longer operate; this update did not independently verify their operating status. Reclaim 2.0 is excluded at the team's request. The earlier dated research above remains useful as historical feature evidence, not as a current-service recommendation.
+### S1. Travel between meetings (the [problem scenario](../user_experience/01_user_journeys.md#problem-scenario-travel-between-meetings))
 
-Prioritize comparable trials of **Howie, Skej, CalendarBridge, and Calendly Callie**; use Cal.com, SavvyCal, and Fyxer for narrower workflow comparisons. Run the same scenarios:
+The host's meeting in Yeoksam ends at 16:00; the guest asks for an in-person meeting in Hongdae.
 
-1. A founder requests 30 minutes next week without specifying timezone or location.
-2. A host prefers investor meetings in the afternoon but student meetings in office hours.
-3. A calendar slot is free but cannot accommodate the required travel buffer.
-4. A guest asks for a time outside normal hours; the host approves only this exception.
-5. The guest changes duration or location after the host has approved a proposal.
-6. A delayed reply and a duplicate agent retry arrive after a different proposal was selected.
-7. The host updates a preference privately; the shared thread must not disclose it.
-8. An external requester and a trusted agent ask for the same slot; verify each party's visibility, booking authority, approval path, and retry behavior.
+| | Host | Guest | Why it does not fit |
+|---|---|---|---|
+| Booking links | Sets one buffer in minutes per event type, whatever the places ([Calendly](https://calendly.com/help/how-to-use-buffers), [Cal.com](https://cal.com/help/event-types/event-buffer)); finds the clash after the booking | Books 16:30 because it is listed; later gets a cancel or reschedule request | The buffer is fixed, not computed from where the meetings are; neither help page describes a trip calculation |
+| Email assistants | Howie advertises buffer, commute and travel-time protection ([Howie](https://howie.com/#features)); whether a trip is enforced as a constraint is not established | Agrees in the thread to whatever the assistant proposes | A trip between two places blocking a slot is not established for any product in the group |
+| Agent-mediated | Openavail ranks candidates lower for a short buffer but does not reject them ([rules](https://www.openavail.com/docs/rules-reference/)) | The guest's agent may still be offered the slot | A buffer preference is not travel feasibility |
+| **Find Me a Time** | Told only once the guest has picked a workable time; approves in the messenger | Offered 16:30 online, or in person from a time the trip allows | The trip from the previous meeting's place and on to the next is checked before a time is offered ([PRD FR-12](../02_product_requirements.md#travel-time-checks)) |
 
-Measure time to booking, host interventions, incorrect proposals, unauthorized or duplicate bookings, and guest completion. Also test whether mandatory approval saves decision effort or adds avoidable friction. Feature descriptions and vendor-selected testimonials cannot establish these outcomes.
+### S2. Renegotiation after booking
+
+After booking, the guest needs a different time or place, or the host does.
+
+| | Host | Guest | Why it does not fit |
+|---|---|---|---|
+| Booking links | Calendly's **Share new times to meet** cancels the meeting and asks the invitee to pick again ([Calendly](https://calendly.com/help/how-to-reschedule-a-meeting)) | Reschedules or cancels from the link in the confirmation email ([Calendly FAQ](https://calendly.com/help/scheduling-faq)), choosing from the same slot grid | The new slot is checked as the first one was, so S1's problem comes back; the original booking is gone while a new time is found |
+| Email assistants | Clara and Ari list rescheduling ([Clara](https://www.claralabs.com/), [Ari](https://justcc.to/)); a separate host checkpoint on the new time is not established | Replies in the thread | The changed meeting is booked on agreement, without the host's fresh approval |
+| Agent-mediated | Public requests enter the owner's approval queue unless the owner's policy allows auto-book ([Openavail](https://www.openavail.com/docs/public-scheduling/)); changes to a booked meeting were not reviewed here | Not established | Not established |
+| **Find Me a Time** | Approves or declines the changed proposal; the booked meeting stands until then and the same calendar event moves | Asks in the booking page conversation, the messenger or an agent until the meeting starts | M01: a change goes through the same checks and fresh host approval; a declined or expired change leaves the meeting as it was |
+
+### S3. A request with missing details
+
+A founder asks for 30 minutes next week without saying the timezone or whether it is in person.
+
+| | Host | Guest | Why it does not fit |
+|---|---|---|---|
+| Booking links | Defines the mode and place in each event type in advance | Picks a slot in the page's timezone; cannot say "in person near Gangnam" unless the event type asks | The page cannot ask the one question that is still open |
+| Email assistants | Lets the assistant work in the thread | Answers the assistant's follow-ups by email | Fits on clarification; differs from Find Me a Time on approval (S5) and privacy (S6) |
+| **Find Me a Time** | Not involved until a time is picked | The assistant asks only what is still open (mode, place, timezone), one question at a time, in the guest's language | G01: offered times already pass the host's calendar, rules and travel checks |
+
+### S4. A one-off exception
+
+Every candidate is in a week where the host has reached the weekly meeting limit, or the trip needs a manual allowance.
+
+| | Host | Guest | Why it does not fit |
+|---|---|---|---|
+| Booking links | Must change the event type's limits for everyone, or book by hand | Sees no slot and has to email | No per-request exception |
+| Email assistants | Sarra asks the host before booking outside working hours ([Sarra trust and controls](https://sarra.ai/trust)) | Waits | An exception checkpoint exists for this one product and case; a general per-request exception is not established |
+| **Find Me a Time** | Gets a private exception control and decides for this request only (web today; the messenger notice and tools are to build, #327) | Is offered times only after the host decides; never told the private reason | Exceptions are host-only and bound to one request ([meeting feasibility](../../openspec/specs/meeting-feasibility/spec.md)) |
+
+### S5. Late replies and retries
+
+A delayed reply and a duplicate agent retry arrive after a different proposal was chosen.
+
+| | Host | Guest | Why it does not fit |
+|---|---|---|---|
+| Booking links | Usually one booking per click; SavvyCal holds the slot until the host approves ([SavvyCal](https://docs.savvycal.com/article/81-require-approval-for-new-events)) | Not affected | Fits for one-click booking; no multi-turn negotiation to go stale |
+| Email assistants | Not established how an old reply is matched to a newer proposal | Not established | Not established |
+| Agent-mediated | Openavail's hold-then-confirm flow takes idempotency keys ([two-phase commit](https://www.openavail.com/docs/two-phase-commit/)) | The agent retries safely | Fits for retries; approval is per proposal rather than per version of changed details |
+| **Find Me a Time** | An approval names the exact proposal version; a stale tap or reply decides nothing and shows the current one | Sees the current state | At most one calendar event per request (PRD AC-06, AC-13) |
+
+### S6. Private host reasons
+
+The host tells the assistant something private ("not before my board meeting"); the guest must not learn it.
+
+| | Host | Guest | Why it does not fit |
+|---|---|---|---|
+| Booking links | Keeps the reason private by never stating it | Sees only open slots | Fits on privacy, without any negotiation |
+| Email assistants | Talks to the assistant in or around a thread the guest is copied on; Howie's policy says availability may be shared with the other side ([privacy policy](https://howie.com/privacy-policy/)) | May see the assistant's reasoning in the thread | Keeping host-only reasons out of the shared thread is not established |
+| **Find Me a Time** | Discusses in the private messenger conversation; the web has no request chat (#326) | The guest's assistant never sees the host's calendar or rules and does not explain why a time is unavailable | Host-private and guest-facing conversations are separate (PRD section 8) |
+
+### S7. A guest who sends their own agent
+
+The guest hands the host's link to ChatGPT, Claude or another agent.
+
+| | Host | Guest | Why it does not fit |
+|---|---|---|---|
+| Booking links | Cal.com and Calendly offer MCP for the host's own agent ([Cal.com MCP](https://cal.com/blog/how-to-connect-calcom-to-claude-using-mcp), [Calendly MCP](https://developer.calendly.com/docs/mcp/supported-tools)) | A request path for the guest's own agent was not established; the agent would have to fill the page | The documented MCP serves the host's account, not the guest |
+| Agent-mediated | Reviews requests in an approval queue, or allows auto-book where the owner's policy permits ([Openavail](https://www.openavail.com/docs/public-scheduling/)) | The agent asks through scoped API or MCP access | Closest fit; email negotiation and travel feasibility were not established |
+| **Find Me a Time** | Gets the same approval summary as for a person | The agent starts from `findmeatime.com/{host}`, needs no account, and has access only to that request | G01 MCP path; the host still approves |
+
+### S8. Relationship-specific preferences
+
+The host prefers investor meetings in the afternoon and student meetings in office hours.
+
+| | Host | Guest | Why it does not fit |
+|---|---|---|---|
+| Booking links | Keeps one event type or link per audience and sends the right one | Sees only the link they were sent | Works only when the host picks the link |
+| Email assistants | CalendarBridge keeps a plain-English configuration of up to 1,000 characters ([guide](https://help.calendarbridge.com/help/ai-assistant.html)); Clara lists priority contacts ([Clara](https://www.claralabs.com/)) | Not affected | Whether rules differ by who is asking is not established in tests |
+| **Find Me a Time** | One set of hours, limit and places per host; per-relationship rules are not built | Same | Not a current advantage; needs a team decision before it is claimed |
+
+### Operating status checked 2026-11-23
+
+The earlier version of this section left Openavail and SkipUp out because the team reported that they no longer operate. On 2026-11-23 both sites loaded with sign-up and pricing: Openavail shows "Private beta · Google Calendar supported today", a Free plan and Pro at $20 per month ([Openavail](https://www.openavail.com/), [pricing](https://www.openavail.com/pricing/)), and SkipUp shows "Free for your first 10 meetings" and Pro at $49 per month with a sign-up link ([SkipUp](https://skipup.ai/), [getting started](https://support.skipup.ai/getting-started/)). A live site does not establish that onboarding or booking works; neither was tried. Both are back in the comparison above. Reclaim 2.0 stays out at the team's request.
+
+### What to test next
+
+Run S1 to S8 against **Howie, Skej, CalendarBridge, Calendly Callie and Openavail**, with Calendly, Cal.com and SavvyCal as the booking-link baseline, and record for each side: time to booking, host interventions, guest messages, offered times that break a known constraint, and unauthorized or duplicate bookings. Also test whether mandatory approval saves the host decisions or adds friction. Feature descriptions and vendor testimonials cannot establish these outcomes; the interviews and usability tests of #172 supply the user evidence. The presentation's comparison table should follow this section.
