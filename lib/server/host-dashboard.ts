@@ -6,7 +6,7 @@ import { CalendarAccessError, openHostCalendar, type GoogleCalendarDependencies 
 
 export type DashboardEvent = {
   readonly id: string;
-  readonly source: "google" | "thyme" | "sent";
+  readonly source: "google" | "thyme" | "sent" | "received";
   readonly title: string;
   readonly start: string;
   readonly end: string;
@@ -15,6 +15,14 @@ export type DashboardEvent = {
   readonly state?: RequestState;
   // A Find Me a Time meeting's details, as the host saw them when approving.
   readonly meeting?: BookedMeeting;
+  // A received request awaiting the host's decision, at its current proposed time.
+  readonly received?: ReceivedRequest;
+};
+
+export type ReceivedRequest = {
+  readonly requestId: string;
+  readonly requesterName: string;
+  readonly purpose: string | null;
 };
 
 export type BookedMeeting = {
@@ -48,6 +56,32 @@ export type BookingRow = {
   contact_confirmed_email: string | null;
   purpose: string | null;
 };
+
+export type ReceivedRow = {
+  id: string;
+  state: RequestState;
+  requester_name: string | null;
+  purpose: string | null;
+  start_at: Date;
+  end_at: Date;
+};
+
+// A received request that awaits the host's decision, drawn at its current
+// proposal's time: it is not booked, so it never hides a Google event.
+export function receivedEvent(request: ReceivedRow): DashboardEvent {
+  const requesterName = request.requester_name?.trim() || "Guest";
+  return {
+    allDay: false,
+    end: request.end_at.toISOString(),
+    id: `received:${request.id}`,
+    location: null,
+    received: { purpose: request.purpose?.trim() || null, requestId: request.id, requesterName },
+    source: "received",
+    start: request.start_at.toISOString(),
+    state: request.state,
+    title: `Request from ${requesterName}`,
+  };
+}
 
 type SentRow = {
   id: string;
@@ -133,6 +167,21 @@ export async function readHostDashboard(
       and coalesce(b.end_at, p.end_at) > ${range.start}
     order by start_at
   `;
+  // Received requests the host has to decide (the inbox's Needs your decision,
+  // host-requests.ts), never samples, at the latest proposal's time.
+  const received = await db<ReceivedRow[]>`
+    select r.id, r.state, r.requester_name, r.details ->> 'purpose' as purpose, p.start_at, p.end_at
+    from app.requests r
+    join lateral (
+      select start_at, end_at from app.proposals where request_id = r.id order by version desc limit 1
+    ) p on true
+    where r.host_account_id = ${hostAccountId} and not r.is_sample
+      and r.state in ('gathering', 'negotiating', 'awaiting_host_approval')
+      and (r.state = 'awaiting_host_approval'
+        or exists (select 1 from app.shared_change_drafts d where d.request_id = r.id and d.state = 'pending'))
+      and p.start_at < ${range.end} and p.end_at > ${range.start}
+    order by p.start_at
+  `;
   const bookedIds = new Set([
     ...bookings.map((booking) => `${booking.calendar_id}:${booking.event_id}`),
     ...sent.filter((request) => request.calendar_id && request.event_id).map((request) => `${request.calendar_id}:${request.event_id}`),
@@ -149,6 +198,7 @@ export async function readHostDashboard(
     state: request.state,
     title: `With ${request.host_name ?? "Host"}`,
   })));
+  events.push(...received.map(receivedEvent));
 
   let googleWarning: string | null = null;
   try {

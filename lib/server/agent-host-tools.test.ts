@@ -81,3 +81,14 @@ describe("host decision tools", () => {
     }
   });
 });
+
+describe("host schedule tool", () => {
+  it("reads the schedule under host:read and only reads", () => {
+    const schedule = tool("get_schedule");
+    expect(schedule.scope).toBe("host:read");
+    expect(schedule.readOnly).toBe(true);
+    expect(toolDefinition(schedule).inputSchema.required ?? []).toEqual([]);
+    expect(schedule.input.safeParse({ days: 7, from: "2026-11-23" }).success).toBe(true);
+    expect(schedule.input.safeParse({ days: 60 }).success).toBe(false);
+  });
+});

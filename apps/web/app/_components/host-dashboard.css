@@ -27,3 +27,7 @@
 .hd-facts dd{margin:3px 0 0;font-size:12px;line-height:1.5;color:#3e444e;overflow-wrap:anywhere}
 .hd-facts a,.hd-open-request{color:#2c3e63;font-weight:600;text-decoration:underline;text-underline-offset:2px}
 .hd-open-request{display:inline-flex;align-items:center;min-height:44px;margin-top:8px;font-size:12px}
+.hd-key.hd-received{background:#fff6e7;border:2px dashed #b07a1e}
+.hd-received.hd-event,.hd-received.hd-month-event{background:#fff6e7;border-color:#b07a1e;border-left-style:dashed;color:#5f4413}
+.hd-agenda-item.hd-received{border-color:#b07a1e;border-left-style:dashed;background:#fff9ef}
+.hd-source.hd-received{background:#fff6e7;color:#5f4413;border:1px solid #b07a1e}

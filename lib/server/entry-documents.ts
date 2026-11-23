@@ -81,6 +81,7 @@ Once connected:
 3. Give the host the booking link returned after confirm_setup and tell them to share it. You are not notified of new requests: tell the host to ask you to check, using list_requests when they do.
 4. If asked to link a chat, use start_chat_link for iMessage or Telegram. Give the host its link to send a code and confirm in the browser. Nothing is linked until they confirm. Check get_host_status for chat state.
 5. Check requests only when asked. Approve or decline only on the host's clear instruction, as described above.
+6. When the host asks what is on their calendar or what is booked on a day or week, use get_schedule and answer from it: it reads their Find Me a Time meetings, other Google Calendar events, requests awaiting their decision and requests they sent, each labeled, and changes nothing.
 
 ## Links
 

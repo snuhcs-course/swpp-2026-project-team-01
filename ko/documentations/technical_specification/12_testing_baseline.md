@@ -228,9 +228,9 @@ host:read · host:write · host:decide
 
 **코드로 확인하지 못한 것 · 차이**
 
-- 대시보드 캘린더에는 Google Calendar 일정, Find Me a Time으로 확정된 미팅, 호스트가 다른 사람에게 보낸 요청만 나옵니다. 받은 요청 중 아직 확정되지 않은 것은 캘린더에 없고 Requests 목록에만 있습니다.
+- 대시보드 캘린더에는 Google Calendar 일정, Find Me a Time으로 확정된 미팅, 호스트가 다른 사람에게 보낸 요청, 그리고 호스트의 결정을 기다리는 받은 요청이 제안된 시간에 나옵니다([`host-schedule-views`](../../openspec/changes/archive/2026-11-23-host-schedule-views/proposal.md), #330).
 - 주간 보기는 08:00~19:00만 그립니다. 그 밖의 시간 일정은 주간 칸에 안 보이고, 날짜를 눌러 오른쪽 상세에서만 보입니다. 종일 일정은 칸마다 2개까지만 보입니다.
-- 메신저와 MCP에는 Google Calendar 전체 일정 조회, 일정표 이미지, 주간 보고 기능이 없습니다. 아래에는 구현 필요 항목으로 기대 동작을 적었습니다. 주간 보고의 주기와 내용은 스토리에서 미정입니다.
+- 메신저(read_schedule)와 MCP(get_schedule)는 호스트의 일정을 기간 단위로 읽어 줍니다: 확정된 미팅, Google Calendar의 다른 일정, 결정할 요청, 보낸 요청이 각각 라벨과 함께 나옵니다. 메신저의 일정표 이미지는 아직 구현 필요 항목입니다(M-5). 주간 보고는 범위 밖입니다(#330의 소유자 결정, 2026-11-23).
 
 ### Web · 대시보드
 
@@ -238,12 +238,12 @@ host:read · host:write · host:decide
 
 | Step | 전제 (Given) | 사용자 동작 (When) | 화면 · 메시지 (Then) | 분기 · 판정 · 코드 상태 | 근거 코드 |
 |---|---|---|---|---|---|
-| W-1 | 셋업 완료 | /app 열기 | 대시보드: "Your week comes together here." — "See your plans and the meetings Thyme booked for you, side by side."<br><br>이번 주 주간 보기(Week), 위에 기간 제목(예: November 16–22, 2026), Previous period · Next period · Today, Week / Month 전환<br><br>Show 필터: Google Calendar · Find Me a Time meetings · Sent requests (기본 모두 켜짐) | **실패**: 불러오기 실패 → "Your calendar could not be loaded. Try again later."<br>**분기**: Google만 읽기 실패 → 경고 + "Find Me a Time meetings and sent requests are still shown."<br>**분기**: 셋업 미완료 → 대시보드 대신 연결·셋업 화면 (H01) | _components/host-dashboard.tsx · api/host/dashboard/route.ts · lib/server/host-dashboard.ts |
+| W-1 | 셋업 완료 | /app 열기 | 대시보드: "Your week comes together here." — "See your plans and the meetings Thyme booked for you, side by side."<br><br>이번 주 주간 보기(Week), 위에 기간 제목(예: November 16–22, 2026), Previous period · Next period · Today, Week / Month 전환<br><br>Show 필터: Google Calendar · Find Me a Time meetings · Sent requests · Requests to decide (기본 모두 켜짐) | **실패**: 불러오기 실패 → "Your calendar could not be loaded. Try again later."<br>**분기**: Google만 읽기 실패 → 경고 + "Find Me a Time meetings and requests are still shown."<br>**분기**: 셋업 미완료 → 대시보드 대신 연결·셋업 화면 (H01) | _components/host-dashboard.tsx · api/host/dashboard/route.ts · lib/server/host-dashboard.ts |
 | W-2 | 대시보드 | 이전·다음 주, Month 전환, Today | 기간이 바뀌면 그 기간 데이터를 다시 불러옴. Month는 월~일 7열 격자 | **성공**: 호스트 시간대 기준으로 날짜·시간이 표시됨 | host-dashboard.tsx (navigate, periodDays) |
 | ↳ W-2.1 | 벗어난 입력. 주간 보기 | 저녁 8시 일정이 있는 날을 봄 | 주간 칸에는 안 보임. 날짜를 누르면 오른쪽 상세에 나옴 | **확인 필요**: 08:00~19:00 밖 일정이 주간 칸에서 빠지는 것이 의도인지 확인 필요 | host-dashboard.tsx (HOURS, 480~1140분) |
 | W-3 | 대시보드 | 날짜 또는 일정 누르기 | 오른쪽 SELECTED DAY / EVENT DETAILS: 출처(Google Calendar event · Find Me a Time meeting · Sent request), 시간 또는 All day, 보낸 요청은 상태(Choosing a time · Awaiting approval · Booking in progress · Booked)<br><br>Google 일정: "From your private Google Calendar. Only you can see its details here." · 확정 미팅: "Booked by Thyme. This meeting is shown only once, even if it also appears in Google Calendar."<br><br>확정 미팅: When · Length · Mode · Place 또는 Meeting link(Meet 링크) · With {이름 <이메일>}, 제목과 다르면 Purpose, 그리고 Open request(Requests에서 그 요청을 엶). 주간 블록에는 시간 옆에 "With {게스트}" | **분기**: 일정 없는 날 → "No events to show for this day."<br>**하면 안 됨**: 같은 확정 미팅이 두 번 표시 (Google 복사본과 중복)<br>**코드와 다름**: 상세 패널의 출처 라벨은 "Thyme meeting" / "Google Calendar" 두 가지라, 보낸 요청도 "Google Calendar"로 표시됨. 다른 곳의 라벨(sourceLabel)은 Find Me a Time meeting · Google Calendar event · Sent request | host-dashboard.tsx:45–48, 136 · host-dashboard.ts (중복 제거) |
 | W-4 | 대시보드 | 필터 끄기 (예: Google Calendar 끔) | 해당 출처 일정만 숨김 | **성공**: 다른 출처는 그대로 | host-dashboard.tsx (showGoogle/showThyme/showSent) |
-| ↳ W-5 | 벗어난 입력. 받은 요청이 결정 대기 | 대시보드에서 찾기 | 캘린더에는 안 보임. Open menu → Requests 목록에서 Needs your decision으로 확인 (H03 W-1) | **코드와 다름**: 스토리는 받은 요청도 캘린더에서 보이길 기대. 지금은 확정된 것과 보낸 요청만 캘린더에 있음 | host-dashboard.ts (sources) |
+| W-5 | 받은 요청이 결정 대기 | 대시보드에서 찾기 | 제안된 시간에 점선 호박색 블록, "From {requester} · To decide". 세부 정보: "Received request · Needs your decision", Proposed time · From · Purpose, **Open request**, 그리고 안내 "A request someone sent you, shown at its proposed time. It is not booked until you approve it." | **통과**: 결정이 필요한 요청(승인 대기 또는 대기 중인 제안)이면서 기간 안에 제안 시간이 있는 것만; 샘플은 절대 아님<br>**하면 안 됨**: 확정된 것처럼 보이기 · 같은 시간의 Google 일정을 가리기<br>**분기**: 아직 제안이 없음 → Requests 목록에만 (H03 W-1) | host-dashboard.ts (receivedEvent) · host-dashboard-labels.ts (receivedFacts) |
 
 ### Message · 현황 질문
 
@@ -252,13 +252,12 @@ host:read · host:write · host:decide
 | Step | 전제 (Given) | 사용자 동작 (When) | 화면 · 메시지 (Then) | 분기 · 판정 · 코드 상태 | 근거 코드 |
 |---|---|---|---|---|---|
 | M-1 | 셋업 완료 | "요청 뭐 있어?" / "What requests do I have?" | AI 기대 동작: list_host_requests → 요청마다 요청자·목적·상태와 결정 필요 여부를 말함 | **분기**: 열린 요청 없음 → "You have no open requests."<br>**하면 안 됨**: 도구 결과 없이 답하기 · 이 대화에서는 요청을 못 본다고 말하기<br>**코드 지원**: 코드 지원 | agent/tools/setup.ts (list_host_requests) · instructions/host-setup.ts |
-| M-2 | 셋업 완료 | "이번 주 확정된 미팅 뭐 있어?" | AI 기대 동작: list_host_requests에서 booked인 것만 골라 요청자·시간으로 답함 | **하면 안 됨**: booking(진행 중)을 확정이라고 말하기<br>**코드 미지원**: 모델이 받는 요청 목록에 날짜가 없음(hostRequestsForModel이 proposalStart를 버림). 그래서 이번 주 미팅을 골라내거나 시간을 말할 수 없고, 예약 확정된 요청과 나머지를 구분하는 것만 가능 | host-review-tools.ts (hostRequestsForModel) · host-requests.ts |
-| ↳ M-2.1 | 벗어난 입력. 호스트가 다른 사람에게 게스트로 요청을 보낸 적 있음 | "내가 보낸 요청들은 어떻게 됐어?" | AI 기대 동작: 보낸 요청도 받은 요청과 구분해서 상태(시간 고르는 중 · 상대 승인 대기 · 확정)로 알려줌 (기대값) | **코드 미지원**: 호스트 대화의 요청 목록은 받은 요청만 (host-requests.ts:36, host_account_id = 호스트). 보낸 요청은 웹 대시보드에서만 보임<br>**분기**: 그 보낸 요청에 같은 iMessage를 게스트로 연결해 두었으면 → 대화 전환 안내 "Which conversation is this message for? - your request with {호스트} … - your own account as a host" → 그 요청 대화에서 상태를 물을 수 있음 (G03 범위)<br>**하면 안 됨**: 받은 요청과 보낸 요청을 섞어서 말하기 · 보낸 요청이 없다고 단정하기 | lib/server/host-requests.ts (listHostRequests) · channel-texts.ts (picker) |
-| ↳ M-2.2 | 벗어난 입력. 셋업 완료 | "내 캘린더에 다른 일정은 뭐 있어?" | AI 기대 동작: M-4와 같음: Google Calendar 일정을 읽어 서비스 예약과 구분해서 답함 (기대값) | **코드 미지원**: 구현 필요: 캘린더 일정 조회 도구 없음<br>**하면 안 됨**: 지금은 일정을 지어내기 → 확인할 수 없다고 말해야 함 | agent/tools/setup.ts (도구 목록) |
+| M-2 | 셋업 완료 | "이번 주 확정된 미팅 뭐 있어?" | AI 기대 동작: list_host_requests(또는 read_schedule의 booked_meeting 항목)에서 booked인 것만 골라 요청자·시간으로 답함 | **하면 안 됨**: booking(진행 중)을 확정이라고 말하기<br>**코드 지원**: #302부터 목록이 각 요청의 확정 또는 제안 시간을 그 주와 오늘 날짜·주와 함께 주고, read_schedule은 이번 주 확정 미팅을 시간과 함께 줌 | host-review-tools.ts (hostRequestsForModel) · host-schedule.ts |
+| ↳ M-2.1 | 벗어난 입력. 호스트가 다른 사람에게 게스트로 요청을 보낸 적 있음 | "내가 보낸 요청들은 어떻게 됐어?" | AI 기대 동작: 보낸 요청도 받은 요청과 구분해서 상태(시간 고르는 중 · 상대 승인 대기 · 확정)로 알려줌 (기대값) | **일부 코드 지원**: read_schedule이 물은 기간 안의 보낸 요청을 받은 요청과 구분해 상태와 함께 sent_request로 나열. list_host_requests는 여전히 받은 요청만 담고(host-requests.ts, host_account_id = 호스트), 아직 시간이 없는 보낸 요청은 웹에서만 보임<br>**분기**: 그 보낸 요청에 같은 iMessage를 게스트로 연결해 두었으면 → 대화 전환 안내 "Which conversation is this message for? - your request with {호스트} … - your own account as a host" → 그 요청 대화에서 상태를 물을 수 있음 (G03 범위)<br>**하면 안 됨**: 받은 요청과 보낸 요청을 섞어서 말하기 · 보낸 요청이 없다고 단정하기 | lib/server/host-requests.ts (listHostRequests) · channel-texts.ts (picker) |
+| ↳ M-2.2 | 벗어난 입력. 셋업 완료 | "내 캘린더에 다른 일정은 뭐 있어?" | AI 기대 동작: M-4와 같음: read_schedule로 캘린더 일정을 서비스 예약과 구분해서 답함 | **코드 지원**: read_schedule이 calendar_event를 booked_meeting과 구분해 표시<br>**하면 안 됨**: 일정을 지어내기 | agent/tools/setup.ts (read_schedule) · host-schedule.ts |
 | M-3 | 셋업 완료 | "박도현 미팅 확정됐어?" | AI 기대 동작: 해당 요청으로 전환하거나 목록에서 상태를 읽고, 확정된 경우에만 확정이라고 답함 | **분기**: 같은 이름이 여러 개 → 목적·참조로 구분해서 물음<br>**코드 지원**: 코드 지원 | list_host_requests · read_booking_status |
-| M-4 | 셋업 완료 | "내일 일정 뭐 있어?" (Google Calendar 전체) | AI 기대 동작: 호스트 Google Calendar에서 내일 일정을 읽어 시간순으로 답함. 서비스 예약과 일반 일정을 구분해서 말함 | **코드 미지원**: 구현 필요: 메신저에 캘린더 일정 조회 도구 없음<br>**하면 안 됨**: 지금은 일정을 지어내서 답하기 → 확인할 수 없다고 말해야 함 | agent/tools/setup.ts (도구 목록) |
-| M-5 | 셋업 완료 | "이번 주 일정표 이미지로 보여줘" | AI 기대 동작: 이번 주 일정과 확정 미팅을 담은 일정표 이미지 한 장을 보냄 (다음 주 슬롯 이미지 코드 재사용) | **코드 미지원**: 구현 필요: 지금 이미지는 셋업 미리보기(다음 주 열린 시간)뿐<br>**하면 안 됨**: 지금은 이미지를 보냈다고 말하기 | slot-preview-image.ts · host-schedule-image.ts |
-| M-6 | 셋업 완료, 정해진 주기 | (자동) 주간 보고 | 서비스 메시지: (구현 필요) 이번 주 확정 미팅, 결정이 필요한 요청, 주요 일정 요약 | **코드 미지원**: 구현 필요: 주간 보고 없음. 지금 정기 발송은 월요일 주간 메모 목록뿐 (H02 M-7)<br>**확인 필요**: 주기·내용·형식은 스토리에서 미정 | note-weekly-check.ts (현재 유일한 정기 발송) |
+| M-4 | 셋업 완료 | "내일 일정 뭐 있어?" (Google Calendar 전체) | AI 기대 동작: read_schedule(내일부터, days 1) → 내일 일정을 시간순으로, 확정된 미팅·다른 캘린더 일정·아직 확정되지 않은 요청을 구분해서 답함 | **코드 지원**: 대시보드처럼 호스트가 고른 Google Calendar(충돌 캘린더와 예약 대상)를 읽음; 확정된 미팅은 한 번만 나열<br>**분기**: Google Calendar를 읽지 못함 → 그렇게 말하고, Find Me a Time 미팅과 요청만 나열<br>**하면 안 됨**: 일정을 지어내기 · 호스트가 고르지 않은 캘린더 읽기 | agent/tools/setup.ts (read_schedule) · host-schedule.ts · host-dashboard.ts |
+| M-5 | 셋업 완료 | "이번 주 일정표 이미지로 보여줘" | AI 기대 동작: 이번 주 일정과 확정 미팅을 담은 일정표 이미지 한 장을 보냄 (다음 주 슬롯 이미지 코드 재사용) | **코드 미지원**: 구현 필요(#330 후속): 지금 이미지는 셋업 미리보기(다음 주 열린 시간)뿐. 일정표 이미지에는 자체 outbox 메시지 종류가 필요함. 모든 `image` 행이 최신 설정 미리보기(confirm_settings, 온보딩 메모 단계)로 읽히기 때문이며, 그동안 read_schedule이 글로 답함<br>**하면 안 됨**: 이미지를 보냈다고 말하기 | slot-preview-image.ts · imessage-outbox.ts |
 
 ### MCP · 현황 조회
 
@@ -269,7 +268,7 @@ host:read · host:write · host:decide
 | P-1 | 연결됨 | "결정해야 할 요청이랑 확정된 미팅 정리해줘" | AI 기대 동작: list_requests → 결정 대기와 확정을 나눠 정리, 필요하면 get_request로 세부 | **하면 안 됨**: booked가 아닌 것을 확정이라고 말하기<br>**코드 지원**: 코드 지원 | agent-host-tools.ts (list_requests, get_request) |
 | ↳ P-1.1 | 벗어난 입력. 호스트가 게스트로 보낸 요청이 있음 | "내가 보낸 요청도 알려줘" | AI 기대 동작: 보낸 요청을 받은 요청과 구분해서 상태로 알려줌 (기대값) | **코드 미지원**: 호스트 MCP의 list_requests는 받은 요청만. 보낸 요청은 그 요청을 만든 게스트용 연결의 get_request로만 볼 수 있음<br>**하면 안 됨**: 보낸 요청이 없다고 단정하기 | agent-host-tools.ts (list_requests) · agent-requester-tools.ts (get_request) |
 | P-2 | 예약이 진행 중 | "이거 예약 끝났어?" | AI 기대 동작: check_booking → 확정이면 확정, 아니면 진행 중이라고 답함 | **코드 지원**: 코드 지원 | agent-host-tools.ts (check_booking) |
-| P-3 | 연결됨 | "내 이번 주 일정 알려줘" | AI 기대 동작: (구현 필요) 호스트 Google Calendar 일정을 읽어 정리 | **코드 미지원**: 구현 필요: MCP에 캘린더 조회 도구 없음<br>**하면 안 됨**: 지금은 지어내서 답하기 | agent-host-tools.ts (HOST_TOOLS) |
+| P-3 | 연결됨 | "내 이번 주 일정 알려줘" | AI 기대 동작: get_schedule(이번 주 월요일, days 7) → 확정된 미팅, 다른 캘린더 일정, 결정할 요청을 구분해 정리 | **코드 지원**: get_schedule(host:read, 읽기 전용)이 read_schedule과 같은 라벨 항목을 반환<br>**하면 안 됨**: 지어내서 답하기 | agent-host-tools.ts (get_schedule) · host-schedule.ts |
 
 ## G01. 게스트 미팅 요청 및 시간 선택
 
@@ -591,7 +590,7 @@ G01 W-10.2~10.3에서 연결한 메신저
 | M-5 | M-4 알림이 방금 옴 | "승인해줘" | AI 기대 동작: 이은우 요청에 대한 호스트 결정으로 읽음(가장 최근 알림) → H03 M-2처럼 승인 | **AI 판단**: 맥락이 둘 다 맞음 → 사람 이름으로 구분해 한 번 물음("이은우님이 보낸 요청인가요, 박도현님께 보낸 요청인가요?")<br>**하면 안 됨**: 다른 역할의 요청을 승인하거나 동의<br>**코드와 다름**: 열린 대화가 여럿이면 보낸 사람이 하나를 고를 때까지 자유 입력을 보류함("Which conversation is this message for? …", `request <ref>`, "I'm the host"). 대화로 고르는 기능은 후속 항목(guest-flow-completion design 3) | imessage-receipts.ts:365-400 (namedConversation) · channel-texts.ts (picker) |
 | M-6 | @dodo에게 보낸 요청이 승인 대기 | (자동) @dodo가 승인, 변경 제안, 또는 거절 | 게스트 알림이 같은 대화로 오고 상대 호스트를 밝힘("박도현 approved: Thu 11/26 15:00 …") | **성공**: G03의 게스트 알림과 같은 내용<br>**코드와 다름**: 게스트 알림은 예약 페이지의 **Get updates in iMessage**와 연결 코드를 거친 뒤에만 메신저로 옴(guest-flow-completion design 1). 호스트 대화가 자동으로 연결되지 않음 | requester-imessage-bindings.ts · imessage-outbox.ts |
 | M-7 | @dodo에게 보낸 요청에 대해 대화 중 | "그리고 내 미팅은 45분으로 해줘" | AI 기대 동작: 호스트 설정(H02 M-3)으로 처리 → 미리보기 → 저장. @dodo에게 보낸 요청은 그대로 | **하면 안 됨**: @dodo 요청의 미팅 길이로 적용<br>**AI 판단**: "45분으로 해줘"("내 미팅" 없음) → 이 요청의 길이<br>**코드와 다름**: 전환하려면 선택이나 switch_conversation이 필요. 게스트 대화에는 setup 도구가 없음 | imessage-receipts.ts (guestRoute) · agent/tools/setup.ts |
-| M-8 | 받은 요청과 보낸 요청이 열려 있음 | "이번 주 내 미팅 뭐 있어?" | AI 기대 동작: 받은 요청과 보낸 요청을 나눠서 사람·목적·상태별로 나열("받은 요청: … / 보낸 요청: …") | **하면 안 됨**: 둘을 섞거나 보낸 요청을 빠뜨림<br>**코드 미지원**: list_host_requests는 받은 요청만 반환 | agent/tools/request.ts (list_host_requests) |
+| M-8 | 받은 요청과 보낸 요청이 열려 있음 | "이번 주 내 미팅 뭐 있어?" | AI 기대 동작: 받은 요청과 보낸 요청을 나눠서 사람·목적·상태별로 나열("받은 요청: … / 보낸 요청: …") | **하면 안 됨**: 둘을 섞거나 보낸 요청을 빠뜨림<br>**일부 코드 지원**: read_schedule이 이번 주 결정할 받은 요청, 확정된 미팅, 보낸 요청을 구분해 나열; list_host_requests는 받은 요청만 반환 | agent/tools/request.ts (list_host_requests) · host-schedule.ts |
 | ↳ M-8.1 | 벗어난 입력. 게스트 역할 | "박도현 목요일 일정 어때?" / "금요일은 왜 안 돼?" | AI 기대 동작: 그의 캘린더나 이유는 볼 수 없다고 말하고 가능한 시간을 제안 | **하면 안 됨**: 상대 호스트의 일정이나 규칙을 추측하거나 공개<br>**코드 지원**: 요청자 도구는 호스트 캘린더를 읽지 않음(G01) | agent/tools/request.ts (requester read_request) |
 | ↳ M-8.2 | 벗어난 입력. 게스트 역할 | @dodo의 어시스턴트가 묻거나 게스트-호스트가 "내 평소 시간대 알려줘"라고 함 | AI 기대 동작: 게스트-호스트가 이 요청에 대해 말한 것만 공유 | **하면 안 됨**: 게스트-호스트의 호스트 설정, 캘린더, 다른 요청을 @dodo에게 보냄<br>**코드 지원**: host-profile 데이터는 요청의 호스트에게 가지 않음(requester-host-profiles spec) | requester-host-profiles.ts:9-16 |
 
