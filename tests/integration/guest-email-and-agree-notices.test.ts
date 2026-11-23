@@ -1,17 +1,12 @@
 import { randomUUID } from "node:crypto";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
-import { REQUESTER_IMESSAGE_OPERATIONS } from "../../lib/contracts/requester-imessage";
 import { runCommand, type CommandDefinition } from "../../lib/server/commands";
 import { changeEmailCommand, issueContactConfirmation } from "../../lib/server/contact-confirmation";
 import { createImessageNoticeHandler } from "../../lib/server/imessage-notice-job";
 import { IMESSAGE_NOTICE_JOB } from "../../lib/server/imessage-notices";
 import { addressHash, resendLinkCommand } from "../../lib/server/link-resend";
 import { changeAgreementCommand } from "../../lib/server/request-proposals";
-import {
-  confirmRequesterImessageLinkCommand,
-  createRequesterImessageLinkCommand,
-  readRequesterImessageStatus,
-} from "../../lib/server/requester-imessage-links";
+import { createRequesterImessageLinkCommand, readRequesterImessageStatus } from "../../lib/server/requester-imessage-links";
 import { agreedRequest } from "./support/booking";
 import { testDatabase } from "./support/database";
 import { emailHarness } from "./support/email";
@@ -205,14 +200,13 @@ describe("replies to the guest's booking confirmation (#332)", () => {
 
 async function linkGuest(requestId: string) {
   const create = createRequesterImessageLinkCommand(linkOptions);
-  const confirm = confirmRequesterImessageLinkCommand(linkOptions);
   expect((await asGuest(requestId, create as CommandDefinition<unknown, unknown>, { number: "+15557654321" })).ok).toBe(true);
   const pending = await readRequesterImessageStatus(db, [testTokenKey], requestId, TEST_LINE, TEST_WHATSAPP_NUMBER);
   if (pending.state !== "pending") throw new Error(`Expected a pending code, got ${pending.state}.`);
   await im.deliver({ sender: newSender(), text: pending.message });
-  const received = await readRequesterImessageStatus(db, [testTokenKey], requestId, TEST_LINE, TEST_WHATSAPP_NUMBER);
-  if (received.state !== "received") throw new Error(`Expected a received code, got ${received.state}.`);
-  expect((await asGuest(requestId, confirm as CommandDefinition<unknown, unknown>, { linkId: received.linkId })).ok).toBe(true);
+  // The code links the chat as soon as it arrives (link-on-code, #383).
+  const linked = await readRequesterImessageStatus(db, [testTokenKey], requestId, TEST_LINE, TEST_WHATSAPP_NUMBER);
+  if (linked.state !== "linked") throw new Error(`Expected a linked chat, got ${linked.state}.`);
 }
 
 async function agreementNotices(requestId: string) {

@@ -72,7 +72,7 @@ async function sendPreview(call: SetupToolCall, host: SeededHost, changeSummary?
 }
 
 describe("default calendar roles", () => {
-  it.each(["imessage", "whatsapp"] as const)("saves a writable primary at %s link confirmation and publishes analysis", async channel => {
+  it.each(["imessage", "whatsapp"] as const)("saves a writable primary when the %s code links and publishes analysis", async channel => {
     const host = await seedHost(db, deps, google);
     await im.link(host.hostAccountId, undefined, channel);
     expect(await readCalendarRoles(db, host.hostAccountId)).toMatchObject({ revision: 1, bookingCalendar: { id: host.primaryId }, conflictCalendars: [{ id: host.primaryId }] });
@@ -90,7 +90,7 @@ describe("default calendar roles", () => {
     expect((await im.send(welcome!.id)).sent[0]?.content).toMatchObject({ text: `${SETUP_OVERVIEW.en}\n${channelReplies("en").onboarding.rolesNeeded}` });
   });
 
-  it("confirms the link and asks for roles when the grant cannot be decrypted", async () => {
+  it("links and asks for roles when the grant cannot be decrypted", async () => {
     const host = await seedHost(db, setupDependencies(db, google), google);
     await im.link(host.hostAccountId);
     expect(await im.bindingOf(host.hostAccountId)).toMatchObject({ state: "active" });

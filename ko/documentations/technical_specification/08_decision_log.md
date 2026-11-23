@@ -832,6 +832,20 @@ Dohyeon Park이 2026-11-16에 결정했으며, 2026-11-14 UAT 회의가 [이슈 
 | D5 | 예약하면 Supabase의 전역 범위로 모든 세션에서 로그아웃합니다 | 세션을 유지하고 취소 버튼 제공 | 설계 2 | `createAccountDeletionHandler` |
 | D6 | 채팅과 MCP 서버는 삭제하지 않고 `/app?settings=account`를 안내합니다 | 확인 절차를 거치는 삭제 도구 | 설계 6 | `agent/instructions/base.md`, `host-imessage.ts`, `lib/server/agent-mcp.ts` |
 
+## `link-on-code`
+
+[제안](../../openspec/changes/link-on-code/proposal.md#decisions)과 [설계](../../openspec/changes/link-on-code/design.md)는 이슈 #412(호스트 연결)와 #383(게스트의 Telegram 연결)에 대한 다음 선택을 기록합니다. 저장소 소유자가 2026-11-23에 D1을 정했고, D2~D5는 그 결정을 바탕으로 변경안을 작성한 세션에서 구체화했습니다. 이 선택들은 `host-imessage-channel` D3, D15, D19, `host-whatsapp-channel` D12, `host-telegram-channel` D13, `guest-flow-completion` D1, `guest-telegram-link` D3의 브라우저 확인 절차를 대체합니다.
+
+| # | 선택 | 대안 | 기록 위치 | 바꾸려면 |
+|---|---|---|---|---|
+| D1 | 시도한 채널의 직접 대화에서 온, 대기 중이며 만료되지 않은 코드는 도착하는 즉시 발신자를 바인딩합니다. iMessage, WhatsApp, Telegram의 호스트·게스트 시도 모두 같습니다. 메신저는 연결됨 메시지(아직 설정 중인 호스트에게는 설정으로 이어지는 환영 메시지)를 받고, 코드를 보여 준 페이지는 스스로 **연결됨(Linked)**으로 넘어갑니다. **Is this you?**, **Is this your Telegram?**, **Confirm and link**, **This isn't me**, 확인 명령은 없어집니다. 에이전트 주도 `/connect/link` 페이지는 연결되었다고만 알려 줍니다 | 브라우저로 한 번 더 돌아가야 하는 **Confirm and link** 유지; "브라우저로 돌아가세요"라고만 답하는 응답(#398에서도 기각) | 제안; 설계 1 | `lib/server/imessage-links.ts`, `lib/server/requester-imessage-links.ts`의 `receiveLinkCode` |
+| D2 | 복구: 연결됨 화면이 발신자를 알려 주고, 호스트에게는 **내 번호가 아님 — 연결 해제(Not my number — unlink)**(Telegram은 **내 Telegram이 아님 — 연결 해제(Not my Telegram — unlink)**)를, 게스트에게는 기존 **연결 해제(Unlink …)**를 제공하며, 이는 `imessage.unlink` 또는 `request.imessage_link.unlink`를 실행합니다. 그 뒤 새 코드를 만듭니다 | 연결할 때마다 게스트에게 이메일 보내기(#383의 제안), 나중으로 미룸 | 제안; 설계 2 | `apps/web/app/_components/ink/link-step.tsx`, `imessage/imessage-card.tsx`, `requester/cards.tsx` |
+| D3 | 확인 절차를 대신하는 장치: 코드는 한 번만 쓸 수 있고(사용되거나 무효화되거나 교체된 코드는 다시 연결되지 않음), 15분 동안 유효하며, 그 코드를 보여 준 로그인 계정, 요청 또는 시작 브라우저가 소유하고, 소유자당 시간당 5개로 제한되며, 그룹, 다른 채널, 다른 호스트가 보유한 발신자에게서 오면 무효화됩니다 | 더 짧은 만료 시간. 앱을 오가는 사람에게는 시간이 필요하고, 위험 구간은 본인이 코드를 보내기 전의 시간뿐이기 때문 | 제안; 설계 3 | `lib/server/imessage-links.ts`의 `IMESSAGE_LINK_LIMITS` |
+| D4 | 연결됨 화면은 번호를 `•••• 1234`로, Apple ID 이메일은 전체로, Telegram 발신자는 이름과 @username으로 보여 줍니다. 로그인 전 iMessage 시작 화면은 여전히 발신자를 전체로 보여 줍니다 | 번호 전체. #118이 이를 원한 것은 확인 전에 본인이 점검하게 하려는 것뿐이었음 | 제안; 설계 4 | `lib/contracts/imessage.ts`의 `maskedSender` |
+| D5 | 아직 호스트가 없는 랜딩의 iMessage 시작에서 온 코드는 `received`로 기록합니다. 그 브라우저에서의 Google 로그인(`claimStartedLink`) 또는 Thyme의 로그인 링크(`claimContinuedLink`)가 `bindReceivedAttempt`로 이를 바인딩하며, 코드가 아직 도착하지 않은 시작은 호스트의 대기 중 시도가 됩니다 | 계정이 아직 없는데 호스트 없이 바인딩 | 제안; 설계 5 | `lib/server/imessage-start.ts`, `lib/server/imessage-links.ts`의 `bindReceivedAttempt` |
+
+D1과 D3과 함께 감수하는 남은 위험: 코드의 주인이 보내기 전에 코드가 유출되면(어깨너머로 본 화면, 전달된 스크린샷, 복사된 시작 링크나 QR 코드) 가장 먼저 보낸 사람이 연결됩니다. 게스트라면 그 발신자가 요청의 업데이트를 받고 게스트로서 답장할 수 있는데, 이는 예약 링크를 가진 사람이 이미 웹에서 할 수 있는 일입니다. 호스트라면 호스트가 연결을 해제할 때까지 그 번호가 메신저에서 미팅 승인을 포함해 호스트를 대신해 행동할 수 있습니다. 페이지는 잘못된 발신자의 마지막 네 자리 또는 이름을 즉시 보여 주고, **내 번호가 아님 — 연결 해제(Not my number — unlink)**가 바인딩을 끝내며, 이후 호스트가 옛 코드로 보낸 본인의 메시지는 거절 응답을 받고, 새 코드가 올바른 번호를 연결합니다.
+
 ## `place-settles-in-person`
 
 [제안서](../../openspec/changes/place-settles-in-person/proposal.md)는 이슈 #378에 대한 이 선택을 기록합니다. 저장소 소유자가 2026-11-23에 이슈에서 정했으며, #280을 위해 `guest-assistant-story-fixes`(PR #357)가 추가한 규칙을 뒤집습니다.

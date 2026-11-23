@@ -64,7 +64,6 @@ export function requesterBindingName(keys: readonly TokenKey[], binding: Pick<Re
 }
 
 export const REQUESTER_LINK_TEXTS = {
-  received: "Got it. Go back to your booking page in your browser and tap Confirm and link to finish.",
   linked: (host: string) =>
     `Linked. You'll get updates about your request with ${host} here, and you can reply here to keep talking with Thyme. Your booking link stays in your email.`,
 } as const;
