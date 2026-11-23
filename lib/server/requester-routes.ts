@@ -44,7 +44,7 @@ import { createEmailLinkCommand, readEmailLinkStatus, unlinkEmailCommand } from 
 import { internalSigningKey } from "./internal-bearer";
 import { findReadyHostByHandle } from "./readiness";
 import { withdrawRequestCommand } from "./request-lifecycle";
-import { cancelBookingCommand, changeBookingCommand } from "./booking-cancellation";
+import { CHANGE_BOOKING_OPERATION, cancelBookingCommand, changeBookingCommand } from "./booking-cancellation";
 import {
   agreeCommand,
   allowTripCommand,
@@ -167,10 +167,15 @@ export async function openRequester(db: Database, bookingId: string): Promise<Gu
 // Who reopened an agreed request that is back to choosing a time (#321). A
 // host's shared change moves the request to negotiating when it is shared
 // (shared-changes.ts), so a share still checking, or shared or rejected after
-// the latest agreement, means the host reopened it; otherwise the requester's
-// Change did (guest-flow-completion D10). Null before any agreement.
+// the latest agreement, means the host reopened it. A booked meeting is
+// reopened by booking.change from either side, which records no row of its
+// own, so its saved command outcome names the side: the first one after the
+// latest agreement is the one that moved it (a later one while already open
+// is a no-op). Outcomes are kept 30 days and a change lasts at most 7
+// (booking-cancellation.ts). Otherwise the requester's Change did
+// (guest-flow-completion D10). Null before any agreement.
 async function readReopenedBy(db: Queryable, requestId: string): Promise<"host" | "requester" | null> {
-  const [row] = await db<{ agreed_at: Date | null; host: boolean }[]>`
+  const [row] = await db<{ agreed_at: Date | null; changed_by: string | null; shared: boolean }[]>`
     with agreed as (
       select max(a.agreed_at) as agreed_at
       from app.agreements a join app.proposals p on p.id = a.proposal_id
@@ -182,11 +187,18 @@ async function readReopenedBy(db: Queryable, requestId: string): Promise<"host" 
              where d.request_id = ${requestId}
                and d.state in ('checking', 'shared', 'rejected')
                and coalesce(d.resolved_at, 'infinity'::timestamptz) > agreed.agreed_at
-           ) as host
+           ) as shared,
+           (
+             select split_part(c.actor, ':', 1) from app.command_outcomes c
+             where c.operation = ${CHANGE_BOOKING_OPERATION} and c.resource_id = ${requestId}
+               and c.created_at > agreed.agreed_at
+             order by c.created_at
+             limit 1
+           ) as changed_by
     from agreed
   `;
   if (!row?.agreed_at) return null;
-  return row.host ? "host" : "requester";
+  return row.shared || row.changed_by === "host_account" ? "host" : "requester";
 }
 
 export async function readRequesterView(
