@@ -1,4 +1,6 @@
 import { z } from "zod";
+import { SCHEDULE_IMAGE_MAX_DAYS, type ScheduleImage, type ScheduleImageDay, type ScheduleImageKind } from "../contracts/schedule-image";
+import { WEEKDAYS } from "../contracts/setup";
 import { addDays, currentTime, displayTime, instantFromLocal, localDate, weekOf } from "../contracts/timezone";
 import type { Queryable } from "./database";
 import { encodeDisplayName } from "./entry-documents";
@@ -17,7 +19,7 @@ import { requestRef } from "./request-ref";
 export const SCHEDULE_MAX_DAYS = 31;
 const DEFAULT_DAYS = 7;
 
-const localDateSchema = z
+export const localDateSchema = z
   .string()
   .regex(/^\d{4}-\d{2}-\d{2}$/)
   .refine((value) => !Number.isNaN(Date.parse(`${value}T00:00:00Z`)) && new Date(`${value}T00:00:00Z`).toISOString().startsWith(value), "Not a calendar date.");
@@ -44,9 +46,13 @@ export function scheduleRange(input: ReadScheduleInput, timeZone: string, now: D
   const from = input.from ?? localDate(now, timeZone);
   const days = input.days ?? DEFAULT_DAYS;
   const until = addDays(from, days);
-  // Midnight exists on nearly every date; a zone that skips it starts the day an hour later.
-  const bound = (date: string) => new Date(instantFromLocal(date, "00:00", timeZone) ?? instantFromLocal(date, "01:00", timeZone) ?? `${date}T00:00:00Z`);
-  return { from, last: addDays(until, -1), start: bound(from), end: bound(until) };
+  return { from, last: addDays(until, -1), start: dayStart(from, timeZone), end: dayStart(until, timeZone) };
+}
+
+// The instant a local day starts. Midnight exists on nearly every date; a zone
+// that skips it starts the day an hour later.
+function dayStart(date: string, timeZone: string) {
+  return new Date(instantFromLocal(date, "00:00", timeZone) ?? instantFromLocal(date, "01:00", timeZone) ?? `${date}T00:00:00Z`);
 }
 
 export const SCHEDULE_DATA_NOTE =
@@ -147,4 +153,107 @@ export async function readHostSchedule(
   const range = scheduleRange(input, await hostTimeZone(db, hostAccountId), now);
   const data = await readHostDashboard(db, calendar, hostAccountId, { end: range.end, start: range.start });
   return scheduleForModel(data, range, now);
+}
+
+// The schedule image (messenger-schedule-image design 2): the same Dashboard
+// projection for up to a week, laid out by local day for the picture. A timed
+// event is cut at each midnight it crosses; an all-day event is listed on each
+// day it covers. Titles stay as the calendar has them, since only the host sees
+// the picture; the renderer drops what its fonts cannot draw.
+
+export const scheduleImageToolInput = z
+  .object({
+    from: localDateSchema
+      .optional()
+      .describe("The first day to draw, YYYY-MM-DD in the host's timezone. Leave it out for today. For this week, pass this week's Monday from read_schedule's current."),
+    days: z
+      .number()
+      .int()
+      .min(1)
+      .max(SCHEDULE_IMAGE_MAX_DAYS)
+      .optional()
+      .describe(`How many days to draw from \`from\`, 1 to ${SCHEDULE_IMAGE_MAX_DAYS}. Leave it out for 7.`),
+  })
+  .strict();
+
+export type ScheduleImageInput = z.infer<typeof scheduleImageToolInput>;
+
+const MAX_TITLE = 80;
+const DEFAULT_GRID = { start: 9 * 60, end: 18 * 60 };
+
+function weekdayOf(date: string) {
+  return WEEKDAYS[(new Date(`${date}T00:00:00Z`).getUTCDay() + 6) % 7]!;
+}
+
+function localClock(instant: Date, timeZone: string) {
+  return new Intl.DateTimeFormat("en-GB", { hour: "2-digit", hourCycle: "h23", minute: "2-digit", timeZone }).format(instant);
+}
+
+function clockMinutes(clock: string) {
+  const [hour, minute] = clock.split(":").map(Number);
+  return hour! * 60 + minute!;
+}
+
+function hourClock(minute: number) {
+  return `${String(Math.floor(minute / 60)).padStart(2, "0")}:00`;
+}
+
+const shortTitle = (title: string) => (title.length > MAX_TITLE ? `${title.slice(0, MAX_TITLE - 1)}…` : title);
+
+export function scheduleImageOf(data: DashboardData, range: { from: string; last: string }): ScheduleImage {
+  const timeZone = data.timeZone;
+  const dates: string[] = [];
+  for (let date = range.from; date <= range.last; date = addDays(date, 1)) dates.push(date);
+  // By instant: Google keeps each event's own offset, so the strings do not sort by time.
+  const ordered = [...data.events].sort((a, b) => Date.parse(a.start) - Date.parse(b.start));
+
+  const days: ScheduleImageDay[] = dates.map((date) => {
+    const opens = dayStart(date, timeZone);
+    const closes = dayStart(addDays(date, 1), timeZone);
+    const allDay = ordered
+      .filter((event) => event.allDay && event.start.slice(0, 10) <= date && date < event.end.slice(0, 10))
+      .map((event) => ({ kind: KINDS[event.source] as ScheduleImageKind, title: shortTitle(event.title) }));
+    const entries = ordered.flatMap((event) => {
+      if (event.allDay) return [];
+      const start = new Date(event.start);
+      const end = new Date(event.end);
+      if (!(start < closes && end > opens)) return [];
+      return [{
+        end: end < closes ? localClock(end, timeZone) : "24:00",
+        kind: KINDS[event.source] as ScheduleImageKind,
+        start: start > opens ? localClock(start, timeZone) : "00:00",
+        title: shortTitle(event.title),
+      }];
+    });
+    // Same-format local clocks ("HH:MM", "24:00") sort by time, which the lane layout needs.
+    entries.sort((x, y) => x.start.localeCompare(y.start) || x.end.localeCompare(y.end));
+    return { allDay, date, entries, weekday: weekdayOf(date) };
+  });
+
+  const timed = days.flatMap((day) => day.entries);
+  const first = Math.min(DEFAULT_GRID.start, ...timed.map((entry) => clockMinutes(entry.start)));
+  const last = Math.max(DEFAULT_GRID.end, ...timed.map((entry) => (entry.end === "24:00" ? 1440 : clockMinutes(entry.end))));
+  const gridEnd = Math.min(1440, Math.ceil(last / 60) * 60);
+  return {
+    days,
+    from: range.from,
+    googleCalendar: data.googleWarning ? "unavailable" : "read",
+    grid: { end: gridEnd === 1440 ? "24:00" : hourClock(gridEnd), start: hourClock(Math.floor(first / 60) * 60) },
+    through: range.last,
+    timezone: timeZone,
+  };
+}
+
+// Reads the host's schedule for the picture, and the same entries as the model
+// reads them so the reply can say them in words. Nothing is written.
+export async function readHostScheduleImage(
+  db: Queryable,
+  calendar: GoogleCalendarDependencies,
+  hostAccountId: string,
+  input: ScheduleImageInput,
+  now: Date = new Date(),
+) {
+  const range = scheduleRange({ days: input.days ?? SCHEDULE_IMAGE_MAX_DAYS, ...(input.from ? { from: input.from } : {}) }, await hostTimeZone(db, hostAccountId), now);
+  const data = await readHostDashboard(db, calendar, hostAccountId, { end: range.end, start: range.start });
+  return { image: scheduleImageOf(data, range), schedule: scheduleForModel(data, range, now) };
 }

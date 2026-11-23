@@ -1,4 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
+import type { ScheduleImage } from "../contracts/schedule-image";
 import type { SlotPreview } from "../contracts/slot-preview";
 import { channelReplies } from "./channel-texts";
 import { channelHash } from "./photon-receiver";
@@ -421,6 +422,48 @@ describe("telegramTransport with the slot preview", () => {
     expect(await telegramTransport(limited, wait, render).send(request)).toEqual({ retryAfterSeconds: 4, status: "unavailable" });
     const lost = { endpoint: "x", send: async () => ({ status: "uncertain" as const }) };
     expect(await telegramTransport(lost, wait, render).send(request)).toEqual({ status: "uncertain" });
+  });
+});
+
+describe("telegramTransport with the schedule image", () => {
+  const schedule: ScheduleImage = {
+    days: [{ allDay: [], date: "2026-11-23", entries: [{ end: "11:00", kind: "booked_meeting", start: "10:00", title: "Coffee" }], weekday: "monday" }],
+    from: "2026-11-23",
+    googleCalendar: "read",
+    grid: { end: "18:00", start: "09:00" },
+    through: "2026-11-23",
+    timezone: "Asia/Seoul",
+  };
+  const request = { channel: "telegram" as const, content: { kind: "schedule_image" as const, schedule }, idempotencyKey: "o2", recipient: { address: "42", spaceId: "42" } };
+  const png = Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]);
+  const wait = async () => undefined;
+  const slot = async () => png;
+
+  it("sends the picture alone with sendPhoto and keeps its ID", async () => {
+    const sent: unknown[] = [];
+    const client = { endpoint: "x", send: async (call: unknown) => (sent.push(call), { result: { message_id: 51 }, status: "accepted" as const }) };
+    const render = vi.fn(async () => png);
+
+    expect(await telegramTransport(client, wait, slot, render).send(request)).toEqual({ messageId: "51", spaceId: "42", status: "accepted" });
+    expect(render).toHaveBeenCalledWith(schedule);
+    expect(sent).toEqual([{ file: { data: png, field: "photo", mimeType: "image/png", name: "schedule-2026-11-23.png" }, method: "sendPhoto", params: { chat_id: "42" } }]);
+  });
+
+  it("sends nothing when the picture cannot be drawn", async () => {
+    const sent: unknown[] = [];
+    const client = { endpoint: "x", send: async (call: unknown) => (sent.push(call), { result: { message_id: 52 }, status: "accepted" as const }) };
+    const broken = async () => Promise.reject(new Error("no fonts"));
+
+    expect(await telegramTransport(client, wait, slot, broken).send(request)).toEqual({ category: "render_failed", status: "rejected" });
+    expect(sent).toEqual([]);
+  });
+
+  it("passes on Telegram's refusals and lost answers", async () => {
+    const render = async () => png;
+    const blocked = { endpoint: "x", send: async () => ({ category: "blocked" as const, status: "rejected" as const }) };
+    expect(await telegramTransport(blocked, wait, slot, render).send(request)).toEqual({ category: "blocked", status: "rejected" });
+    const lost = { endpoint: "x", send: async () => ({ status: "uncertain" as const }) };
+    expect(await telegramTransport(lost, wait, slot, render).send(request)).toEqual({ status: "uncertain" });
   });
 });
 

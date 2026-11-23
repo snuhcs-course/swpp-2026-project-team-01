@@ -11,8 +11,8 @@ import {
 } from "../../lib/server/note-weekly-check";
 import { tutorialChoiceInput } from "../../lib/server/host-tutorial";
 import { setupDependenciesFromEnvironment } from "../../lib/server/setup";
-import { readScheduleToolInput } from "../../lib/server/host-schedule";
-import { chooseTutorialForTool, confirmSettingsForTool, confirmSettingsToolInput, listHostRequestsForSetupTool, readScheduleForSetupTool, setCalendarRolesForTool, setCalendarRolesToolInput, previewNextWeekForTool, previewNextWeekToolInput } from "../../lib/server/setup-channel-tools";
+import { readScheduleToolInput, scheduleImageToolInput } from "../../lib/server/host-schedule";
+import { chooseTutorialForTool, confirmSettingsForTool, confirmSettingsToolInput, listHostRequestsForSetupTool, readScheduleForSetupTool, sendScheduleImageForTool, setCalendarRolesForTool, setCalendarRolesToolInput, previewNextWeekForTool, previewNextWeekToolInput } from "../../lib/server/setup-channel-tools";
 import {
   draftSettingsForTool,
   draftSettingsToolInput,
@@ -83,6 +83,17 @@ export default defineDynamic({
               inputSchema: readScheduleToolInput,
               execute: (input, toolCtx) =>
                 readScheduleForSetupTool(setupDependenciesFromEnvironment(), {
+                  auth: toolCtx.session.auth.current,
+                  callId: toolCtx.callId,
+                  sessionId: toolCtx.session.id,
+                }, input),
+            }),
+            send_schedule_image: defineTool({
+              description:
+                "Send the host's schedule for up to a week as one picture in their linked iMessage, WhatsApp or Telegram: booked meetings, other Google Calendar events, requests to decide and sent requests, coloured by kind. Use it only when the host asks to see their schedule as an image or picture (\"show me this week as an image\", \"일정 사진으로 보여줘\"); otherwise answer with read_schedule. It returns the same entries as read_schedule for the reply in words. It is not the open-times preview and never changes settings.",
+              inputSchema: scheduleImageToolInput,
+              execute: (input, toolCtx) =>
+                sendScheduleImageForTool(setupDependenciesFromEnvironment(), {
                   auth: toolCtx.session.auth.current,
                   callId: toolCtx.callId,
                   sessionId: toolCtx.session.id,

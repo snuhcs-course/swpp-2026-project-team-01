@@ -1,6 +1,8 @@
+import type { ScheduleImage } from "../contracts/schedule-image";
 import type { SlotPreview } from "../contracts/slot-preview";
 import type { ChannelLanguage } from "./channel-language";
 import { channelReplies } from "./channel-texts";
+import { renderScheduleImagePng } from "./schedule-image";
 import { renderSlotPreviewPng } from "./slot-preview-image";
 import { E164_NUMBER } from "../contracts/imessage";
 import { type StoredChannel, whatsappOffered } from "../contracts/messaging-channel";
@@ -54,6 +56,9 @@ export const MAX_BUTTONS = 3;
 
 export type PhotonContent =
   | { readonly kind: "image"; readonly preview: SlotPreview; readonly language: ChannelLanguage; readonly summary?: string }
+  // The host's schedule as one picture with no text of its own (messenger-schedule-image
+  // design 4); the turn's reply says it in words.
+  | { readonly kind: "schedule_image"; readonly schedule: ScheduleImage }
   // Buttons only on WhatsApp, inside the window (the outbox decides). On
   // Telegram (host-telegram-channel design 7 and 8): the row's inline keyboard,
   // and silent delivery for a notice that needs nothing.
@@ -88,7 +93,9 @@ export type PhotonRejection =
   | "undeliverable"
   | "template_unavailable"
   // Telegram (host-telegram-channel D11): the user blocked or deleted the bot.
-  | "blocked";
+  | "blocked"
+  // The schedule image could not be drawn, so nothing was sent (messenger-schedule-image design 4).
+  | "render_failed";
 
 export type PhotonSendResult =
   | { readonly status: "accepted"; readonly messageId: string | null; readonly spaceId: string | null }
@@ -239,6 +246,20 @@ export async function sendInParts<Part>(
   return accepted ?? { status: "unavailable" };
 }
 
+// The schedule image's PNG, or null when it cannot be drawn: then nothing is
+// sent, since the turn's reply already says the schedule in words.
+export async function schedulePng(schedule: ScheduleImage, render: typeof renderScheduleImagePng = renderScheduleImagePng) {
+  try {
+    return await render(schedule);
+  } catch {
+    return null;
+  }
+}
+
+export function scheduleAttachment(schedule: ScheduleImage) {
+  return { mimeType: "image/png", name: `schedule-${schedule.from}.png` };
+}
+
 function withTimeout<T>(work: Promise<T>, ms: number) {
   return Promise.race([
     work,
@@ -305,6 +326,14 @@ export function spectrumTransport(config: Pick<PhotonConfig, "projectId" | "proj
             if (message && reaction) await withTimeout(message.react(reaction), SEND_TIMEOUT_MS);
             if (typing) await withTimeout(space.startTyping(), SEND_TIMEOUT_MS);
             return { messageId: null, spaceId: space.id, status: "accepted" };
+          }
+
+          if (request.content.kind === "schedule_image") {
+            const png = await schedulePng(request.content.schedule);
+            if (!png) return { category: "render_failed", status: "rejected" };
+            const { attachment } = await import("@spectrum-ts/core");
+            const sent = await withTimeout(space.send(attachment(png, scheduleAttachment(request.content.schedule))), SEND_TIMEOUT_MS);
+            return { messageId: sent?.id ?? null, spaceId: space.id, status: "accepted" };
           }
 
           if (request.content.kind === "image") {
@@ -381,6 +410,13 @@ async function sendWhatsApp(config: Pick<PhotonConfig, "projectId" | "projectSec
     }
 
     try {
+      if (content.kind === "schedule_image") {
+        const png = await schedulePng(content.schedule);
+        if (!png) return { category: "render_failed", status: "rejected" };
+        const { attachment } = await import("@spectrum-ts/core");
+        const sent = await withTimeout(space.send(attachment(png, scheduleAttachment(content.schedule))), SEND_TIMEOUT_MS);
+        return { messageId: sent?.id ?? null, spaceId: space.id, status: "accepted" };
+      }
       if (content.kind === "image") {
         const { preview, language, summary = channelReplies(language).onboarding.slotSummary(preview) } = content;
         let png: Buffer;
