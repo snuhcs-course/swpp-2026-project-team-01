@@ -1003,11 +1003,14 @@ export function AwaitingCard({ context }: { readonly context: RequesterCardConte
     return <BookingLine context={context} />;
   }
 
-  // Changed with Change before the host approved (D10): the wait is over.
+  // Reopened before the host approved: the wait is over. The line names who
+  // did it (#321): the host's shared change, or the guest's Change (D10).
   if (context.view.request.state === "gathering" || context.view.request.state === "negotiating") {
     return (
       <p className="px-1 text-sm text-muted-foreground" data-guest-receipt="status" role="status">
-        You reopened the agreed time to change it · nothing is booked yet
+        {context.view.reopenedBy === "host"
+          ? `${context.view.host.displayName} suggested another time · nothing is booked yet`
+          : "You reopened the agreed time to change it · nothing is booked yet"}
       </p>
     );
   }

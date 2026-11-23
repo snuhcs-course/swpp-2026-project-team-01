@@ -164,6 +164,31 @@ export async function openRequester(db: Database, bookingId: string): Promise<Gu
 // ---------------------------------------------------------------------------
 // The requester view
 
+// Who reopened an agreed request that is back to choosing a time (#321). A
+// host's shared change moves the request to negotiating when it is shared
+// (shared-changes.ts), so a share still checking, or shared or rejected after
+// the latest agreement, means the host reopened it; otherwise the requester's
+// Change did (guest-flow-completion D10). Null before any agreement.
+async function readReopenedBy(db: Queryable, requestId: string): Promise<"host" | "requester" | null> {
+  const [row] = await db<{ agreed_at: Date | null; host: boolean }[]>`
+    with agreed as (
+      select max(a.agreed_at) as agreed_at
+      from app.agreements a join app.proposals p on p.id = a.proposal_id
+      where p.request_id = ${requestId}
+    )
+    select agreed.agreed_at,
+           exists (
+             select 1 from app.shared_change_drafts d
+             where d.request_id = ${requestId}
+               and d.state in ('checking', 'shared', 'rejected')
+               and coalesce(d.resolved_at, 'infinity'::timestamptz) > agreed.agreed_at
+           ) as host
+    from agreed
+  `;
+  if (!row?.agreed_at) return null;
+  return row.host ? "host" : "requester";
+}
+
 export async function readRequesterView(
   db: Queryable,
   requestId: string,
@@ -225,6 +250,7 @@ export async function readRequesterView(
   const proposal = await readCurrentProposal(db, requestId);
   const evaluation = await readCurrentEvaluation(db, requestId);
   const view: OpenRequesterView = {
+    reopenedBy: row.state === "gathering" || row.state === "negotiating" ? await readReopenedBy(db, requestId) : null,
     agreement: proposal?.agreement ?? null,
     booking,
     confirmation: await readConfirmationStatus(db, requestId, options.confirmationLimits),
