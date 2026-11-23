@@ -189,7 +189,7 @@ export function createTokenHandler(load: () => AgentOAuthDependencies = agentOAu
     // document client shares among everyone who uses it (design 12).
     const credential = grantType === "authorization_code" ? code! : refreshToken!;
     try {
-      await admitAttempt(deps.db, "token", tokenBounds({ clientId, credential, source: sourceHash(deps.tokenKey(), request) }));
+      await admitAttempt(deps.db, "token", tokenBounds({ clientId, credential }));
     } catch (error) {
       if (error instanceof AttemptLimitError) {
         return oauthError("temporarily_unavailable", "Too many token requests. Try again later.", 429, { "retry-after": String(error.retryAfterSeconds) });

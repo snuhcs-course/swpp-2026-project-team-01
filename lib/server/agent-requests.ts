@@ -8,7 +8,7 @@ import { CommandError, commandFailure, type CommandContext } from "./commands";
 import type { Database, Transaction } from "./database";
 import { lockOpenRequest, hostAcceptsRequests } from "./request-guard";
 import { localPatchSchema, updateDetailsCommand } from "./request-reviews";
-import { admitCreation, CREATION_LIMITS, type CreationLimits, identifyDraft, insertDraftRequest } from "./request-start";
+import { admitCreation, type CreationLimits, identifyDraft, insertDraftRequest, NETWORK_CREATION_LIMITS } from "./request-start";
 import type { TokenKey } from "./token-encryption";
 
 // The one-future-request grant (agent-access D12, the agent-client-authorization
@@ -57,7 +57,7 @@ export async function createRequestForGrant(
   input: CreateRequestInput,
 ): Promise<CreateRequestOutcome> {
   const correlationId = randomUUID();
-  const limits = { ...CREATION_LIMITS, ...deps.limits };
+  const limits = { ...NETWORK_CREATION_LIMITS, ...deps.limits };
 
   try {
     return (await deps.db.begin(async (tx) => {

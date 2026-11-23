@@ -7,7 +7,7 @@ import { type AgentTool, type AgentToolContext, commandError, retryKeySchema, ru
 import { CommandError, type CommandDefinition } from "./commands";
 import { findReadyHostByHandle } from "./readiness";
 import { hostAcceptsRequests } from "./request-guard";
-import { admitCreation, CREATION_LIMITS } from "./request-start";
+import { admitCreation, NETWORK_CREATION_LIMITS } from "./request-start";
 
 const hostHandle = z.string().transform(normalizeHandle).refine(isUsableHandle, "Not a host handle.");
 const createInput = createRequestInput.omit({ retryKey: true }).extend({ hostHandle });
@@ -48,7 +48,7 @@ function createCommand(context: AgentToolContext): CommandDefinition<z.infer<typ
           access.hostAccountId !== command.actor.id || !access.scopes.includes("request:write")) throw new CommandError("forbidden");
       const host = await findReadyHostByHandle(tx, command.input.hostHandle);
       if (!host || host.hostAccountId === command.actor.id || !(await hostAcceptsRequests(tx, host.hostAccountId))) throw new CommandError("forbidden");
-      await admitCreation(tx, access.sourceHash, CREATION_LIMITS);
+      await admitCreation(tx, access.sourceHash, NETWORK_CREATION_LIMITS);
       const requestId = await createIdentifiedAgentRequest(tx, {
         origin: context.deps.origin, tokenKey: context.deps.tokenKey(),
       }, host.hostAccountId, access.sourceHash, command.input, command);

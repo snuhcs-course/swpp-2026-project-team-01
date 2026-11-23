@@ -38,7 +38,9 @@ import type { TokenKey } from "./token-encryption";
 export const START_REQUEST_OPERATION = "request.start";
 export const IDENTIFY_REQUEST_OPERATION = "request.identify";
 
-// Drafts created per keyed source address and service-wide (D7).
+// Drafts created per keyed source and service-wide (D7). The source is a network
+// address on the web page and an agent grant, and a contact email address on the
+// email and revision paths.
 export const CREATION_LIMITS = {
   perSourceHour: 5,
   perSourceDay: 20,
@@ -46,6 +48,16 @@ export const CREATION_LIMITS = {
 } as const;
 
 export type CreationLimits = { readonly [Key in keyof typeof CREATION_LIMITS]: number };
+
+// The bounds where the source is a network address. Hotfix 2026-11-23: no bound counts a network (source) address any more. People on one
+// shared network (a campus, an office or a carrier NAT) present one address, so a
+// per-address bound blocked them all at once.
+// Email-keyed and service-wide bounds stay.
+export const NETWORK_CREATION_LIMITS: CreationLimits = {
+  ...CREATION_LIMITS,
+  perSourceHour: Number.POSITIVE_INFINITY,
+  perSourceDay: Number.POSITIVE_INFINITY,
+};
 
 export const DRAFT_LIMITS = {
   lifetimeHours: 24,
@@ -101,7 +113,7 @@ export function startRequestCommand(options: {
   readonly sourceHash: string;
   readonly limits?: Partial<CreationLimits>;
 }): CommandDefinition<StartRequestInput, StartRequestResult> {
-  const limits = { ...CREATION_LIMITS, ...options.limits };
+  const limits = { ...NETWORK_CREATION_LIMITS, ...options.limits };
 
   return {
     input: startRequestInput,

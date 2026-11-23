@@ -38,52 +38,34 @@ async function admitted(db: Database, kind: "registration" | "token", bounds: Re
 }
 
 const CLAUDE_CLIENT = "https://claude.ai/oauth/mcp-oauth-client-metadata";
-const CLAUDE_EGRESS = "source-hash-of-a-shared-egress";
 
 describe("token bounds", () => {
   it("does not cap everyone who shares a metadata document client ID and an egress address at one client's bound", async () => {
     const db = attemptsTable();
-    // More people than the former bound of 60 per client per minute, each
-    // redeeming or refreshing their own credential.
     for (let person = 0; person < 200; person += 1) {
-      expect(await admitted(db, "token", tokenBounds({ clientId: CLAUDE_CLIENT, credential: `refresh-${person}`, source: CLAUDE_EGRESS }))).toBe(true);
+      expect(await admitted(db, "token", tokenBounds({ clientId: CLAUDE_CLIENT, credential: `refresh-${person}` }))).toBe(true);
     }
   });
 
   it("still bounds repeated attempts with one credential", async () => {
     const db = attemptsTable();
-    const bounds = tokenBounds({ clientId: CLAUDE_CLIENT, credential: "one-refresh-token", source: CLAUDE_EGRESS });
+    const bounds = tokenBounds({ clientId: CLAUDE_CLIENT, credential: "one-refresh-token" });
     for (let attempt = 0; attempt < AGENT_LIMITS.tokenPerCredential.limit; attempt += 1) expect(await admitted(db, "token", bounds)).toBe(true);
     expect(await admitted(db, "token", bounds)).toBe(false);
 
     // Another person's credential under the same client is unaffected.
-    expect(await admitted(db, "token", tokenBounds({ clientId: CLAUDE_CLIENT, credential: "another-refresh-token", source: CLAUDE_EGRESS }))).toBe(true);
+    expect(await admitted(db, "token", tokenBounds({ clientId: CLAUDE_CLIENT, credential: "another-refresh-token" }))).toBe(true);
   });
 
-  it("bounds one source across credentials and client IDs", async () => {
-    const db = attemptsTable();
-    for (let attempt = 0; attempt < AGENT_LIMITS.tokenPerSource.limit; attempt += 1) {
-      expect(await admitted(db, "token", tokenBounds({ clientId: `client-${attempt}`, credential: `guess-${attempt}`, source: "one-source" }))).toBe(true);
-    }
-    expect(await admitted(db, "token", tokenBounds({ clientId: "client-next", credential: "guess-next", source: "one-source" }))).toBe(false);
-    expect(await admitted(db, "token", tokenBounds({ clientId: "client-next", credential: "guess-next", source: "another-source" }))).toBe(true);
+  it("counts no source address", () => {
+    expect(tokenBounds({ clientId: CLAUDE_CLIENT, credential: "c" }).map((entry) => entry.key)).toEqual([`credential:${CLAUDE_CLIENT}:c`]);
   });
 });
 
 describe("registration bounds", () => {
-  it("leaves a shared egress room beyond the former 10 per hour and still bounds it", async () => {
+  it("counts only the service-wide bound, never a source address", async () => {
+    expect(registrationBounds()).toEqual([{ bound: AGENT_LIMITS.registrationService, key: "service" }]);
     const db = attemptsTable();
-    expect(AGENT_LIMITS.registrationPerSource.limit).toBeGreaterThan(10);
-    for (let index = 0; index < AGENT_LIMITS.registrationPerSource.limit; index += 1) {
-      expect(await admitted(db, "registration", registrationBounds(CLAUDE_EGRESS))).toBe(true);
-    }
-    expect(await admitted(db, "registration", registrationBounds(CLAUDE_EGRESS))).toBe(false);
-    expect(await admitted(db, "registration", registrationBounds("another-source"))).toBe(true);
-  });
-
-  it("keeps the service-wide bound across sources", () => {
-    expect(registrationBounds("a").find((entry) => entry.bound === AGENT_LIMITS.registrationService)?.key).toBe(
-      registrationBounds("b").find((entry) => entry.bound === AGENT_LIMITS.registrationService)?.key,
-    );
+    for (let index = 0; index < 100; index += 1) expect(await admitted(db, "registration", registrationBounds())).toBe(true);
   });
 });

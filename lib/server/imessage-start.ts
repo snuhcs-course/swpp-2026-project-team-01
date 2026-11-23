@@ -38,11 +38,14 @@ import { openToken, sealToken, type TokenKey } from "./token-encryption";
 export const START_COOKIE = "fmat_imessage_start";
 const START_COOKIE_SECONDS = 30 * 60;
 
-export const IMESSAGE_START_LIMITS = {
-  // Starts per source address, and across the service, per rolling hour.
-  perSourceHour: 5,
+// Starts per source address, and across the service, per rolling hour.
+// Hotfix 2026-11-23: no bound counts a network (source) address any more. People on one
+// shared network (a campus, an office or a carrier NAT) present one address, so a
+// per-address bound blocked them all at once.
+export const IMESSAGE_START_LIMITS: { readonly perSourceHour: number; readonly serviceHour: number } = {
+  perSourceHour: Number.POSITIVE_INFINITY,
   serviceHour: 100,
-} as const;
+};
 
 export type StartOptions = {
   readonly tokenKey: TokenKey;
