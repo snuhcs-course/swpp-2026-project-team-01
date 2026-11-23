@@ -22,7 +22,7 @@ import type { Database, Queryable, Transaction } from "./database";
 import { encodeDisplayName } from "./entry-documents";
 import { awaitEvaluation } from "./evaluation";
 import { REQUESTER_AUDIENCE } from "./eve-auth";
-import { detailsComplete, standingBookingOf, withdrawRequestCommand } from "./request-lifecycle";
+import { detailsComplete, readyForTimes, standingBookingOf, withdrawRequestCommand } from "./request-lifecycle";
 import { cancelBookingCommand, changeBookingCommand } from "./booking-cancellation";
 import {
   agreeCommand,
@@ -644,7 +644,7 @@ async function applyAndEvaluate(
   if (!outcome.ok) return refused(outcome.error.category);
 
   const row = await requestRow(db, id);
-  if (row.state === "draft" || !detailsComplete(row.details)) {
+  if (!readyForTimes(row.state, row.details)) {
     return { message: "Applied. Something is still missing before times can be found.", recorded: true as const, state: row.state };
   }
 

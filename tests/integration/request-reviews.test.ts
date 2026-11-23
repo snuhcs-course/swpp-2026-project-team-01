@@ -157,8 +157,10 @@ describe("temporally valid review windows", () => {
     const [review] = await reviews(r.requestId);
     expect(review!.patch).not.toHaveProperty("durationMinutes");
 
-    await asRequester(db, r.requestId, applyReviewCommand(contact), { reviewId: review!.id }, { expectedRevision: 1 });
+    const applied = await asRequester(db, r.requestId, applyReviewCommand(contact), { reviewId: review!.id }, { expectedRevision: 1 });
     expect((await details(r.requestId)).details.durationMinutes).toBeNull();
+    // Without a length there is nothing to search yet (#241).
+    expect(applied).toMatchObject({ ok: true, result: { findTimes: false } });
   });
 });
 
@@ -174,7 +176,8 @@ describe("applying and dismissing reviews", () => {
 
     const applied = await asRequester(db, r.requestId, applyReviewCommand(contact), { reviewId: review!.id }, { expectedRevision: 1 });
 
-    expect(applied).toMatchObject({ ok: true, result: { revision: 2, state: "gathering" } });
+    // The applied details are complete, so the web finds times next (#241).
+    expect(applied).toMatchObject({ ok: true, result: { findTimes: true, revision: 2, state: "gathering" } });
     const row = await details(r.requestId);
     expect(row.details.windows).toEqual([{ end: "2099-03-02T03:00:00.000Z", start: "2099-03-02T01:00:00.000Z" }]);
     // Seven days after creation is earlier than a window in 2099.
