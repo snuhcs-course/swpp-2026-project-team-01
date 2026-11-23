@@ -269,7 +269,7 @@ export const FIELD_LABELS: Readonly<Record<SetupFieldName, string>> = {
   weeklyLimit: "Weekly meeting limit",
   weeklyLimitCounts: "What counts toward the limit",
   groupTrips: "Group trips by day",
-  weeklyWindows: "Weekly windows",
+  weeklyWindows: "Meeting hours",
 };
 
 // ---------------------------------------------------------------------------

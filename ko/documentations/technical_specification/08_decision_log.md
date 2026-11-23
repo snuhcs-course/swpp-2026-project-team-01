@@ -95,7 +95,7 @@
 | D7 | **변경 요청(Request changes)**과 `propose_shared_changes`는 대기 중인 제안 하나를 만들고, **수정된 내용 공유(Share revised details)**가 이를 적용하고 시간을 확인한 뒤 다음 제안 버전을 기록합니다 | 실현 가능성 확인 없이 공유 | 제안서 | 제안서와 공유 변경 모듈 |
 | D8 | 모든 후보가 가득 찬 주에 걸리면, 호스트가 해당 요청의 주간 한도를 면제하거나 요청자가 기간을 넓힐 때까지 아무것도 제시하지 않습니다(주 명세 "Only full weeks"). 3단계의 순서만 정하던 동작을 대체합니다 | 순서만 정하는 동작 유지 | 제안서 | 제안서와 평가 작업의 요청자 프로젝션 |
 | D9 | 디스패치가 시작되었을 수 있는 시점 이후에는 작업이 이벤트 ID로 재조정하고 고정된 페이로드를 같은 ID로 다시 삽입하기만 하며, 실현 가능성을 다시 검증하지 않습니다. 8번 시도한 뒤 **예약 진행 중(Booking in progress)**과 **예약 상태 확인(Check booking status)**을 표시합니다 | 재시도마다 다시 검증 | 제안서 | 제안서와 예약 작업 |
-| D10 | 양쪽 모두 확인을 받습니다. 요청자의 Reply-To는 호스트의 Google 이메일이고, 호스트의 Reply-To는 확인 여부와 관계없이 요청자의 연락처 주소입니다 | 확인 후에만 Reply-To | 제안서; `email-delivery` 델타 | 제안서와 확인 빌더 |
+| D10 | 양쪽 모두 확인을 받습니다. 요청자의 Reply-To는 호스트의 Google 이메일(2026-11-23부터는 서비스 수신함이 있는 곳에서 그 수신함, [`guest-email-and-agree-notices`](#guest-email-and-agree-notices) D2)이고, 호스트의 Reply-To는 확인 여부와 관계없이 요청자의 연락처 주소입니다 | 확인 후에만 Reply-To | 제안서; `email-delivery` 델타 | 제안서와 확인 빌더 |
 | D11 | 상태 이메일은 확인 여부와 관계없이 요청자의 연락처 주소로 보냅니다 | 확인된 주소만 | 제안서; `email-delivery` 델타 | 제안서와 알림 모듈 |
 | D12 | 호스트는 `/app?request={requestId}`에서 요청을 열며, 예약 UUID는 호스트에게 전달되지 않습니다 | 인터페이스 문서의 `/app?request={bookingId}` | 제안서; 인터페이스 | 제안서와 호스트 워크스페이스 |
 
@@ -161,7 +161,7 @@
 | D7 | 동의 화면에서 시작한 로그인은 트랜잭션을 HTTP 전용 쿠키에 보관하며, 콜백은 살아 있는 트랜잭션일 때만 그곳으로 돌아가고 아니면 `/app`으로 갑니다 | `next` 쿼리 매개변수 | 제안서; 설계 7; `chat-workspaces` 델타 | 델타와 `google-sign-in.ts` |
 | D8 | `/connect/authorize`는 프로토콜 라우트이고 페이지는 `/connect/consent`입니다 | 라우트 핸들러가 HTML을 렌더링하는 단일 URL | 제안서; 설계 7; 페이지 목록 | 제안서와 라우트 |
 | D9 | 호스트의 승인과 거절에는 항상 `/app`에서의 호스트 클릭이 필요하며, 에이전트의 결정 도구는 검토 링크를 반환합니다. 2026-11-04에 [`agent-decisions-in-words`](#agent-decisions-in-words) D1–D2가 뒤집었습니다: 호스트의 에이전트가 호스트의 말에 따라 승인하고 거절합니다 | 클라이언트의 엘리싯테이션으로 승인 | 제안서; 설계 4; `agent-interfaces` 델타 | 제안서와 호스트 결정 도구 |
-| D10 | `request:decide`를 가진 요청자의 에이전트는 동의와 철회를 할 수 있습니다 | 동의는 요청자의 브라우저에서 | 제안서; 설계 4 | 제안서와 요청자 도구 |
+| D10 | `request:decide`를 가진 요청자의 에이전트는 동의와 철회를 할 수 있고, 호스트 승인을 기다리는 동의를 다시 열 수 있습니다(요청자 결정 결과 참고) | 동의는 요청자의 브라우저에서 | 제안서; 설계 4 | 제안서와 요청자 도구 |
 | D11 | 종료된 요청의 허가는 종료 상태와 영수증만 읽을 수 있고, 예약 링크의 종료 후 접근 수명이 끝날 때까지 그 용도로만 갱신됩니다 | 주 명세대로 종료 시 모든 접근 거부 | 제안서; 설계 5; `agent-client-authorization` 델타 | 델타와 허가 검사 |
 | D12 | 부트스트랩 허가는 24시간 유지됩니다. `create_request`는 요청 하나를 만들고 식별하며, 예약 링크를 이메일로 보내고, 같은 재시도 키에는 같은 요청을 반환하고 다른 키는 거부합니다. 생성은 동의한 브라우저의 출처 한도에 포함됩니다 | 동의 시점에 바인딩 | 제안서; 설계 8; `agent-client-authorization` 델타 "One future request grant" | 델타와 생성 모듈 |
 | D13 | 요청자 동의 페이지는 기존 요청도 예약 링크로 연결하며, 같은 호스트만 허용합니다 | 예약 페이지의 연결 버튼 | 제안서; 설계 8 | 제안서와 동의 페이지 |
@@ -203,6 +203,7 @@
 | 생성 시 세부 정보 | 에이전트가 준 세부 정보는 같은 트랜잭션에서 세부 정보 카드의 검증으로 적용되며, 거절되면 아무것도 만들지 않습니다 | 먼저 만들고 세부 정보를 따로 적용 | `agent-requests.ts` | 같은 파일의 `createRequestForGrant` |
 | 요청자 투영 | 스레드, 대화 상태, 캘린더 연결, 링크를 뺀 예약 페이지의 뷰이며, 호스트 표시 이름은 따옴표로 묶은 데이터로 인코딩합니다 | eve 요청자 도구의 최소화된 뷰 | `agent-requester-tools.ts` | 같은 파일의 `agentRequesterProjection` |
 | 시간 찾기 | `find_times`는 평가를 최대 15초 기다린 뒤 보류 상태로 돌려주며, 끝나면 `get_request`가 보여 줍니다 | eve 도구의 20초 | `agent-requester-tools.ts` | 같은 파일의 `FIND_TIMES_WAIT_MS` |
+| 요청자 결정 결과 | (2026-11-23.) `change_agreement`는 예약 페이지의 **Change** 명령(`request:decide`)으로 승인 대기 중인 동의를 다시 엽니다. 요청이 승인을 기다리는 동안 거부된 `update_request_details`, `find_times`, `choose_time`은 이를 다음 단계로 안내합니다. `choose_time`과 `agree_to_proposal`은 모든 결과에 `next` 문장을 돌려주며, 기록된 동의만 호스트가 승인해야 한다고 말합니다 (#331, #381) | 게스트에게 예약 페이지의 **Change**를 안내함. 동의 이후에만 `next` 문장을 돌려줌 | [`requester-mcp-agreement`](../../openspec/changes/archive/2026-11-23-requester-mcp-agreement/proposal.md) | `agent-requester-tools.ts` |
 | 요청자 에이전트 목록 | 예약 페이지의 스레드 메뉴에 `/app`과 같은 대화상자인 **Connected agents**가 추가되며, 철회는 `agent.revoke_grant`를 거칩니다 | 별도 페이지 | `guest-workspace.tsx` | 같은 파일의 `ThreadMenu` |
 | 진입 문서 | 지침 버전 3은 각 역할의 MCP 엔드포인트와 권한, 동의 단계, 요청자의 번호 매긴 단계, 게시되지 않은 CLI를 명시하고 웹 이어가기를 유지하며, HTML 에이전트 섹션은 같은 내용을 한 문장으로 말합니다 | 클라이언트가 통과할 때까지 버전 2의 "아직 사용할 수 없음" 유지 | `entry-documents.ts`, `apps/web/app/page.tsx`, `apps/web/app/[handle]/page.tsx` | `hostEntryDocument`와 `requesterEntryDocument` |
 | 클라이언트별 메모 | 새 기술 문서 `09_agent_clients.md`는 각 클라이언트가 시도할 연결 경로와 역할별 결과를 담으며, 기록되기 전까지는 "아직 실행되지 않음"입니다 | 인수 기록의 행만 사용 | `09_agent_clients.md` | 해당 문서 |
@@ -250,7 +251,7 @@
 | D9 | 발신 메시지마다 고정되고 봉인된 발신함 행 하나를 `imessage_send`가 보내며, 시작되었지만 응답을 잃은 발송은 `uncertain`이 되어 다시 보내지 않고, 발송 전 거부는 최대 5회 재시도하며, 호스트 전용 행은 연결 해제 뒤 억제됩니다 | 불확실 발송 재시도(Photon은 확인 가능한 멱등성 키를 주지 않으므로 호스트가 중복을 받을 수 있음) | 제안서; 설계 3 | `lib/server/imessage-outbox.ts` |
 | D10 | 연동되지 않은 직접 발신자에게는 24시간에 한 번 `/app`을 안내하는 고정 회신 하나를 보내고, 그룹 대화, 에코, 리액션에는 아무것도 보내지 않습니다 | 침묵(iMessage 우선 소개에는 안내가 없음); 모든 메시지에 회신 | 제안서; 설계 7 | `lib/server/imessage-receipts.ts`의 `UNLINKED_REPLY_HOURS` |
 | D11 | 전달된 텍스트는 공유 논의에 `[iMessage] …`로 저장하고, 호스트 지시 조각이 iMessage에는 카드가 없음을 알리고 결정에 쓸 명령을 명시합니다 | 별도의 iMessage 논의; 표시 없음 | 제안서; 설계 9; 에이전트 구성 | `lib/server/imessage-receipts.ts`의 `IMESSAGE_PREFIX`; `agent/instructions/host-imessage.ts` |
-| D12 | 새 요청, 승인 대기 중인 제안(정확한 명령 포함), 확정된 예약, 확정되지 않은 예약, 아직 보류 중인 예약에 대한 호스트 요약을 이벤트당 `imessage_notice` 작업 하나로 도메인 트랜잭션에 기록하고, 작업이 이벤트의 레코드로부터 고정합니다 | 모든 상태 변경에 대한 요약. 도메인 트랜잭션에서 아웃박스 행을 봉인하는 방식(모든 명령에 토큰 키가 필요해짐) | 제안서; 설계 10 | `lib/server/imessage-notices.ts`의 `enqueueHostNotice`; `lib/server/imessage-notice-job.ts` |
+| D12 | 새 요청, 승인 대기 중인 제안(정확한 명령 포함), 확정된 예약, 확정되지 않은 예약, 아직 보류 중인 예약(2026-11-23부터 더 이상 보내지 않음, #173: 확정 또는 실패 안내가 뒤따름)에 대한 호스트 요약을 이벤트당 `imessage_notice` 작업 하나로 도메인 트랜잭션에 기록하고, 작업이 이벤트의 레코드로부터 고정합니다 | 모든 상태 변경에 대한 요약. 도메인 트랜잭션에서 아웃박스 행을 봉인하는 방식(모든 명령에 토큰 키가 필요해짐) | 제안서; 설계 10 | `lib/server/imessage-notices.ts`의 `enqueueHostNotice`; `lib/server/imessage-notice-job.ts` |
 | D13 | **연락처에 추가(Add to contacts)**는 네이티브 연락처 카드 공유 하나를 큐에 넣고, 상태는 큐에 있음, 수락됨, 실패, 불확실이며 "저장됨"은 절대 아니고, 불확실한 동안에는 재전송하지 않습니다 | 연동 시 카드를 자동으로 공유 | 제안서; 설계 11 | `lib/server/imessage-links.ts`의 `imessage.contact_card.share` |
 | D14 | 수신 텍스트는 처리 시 지우고 수신 기록은 30일 뒤 삭제하며, 발신함 텍스트는 최종 상태에서 지우고, 연결 시도와 종료된 바인딩은 종료 30일 뒤 삭제합니다 | 진단용으로 수신 텍스트 보관 | 제안서; 설계 13 | `app.cleanup_imessage_records`와 새 마이그레이션 |
 | D15 | (사용자, 2026-10-23.) `/?flow=imessage`는 로그인 전에 iMessage로 시작합니다. 호스트가 없는 코드 시도를 HttpOnly 쿠키(`fmat_imessage_start`, 30분)로 브라우저가 소유하며, 그 비밀값은 키 해시로만 저장합니다. 출처 주소당 시간당 5회, 서비스 전체 시간당 100회로 제한합니다. Google 콜백은 열린 시도를 로그인한 활성 호스트에게 넘기고, `/app`의 **확인 및 연결(Confirm and link)**이 바인딩합니다 | 로그인 후에만 연결 시작; 브라우저 확인 없이 도착 시 바인딩 | 제안서; 설계 14 | `lib/server/imessage-start.ts`; `IMESSAGE_START_LIMITS`; Google 콜백의 `claimStartedLink` |
@@ -616,6 +617,7 @@
 | 결정 | 선택 | 대안 | 기록된 위치 | 바꾸는 방법 |
 |---|---|---|---|---|
 | Telegram 이름이 있는 곳(작업 3.1) | `imessage_links`와 `imessage_bindings`의 널 허용 `sender_ciphertext` 옆에 `sender_name_ciphertext`를 두고, 보낸 사람과 같은 컨텍스트로 봉인해 **Confirm and link**와 연결된 카드에 쓸 "First (@username)"을 담습니다. `BEFORE INSERT OR UPDATE` 트리거(`app.clear_sender_name`)가 `sender_ciphertext`가 지워질 때마다 이름도 지우고, 검사가 보낸 사람 없는 이름을 거부하므로 종료, 연결 해제, `stop`, 차단된 봇, 정리는 바꿀 필요가 없습니다 | 발신함이 대화 ID로 읽는 봉인된 보낸 사람 안에 이름 넣기; 답장이 읽는 `space_ciphertext`에 이름 넣기; 바인딩에 이름을 두지 않아 연결된 카드가 사용자 ID의 네 자리를 보여주기 | `supabase/migrations/20261104054324_telegram_sender_name.sql`, `supabase/tests/telegram_sender_name.test.sql` | 새 마이그레이션 |
+| 컴퓨터에서 Telegram 열기(이슈 #369, 2026-11-23) | 컴퓨터에서 **Open Telegram**은 시작 링크를 새 탭(`target="_blank"`)에서 열고, 휴대폰에서는 같은 탭을 유지합니다. `telegram.me`는 Telegram의 실행 페이지로, 같은 탭에서는 Start를 기다리던 페이지를 대체해 **Is this you?**가 나타나지 않았습니다 | 코드가 도착하면 봇이 답하는 것으로, 그러면 봇의 첫 메시지가 환영 메시지가 아니게 됩니다(D6); 모든 앱 링크를 새 탭에서 여는 것으로, WhatsApp과 Messages에는 여기서 필요하지 않습니다 | 설계 6 | `lib/contracts/messaging-channel.ts`의 `appLinkTarget` |
 | Telegram으로 연결되는 것(작업 3.1) | iMessage처럼 텍스트나 명령 메시지의 어디에 있든 `FMAT-` 코드: 시작 링크의 `/start <code>`, `/start@bot <code>`, 코드만 입력한 경우. 코드는 Telegram 시도만 완료하며 그 코드가 가리키는 다른 시도는 무효로 만듭니다. 버튼 탭이나 차단 업데이트는 연결이 아닙니다 | 정확한 `/start <code>`만 | `lib/server/imessage-receipts.ts`의 `telegramLinking` | 그 함수 |
 | 코드 없는 `/start`(작업 3.1) | 활성 Telegram 바인딩이 없는 보낸 사람이 페이로드 없이 또는 코드가 아닌 페이로드로 `/start`를 보내면, 보낸 사람당 하루 최대 한 번 `CHANNEL_TEXTS.unlinkedTelegram`(findmeatime.com/app을 안내)으로 답하며 이는 Telegram의 다른 거부와 함께 셉니다. 연결된 호스트의 `/start`는 레인 C에 맡깁니다 | 모든 `/start`에 답하기; 침묵 | `telegramLinking` | 그 함수 |
 | 코드가 도착해도 답하지 않음(작업 3.1) | 보낸 사람을 기록하는 Telegram 코드는 아무것도 큐에 넣지 않으며, `/?flow=telegram` 시작에서 온 시도도 마찬가지입니다. **Confirm and link** 뒤의 환영 메시지가 봇의 첫 메시지입니다(설계 6, 명세의 "Link from a phone"). 시작 페이지와 카드가 폴링하므로 iMessage 시작에서 답장에 넣던 로그인 링크는 필요 없습니다. 거부된 코드에는 `LINK_TEXTS.refusedTelegram`으로 답합니다 | iMessage의 "Got it" 답장 | `lib/server/imessage-links.ts`의 `receiveLinkCode` | 그 함수 |
@@ -733,6 +735,7 @@
 | D2 | 정확한 명령은 모델 턴 이전에 그대로 동작하며, 안내하지 않습니다 | 입력된 명령어를 Thyme에 전달하는 방식. 답장 버튼, Telegram 메뉴, `setup`과 `request <ref>`가 기록하는 선택이 깨짐 | 제안서; 설계 2 | `lib/server/imessage-commands.ts`의 `parseCommand`와 `executeCommand` |
 | D3 | 고정된 답장, 도움말, 요약, 설정 검토 어디에도 명령을 적지 않습니다. 각각 Thyme에게 무엇을 말할지 알려 주거나 브라우저로 안내하며, 연동 해제는 `/app`의 **Unlink**를 가리키되 `stop`은 계속 동작합니다 | 답장에서 말과 함께 명령도 유지하기 | 제안서; 설계 3 | `lib/server/channel-texts.ts` |
 | D4 | 고정된 답장, 호스트 알림, 버튼 제목은 영어와 한국어로 제공합니다: 한글이면 한국어, 그 밖의 글자면 영어이며, 명령·탭·알림은 호스트가 Thyme에게 보낸 가장 최근 메시지를 따릅니다 | 고정된 답장을 모두 Thyme에게 넘기는 방식. 탭마다 모델 턴이 필요하고 버튼을 실을 수 없음 | 제안서; 설계 4 | `lib/server/channel-language.ts`, `channel-texts.ts` |
+| 요청의 대화에서 설정 바꾸기(이슈 #367, 2026-11-23) | 호스트 검토 도구의 `read_settings`와 `change_settings`는 연동된 대화에서 온 턴에 대해 `read_setup_state`와 `draft_settings`를 실행하므로, 선호 장소 같은 저장된 설정을 요청을 떠나지 않고 바꿀 수 있으며, 준비된 호스트의 변경은 바로 저장됩니다 | Thyme에게 먼저 설정으로 전환하라고 말하는 것으로, 호스트가 변경을 두 번 써야 합니다 | 설계 1 | `lib/server/setup-tools.ts`의 `authorizeSetupTool`과 `changeSettingsFromRequestForTool`, `agent/tools/request.ts`, `agent/instructions/host-imessage.ts` |
 | D5 | 대화가 여러 개이고 현재 선택이 없는 발신자는 말이 가리키는 대화(자신이 호스트라고 말하는 경우, 또는 게스트 요청의 참조나 호스트 이름이 하나의 단어로 쓰인 경우)로 연결됩니다. 지나가듯 언급된 역할은 아무것도 가리키지 않습니다. 그렇지 않으면 질문이 메시지의 언어로 각 대화를 지칭합니다 | 기본적으로 호스트 자신의 대화로 전달하기; 라우팅 전에 모델 호출로 메시지를 분류하기 | 제안서; 설계 5 | `lib/server/imessage-receipts.ts`의 `namedConversation`과 `processReceipt` |
 
 ## `agent-decisions-in-words`
@@ -748,7 +751,7 @@
 
 ## `guest-time-place-pairs`
 
-[설계](../../openspec/changes/guest-time-place-pairs/design.md)는 다음 선택을 기록합니다. 이슈 #182(반복 4 킥오프, 2026-11-08)를 위해 변경을 작성한 세션에서 2026-11-14에 정했습니다. 아직 팀원의 검토를 받지 않았습니다.
+[설계](../../openspec/changes/archive/2026-11-23-guest-time-place-pairs/design.md)는 다음 선택을 기록합니다. 이슈 #182(반복 4 킥오프, 2026-11-08)를 위해 변경을 작성한 세션에서 2026-11-14에 정했습니다. 아직 팀원의 검토를 받지 않았습니다.
 
 | # | 선택 | 대안 | 기록 위치 | 바꾸려면 |
 |---|---|---|---|---|
@@ -760,7 +763,7 @@
 
 ## `same-day-trips`
 
-[설계](../../openspec/changes/same-day-trips/design.md)는 이슈 #103에 대한 이 선택들을 기록합니다. 엔진 결정(1–5)은 PR #106에서 출시되었고, 설정 결정(6–7)은 이를 구현한 세션에서 2026-11-14에 정했으며 아직 팀원의 검토를 받지 않았습니다.
+[설계](../../openspec/changes/archive/2026-11-23-same-day-trips/design.md)는 이슈 #103에 대한 이 선택들을 기록합니다. 엔진 결정(1–5)은 PR #106에서 출시되었고, 설정 결정(6–7)은 이를 구현한 세션에서 2026-11-14에 정했으며 아직 팀원의 검토를 받지 않았습니다.
 
 | # | 선택 | 대안 | 기록 위치 | 바꾸려면 |
 |---|---|---|---|---|
@@ -779,6 +782,17 @@ Dohyeon Park이 2026-11-16에 결정했으며, 2026-11-14 UAT 회의가 [이슈 
 | — | 고정 제품 문구와 이메일은 영어로만 제공합니다: 페이지, 카드, 영수증, 채팅의 고정 답장, 알림과 버튼 제목. 어시스턴트(웹의 Thyme, 연결된 iMessage·WhatsApp·Telegram 채팅, MCP나 CLI를 통한 에이전트)는 사용자가 쓰는 언어로 답합니다. 이슈 #178과 #179가 요구한 "영어와 한국어 사본"과 `channel-actions-in-words` D4의 한국어 고정 답장을 대체합니다 | 대화가 언어를 바꾸지 않도록 어시스턴트 답장도 영어로 하기; 요청의 언어를 따르는 고정 문구(한 스레드에서 언어가 섞였음, 이슈 #200) | PRD FR-27과 10절 "지원 언어"; 이슈 #200 | 먼저 PRD. 고정 문구: `lib/server/booking-emails.ts`, `lib/server/email-templates.ts`, `apps/web/app/_components/guest/guest-workspace.tsx`, `lib/server/channel-language.ts`, `channel-texts.ts`. 어시스턴트 답장: `agent/instructions/base.md`, `host-setup.ts`, `host-imessage.ts`, `requester.ts` |
 
 2026-11-16 기준 상태: PR #217이 랜딩과 호스트 설정을 영어 전용으로 만들었습니다. 게스트 이메일, 게스트 작업 공간의 고정 메시지, 연결된 채팅의 고정 답장은 아직 요청 또는 호스트의 언어를 따릅니다. 이슈 #200이 이 작업을 추적하며, `email-delivery`와 `meeting-requests` 명세, 에이전트 구성, 호스트 온보딩 흐름은 그 작업과 함께 바뀝니다. 어시스턴트는 이미 사용자의 언어로 답하며, `agent/instructions/base.md`는 영어 또는 한국어를 명시합니다.
+
+## `guest-email-and-agree-notices`
+
+[제안서](../../openspec/changes/archive/2026-11-23-guest-email-and-agree-notices/proposal.md#decisions)는 D1–D4를 기록합니다. 저장소 소유자가 [이슈 #332](https://github.com/snuhcs-course/swpp-2026-project-team-01/issues/332)에서 반송 후 주소 변경, 확인 이메일에 대한 답장이 Thyme에 도달하는 것, 채팅에서의 재전송을 구현하기로 결정한 뒤, 그리고 [이슈 #179](https://github.com/snuhcs-course/swpp-2026-project-team-01/issues/179)에 따라, 변경을 작성한 세션에서 2026-11-23에 정했습니다. 대화형 수신함이 있는 배포에서는 요청자 확인 이메일의 Reply-To에 대해 `host-review-and-booking` D10을 대체합니다. 아직 팀원의 검토를 받지 않았습니다.
+
+| # | 선택 | 대안 | 기록 위치 | 바꾸려면 |
+|---|---|---|---|---|
+| D1 | **Change email**은 연락처가 확인되지 않았고 가장 최근의 생성 이메일이 거부되었거나 차단된 경우에만 제공합니다 | 페이지에서 언제든 변경 | 제안서; 설계 1 | `lib/server/contact-confirmation.ts`의 `changeEmailCommand`와 `contactChangeAllowed`; `apps/web/app/_components/requester/cards.tsx`의 `SentLine` |
+| D2 | 게스트의 확인 이메일은 서비스 수신함으로 회신되며, 답장은 발신자가 해당 발송의 수신자이자 요청의 연락처인지로 대응시키고, In-Reply-To 또는 References로 확인 이메일을 고릅니다 | 요청별 회신 주소: AgentMail 수신함은 제공하지 않음; 제목으로 대응 | 제안서; 설계 2 | `lib/server/booking-notices.ts`의 `enqueueConfirmations`; `lib/server/email-receipts.ts`의 `confirmationReply` |
+| D3 | 어시스턴트의 재전송은 확인된 주소로만 갑니다 | 확인되지 않은 연락처에 생성 이메일 재전송 | 제안서; 설계 3 | `lib/server/link-resend.ts`의 `resendLinkCommand`; `agent/tools/request.ts`의 `resend_booking_link` |
+| D4 | 동의한 버전과 게스트 바인딩마다 동의 알림 한 건, 영어 전용 | 버전당 한 건: 동의한 뒤에 연결한 게스트는 놓침 | 제안서; 설계 4 | `lib/server/imessage-notices.ts`의 `enqueueAgreementNotice`; `lib/server/agreement-notice.ts` |
 
 ## `guest-telegram-link`
 
@@ -818,3 +832,25 @@ Dohyeon Park이 2026-11-16에 결정했으며, 2026-11-14 UAT 회의가 [이슈 
 | D4 | 예약된 미팅은 취소하지 않습니다. 열린 요청은 닫히고 게스트는 이메일을 받으며, 호스트는 예약, 취소, 실행 때 이메일을 받습니다. 계정 이메일에는 요청이 없으므로 끝난 지 30일 뒤에 삭제합니다 | 호스트 대신 캘린더 이벤트 취소; 채팅으로 게스트에게 알리기 | 제안; 설계 5 | `lib/server/account-emails.ts`, `accountEmailCurrent`, `account_emails` 보존 규칙 |
 | D5 | 예약하면 Supabase의 전역 범위로 모든 세션에서 로그아웃합니다 | 세션을 유지하고 취소 버튼 제공 | 설계 2 | `createAccountDeletionHandler` |
 | D6 | 채팅과 MCP 서버는 삭제하지 않고 `/app?settings=account`를 안내합니다 | 확인 절차를 거치는 삭제 도구 | 설계 6 | `agent/instructions/base.md`, `host-imessage.ts`, `lib/server/agent-mcp.ts` |
+
+## `link-on-code`
+
+[제안](../../openspec/changes/link-on-code/proposal.md#decisions)과 [설계](../../openspec/changes/link-on-code/design.md)는 이슈 #412(호스트 연결)와 #383(게스트의 Telegram 연결)에 대한 다음 선택을 기록합니다. 저장소 소유자가 2026-11-23에 D1을 정했고, D2~D5는 그 결정을 바탕으로 변경안을 작성한 세션에서 구체화했습니다. 이 선택들은 `host-imessage-channel` D3, D15, D19, `host-whatsapp-channel` D12, `host-telegram-channel` D13, `guest-flow-completion` D1, `guest-telegram-link` D3의 브라우저 확인 절차를 대체합니다.
+
+| # | 선택 | 대안 | 기록 위치 | 바꾸려면 |
+|---|---|---|---|---|
+| D1 | 시도한 채널의 직접 대화에서 온, 대기 중이며 만료되지 않은 코드는 도착하는 즉시 발신자를 바인딩합니다. iMessage, WhatsApp, Telegram의 호스트·게스트 시도 모두 같습니다. 메신저는 연결됨 메시지(아직 설정 중인 호스트에게는 설정으로 이어지는 환영 메시지)를 받고, 코드를 보여 준 페이지는 스스로 **연결됨(Linked)**으로 넘어갑니다. **Is this you?**, **Is this your Telegram?**, **Confirm and link**, **This isn't me**, 확인 명령은 없어집니다. 에이전트 주도 `/connect/link` 페이지는 연결되었다고만 알려 줍니다 | 브라우저로 한 번 더 돌아가야 하는 **Confirm and link** 유지; "브라우저로 돌아가세요"라고만 답하는 응답(#398에서도 기각) | 제안; 설계 1 | `lib/server/imessage-links.ts`, `lib/server/requester-imessage-links.ts`의 `receiveLinkCode` |
+| D2 | 복구: 연결됨 화면이 발신자를 알려 주고, 호스트에게는 **내 번호가 아님 — 연결 해제(Not my number — unlink)**(Telegram은 **내 Telegram이 아님 — 연결 해제(Not my Telegram — unlink)**)를, 게스트에게는 기존 **연결 해제(Unlink …)**를 제공하며, 이는 `imessage.unlink` 또는 `request.imessage_link.unlink`를 실행합니다. 그 뒤 새 코드를 만듭니다 | 연결할 때마다 게스트에게 이메일 보내기(#383의 제안), 나중으로 미룸 | 제안; 설계 2 | `apps/web/app/_components/ink/link-step.tsx`, `imessage/imessage-card.tsx`, `requester/cards.tsx` |
+| D3 | 확인 절차를 대신하는 장치: 코드는 한 번만 쓸 수 있고(사용되거나 무효화되거나 교체된 코드는 다시 연결되지 않음), 15분 동안 유효하며, 그 코드를 보여 준 로그인 계정, 요청 또는 시작 브라우저가 소유하고, 소유자당 시간당 5개로 제한되며, 그룹, 다른 채널, 다른 호스트가 보유한 발신자에게서 오면 무효화됩니다 | 더 짧은 만료 시간. 앱을 오가는 사람에게는 시간이 필요하고, 위험 구간은 본인이 코드를 보내기 전의 시간뿐이기 때문 | 제안; 설계 3 | `lib/server/imessage-links.ts`의 `IMESSAGE_LINK_LIMITS` |
+| D4 | 연결됨 화면은 번호를 `•••• 1234`로, Apple ID 이메일은 전체로, Telegram 발신자는 이름과 @username으로 보여 줍니다. 로그인 전 iMessage 시작 화면은 여전히 발신자를 전체로 보여 줍니다 | 번호 전체. #118이 이를 원한 것은 확인 전에 본인이 점검하게 하려는 것뿐이었음 | 제안; 설계 4 | `lib/contracts/imessage.ts`의 `maskedSender` |
+| D5 | 아직 호스트가 없는 랜딩의 iMessage 시작에서 온 코드는 `received`로 기록합니다. 그 브라우저에서의 Google 로그인(`claimStartedLink`) 또는 Thyme의 로그인 링크(`claimContinuedLink`)가 `bindReceivedAttempt`로 이를 바인딩하며, 코드가 아직 도착하지 않은 시작은 호스트의 대기 중 시도가 됩니다 | 계정이 아직 없는데 호스트 없이 바인딩 | 제안; 설계 5 | `lib/server/imessage-start.ts`, `lib/server/imessage-links.ts`의 `bindReceivedAttempt` |
+
+D1과 D3과 함께 감수하는 남은 위험: 코드의 주인이 보내기 전에 코드가 유출되면(어깨너머로 본 화면, 전달된 스크린샷, 복사된 시작 링크나 QR 코드) 가장 먼저 보낸 사람이 연결됩니다. 게스트라면 그 발신자가 요청의 업데이트를 받고 게스트로서 답장할 수 있는데, 이는 예약 링크를 가진 사람이 이미 웹에서 할 수 있는 일입니다. 호스트라면 호스트가 연결을 해제할 때까지 그 번호가 메신저에서 미팅 승인을 포함해 호스트를 대신해 행동할 수 있습니다. 페이지는 잘못된 발신자의 마지막 네 자리 또는 이름을 즉시 보여 주고, **내 번호가 아님 — 연결 해제(Not my number — unlink)**가 바인딩을 끝내며, 이후 호스트가 옛 코드로 보낸 본인의 메시지는 거절 응답을 받고, 새 코드가 올바른 번호를 연결합니다.
+
+## `place-settles-in-person`
+
+[제안서](../../openspec/changes/place-settles-in-person/proposal.md)는 이슈 #378에 대한 이 선택을 기록합니다. 저장소 소유자가 2026-11-23에 이슈에서 정했으며, #280을 위해 `guest-assistant-story-fixes`(PR #357)가 추가한 규칙을 뒤집습니다.
+
+| # | 선택 | 대안 | 기록 위치 | 바꾸려면 |
+|---|---|---|---|---|
+| D1 | 호스트가 온라인 또는 대면을 제안했고 게스트가 만날 곳으로 장소를 말하면("어디서 만날까요?"에 "역삼역으로요") 게스트 어시스턴트는 그 장소를 검토 카드에 담아 대면으로 초안을 작성합니다. 장소가 지나가듯 나오거나 같은 답이 온라인 쪽으로 기울 때만 방식을 묻습니다 | 장소가 나오면 항상 방식을 묻기(#280 규칙); 언급된 모든 장소를 대면으로 보기 | `meeting-requests` 델타 "Guest assistant answers within its scope"; 문서 13의 GU-50, GU-A04, GU-A08, GU-A09 | `agent/instructions/requester.ts`의 장소와 방식 규칙 및 `evals/requester/story-cases.ts`의 해당 케이스 |

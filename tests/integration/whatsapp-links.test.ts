@@ -11,8 +11,8 @@ import { testTokenKey } from "./support/requests";
 
 // Linking WhatsApp against the local stack and the stand-in
 // (host-whatsapp-channel task 3.1): a WhatsApp attempt shows the WhatsApp number
-// and binds only after Confirm and link; only a WhatsApp message completes it,
-// and a code from the other channel voids it; confirming a sender of one channel
+// and binds its sender as soon as the code arrives (link-on-code D1); only a
+// WhatsApp message completes it, and a code from the other channel voids it; linking a sender of one channel
 // ends the binding on the other and suppresses what was queued for it; an
 // unlinked WhatsApp sender gets the WhatsApp refusal; WhatsApp has no contact
 // card; an exact retry replays its outcome. A WhatsApp start registers the
@@ -40,30 +40,31 @@ async function pendingWhatsApp(hostAccountId: string, number = `+${newWhatsAppSe
 }
 
 describe("linking WhatsApp", () => {
-  it("shows the WhatsApp number, records the WhatsApp sender, and binds only after confirmation", async () => {
+  it("shows the WhatsApp number and binds the WhatsApp sender on arrival", async () => {
     const hostAccountId = await newHostAccount(db);
     const sender = newWhatsAppSender();
     const pending = await pendingWhatsApp(hostAccountId);
     expect(pending).toMatchObject({ channel: "whatsapp", channels: { imessage: TEST_LINE, whatsapp: TEST_WHATSAPP_NUMBER }, lineNumber: TEST_WHATSAPP_NUMBER });
 
     expect((await im.deliver({ channel: "whatsapp", sender, text: pending.message })).outcome).toBe("link_received");
-    const received = await im.status(hostAccountId);
-    expect(received).toMatchObject({ channel: "whatsapp", replaces: null, sender: `+${sender}`, state: "received" });
-    expect(await im.bindingOf(hostAccountId)).toBeNull();
-
-    const [reply] = await im.outbox({ hostAccountId, kind: "link_received" });
-    const { sent } = await im.send(reply!.id);
-    expect(sent).toEqual([expect.objectContaining({ channel: "whatsapp", recipient: { address: sender, spaceId: sender } })]);
-    expect(textOf(sent)).toEqual([LINK_TEXTS.received]);
-
-    if (received.state !== "received") throw new Error("Expected received.");
-    expect((await im.command(hostAccountId, "imessage.link.confirm", { linkId: received.linkId })).ok).toBe(true);
     expect(await im.bindingOf(hostAccountId)).toMatchObject({
       channel: "whatsapp",
       sender_hash: channelHash(testTokenKey, "whatsapp", "sender", sender),
       state: "active",
     });
-    expect(await im.status(hostAccountId)).toMatchObject({ channel: "whatsapp", lineNumber: TEST_WHATSAPP_NUMBER, state: "linked" });
+    expect(await im.status(hostAccountId)).toMatchObject({
+      channel: "whatsapp",
+      lineNumber: TEST_WHATSAPP_NUMBER,
+      sender: `•••• ${sender.slice(-4)}`,
+      state: "linked",
+    });
+
+    // The linked message is the only reply, on WhatsApp, to the sender's conversation.
+    expect(await im.outbox({ hostAccountId, kind: "link_received" })).toHaveLength(0);
+    const [linked] = await im.outbox({ hostAccountId, kind: "linked" });
+    const { sent } = await im.send(linked!.id);
+    expect(sent).toEqual([expect.objectContaining({ channel: "whatsapp", recipient: { address: sender, spaceId: sender } })]);
+    expect(textOf(sent)).toHaveLength(1);
   });
 
   it("voids an attempt whose code arrives from the other channel", async () => {
@@ -87,7 +88,7 @@ describe("linking WhatsApp", () => {
     expect(textOf(sent)).toEqual([LINK_TEXTS.refusedWhatsApp]);
   });
 
-  it("replaces an iMessage binding with WhatsApp after confirmation, and the reverse", async () => {
+  it("replaces an iMessage binding with WhatsApp when its code arrives, and the reverse", async () => {
     const hostAccountId = await newHostAccount(db);
     const imessage = await im.link(hostAccountId);
     const queued = await db<{ id: string }[]>`
@@ -97,11 +98,8 @@ describe("linking WhatsApp", () => {
 
     const pending = await pendingWhatsApp(hostAccountId);
     const sender = newWhatsAppSender();
-    await im.deliver({ channel: "whatsapp", sender, text: pending.message });
-    const received = await im.status(hostAccountId);
-    expect(received).toMatchObject({ channel: "whatsapp", replaces: "imessage", state: "received" });
-    if (received.state !== "received") throw new Error("Expected received.");
-    await im.command(hostAccountId, "imessage.link.confirm", { linkId: received.linkId });
+    expect((await im.deliver({ channel: "whatsapp", sender, text: pending.message })).outcome).toBe("link_received");
+    expect(await im.status(hostAccountId)).toMatchObject({ channel: "whatsapp", state: "linked" });
 
     const bindings = await db<{ channel: string; state: string }[]>`
       select channel, state from app.imessage_bindings where host_account_id = ${hostAccountId} order by linked_at

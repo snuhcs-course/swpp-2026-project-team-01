@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { parseCommand, requestRef, reviewRef, settingsRef } from "./imessage-commands";
+import { TUTORIAL_TEXT } from "../contracts/host-tutorial";
+import { parseCommand, requestRef, reviewRef, savedSettingsText, settingsRef } from "./imessage-commands";
 
 // Exact iMessage commands (host-imessage-channel design 8, D8): the whole
 // message, trimmed and compared case-insensitively, is a command; anything else,
@@ -76,5 +77,17 @@ describe("references", () => {
     expect(requestRef(id)).not.toBe(requestRef("6f1c8f0e-2a3b-4c5d-8e9f-0a1b2c3d4e60"));
     expect(reviewRef(id, 3)).toBe(`${requestRef(id)}-3`);
     expect(settingsRef("abcdef0123456789".repeat(4))).toBe("ABCDEF01");
+  });
+});
+
+// The reply to a settings save (issue #368): the first save ends setup.
+describe("savedSettingsText", () => {
+  it("says setup is done on the first save, then offers the tutorial", () => {
+    expect(savedSettingsText("en", "https://findmeatime.com/ada", true)).toBe(`Setup is done. Your booking link: https://findmeatime.com/ada\n\n${TUTORIAL_TEXT.en.offer}`);
+    expect(savedSettingsText("ko", "https://findmeatime.com/ada", true)).toBe(`설정이 끝났어요. 예약 링크: https://findmeatime.com/ada\n\n${TUTORIAL_TEXT.ko.offer}`);
+  });
+
+  it("only says saved for a later save", () => {
+    expect(savedSettingsText("en", "https://findmeatime.com/ada", false)).toBe("Saved. Your booking link is https://findmeatime.com/ada");
   });
 });

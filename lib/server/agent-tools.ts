@@ -111,7 +111,11 @@ export function commandError(error: CommandFailure): ToolResult {
       ? "That time has already started. Find times again."
       : error.reason === "destination_not_writable"
         ? "The booking calendar can no longer take events. Choose a writable one in Find Me a Time."
-        : NEXT_ACTIONS[error.category];
+        : error.reason === "time_choice_required"
+          ? "The guest agreed to several times. Ask the host which one to book, then approve again with that time's option number from get_request."
+          : error.reason === "time_unavailable"
+            ? "That time is no longer free on the host's calendar and nothing was approved. Offer the host the proposal's other times, or decline."
+            : NEXT_ACTIONS[error.category];
   return { category: error.category, correlationId: error.correlationId, message: COMMAND_ERROR_MESSAGES[error.category], nextAction, ok: false };
 }
 

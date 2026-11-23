@@ -116,11 +116,23 @@ The host workspace SHALL offer Google sign-in through Supabase Auth and SHALL NO
 - **THEN** the request is rejected without sending an authentication email
 
 ### Requirement: Single host workspace
-Host sign-in, setup, request selection, review and settings SHALL remain inside `/app` as authorized states, cards or dialogs. Browser authentication and consent SHALL return to that workspace with the permitted context restored.
+Host sign-in, setup, request selection, review and settings SHALL remain inside `/app` as authorized states, cards or dialogs. Browser authentication and consent SHALL return to that workspace with the permitted context restored. The wordmark on every signed-in host page SHALL link to `/app`. While the workspace reads the host's session, it SHALL show the workspace background with a loading status, not the sign-in layout. A return from Google consent begun at Thyme's Calendar link SHALL say that Google Calendar is connected only when the grant can use Calendar.
 
 #### Scenario: Return from calendar consent
 - **WHEN** an active host completes valid browser consent
 - **THEN** `/app` restores the authorized draft and server-confirmed next action without a separate setup page
+
+#### Scenario: Return from Thyme's Calendar link
+- **WHEN** a linked host who is not ready grants Calendar on the consent opened from Thyme's Calendar link
+- **THEN** `/app` says that Google Calendar is connected and that setup continues in the linked app, with its open action, instead of the link confirmation
+
+#### Scenario: Wordmark opens the workspace
+- **WHEN** a signed-in host selects the Find Me a Time wordmark on the Dashboard, the requests, the setup conversation, the notes page, the link step or the suspended-account page
+- **THEN** the workspace at `/app` opens
+
+#### Scenario: Workspace loading
+- **WHEN** a host opens `/app` or `/app/notes` and the server has not yet read the session
+- **THEN** the page shows the workspace background with a loading status announced to screen readers, and no sign-in layout
 
 ### Requirement: Stable protected requester destination
 Public `/{handle}` intake SHALL continue at `/booking/[bookingId]` after request creation. The route identifier SHALL be the random booking link defined in the [meeting-request contract](../meeting-requests/spec.md), which is the requester's only credential; it SHALL NOT imply a confirmed event. Closed access SHALL obey the booking link lifetime and minimal receipt limits.
@@ -175,7 +187,7 @@ A workspace with a confirmed failed runtime SHALL show a safe explanation and an
 - **THEN** the workspace reports that outcome without claiming recovery, exposing credentials or discarding unsent text
 
 ### Requirement: Host calendar Dashboard
-The Dashboard SHALL show confirmed Find Me a Time bookings and events from the host's selected Google calendars in the host's saved timezone. The two sources SHALL have distinct colors and text labels. A confirmed booking that is also present in Google Calendar SHALL appear only once as a Find Me a Time meeting. The Dashboard SHALL provide week and month views, previous and next period navigation, a return to today, source filters, and details for a selected day and event. Calendar details SHALL be available only to the authenticated host. A Google Calendar access error SHALL leave confirmed bookings visible with an explanation.
+The Dashboard SHALL show confirmed Find Me a Time bookings and events from the host's selected Google calendars in the host's saved timezone. The two sources SHALL have distinct colors and text labels. A confirmed booking that is also present in Google Calendar SHALL appear only once as a Find Me a Time meeting. The Dashboard SHALL provide week and month views, previous and next period navigation, a return to today, source filters, and details for a selected day and event. Calendar details SHALL be available only to the authenticated host. A Google Calendar access error SHALL leave confirmed bookings visible with an explanation. Period navigation SHALL keep the date and time grid visible, showing loading feedback in the event area while the period's events are fetched; a period loaded earlier in the visit SHALL show its events at once, the adjacent periods SHALL be fetched ahead, and the events shown SHALL always be those of the selected period.
 
 #### Scenario: Compare sources
 - **WHEN** a host opens a week containing a Google event and a confirmed Find Me a Time booking
@@ -188,6 +200,36 @@ The Dashboard SHALL show confirmed Find Me a Time bookings and events from the h
 #### Scenario: Google Calendar access fails
 - **WHEN** Google Calendar cannot be read for the host
 - **THEN** confirmed Find Me a Time bookings remain visible and a status message explains the Google Calendar problem
+
+### Requirement: Guided host setup in the linked chat
+Host setup in a linked iMessage, WhatsApp or Telegram conversation SHALL show its progress: the first setup message SHALL say in one line what setup covers and roughly how long it takes; each step's question SHALL start with a line naming the step and where it stands among the four steps, Calendar, Meeting hours, Where you meet and Open times; and the first successful save SHALL say plainly that setup is done, with the booking link. The web setup SHALL use the same step names for the same steps. When the service saves the primary calendar as the default calendar roles, its message SHALL name the other calendars it would recommend checking for conflicts and ask once whether they should count too; without an answer, the primary calendar SHALL remain the only conflict calendar. Each message SHALL ask at most one question.
+
+#### Scenario: Progress through setup
+- **WHEN** a host who linked their chat goes through setup
+- **THEN** the first message says what setup covers and how long it takes
+- **AND** the calendar, hours, place and open-times questions start with "1/4 · Calendar", "2/4 · Meeting hours", "3/4 · Where you meet" and "4/4 · Open times"
+- **AND** the first save replies that setup is done, with the booking link
+
+#### Scenario: Other calendars are offered once
+- **WHEN** the service saves the primary calendar as the default and Google lists a work calendar the host can read
+- **THEN** the message names the work calendar and asks whether it should also be checked for busy times
+- **AND** a later message about the saved roles does not ask again
+
+#### Scenario: No answer keeps the primary
+- **WHEN** the host does not answer the other-calendars question
+- **THEN** the primary calendar stays the only calendar checked for conflicts and setup continues
+
+#### Scenario: The host adds a calendar
+- **WHEN** the host answers yes or names one of the listed calendars
+- **THEN** the named calendars are added to the conflict calendars through the same calendar role checks as the web
+
+#### Scenario: Changing weeks
+- **WHEN** the host moves to the next week and back in the Week view
+- **THEN** the grid stays visible throughout, the next week's events usually show without waiting, and the week returned to shows its events at once
+
+#### Scenario: Answers arrive out of order
+- **WHEN** the host moves through several weeks quickly and an earlier week's answer arrives last
+- **THEN** the Dashboard shows the selected week's events, not the earlier week's
 
 ### Requirement: Pending decisions on the workspace menu
 Where the workspace menu offers the host's Requests, the menu button and its Requests item SHALL show the number of received requests that need the host's decision (awaiting approval, holding a suggestion the host has not settled, held by the weekly limit, or with every candidate needing the host), as a round count with an accessible text equivalent that shows 9+ above nine. The count SHALL exclude sample requests, SHALL be refreshed when the page regains focus, when the menu opens and whenever the Requests view in the same tab reloads its requests, and SHALL disappear when no request needs a decision. A failed read SHALL keep the last count without an error.

@@ -5,6 +5,7 @@ import { defineEval } from "eve/evals";
 import { includes, satisfies } from "eve/evals/expect";
 import { openai } from "eve/models/openai";
 import { nearestTimesMessage } from "../../lib/contracts/feasibility";
+import { REGRESSION } from "../tags";
 import type { Check, DefenseCase, RequesterState } from "./defense-cases";
 import {
   HOST_TOOLS,
@@ -177,12 +178,16 @@ const EVALUATE_STUB = {
 
 type Rows = Record<string, Record<string, unknown>[]>;
 
+// A field matches a fixed value exactly, a pattern by its text, or a predicate
+// (for structured fields such as windows, appended 2026-11-23).
 function patchMatches(patch: unknown, expected: Readonly<Record<string, unknown>>) {
   if (!patch || typeof patch !== "object") return false;
   const fields = patch as Record<string, unknown>;
-  return Object.entries(expected).every(([key, value]) =>
-    value instanceof RegExp ? value.test(String(fields[key] ?? "")) : fields[key] === value,
-  );
+  return Object.entries(expected).every(([key, value]) => {
+    if (value instanceof RegExp) return value.test(String(fields[key] ?? ""));
+    if (typeof value === "function") return fields[key] !== undefined && (value as (field: unknown) => boolean)(fields[key]);
+    return fields[key] === value;
+  });
 }
 
 // A question review only notes that the assistant asked something (the
@@ -227,7 +232,7 @@ export function defenseEval(entry: DefenseCase, trial: number, set = "defense") 
   return defineEval({
     description: `${entry.id} (${entry.category}, ${entry.owasp.join(" ") || "control"}) run ${trial}`,
     metadata: { caseId: entry.id, category: entry.category, owasp: entry.owasp, rules: entry.rules, trial },
-    tags: ["requester", "live-model", set, entry.category],
+    tags: ["requester", "live-model", set, ...(set === "defense" ? [REGRESSION] : []), entry.category, `case:${entry.id}`],
     timeoutMs: entry.turns.length > 4 ? 600_000 : 180_000,
     async test(t) {
       // Confirmed contact: graded on the model's replies, not cut off by the

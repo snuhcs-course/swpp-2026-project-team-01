@@ -22,7 +22,7 @@ Non-goals: host control over revised requests (U19); SMS for guests; a guest acc
 
 The booking page shows **Get updates in iMessage** inside the host-approval waiting card (U22). Pressing it asks the server for a link code owned by the request (a third owner kind on `imessage_links`, beside the host account and the iMessage-start browser) and at once opens Messages with `Get Find Me a Time updates: FMAT-…` addressed to the line, using the host's deep-link forms (`deepLinkFor`, `messagesPlatform` in `lib/contracts/imessage.ts`) and the QR code fallback on desktops; a Mac also gets **Open Messages on this Mac** with the same `&body=` link, as on the host's link screens (host-imessage-channel D17), and pressing **Get updates in iMessage** there opens nothing by itself. The code family, lifetime and limits follow host-imessage-channel D5 (`FMAT-` plus ten Crockford characters, 15 minutes, hashed and sealed, at most 5 per request per hour), so the existing redaction already removes it everywhere.
 
-When the message arrives, `receiveLinkCode` records the sender on the attempt; the booking page polls the attempt and shows the sender in full (since #118) with **Confirm and link**. Only that click, by the holder of the booking link, binds. Then the line sends a fixed welcome as a reply in that conversation.
+When the message arrives, `receiveLinkCode` records the sender on the attempt; the booking page polls the attempt and shows the sender in full (since #118) with **Confirm and link**. Only that click, by the holder of the booking link, binds. Then the line sends a fixed welcome as a reply in that conversation. Superseded by [`link-on-code`](../link-on-code/proposal.md) D1: the code now binds on arrival, with no **Is this your …?** step; **Unlink** is the recovery.
 
 A code from a sender who already has an active host binding still links. The guest binding is separate (section 2), so a host can receive their guest notices in the same conversation.
 
@@ -94,7 +94,7 @@ Rejected: matching by email address (not an identity); applying without the card
 
 ### 7. Soft guest preferences
 
-Moved to #60 (user, 2026-11-02). Ordering candidates by the guest-host's weekly hours and limit changes the engine's order, which the request's host sees too, so it is host-side work.
+Moved to #60 (user, 2026-11-02). Ordering candidates by the guest-host's weekly hours and limit changes the engine's order, which the request's host sees too, so it is host-side work. Done in [`feasibility-in-person-and-preferences`](../archive/2026-11-23-feasibility-in-person-and-preferences/design.md#3-a-guest-hosts-preferences), riding on the **Calendars** item.
 
 ### 8. Screens
 

@@ -1,6 +1,7 @@
 import { createHmac, randomUUID } from "node:crypto";
 import { z } from "zod";
 import { bookingUrl, openBookingLink } from "./booking-links";
+import { type CommandDefinition, CommandError } from "./commands";
 import { database, type Database, type Transaction } from "./database";
 import { enqueueEmail } from "./email-delivery";
 import { type ClaimedJob, type JobHandler, publishJob } from "./jobs";
@@ -254,5 +255,85 @@ export function createLinkResendRouteHandler(load: () => LinkResendRouteDependen
       body.data,
     );
     return Response.json(answer, { headers: HEADERS, status: 202 });
+  };
+}
+
+// ---------------------------------------------------------------------------
+// contact.resend_link: the assistant's resend (guest-email-and-agree-notices
+// design 3)
+
+export const RESEND_LINK_OPERATION = "contact.resend_link";
+
+export type ResendLinkResult =
+  | { readonly status: "queued"; readonly deliveryId: string }
+  // The contact is not confirmed: nothing is sent, since a link goes only to a
+  // confirmed address.
+  | { readonly status: "unconfirmed" }
+  | { readonly status: "limited" };
+
+// When a guest asks Thyme for their booking link again, the request's own link
+// goes to its confirmed contact address, and to nothing else, while the request
+// is open or booked and its link unexpired, under the same
+// per-request, per-recipient and service limits as **Lost your booking link?**
+// (it records one link_resend_issuances row). The actor is the requester; the
+// delivery's identity is the command's, so a retried tool call sends no second
+// email. An unconfirmed or limited request gets its status and nothing is sent.
+export function resendLinkCommand(options: {
+  readonly origin: string;
+  readonly tokenKey: TokenKey;
+  readonly limits?: Partial<LinkResendLimits>;
+}): CommandDefinition<Record<string, never>, ResendLinkResult> {
+  const limits = { ...LINK_RESEND_LIMITS, ...options.limits };
+
+  return {
+    input: z.object({}).strict() as unknown as z.ZodType<Record<string, never>>,
+    operation: RESEND_LINK_OPERATION,
+    async run(tx, context) {
+      if (context.actor.kind !== "requester_request" || context.actor.id !== context.resourceId) {
+        throw new CommandError("forbidden");
+      }
+      const requestId = context.actor.id;
+      const [request] = await tx<(Match & { confirmed_email: string | null; open: boolean })[]>`
+        select r.id, r.details ->> 'language' as language, s.settings ->> 'displayName' as host_name,
+               l.link_ciphertext, l.link_key_id,
+               case when lower(r.contact_confirmed_email) = lower(r.contact_email) then lower(r.contact_confirmed_email) end as confirmed_email,
+               (l.expires_at > now() and ((r.closed_at is null and r.expires_at > now()) or r.state = 'booked')) as open
+        from app.requests r
+        join app.booking_links l on l.request_id = r.id
+        left join app.host_settings s on s.host_account_id = r.host_account_id
+        where r.id = ${requestId}
+        for update of r
+      `;
+      if (!request) throw new CommandError("forbidden");
+      if (!request.open) throw new CommandError("request_closed");
+      if (!request.confirmed_email) return { status: "unconfirmed" };
+
+      const recipientHash = addressHash(options.tokenKey, request.confirmed_email);
+      // The request lock first (above), then the recipient's, then the service's,
+      // as the link_resend job takes them.
+      await tx`select pg_advisory_xact_lock(hashtextextended(${`app.link_resend_recipient:${recipientHash}`}, 0))`;
+      await tx`select pg_advisory_xact_lock(hashtextextended('app.link_resend_service', 0))`;
+      if (!(await issuanceAllowed(tx, requestId, recipientHash, limits))) return { status: "limited" };
+
+      const retryKey = `chat:${context.correlationId}`.slice(0, 200);
+      const bookingId = openBookingLink([options.tokenKey], { ...request, request_id: requestId });
+      const delivery = await enqueueEmail(tx, {
+        dedupeKey: `${requestId}:${retryKey}`,
+        kind: "link_resend",
+        language: request.language === "ko" ? "ko" : "en",
+        parameters: { hostName: request.host_name ?? undefined },
+        recipient: request.confirmed_email,
+        requestId,
+        secrets: { bookingUrl: bookingUrl(options.origin, bookingId) },
+        tokenKey: options.tokenKey,
+      });
+      if (delivery.created) {
+        await tx`
+          insert into app.link_resend_issuances (request_id, recipient_hash, retry_key)
+          values (${requestId}, ${recipientHash}, ${retryKey})
+        `;
+      }
+      return { deliveryId: delivery.id, status: "queued" };
+    },
   };
 }

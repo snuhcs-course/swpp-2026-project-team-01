@@ -7,9 +7,9 @@ import type { TokenKey } from "./token-encryption";
 // (host-imessage-channel D19), so the sender can sign in from the thread, in
 // whatever browser the link opens. It goes only to the sender's direct
 // conversation, as {attempt id}.{HMAC of the id and the sender's hash}, and works
-// only while that attempt is received and before its confirmation deadline. It
-// signs nobody in: Google sign-in and Confirm and link are still required, and a
-// confirmed, cancelled or expired attempt ends it.
+// only while that attempt is received and before its deadline. It signs nobody
+// in: the Google sign-in it leads to binds the sender (link-on-code D3), and a
+// linked, cancelled or expired attempt ends it.
 export const CONTINUATION_COOKIE = "fmat_imessage_continue";
 export const CONTINUATION_SECONDS = 15 * 60;
 
