@@ -122,15 +122,24 @@ function sessionAuth(principal: Principal, discussionId: string, generation: num
 // no intake session is created or sent to any more.
 async function guestMayUse(db: Database, principal: Principal, discussionId: string, kind: InternalGrant["kind"]) {
   if (principal.type === "requester_request") {
-    const [row] = await db<{ allowed: boolean }[]>`
-      select ((r.closed_at is null and r.expires_at > now()) or r.state = 'booked') and l.expires_at > now() as allowed
+    // A request a guest account owns stays readable, never writable, after it
+    // closes or its link expires, so the account's Requests list can show the
+    // conversation while the account exists (guest-account-history D2). The
+    // application mints that read bearer only after checking the account.
+    const [row] = await db<{ allowed: boolean; owned: boolean }[]>`
+      select ((r.closed_at is null and r.expires_at > now()) or r.state = 'booked') and l.expires_at > now() as allowed,
+             exists (
+               select 1 from app.requester_host_profiles p
+               join app.host_accounts a on a.id = p.host_account_id
+               where p.request_id = r.id and a.status = 'active' and a.deleted_at is null
+             ) as owned
       from app.discussions d
       join app.requests r on r.id = d.principal_id
       join app.booking_links l on l.request_id = r.id
       where d.id = ${discussionId} and d.principal_type = 'requester_request' and d.principal_id = ${principal.id}
         and d.audience = ${REQUESTER_AUDIENCE}
     `;
-    return Boolean(row?.allowed);
+    return Boolean(row?.allowed || (kind === "read" && row?.owned));
   }
 
   const [row] = await db<{ continued: boolean }[]>`
