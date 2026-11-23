@@ -7,4 +7,4 @@
 
 ## Documents
 
-- [x] Update the product requirements' rule configuration row and the `host-onboarding` starter-default tables, and regenerate their Korean mirrors.
+- [x] Update the product requirements' rule configuration row and the `host-onboarding` starter-default tables, and regenerate the product requirements' Korean mirror (the `host-onboarding` change has none).

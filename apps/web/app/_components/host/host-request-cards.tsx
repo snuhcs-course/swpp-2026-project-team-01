@@ -371,7 +371,7 @@ function suggestionRows(suggestion: HostSuggestion, view: HostRequestView): [str
   const { changes } = suggestion;
 
   if (changes.start) {
-    const minutes = changes.durationMinutes ?? base?.durationMinutes ?? DEFAULT_MEETING_MINUTES;
+    const minutes = changes.durationMinutes ?? base?.durationMinutes ?? view.details.durationMinutes ?? DEFAULT_MEETING_MINUTES;
     const end = new Date(Date.parse(changes.start) + minutes * 60_000).toISOString();
     rows.push(["When", base ? when(base.start, base.end, view) : "Not set", when(changes.start, end, view)]);
   }

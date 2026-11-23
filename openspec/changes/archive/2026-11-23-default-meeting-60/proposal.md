@@ -10,7 +10,7 @@ When nobody says how long a meeting is, the service falls back to 30 minutes, wh
 
 - One shared constant, `DEFAULT_MEETING_MINUTES` in `lib/contracts/setup.ts`, holds the default meeting length, and it is 60 minutes.
 - The setup starter default for **Meeting length** (`STARTER_DEFAULTS.durationMinutes`), used when the calendar scan counted fewer than 5 meetings, is 60 minutes.
-- The guest view of the host's offer, when the host's settings hold no meeting length, shows 60 minutes.
+- The guest's web page view of the host's offer, when the host's settings hold no meeting length, shows 60 minutes.
 - The tutorial's sample request is a 60-minute meeting.
 - The host's **Suggest changes** form and its change summary start from 60 minutes when neither the current proposal nor the request has a length.
 
