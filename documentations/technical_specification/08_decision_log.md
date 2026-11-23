@@ -811,7 +811,7 @@ The [proposal](../../openspec/changes/guest-telegram-link/proposal.md#decisions)
 
 ## `post-booking-changes`
 
-The [proposal](../../openspec/changes/post-booking-changes/proposal.md#decisions) and [design](../../openspec/changes/post-booking-changes/design.md) record these choices for issue #234 (renegotiation after booking, #169). The user decided on 2026-11-16 that the product supports cancelling and changing a booked meeting, cancellation first; the session that wrote the change took D1–D6 the same day, and they have had no teammate review yet. The PRD's non-goal "automated post-booking rescheduling and cancellation" is replaced by FR-43.
+The [proposal](../../openspec/changes/post-booking-changes/proposal.md#decisions) and [design](../../openspec/changes/post-booking-changes/design.md) record these choices for issue #234 (renegotiation after booking, #169). The user decided on 2026-11-16 that the product supports cancelling and changing a booked meeting, cancellation first; the session that wrote the change took D1–D6 the same day, and the session that finished it took D7 on 2026-11-24; they have had no teammate review yet. The PRD's non-goal "automated post-booking rescheduling and cancellation" is replaced by FR-43.
 
 | # | Choice | Alternatives | Recorded in | To change it |
 |---|---|---|---|---|
@@ -821,6 +821,7 @@ The [proposal](../../openspec/changes/post-booking-changes/proposal.md#decisions
 | D4 | Only the side that did not cancel gets our notice: a guest the `status_cancelled` email and chat message, a host the `booking_cancelled` email and chat message; Google's cancellation reaches the guest either way. A cancelled request continues as a new request when the guest writes again by email or iMessage | Notifying both sides | Design 4; `email-delivery` delta | `lib/server/booking-notices.ts`, `booking-emails.ts`, `imessage-notice-job.ts`; `isRevisable` in `revised-requests.ts` |
 | D5 | A change after booking reopens the proposal flow while the booked meeting stands and patches the same event on approval | Cancelling and booking again; a separate reschedule flow | Design 5; `meeting-requests` delta "Changing a booked meeting" | `changeBookingCommand` in `lib/server/booking-cancellation.ts`; `patchChange` and `confirm` in `lib/server/bookings.ts` |
 | D6 | A change reopens the request to `negotiating` (deadline: seven days or the meeting's start), recognised by its standing confirmed booking; a second booking row with `replaces_booking_id` shares the event ID; the meeting's own event is not busy time; withdrawal, decline and expiry keep the meeting | A `rebooking` request state; editing the confirmed booking row | Design 5 | `standingBookingOf` and `dropChange` in `lib/server/request-lifecycle.ts`; `notOwnEvent` in `lib/server/evaluation.ts`; `bookings.sql` |
+| D7 | A change that no longer uses Google Meet (in person, or the guest's own link) patches the event with `conferenceData: null`, removing its Meet, and a change without a place clears the event's location; a change that stays on Meet keeps the existing Meet | Leaving the Meet on the event (the first implementation); deleting and recreating the event | Design 5; `meeting-requests` delta "Online meeting changes to in person" | `changePatchBody` in `lib/server/bookings.ts` |
 
 ## `self-service-account-deletion`
 

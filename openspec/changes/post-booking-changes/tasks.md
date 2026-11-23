@@ -14,7 +14,8 @@
 - [x] Host workspace: **Cancel meeting** with a confirmation on the booking card; the guest page shows a cancelled meeting.
 - [ ] Run the extended `tests/e2e/host-review.test.ts` (cancels from the booking card); not run in the implementing session.
 - [x] Unit tests (calendar client, email copy, MCP tool shape) and integration tests (command authority and refusals, job outcomes, notices, the guest, host-chat and MCP tools).
-- [ ] Cover the linked-chat notice texts (`status_cancelled`, `booking_cancelled`, `booking_event_left`) in an integration test with an active binding.
+- [x] Cover the linked-chat notice texts (`status_cancelled`, `booking_cancelled`, `booking_event_left`) in an integration test with an active binding (`tests/integration/booking-cancellation-chats.test.ts`).
+- [ ] Run `tests/integration/booking-cancellation-chats.test.ts` against the local stack; not run in the implementing session.
 - [ ] Try it end to end against a personal Supabase project and a real Google Calendar (Google's cancellation email to the guest is not covered by automated tests).
 
 ## Changes (step 2)
@@ -26,7 +27,7 @@
 - [x] Withdrawal, decline and expiry drop the change and keep the meeting; decline and expiry tell the guest (`status_change_dropped`); cancellation during a change cancels the meeting.
 - [x] Tools: `change_booking` for the guest assistant, the guest MCP, the host's linked chat and the host MCP; **Change meeting** on the host's booking card and a note while a change is open; assistant instructions.
 - [x] Tests: unit (`patchEvent`, email copy) and integration (reopen, own time offered again, patched approval, withdraw, decline, expiry, cancel midway).
-- [ ] Remove a Meet link when a booked online meeting changes to in person.
+- [x] Remove a Meet link when a booked online meeting changes to in person (`changePatchBody` in `lib/server/bookings.ts`: `conferenceData: null`, and `location: null` when the change has no place), with unit tests.
 - [ ] Try a change end to end against a real Google Calendar.
 
 ## Review
