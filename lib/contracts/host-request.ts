@@ -59,6 +59,9 @@ export type HostSuggestion = {
     readonly linkPlan?: LinkPlan;
   };
   readonly rejectionReason: string | null;
+  // The proposal version current when the suggestion was made, and the one
+  // sharing it wrote.
+  readonly baseProposalVersion: number | null;
   readonly proposalVersion: number | null;
 };
 

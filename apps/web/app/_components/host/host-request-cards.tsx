@@ -101,12 +101,17 @@ export function ProposalReviewCard({ context, onRequestChanges }: { readonly con
   const [declinedDates, setDeclinedDates] = useState<readonly string[]>([]);
   const closed = ["declined", "withdrawn", "expired", "cancelled"].includes(view.state);
   const awaiting = view.state === "awaiting_host_approval" && proposal.agreedAt !== null;
+  // The host's own shared suggestion, waiting for the guest (#386).
+  const suggested = !closed && hostSuggestedProposal(view);
   // Several times the guest can make (multiple-candidate-times): the host books one.
   const times = proposal.times && proposal.times.length > 1 ? proposal.times : null;
   const start = new Date(proposal.start);
   const day = new Intl.DateTimeFormat("en", { day: "numeric", month: "short", timeZone: view.hostTimezone }).format(start);
   const weekday = new Intl.DateTimeFormat("en", { timeZone: view.hostTimezone, weekday: "long" }).format(start);
   const time = (instant: string) => new Intl.DateTimeFormat("en", { hour: "2-digit", hourCycle: "h23", minute: "2-digit", timeZone: view.hostTimezone }).format(new Date(instant));
+  const waiting = suggested
+    ? `You suggested ${displayTime(start, view.hostTimezone).split(", ")[0]}, ${time(proposal.start)}–${time(proposal.end)}. We’re waiting for ${view.requester.name} to agree before you can approve.`
+    : "We’re waiting for the requester to confirm the proposed details.";
   const facts: readonly (readonly [string, ReactNode])[] = [
     ["Length", `${proposal.durationMinutes} minutes`],
     ...(times ? [] : ([["Mode", MODE_LABELS[proposal.mode]]] as const)),
@@ -122,8 +127,8 @@ export function ProposalReviewCard({ context, onRequestChanges }: { readonly con
     <section aria-labelledby="proposal-review-heading" className="flex min-w-0 flex-col gap-5 pt-5" id="proposal-review">
       <div>
         {view.sample ? <p className="mb-1 text-xs font-semibold uppercase tracking-wide text-primary">Sample request</p> : null}
-        <h3 className="text-[21px] leading-[1.3] font-semibold tracking-tight" id="proposal-review-heading">{closed ? view.state === "withdrawn" ? "Request withdrawn" : view.state === "cancelled" ? "Meeting cancelled" : view.state === "expired" ? "Expired" : "Declined" : awaiting ? "Approve this meeting?" : "Waiting for the requester"}</h3>
-        <p className="mt-1 text-sm text-muted-foreground">{view.sample ? "Try an action to complete this sample. No calendar event will be created and no guest will be notified." : closed ? "This request is closed." : awaiting && times ? `${view.requester.name} can make any of these ${times.length} times. Book the one you want; we’ll check your calendar for it and confirm the booking.` : awaiting ? `${view.requester.name} has agreed to the proposed details. Once you approve, we’ll check your calendar and confirm the booking.` : "We’re waiting for the requester to confirm the proposed details."}</p>
+        <h3 className="text-[21px] leading-[1.3] font-semibold tracking-tight" id="proposal-review-heading">{closed ? view.state === "withdrawn" ? "Request withdrawn" : view.state === "cancelled" ? "Meeting cancelled" : view.state === "expired" ? "Expired" : "Declined" : awaiting ? "Approve this meeting?" : suggested ? `Waiting for ${view.requester.name}` : "Waiting for the requester"}</h3>
+        <p className="mt-1 text-sm text-muted-foreground">{view.sample ? "Try an action to complete this sample. No calendar event will be created and no guest will be notified." : closed ? "This request is closed." : awaiting && times ? `${view.requester.name} can make any of these ${times.length} times. Book the one you want; we’ll check your calendar for it and confirm the booking.` : awaiting ? `${view.requester.name} has agreed to the proposed details. Once you approve, we’ll check your calendar and confirm the booking.` : waiting}</p>
       </div>
       {times ? (
         <ol aria-label="Times the guest can make" className="flex flex-col gap-2">
@@ -420,16 +425,38 @@ export function SuggestionEditor({
 // ---------------------------------------------------------------------------
 // Review proposed shared changes
 
+// The suggested time as an interval, its length from the suggestion, the
+// proposal it was made against or the request.
+function suggestedInterval(suggestion: HostSuggestion, view: HostRequestView): { readonly start: string; readonly end: string } | null {
+  const { start, durationMinutes } = suggestion.changes;
+  if (!start) return null;
+  const minutes = durationMinutes ?? view.proposal?.durationMinutes ?? view.details.durationMinutes ?? DEFAULT_MEETING_MINUTES;
+  return { end: new Date(Date.parse(start) + minutes * 60_000).toISOString(), start };
+}
+
+// The current proposal is the one the host's shared suggestion wrote, and the
+// guest has not agreed to it yet (#386).
+export function hostSuggestedProposal(view: HostRequestView) {
+  const { proposal, suggestion } = view;
+  return Boolean(proposal && suggestion?.state === "shared" && suggestion.proposalVersion === proposal.version && proposal.agreedAt === null);
+}
+
+// A suggestion whose time failed the check, while no proposal has followed the
+// one it was made against: that proposal is stale, so the rejection is where
+// the request stands (#386).
+export function currentRejection(view: HostRequestView) {
+  const { proposal, suggestion } = view;
+  const open = ["gathering", "negotiating"].includes(view.state);
+  return open && suggestion?.state === "rejected" && suggestion.baseProposalVersion === (proposal?.version ?? null);
+}
+
 function suggestionRows(suggestion: HostSuggestion, view: HostRequestView): [string, ReactNode, ReactNode][] {
   const base = view.proposal;
   const rows: [string, ReactNode, ReactNode][] = [];
   const { changes } = suggestion;
 
-  if (changes.start) {
-    const minutes = changes.durationMinutes ?? base?.durationMinutes ?? view.details.durationMinutes ?? DEFAULT_MEETING_MINUTES;
-    const end = new Date(Date.parse(changes.start) + minutes * 60_000).toISOString();
-    rows.push(["When", base ? when(base.start, base.end, view) : "Not set", when(changes.start, end, view)]);
-  }
+  const interval = suggestedInterval(suggestion, view);
+  if (interval) rows.push(["When", base ? when(base.start, base.end, view) : "Not set", when(interval.start, interval.end, view)]);
   if (changes.durationMinutes) rows.push(["Length", base ? `${base.durationMinutes} minutes` : "Not set", `${changes.durationMinutes} minutes`]);
   if (changes.mode) rows.push(["Mode", base ? MODE_LABELS[base.mode] : "Not set", MODE_LABELS[changes.mode]]);
   if (changes.location) rows.push(["Place", base?.location ?? "Not set", changes.location]);
@@ -455,26 +482,17 @@ export function SuggestionCard({ context, onRequestChanges }: { readonly context
   }
 
   if (suggestion.state === "rejected") {
+    const interval = suggestedInterval(suggestion, view);
     return (
       <GuestCard description={suggestion.rejectionReason ?? "That time did not pass the check."} id="suggestion" label="Proposed shared changes" title="That time does not work">
-        <p className="text-muted-foreground">The details were shared, but no new proposal was sent. The requester can still find other times.</p>
+        {interval ? <p>You suggested {when(interval.start, interval.end, view)}.</p> : null}
+        <p className="text-muted-foreground">The details were shared, but no new proposal was sent, and the earlier time no longer stands. The requester can still find other times.</p>
         <GuestCardActions>
           <Button onClick={onRequestChanges} type="button" variant="outline">
             Request changes
           </Button>
         </GuestCardActions>
       </GuestCard>
-    );
-  }
-
-  if (suggestion.state === "shared") {
-    return (
-      <GuestCard
-        description={`The proposed details were sent to ${view.requester.name}. We’re waiting for their confirmation before you can approve.`}
-        id="suggestion"
-        label="Proposed shared changes"
-        title="Shared with the requester"
-      />
     );
   }
 
@@ -731,7 +749,8 @@ export type HostStep = "suggestion" | "editor" | "rules" | "proposal" | "booking
 
 // One actionable card at a time (design principle 4): a suggestion in progress
 // first, then the rule and travel review while it has something to decide, then
-// the proposal, then the booking.
+// a shared time that failed its check, then the proposal (which says when the
+// host suggested it), then the booking.
 export function nextHostStep(view: HostRequestView, editing: boolean): HostStep {
   if (editing) return "editor";
   if (view.suggestion && ["pending", "checking"].includes(view.suggestion.state)) return "suggestion";
@@ -746,7 +765,7 @@ export function nextHostStep(view: HostRequestView, editing: boolean): HostStep 
 
   const unresolved = view.evaluation?.candidates.some((candidate) => candidate.status === "host_unresolved" && candidate.hostLegs.some((leg) => leg.canAllow));
   if (view.evaluation?.weeklyLimitHold || unresolved) return "rules";
+  if (currentRejection(view)) return "suggestion";
   if (view.proposal) return "proposal";
-  if (view.suggestion && ["rejected", "shared"].includes(view.suggestion.state)) return "suggestion";
   return "find";
 }
