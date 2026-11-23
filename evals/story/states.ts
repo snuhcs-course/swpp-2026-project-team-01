@@ -234,6 +234,16 @@ const builders: Record<string, (language: Language) => Promise<Built>> = {
     return { facts: { version }, request };
   },
   "RV-L": async (language) => hostWithRequests(language),
+  // Two requests from different requesters both await the host's approval; the
+  // conversation is about the later one, whose summary the host got last
+  // (issue #382).
+  "RV-M": async (language) => {
+    const [mine, other] = language === "ko" ? ["김민지", "이은우"] : ["Minji Kim", "Eunwoo Lee"];
+    const host = await seedHost({ settings: GUEST_OFFER });
+    const earlier = await agreedForHost({ host, language, purpose: "투자 상담", requesterName: other });
+    const { request, version } = await agreedForHost({ host, language, requesterName: mine });
+    return { facts: { other: earlier.request.requestId, otherVersion: earlier.version, version }, request };
+  },
   "RV-XL": async (language) => hostWithRequests(language),
 };
 

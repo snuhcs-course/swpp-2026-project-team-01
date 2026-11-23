@@ -888,3 +888,13 @@ The [proposal](../../openspec/changes/place-settles-in-person/proposal.md) recor
 | # | Choice | Alternatives | Recorded in | To change it |
 |---|---|---|---|---|
 | D1 | When the host offers online or in person and the guest names a place as where they will meet ("역삼역으로요" to "어디서 만날까요?"), the guest assistant drafts in person with that place on the review card; it asks the form only when the place comes up in passing or the same answer leans toward online | Asking the form after any place (the #280 rule); taking every mentioned place as in person | `meeting-requests` delta "Guest assistant answers within its scope"; GU-50, GU-A04, GU-A08 and GU-A09 in documentation 13 | The place-and-form rule in `agent/instructions/requester.ts` and those cases in `evals/requester/story-cases.ts` |
+
+## `host-decisions-in-one-message`
+
+The [proposal](../../openspec/changes/host-decisions-in-one-message/proposal.md#decisions) records these choices for issue #382, taken on 2026-11-24 in the session that implemented the change, from the issue's expected behavior. They extend `host-imessage-channel` D23 and D26 and `channel-actions-in-words` D1, and have had no teammate review yet.
+
+| # | Choice | Alternatives | Recorded in | To change it |
+|---|---|---|---|---|
+| D1 | `approve_proposal` and `decline_request` take an optional `request` (a reference or the requester's name as the host wrote it) and are called once per request a message decides; the conversation stays on its own request | A batch tool taking a list of decisions; switching the conversation between calls | Proposal; `host-imessage-channel` delta "Several decisions in one message" | `requestReferenceInput` and `decisionTarget` in `lib/server/host-review-tools.ts`, `agent/tools/request.ts`, `agent/instructions/host-imessage.ts` |
+| D2 | The reference resolves among the host's own requests by reference or by the requester's exact name with any possessive dropped; for an approval several matches narrow to the only one awaiting approval; several or no matches decide nothing for that request and the assistant asks about it alone | `switch_conversation`'s looser match, where "Lee" would match Eunwoo Lee; taking the latest or first match | Proposal | `matchHostRequests` in `lib/server/channel-selection.ts`, `chooseDecisionTarget` in `host-review-tools.ts` |
+| D3 | A named request's decision answers its `proposalVersion` from `list_host_requests`, checked as for the conversation's own request | No version for a named request | Proposal | `hostRequestsForModel` in `host-review-tools.ts` |

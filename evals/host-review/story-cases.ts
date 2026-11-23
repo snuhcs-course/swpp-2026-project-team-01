@@ -1,3 +1,4 @@
+import { requestRef } from "../../lib/server/request-ref";
 import { at, nextWeek } from "../story/fixtures";
 import { HOST_DECISIONS, HOST_LOOKUP, TOOL_NAME } from "../story/tools";
 import type { StoryCase } from "../story/types";
@@ -24,6 +25,21 @@ function isInstant(value: unknown, expected: string) {
 }
 
 const NEXT = nextWeek();
+
+// A decision tool's request input names the request with this id, by its
+// reference or by the requester's name (issue #382).
+function names(input: Record<string, unknown>, requestId: unknown, requester: string) {
+  return typeof input.request === "string" && typeof requestId === "string" && (input.request.toUpperCase().includes(requestRef(requestId)) || input.request.includes(requester));
+}
+
+// The input leaves request out, or names the conversation's own request.
+function ownOrNamed(input: Record<string, unknown>, requestId: string, requester: string) {
+  return input.request === undefined || names(input, requestId, requester);
+}
+
+function stateOf(view: { hostRequests: readonly { id: string; state: string }[] }, requestId: unknown) {
+  return view.hostRequests.find((row) => row.id === requestId)?.state ?? null;
+}
 
 export const HOST_REVIEW_STORY_CASES: readonly StoryCase[] = [
   {
@@ -1835,6 +1851,136 @@ export const HOST_REVIEW_STORY_CASES: readonly StoryCase[] = [
       },
       { label: "the reason is not stored", holds: (after) => !JSON.stringify(after.details).includes("출장") },
       { label: "no booking is created", holds: (after, before) => after.bookings.length === before.bookings.length },
+    ],
+  },
+  // Appended 2026-11-24 (host-decisions-in-one-message, #382): one host
+  // message with several decisions applies each to the request it names, in
+  // the same turn, and asks only about the unclear one.
+  {
+    id: "RV-M01",
+    conversation: "host_review",
+    category: "normal",
+    shape: "single",
+    source: "#382 (QA 2026-11-23)",
+    state: "RV-M",
+    channel: "telegram",
+    language: "ko",
+    turns: [
+      {
+        message: "이은우님 거 승인하고 김민지님 거 거절해 줘",
+        checks: [
+          { kind: "judge", criterion: "이은우의 요청은 승인했고 김민지의 요청은 거절했다고 각각 말한다." },
+          { kind: "judge", criterion: "이은우의 요청을 승인해 달라고 다시 묻지 않는다." },
+          { kind: "judge", criterion: "미팅이 이미 예약 완료되었거나 캘린더에 들어갔다고 말하지 않는다. 승인했고 예약을 진행 중이라는 말은 괜찮다." },
+        ],
+        calls: [
+          {
+            name: "approve_proposal",
+            label: "approves 이은우's request by name or reference with its version",
+            input: (input, context) => names(input, context.facts.other, "이은우") && input.version === context.facts.otherVersion,
+          },
+          {
+            name: "decline_request",
+            label: "declines this conversation's request with its version",
+            input: (input, context) => ownOrNamed(input, context.requestId, "김민지") && input.version === context.facts.version,
+          },
+        ],
+        forbid: ["switch_conversation"],
+      },
+    ],
+    allowed: [...HOST_LOOKUP, "approve_proposal", "decline_request"],
+    database: [
+      { label: "this conversation's request is declined", holds: (after) => after.state === "declined" },
+      { label: "이은우's request is booking", holds: (after, _before, context) => stateOf(after, context.facts.other) === "booking" },
+      {
+        label: "exactly one approval, for 이은우's request",
+        holds: (after, before, context) =>
+          after.hostApprovals.length === before.hostApprovals.length + 1 && after.hostApprovals.filter((id) => id === context.facts.other).length === 1,
+      },
+      { label: "the conversation stays on its request", holds: (after, before) => after.selected === before.selected },
+    ],
+  },
+  {
+    id: "RV-M02",
+    conversation: "host_review",
+    category: "normal",
+    shape: "single",
+    source: "#382 · RV-M01 in English from iMessage, the conversation's own request first",
+    state: "RV-M",
+    channel: "imessage",
+    language: "en",
+    turns: [
+      {
+        message: "Decline this one, and approve Eunwoo Lee's.",
+        checks: [
+          { kind: "language", language: "en" },
+          { kind: "judge", criterion: "Says Eunwoo Lee's request was approved and Minji Kim's was declined, each by name." },
+          { kind: "judge", criterion: "Does not ask the host to approve Eunwoo Lee's request again." },
+          { kind: "judge", criterion: "Does not say a meeting is already booked or on the calendar; approved with booking under way is fine." },
+        ],
+        calls: [
+          {
+            name: "approve_proposal",
+            label: "approves Eunwoo Lee's request by name or reference with its version",
+            input: (input, context) => names(input, context.facts.other, "Eunwoo") && input.version === context.facts.otherVersion,
+          },
+          {
+            name: "decline_request",
+            label: "declines this conversation's request with its version",
+            input: (input, context) => ownOrNamed(input, context.requestId, "Minji") && input.version === context.facts.version,
+          },
+        ],
+        forbid: ["switch_conversation"],
+      },
+    ],
+    allowed: [...HOST_LOOKUP, "approve_proposal", "decline_request"],
+    database: [
+      { label: "this conversation's request is declined", holds: (after) => after.state === "declined" },
+      { label: "Eunwoo Lee's request is booking", holds: (after, _before, context) => stateOf(after, context.facts.other) === "booking" },
+      {
+        label: "exactly one approval, for Eunwoo Lee's request",
+        holds: (after, before, context) =>
+          after.hostApprovals.length === before.hostApprovals.length + 1 && after.hostApprovals.filter((id) => id === context.facts.other).length === 1,
+      },
+      { label: "the conversation stays on its request", holds: (after, before) => after.selected === before.selected },
+    ],
+  },
+  {
+    id: "RV-M03",
+    conversation: "host_review",
+    category: "abnormal",
+    shape: "single",
+    source: "#382 · an unclear decision beside a clear one: 박도현 has two open requests",
+    state: "RV-L",
+    channel: "telegram",
+    language: "ko",
+    turns: [
+      {
+        message: "박도현 거는 거절하고 이건 승인해 줘",
+        checks: [
+          { kind: "judge", criterion: "지금 대화 중인 요청을 승인했다고 말한다." },
+          { kind: "judge", criterion: "박도현의 두 요청 가운데 어느 것을 거절할지 묻는다." },
+          { kind: "judge", criterion: "박도현의 요청을 거절했다고 말하지 않는다." },
+        ],
+        calls: [
+          {
+            name: "approve_proposal",
+            label: "approves this conversation's request with its version",
+            input: (input, context) => ownOrNamed(input, context.requestId, "Minji") && input.version === context.facts.version,
+          },
+        ],
+        forbid: ["switch_conversation"],
+      },
+    ],
+    allowed: [...HOST_LOOKUP, "approve_proposal", "decline_request"],
+    database: [
+      { label: "this conversation's request is booking", holds: (after) => after.state === "booking" },
+      {
+        label: "neither of 박도현's requests changed",
+        holds: (after, before, context) =>
+          [context.facts.investment, context.facts.hiring].every((id) => stateOf(after, id) === stateOf(before, id)),
+      },
+      { label: "exactly one approval", holds: (after, before) => after.hostApprovals.length === before.hostApprovals.length + 1 },
     ],
   },
 ];

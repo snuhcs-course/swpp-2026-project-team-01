@@ -28,6 +28,13 @@ export async function snapshot(requestId: string, hostAccountId: string): Promis
   rows.command_outcomes = await db.unsafe("select operation from app.command_outcomes where resource_id = $1 order by 1", [requestId]);
   rows.imessage_bindings = await db.unsafe("select channel, state, selected_request_id from app.imessage_bindings where host_account_id = $1", [hostAccountId]);
   rows.host_settings = await db.unsafe("select settings, draft_revision from app.host_settings where host_account_id = $1", [hostAccountId]);
+  // The host's other requests and their approvals, for a message that decides
+  // several requests at once (issue #382).
+  rows.host_requests = await db.unsafe("select id, state from app.requests where host_account_id = $1 order by id", [hostAccountId]);
+  rows.host_approvals = await db.unsafe(
+    "select a.request_id from app.approvals a join app.requests r on r.id = a.request_id where r.host_account_id = $1 order by 1",
+    [hostAccountId],
+  );
   return rows;
 }
 
@@ -54,6 +61,9 @@ export function view(rows: Snapshot) {
     latestProposal: proposals.reduce<(typeof proposals)[number] | null>((latest, row) => (!latest || row.version > latest.version ? row : latest), null),
     reviews: (rows.request_reviews ?? []) as { id: string; intent: string; patch: Record<string, unknown> | null; state: string }[],
     approvals: (rows.approvals ?? []) as Row[],
+    // Every request of the host by id with its state, and every approval's request.
+    hostRequests: (rows.host_requests ?? []) as { id: string; state: string }[],
+    hostApprovals: ((rows.host_approvals ?? []) as { request_id: string }[]).map((row) => row.request_id),
     selected: ((rows.imessage_bindings ?? [])[0]?.selected_request_id as string | null | undefined) ?? null,
     settings: ((rows.host_settings ?? [])[0]?.settings ?? null) as Record<string, unknown> | null,
     state: request.state ?? null,
