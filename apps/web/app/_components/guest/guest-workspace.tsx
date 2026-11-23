@@ -73,6 +73,9 @@ function meetingQuestion(view: OpenRequesterView) {
   return `What would you like to meet ${view.host.displayName} about? ${view.host.displayName} offers ${durationMinutes}-minute meetings, ${form}. If you already know when suits you, tell me that too.`;
 }
 
+// The Calendar receipt when the guest continued without connecting one.
+export const CALENDAR_NOT_CONNECTED = "Not connected · You’ll tell Thyme your times";
+
 const RECEIPT_LABELS = {
   identity: "Your details",
   meeting: "Meeting",
@@ -364,7 +367,7 @@ function useFocusNewCards(entries: readonly ThreadEntry[]) {
 // receipt: answered with what was chosen and **Change** where allowed, waiting
 // until its step comes, or out of date with a way to the current card. Open
 // entries are named open:{card element id}:{thread card id}.
-function threadEntries(
+export function threadEntries(
   context: RequesterCardContext,
   thread: readonly ThreadCard[],
   options: {
@@ -480,7 +483,10 @@ function threadEntries(
             entries.push({ at: card.at, id: card.id, node: <GuestReceipt action={action} id={card.id} label="" value={value} /> });
             panel.push({ at: card.at, id: card.id, node: <SummaryRow label="Calendar" value="Connected" /> });
           } else {
-            receipt(card, "Calendar", "Skipped", action);
+            // Not connecting is a choice, not a missed step: say what happens
+            // instead (#424).
+            entries.push({ at: card.at, id: card.id, node: <GuestReceipt action={action} id={card.id} label="Calendar" value={CALENDAR_NOT_CONNECTED} /> });
+            panel.push({ at: card.at, id: card.id, node: <SummaryRow label="Calendar" value="Not connected" /> });
           }
         }
         break;

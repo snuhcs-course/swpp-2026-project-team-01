@@ -9,7 +9,7 @@ import { expect as baseExpect, test } from "./support/session";
 // shows two fixed messages and the identity card, with the composer closed, and
 // nothing is written or asked of the model until a button is pressed; Continue
 // without Google identifies the request and opens the booking page, whose
-// thread keeps the two messages and shows the skipped Calendar step as the
+// thread keeps the two messages and shows the unconnected Calendar step as the
 // guest's reply; a fixed question asks what the meeting is for and opens the
 // composer; the assistant's drafted review (recorded here as its tool would,
 // since the model is the local stand-in) is applied with Apply these details,
@@ -127,11 +127,11 @@ for (const viewport of [
     const [creation] = await sentTo(email);
     expect(creation!.text).toContain(page.url());
     await expect(page.locator('[data-guest-card="identity"]').getByText(`Grace Hopper · ${email}`)).toBeVisible();
-    await expect(page.locator('[data-guest-card="calendar"]').getByText("Skipped")).toBeVisible();
+    await expect(page.locator('[data-guest-card="calendar"]').getByText("Not connected · You’ll tell Thyme your times")).toBeVisible();
     await expect(page.getByText("Hi, I'm Thyme, Ada Lovelace's scheduling assistant.", { exact: false })).toBeVisible();
     await page.reload();
     await expect(page.locator('[data-guest-card="identity"]').getByText(`Grace Hopper · ${email}`)).toBeVisible();
-    await expect(page.locator('[data-guest-card="calendar"]').getByText("Skipped")).toBeVisible();
+    await expect(page.locator('[data-guest-card="calendar"]').getByText("Not connected · You’ll tell Thyme your times")).toBeVisible();
 
     // U13: the fixed question with what the host offers, and the composer opens.
     await expect(page.getByText("What would you like to meet Ada Lovelace about? Ada Lovelace offers 30-minute meetings", { exact: false })).toBeVisible();
@@ -247,7 +247,7 @@ for (const viewport of [
     await expect(page.locator("[data-guest-decision-details]")).toContainText(`You’ll receive an email at ${email} as soon as the host approves your request.`);
     await expect(page.locator('[data-notification-preference="email-only"]')).toBeVisible();
     await expect(page.locator('[data-notification-confirmation="email-only"]')).toBeVisible();
-    await expect(page.locator('[data-guest-card="calendar"]').getByText("Skipped")).toBeVisible();
+    await expect(page.locator('[data-guest-card="calendar"]').getByText("Not connected · You’ll tell Thyme your times")).toBeVisible();
     await openCardCount(page, 1);
   });
 }

@@ -871,6 +871,15 @@ Dohyeon Park이 2026-11-16에 결정했으며, 2026-11-14 UAT 회의가 [이슈 
 
 D1과 D3과 함께 감수하는 남은 위험: 코드의 주인이 보내기 전에 코드가 유출되면(어깨너머로 본 화면, 전달된 스크린샷, 복사된 시작 링크나 QR 코드) 가장 먼저 보낸 사람이 연결됩니다. 게스트라면 그 발신자가 요청의 업데이트를 받고 게스트로서 답장할 수 있는데, 이는 예약 링크를 가진 사람이 이미 웹에서 할 수 있는 일입니다. 호스트라면 호스트가 연결을 해제할 때까지 그 번호가 메신저에서 미팅 승인을 포함해 호스트를 대신해 행동할 수 있습니다. 페이지는 잘못된 발신자의 마지막 네 자리 또는 이름을 즉시 보여 주고, **내 번호가 아님 — 연결 해제(Not my number — unlink)**가 바인딩을 끝내며, 이후 호스트가 옛 코드로 보낸 본인의 메시지는 거절 응답을 받고, 새 코드가 올바른 번호를 연결합니다.
 
+## `imessage-onboarding-calendar-consent`
+
+[제안서](../../openspec/changes/imessage-onboarding-calendar-consent/proposal.md#decisions)는 이슈 #407에 대한 다음 선택을 기록합니다. 이슈가 제안한 수정안을 바탕으로 이를 구현한 세션에서 구체화했습니다.
+
+| # | 선택 | 대안 | 기록 위치 | 바꾸려면 |
+|---|---|---|---|---|
+| D1 | iMessage 대화를 연결하는 Google 로그인(iMessage 시작 쿠키, Thyme의 로그인 링크에서 온 이어가기 쿠키 또는 `return=imessage`)은 `prompt=consent`와 `include_granted_scopes=true`를 보내므로, 이전에 클라이언트를 승인한 계정에도 Google이 리프레시 토큰을 반환합니다. 이미 사용할 수 있는 권한 부여가 있던 호스트는 동의 화면을 한 번 더 보게 됩니다 | 콜백에서 환영 메시지 전에 두 번째 Calendar 동의로 리디렉션하기(바인딩이 미뤄지고 두 번째 왕복 동안 시작 쿠키를 유지해야 함); 콜백 전에는 알 수 없는, 사용할 수 있는 권한 부여가 없는 호스트로만 프롬프트 한정하기 | 제안서 D1; `host-imessage-channel` "Calendar consent on the onboarding sign-in" | `lib/server/google-sign-in.ts`의 `createGoogleSignInHandler` |
+| D2 | Google 권한 부여가 있는 호스트에게 Calendar 링크를 보내는 환영 메시지는 저장된 권한 부여를 바탕으로 이유를 밝힙니다. 종료됨(`invalidated_at`), 지속적인 접근 없음(리프레시 토큰 없음), Google이 권한을 확인하지 않음(Calendar 스코프 누락 또는 읽을 수 없음) 중 하나입니다. 권한 부여가 없는 호스트에게는 이유 줄이 없습니다 | 하나의 일반적인 이유 | 제안서 D2 | `lib/server/imessage-links.ts`의 `linkedText`와 `CALENDAR_ASK_CAUSES` |
+
 ## `place-settles-in-person`
 
 [제안서](../../openspec/changes/archive/2026-11-24-place-settles-in-person/proposal.md)는 이슈 #378에 대한 이 선택을 기록합니다. 저장소 소유자가 2026-11-23에 이슈에서 정했으며, #280을 위해 `guest-assistant-story-fixes`(PR #357)가 추가한 규칙을 뒤집습니다.

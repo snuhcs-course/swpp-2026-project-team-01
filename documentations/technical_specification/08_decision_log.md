@@ -872,6 +872,15 @@ The [proposal](../../openspec/changes/link-on-code/proposal.md#decisions) and [d
 
 Remaining risk, accepted with D1 and D3: a code that leaks before its owner sends it (a shoulder-surfed screen, a forwarded screenshot, a copied start link or QR code) links whoever sends it first. For a guest, that sender gets the request's updates and can reply as the guest, which a holder of the booking link can already do on the web. For a host, that number can act for the host in the messenger, including approving meetings, until the host unlinks. The page shows the wrong sender's last four digits or name at once, **Not my number — unlink** ends the binding, the host's own message with the old code then gets the refusal, and a new code links the right number.
 
+## `imessage-onboarding-calendar-consent`
+
+The [proposal](../../openspec/changes/imessage-onboarding-calendar-consent/proposal.md#decisions) records these choices for issue #407, worked out in the session that implemented it from the fixes the issue proposed.
+
+| # | Choice | Alternatives | Recorded in | To change it |
+|---|---|---|---|---|
+| D1 | A Google sign-in that links an iMessage conversation (the iMessage start cookie, the continuation cookie from Thyme's sign-in link, or `return=imessage`) sends `prompt=consent` and `include_granted_scopes=true`, so Google returns a refresh token even for an account that authorized the client before; a host who already had a usable grant sees the consent screen once more | Redirecting from the callback to a second Calendar consent before the welcome, which defers the binding and keeps the start cookies across a second round trip; limiting the prompt to hosts without a usable grant, who are unknown until the callback | Proposal D1; `host-imessage-channel` "Calendar consent on the onboarding sign-in" | `createGoogleSignInHandler` in `lib/server/google-sign-in.ts` |
+| D2 | The welcome that sends the Calendar link to a host with a Google grant names the cause from the stored grant: ended (`invalidated_at`), no lasting access (no refresh token), or Google did not confirm the permission (Calendar scopes missing or unreadable); a host with no grant gets no cause line | One generic reason | Proposal D2 | `linkedText` and `CALENDAR_ASK_CAUSES` in `lib/server/imessage-links.ts` |
+
 ## `place-settles-in-person`
 
 The [proposal](../../openspec/changes/archive/2026-11-24-place-settles-in-person/proposal.md) records this choice for issue #378. The repository owner decided it on 2026-11-23 in the issue, reversing the rule that `guest-assistant-story-fixes` (PR #357) added for #280.

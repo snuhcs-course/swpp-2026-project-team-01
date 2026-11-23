@@ -113,7 +113,7 @@ Supabase 프로젝트 **`anelszynxtvxoxqvzgqt`**(**FindMeATime**, 리전 **`us-e
 
 ## Google 신원과 캘린더
 
-MVP는 Supabase Auth를 통한 Google 전용 호스트 로그인을 요구합니다. 호스트 로그인과 요청자의 **Continue with Google**은 각각 하나의 동의 화면에서 신원과 Calendar 스코프를 요청하지만, 신원 로그인, 호스트 자격, 호스트 캘린더 동의, 요청자 신원 미리 채우기, 요청자 캘린더 동의, 개인 에이전트 OAuth는 서로 분리된 인가 경계로 남습니다. Calendar 스코프와 오프라인 접근을 Supabase Auth를 통해 전달합니다. Google은 사용자가 스코프를 해제할 수 있게 하고 Supabase는 이를 전달하지 않으므로, 부여된 스코프는 Google의 토큰 정보 엔드포인트에서 읽습니다. Supabase는 공급자 리프레시 토큰을 로그인 시점에만 반환하고 공급자 토큰을 갱신하지 않으므로, 로그인 시점에 서버 측에 저장합니다. 호스트가 Calendar 스코프를 해제했거나 스코프를 읽을 수 없었더라도 그 토큰은 봉인된 채로 보관합니다. Google은 첫 동의에서만 리프레시 토큰을 반환하므로 로그인은 방문할 때마다 `prompt=consent`를 강제하지 않으며, 나중에 Calendar를 허용한 호스트도 저장된 토큰을 갖게 됩니다. 저장된 스코프는 Google이 보고한 Calendar 스코프만 기록하며, 이를 생략한 이후의 동의는 아무것도 취소하지 않습니다. 이메일/비밀번호, 이메일 OTP, 매직 링크 호스트 로그인은 활성화하지 않습니다.
+MVP는 Supabase Auth를 통한 Google 전용 호스트 로그인을 요구합니다. 호스트 로그인과 요청자의 **Continue with Google**은 각각 하나의 동의 화면에서 신원과 Calendar 스코프를 요청하지만, 신원 로그인, 호스트 자격, 호스트 캘린더 동의, 요청자 신원 미리 채우기, 요청자 캘린더 동의, 개인 에이전트 OAuth는 서로 분리된 인가 경계로 남습니다. Calendar 스코프와 오프라인 접근을 Supabase Auth를 통해 전달합니다. Google은 사용자가 스코프를 해제할 수 있게 하고 Supabase는 이를 전달하지 않으므로, 부여된 스코프는 Google의 토큰 정보 엔드포인트에서 읽습니다. Supabase는 공급자 리프레시 토큰을 로그인 시점에만 반환하고 공급자 토큰을 갱신하지 않으므로, 로그인 시점에 서버 측에 저장합니다. 호스트가 Calendar 스코프를 해제했거나 스코프를 읽을 수 없었더라도 그 토큰은 봉인된 채로 보관합니다. Google은 첫 동의에서만 리프레시 토큰을 반환하므로 로그인은 방문할 때마다 `prompt=consent`를 강제하지 않으며, 나중에 Calendar를 허용한 호스트도 저장된 토큰을 갖게 됩니다. 예외는 iMessage 대화를 연결하는 로그인(iMessage 시작, Thyme의 로그인 링크 또는 `return=imessage`)으로, 이 로그인은 `prompt=consent`와 `include_granted_scopes=true`를 보냅니다. 이전에 이 클라이언트를 승인한 Google 계정은 그렇지 않으면 리프레시 토큰 없이 로그인되어 iMessage에서 Calendar를 다시 요청받기 때문입니다([`imessage-onboarding-calendar-consent`](../../openspec/changes/imessage-onboarding-calendar-consent/proposal.md) D1, #407). 저장된 스코프는 Google이 보고한 Calendar 스코프만 기록하며, 이를 생략한 이후의 동의는 아무것도 취소하지 않습니다. 이메일/비밀번호, 이메일 OTP, 매직 링크 호스트 로그인은 활성화하지 않습니다.
 
 ### 호스트 로그인 값
 
@@ -141,6 +141,8 @@ MVP는 Supabase Auth를 통한 Google 전용 호스트 로그인을 요구합니
 ## Cloudflare Email Service
 
 연락처 인증, 비공개 복구, 예약 확정 메시지에는 발신자 `no-reply@findmeatime.com`으로 Cloudflare를 사용합니다. 승인된 통제 수신자를 사용해 발신자/도메인 소유권, API 권한, 전달 결과, 공급자 재시도 한도를 검증합니다. API 수락과 받은편지함 전달은 별개입니다.
+
+Cloudflare가 발송을 거부하거나 서버 오류로 응답하면 `app.email_deliveries.evidence`는 `reason`, `httpStatus`와 함께 Cloudflare가 밝힌 각 오류의 코드와 메시지(최대 5개, 주소는 가림)를 `providerErrors`로 보관합니다. 원인을 찾을 때는 읽기 전용 쿼리로 이를 읽습니다. 예를 들어 Cloudflare는 HTTP 400에 대해 `10001`(`invalid_request_schema`)과 `10202`(`email.invalid`)를 문서화합니다. 예약 확정 메일의 한국어 호스트 이름처럼 출력 가능한 ASCII 밖의 From 표시 이름은 RFC 2047 인코딩 단어(encoded-word)로 보냅니다. Cloudflare가 이런 이름을 그대로 담은 확정 메일을 모두 거부했기 때문입니다([`email-refusal-details`](../../openspec/changes/email-refusal-details/proposal.md), #415).
 
 [이메일 전달 계약](../../openspec/specs/email-delivery/spec.md#requirement-separate-transactional-sending-from-conversations)이 요구하는 대로, 로그인과 무관한 해당 Supabase Auth 알림에는 Cloudflare 커스텀 SMTP를 사용합니다. 호스팅 Auth 인수 전에 선택된 프로젝트의 호스팅 SMTP 설정, 발신자/도메인, 해당 알림 라우팅을 검증하며, 현재 설정과 전달은 검증되지 않았습니다. 해당하는 프로덕션 Auth 알림은 대체 발신자 없이 Cloudflare SMTP를 통해 `no-reply@findmeatime.com`을 사용해야 합니다. 해당하는 경우 통제된 알림 증거를 기록하며, SMTP 설정만으로는 받은편지함 전달이 증명되지 않습니다. 이는 Google 전용 로그인을 유지하며, 이메일/비밀번호, 이메일 OTP, 매직 링크 로그인을 활성화하거나 비밀번호 재설정 로그인 여정을 추가하지 않습니다.
 
