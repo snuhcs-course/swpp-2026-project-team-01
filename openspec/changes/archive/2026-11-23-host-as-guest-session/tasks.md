@@ -19,4 +19,6 @@ Unit tests, lint, typecheck, the web build and OpenSpec validation passed locall
 
 ## 4. Archive
 
-- [ ] 4.1 After merge and verification on the shared deployment, archive this change into `meeting-requests`.
+- [x] 4.1 After merge and verification on the shared deployment, archive this change into `meeting-requests`.
+
+  Skipped: archived without a teammate review at the repository owner's request on 2026-11-23; the owner verifies on the shared deployment after merging.

@@ -14,4 +14,6 @@
 
 ## 3. Archive
 
-- [ ] 3.1 After merge and verification on the shared deployment, archive this change into `meeting-feasibility`.
+- [x] 3.1 After merge and verification on the shared deployment, archive this change into `meeting-feasibility`.
+
+  Skipped: archived without a teammate review at the repository owner's request on 2026-11-23; the owner verifies on the shared deployment after merging.

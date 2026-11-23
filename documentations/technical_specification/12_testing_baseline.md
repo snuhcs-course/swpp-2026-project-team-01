@@ -326,7 +326,7 @@ findmeatime.com/{handle}
 | P-2 | Server added | Authenticate in /mcp | "Let {agent} request a meeting for you?" — Start a new request with {host} selected, permissions checked → Allow | **pass**: connected; no request or email yet<br>**fail**: Denied → not connected | connect/consent/page.tsx |
 | P-3 | Connected | "Book 30 minutes online with {host}. I'm Alex Kim, alex@…" | Expected AI behavior: get_host → create_request (their own name, email and zone and only what they gave) → ask for the missing purpose<br><br>Result: one request, one booking-link email to the guest | **never**: Invent the purpose · show the booking link to the agent<br>**fail**: A second request on the same connection → "This connection already created its one request."<br>**fail**: Host not taking requests → "This host is not taking requests through this connection." | agent-requester-tools.ts (create_request) |
 | P-4 | Purpose given | "It's about our seed round" | Expected AI behavior: update_request_details → find_times → candidates with date, time and zone | **branch**: Not found in 15 seconds → read get_request later<br>**branch**: Unresolved trip → allow_trip(minutes), then find again | agent-requester-tools.ts (find_times, allow_trip) |
-| P-5 | Candidates shown | "The second one" | Expected AI behavior: choose_time → agree_to_proposal → convey that the host must still approve, nothing is booked yet, and the outcome arrives by email | **fail**: time_unavailable → nothing agreed, other times being found → offer the new ones from get_request<br>**never**: Say it is booked | agent-requester-tools.ts (choose_time, agree_to_proposal) |
+| P-5 | Candidates shown | "The second one" | Expected AI behavior: choose_time (its next step: not agreed yet, the host has not been asked) → agree_to_proposal → convey that the host must still approve, nothing is booked yet, and the outcome arrives by email | **fail**: time_unavailable → nothing agreed, the host not asked, other times being found → offer the new ones from get_request<br>**fail**: needs_meeting_link → nothing chosen; ask for the meeting link<br>**never**: Say it is booked · say it waits for the host before agree_to_proposal records the agreement (#381) | agent-requester-tools.ts (choose_time, agree_to_proposal) |
 
 ## G02. Guest change or withdrawal before booking
 
@@ -337,7 +337,7 @@ As a guest, I want to change or withdraw a meeting request that is not yet booke
 - Here a change means changing the request after the guest agreed to a time and before the host approves. Changes before agreeing are in G01 W-8.3 and W-8.4. After the host approves, M01 applies.
 - After agreeing, the details card is locked ("Your agreed proposal waits for the host, so details cannot change now."); the agreement must be reopened with Change the agreed time (change_agreement).
 - When a guest writes again in a withdrawn request's messenger conversation, a revised request to the same host starts; the withdrawn request does not reopen. The host's request panel in `/app` shows "Follows request {ref}, which the guest withdrew." and the approval summary adds "It follows request {ref}, which the guest withdrew." (#59).
-- MCP has no separate tool to reopen an agreement (change_agreement). What update_request_details does after agreement is not verified.
+- MCP reopens an agreement with change_agreement, the same command as Change ([`requester-mcp-agreement`](../../openspec/changes/archive/2026-11-23-requester-mcp-agreement/proposal.md), #331). Until then update_request_details, find_times and choose_time are refused and name change_agreement as the next step.
 
 ### Web · booking page
 
@@ -382,7 +382,7 @@ The connection that made the request
 
 | Step | Given | When | Then (screen · message) | Branches · verdict · code status | Code |
 |---|---|---|---|---|---|
-| P-1 | Agreed, waiting | "Change the time" / "Make it an hour" | Expected AI behavior: Reopen the agreement, change the details, find new times (expectation) | **not supported**: MCP cannot change a request after agreement: update_request_details is refused with invalid_input while it awaits approval (request-reviews.ts:516), and there is no change_agreement tool. The agent should point to Change on the booking page<br>**never**: Say it changed when it could not reopen | agent-requester-tools.ts (update_request_details) |
+| P-1 | Agreed, waiting | "Change the time" / "Make it an hour" | Expected AI behavior: change_agreement reopens the agreement → update_request_details → find_times → choose and agree again (as G01 P-5) | **branch**: update_request_details before reopening → refused, the next step names change_agreement<br>**branch**: The host approved first → nothing to reopen; a booked meeting is changed with change_booking<br>**never**: Say it changed when it could not reopen | agent-requester-tools.ts (change_agreement, update_request_details) |
 | P-2 | Open request | "Cancel the request" | Expected AI behavior: withdraw_request only when the person asked → say it is closed | **never**: Withdraw unasked | agent-requester-tools.ts (withdraw_request) |
 
 ## G03. Guest status, follow-up and result

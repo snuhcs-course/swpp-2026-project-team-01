@@ -28,7 +28,7 @@ describe("service-written result guidance", () => {
       vi.mocked(runAsGrant).mockResolvedValueOnce({ ok: true, correlationId: "id", replayed: false, result: { outcome } });
       const result = await tool.run(context, { retryKey: "agree-0001", input: { version: 1 } });
       if (outcome === "agreed") expect(result).toMatchObject({ ok: true, result: { next: "The person agreed to this time. Tell them the host must still approve, nothing is booked yet, and the outcome arrives by email. They can ask you to check again with get_request." } });
-      else expect(result).not.toHaveProperty("result.next");
+      else expect(result).toMatchObject({ ok: true, result: { next: expect.stringMatching(/^Nothing was agreed/) } });
     }
   });
 });
