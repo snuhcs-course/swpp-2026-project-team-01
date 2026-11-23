@@ -40,6 +40,26 @@ describe("start_request", () => {
     const deps = { appOrigin: "https://findmeatime.com", db: null as never, tokenKey: null as never, tokenKeys: [] };
     await expect(startRequestForTool(deps, call, { another: false, to: "@dodo" })).resolves.toMatchObject({ started: false });
   });
+
+  // Testing baseline R01 M-1.1: the host's own link or handle starts nothing.
+  it("answers own for the host's own link and writes nothing", async () => {
+    const me = "00000000-0000-4000-8000-000000000001";
+    const queries: string[] = [];
+    const db = ((strings: TemplateStringsArray) => {
+      const text = strings.join("?");
+      queries.push(text);
+      if (text.includes("from app.agent_sessions")) return Promise.resolve([{ channel: "imessage", inputId: "input-1", message: "[iMessage] findmeatime.com/barbara" }]);
+      if (text.includes("from app.host_handles where handle")) return Promise.resolve([{ host_account_id: me }]);
+      return Promise.reject(new Error(`unexpected query: ${text}`));
+    }) as never;
+    const call = { auth: { attributes: { audience: "host_setup" }, principalId: me, principalType: "user" }, callId: "c", sessionId: "s" };
+    const deps = { appOrigin: "https://findmeatime.com", db, tokenKey: null as never, tokenKeys: [] };
+
+    for (const to of ["findmeatime.com/barbara", "@barbara"]) {
+      await expect(startRequestForTool(deps, call, { another: false, to })).resolves.toMatchObject({ own: true, started: false });
+    }
+    expect(queries.every((text) => text.trimStart().startsWith("select"))).toBe(true);
+  });
 });
 
 describe("list_host_requests with sent requests", () => {
