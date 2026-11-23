@@ -27,11 +27,15 @@ The Telegram sender SHALL be the numeric user ID of the update's `from`. An upda
 - **THEN** the two senders have different hashes and neither one's binding applies to the other
 
 ### Requirement: Linking Telegram by a start link
-An authenticated active host SHALL be able to create a Telegram link attempt whose one-time code, expiry and limits are those of the iMessage channel. **Connect Telegram** SHALL create the code and then open `https://telegram.me/<bot username>?start=<code>`. On a computer it SHALL also show the link as a QR code and a copy action. Only a private Telegram message whose text is `/start <code>` or the code, for the pending unexpired code, SHALL record its sender for confirmation. The sender SHALL be bound only after the host confirms the shown Telegram name in the authenticated browser. A code arriving on another channel SHALL void the attempt. The bot SHALL NOT send the first message, and a linking message SHALL never reach the model or a transcript.
+An authenticated active host SHALL be able to create a Telegram link attempt whose one-time code, expiry and limits are those of the iMessage channel. **Connect Telegram** SHALL create the code and then open `https://telegram.me/<bot username>?start=<code>`. On a computer it SHALL also show the link as a QR code and a copy action, and **Open Telegram** SHALL open the link in a new tab so the page that shows **Confirm and link** stays open. Only a private Telegram message whose text is `/start <code>` or the code, for the pending unexpired code, SHALL record its sender for confirmation. The sender SHALL be bound only after the host confirms the shown Telegram name in the authenticated browser. A code arriving on another channel SHALL void the attempt. The bot SHALL NOT send the first message, and a linking message SHALL never reach the model or a transcript.
 
 #### Scenario: Link from a phone
 - **WHEN** the host taps **Connect Telegram**, taps **Start** in Telegram and confirms their Telegram name in the browser
 - **THEN** that Telegram account is bound to the host and the bot's first message is the welcome in the chat the host started
+
+#### Scenario: Link from a computer
+- **WHEN** a host on a computer clicks **Open Telegram**, taps **Start** in Telegram Desktop or Telegram Web and returns to the browser
+- **THEN** Telegram opened in a new tab, the Find Me a Time page still shows **Is this you?** with **Confirm and link**, and confirming binds that Telegram account
 
 #### Scenario: Start without a code
 - **WHEN** someone opens the bot and taps **Start** with no code

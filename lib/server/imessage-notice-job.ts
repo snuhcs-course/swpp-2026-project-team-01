@@ -232,6 +232,7 @@ async function noticeText(
       if (notice.kind === "booking_failed") return { text: texts.bookingFailed(ref, when, link) };
       if (notice.kind === "booking_cancelled") return { text: texts.bookingCancelled(view.requester.name, when) };
       if (notice.kind === "booking_event_left") return { text: texts.bookingEventLeft(ref, when, link) };
+      // booking_pending: no longer queued (#173); kept so a notice queued before the change still reads.
       return { text: texts.bookingSlow(ref, when, link) };
     }
   }

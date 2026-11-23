@@ -161,6 +161,35 @@ body {
   font-style: normal;
 }
 
+/* The /app loading fallback: the page background, with its status line shown
+   only after 600ms so a fast load flashes nothing. */
+.workspace-loading {
+  display: flex;
+  min-height: 100dvh;
+  align-items: center;
+  justify-content: center;
+  background: var(--background);
+  color: var(--muted-foreground);
+  font-size: 14px;
+}
+
+.workspace-loading p {
+  opacity: 0;
+  animation: workspace-loading-in 150ms ease-out 600ms forwards;
+}
+
+@keyframes workspace-loading-in {
+  to {
+    opacity: 1;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .workspace-loading p {
+    animation-duration: 0s;
+  }
+}
+
 /* The wordmark: the logo mark beside "Find Me a Time" in the display face. */
 .wordmark-lockup {
   display: inline-flex;

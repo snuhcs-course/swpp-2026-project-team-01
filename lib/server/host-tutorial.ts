@@ -1,5 +1,6 @@
 import { z } from "zod";
 import { TUTORIAL_FEEDBACK, tutorialAction, tutorialFinishResult } from "../contracts/host-tutorial";
+import { DEFAULT_MEETING_MINUTES } from "../contracts/setup";
 import { isValidTimeZone } from "../contracts/timezone";
 import type { ChannelLanguage } from "./channel-language";
 import { lockActiveHost } from "./analysis";
@@ -66,10 +67,10 @@ export function chooseTutorialCommand(
 
       const timezone = settings.timezone && isValidTimeZone(settings.timezone) ? settings.timezone : "UTC";
       const start = new Date(Math.ceil(Date.now() / 3_600_000) * 3_600_000 + 86_400_000);
-      const end = new Date(start.getTime() + 30 * 60_000);
+      const end = new Date(start.getTime() + DEFAULT_MEETING_MINUTES * 60_000);
       const later = new Date(start.getTime() + 86_400_000);
       const laterEnd = new Date(end.getTime() + 86_400_000);
-      const terms = { durationMinutes: 30, linkPlan: { kind: "google_meet" }, location: null, mode: "online" };
+      const terms = { durationMinutes: DEFAULT_MEETING_MINUTES, linkPlan: { kind: "google_meet" }, location: null, mode: "online" };
       const details = {
         ...terms,
         language,

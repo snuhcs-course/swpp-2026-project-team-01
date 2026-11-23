@@ -12,6 +12,7 @@ dist/
 .local/
 test-results/
 playwright-report/
+output/
 *.tsbuildinfo
 .eve/
 .workflow-data/
