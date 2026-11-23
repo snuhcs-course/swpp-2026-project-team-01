@@ -388,7 +388,7 @@ describe("draft_request_review with only the guest's days (U21)", () => {
     expect((await readRequestForTool(db, r.call())).details.preferredWeeklyWindows).toEqual(weekly);
   });
 
-  it("leaves days with another detail, or before the meeting is complete, for the review card", async () => {
+  it("applies days with a stated detail and keeps a changed purpose for the review card (#411)", async () => {
     const r = await requester();
     const withPurpose = await draftRequestReviewForTool(
       db,
@@ -396,12 +396,85 @@ describe("draft_request_review with only the guest's days (U21)", () => {
       { details: { purpose: "Talk about parsers", windows: [{ date: date(3), end: "12:00", start: "10:00" }] }, intent: "details" },
       { waitMs: 50 },
     );
-    expect(withPurpose).toMatchObject({ recorded: true, review: { canApply: true } });
-    expect(await states(r.requestId)).toEqual(["pending"]);
+    expect(withPurpose).toMatchObject({ appliedFields: ["available times"], recorded: true, review: { canApply: true, patch: { purpose: "Talk about parsers" } } });
+    expect(await states(r.requestId)).toEqual(["superseded", "applied", "pending"]);
+    // Nothing is searched while the purpose waits on the card.
+    const [evaluations] = await db<{ count: number }[]>`select count(*)::int as count from app.evaluations where request_id = ${r.requestId}`;
+    expect(evaluations!.count).toBe(0);
 
     const unsure = await requester({ details: { mode: null } });
     await draftRequestReviewForTool(db, unsure.call(), { details: { windows: [{ date: date(3), end: "12:00", start: "10:00" }] }, intent: "availability" }, { waitMs: 50 });
-    expect(await states(unsure.requestId)).toEqual(["pending"]);
+    expect(await states(unsure.requestId)).toEqual(["applied"]);
+  });
+});
+
+describe("draft_request_review applies what the guest stated (#411)", () => {
+  const states = async (requestId: string) =>
+    (await db<{ state: string }[]>`select state from app.request_reviews where request_id = ${requestId} order by created_at`).map(
+      (review) => review.state,
+    );
+  const evaluations = async (requestId: string) =>
+    (await db<{ count: number }[]>`select count(*)::int as count from app.evaluations where request_id = ${requestId}`)[0]!.count;
+
+  it("applies an explicit purpose and form at once and finds times", async () => {
+    const r = await requester({ details: { mode: null, purpose: null } });
+    const result = await draftRequestReviewForTool(
+      db,
+      r.call(),
+      { details: { mode: "online", purpose: "Investment advice" }, intent: "details" },
+      { waitMs: 50 },
+    );
+
+    expect(result).toMatchObject({ appliedFields: expect.arrayContaining(["online or in person", "purpose"]), recorded: true, review: null });
+    expect(await states(r.requestId)).toEqual(["applied"]);
+    const [row] = await db<{ details: { mode: string; purpose: string } }[]>`select details from app.requests where id = ${r.requestId}`;
+    expect(row!.details).toMatchObject({ mode: "online", purpose: "Investment advice" });
+    expect(await evaluations(r.requestId)).toBe(1);
+  });
+
+  it("keeps in person taken from a named place on the card (#378)", async () => {
+    const r = await requester({ details: { location: null, mode: null } });
+    const result = await draftRequestReviewForTool(
+      db,
+      r.call(),
+      { details: { location: "Gangnam Station", mode: "in_person" }, inferredMode: true, intent: "details" },
+      { waitMs: 50 },
+    );
+
+    expect(result).toMatchObject({ recorded: true, review: { canApply: true, patch: { location: "Gangnam Station", mode: "in_person" } } });
+    expect(await states(r.requestId)).toEqual(["pending"]);
+    expect(await evaluations(r.requestId)).toBe(0);
+  });
+
+  it("replays a split draft on retry from what the first attempt recorded", async () => {
+    const r = await requester({ details: { mode: null, purpose: null } });
+    const date = new Date(Date.now() + 3 * 86_400_000).toISOString().slice(0, 10);
+    const call = r.call();
+    const input = {
+      details: { mode: "online" as const, purpose: "Investment advice", windows: [{ date, end: "18:00", start: "12:00" }] },
+      inferredTime: true,
+      intent: "details" as const,
+    };
+
+    const first = await draftRequestReviewForTool(db, call, input, { waitMs: 50 });
+    expect(first).toMatchObject({ appliedFields: expect.arrayContaining(["purpose"]), recorded: true, review: { patch: { windows: expect.any(Array) } } });
+    expect(await states(r.requestId)).toEqual(["superseded", "applied", "pending"]);
+
+    // The request now holds the purpose and form; the retry must not re-split.
+    expect(await draftRequestReviewForTool(db, call, input, { waitMs: 50 })).toEqual(first);
+    expect(await states(r.requestId)).toEqual(["superseded", "applied", "pending"]);
+    expect(await evaluations(r.requestId)).toBe(0);
+  });
+
+  it("keeps a length that differs from the request's on the card, with nothing applied", async () => {
+    const r = await requester();
+    const result = await draftRequestReviewForTool(db, r.call(), { details: { durationMinutes: 60 }, intent: "details" }, { waitMs: 50 });
+
+    expect(result).toMatchObject({ recorded: true, review: { patch: { durationMinutes: 60 } } });
+    expect(await states(r.requestId)).toEqual(["pending"]);
+    const [row] = await db<{ details: { durationMinutes: number }; revision: number }[]>`select details, revision from app.requests where id = ${r.requestId}`;
+    expect(row!.details.durationMinutes).toBe(30);
+    expect(row!.revision).toBe(1);
   });
 });
 

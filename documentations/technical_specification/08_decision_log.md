@@ -48,6 +48,7 @@ The [proposal](../../openspec/changes/archive/2026-11-02-requester-intake-and-fe
 | Redaction | Removes bearer values of at least 8 characters with a digit or punctuation, linking proofs, credential URL parameters, booking links, and bare UUIDs in guest input | Removing every bearer word; removing bare UUIDs everywhere | Design 14 | `lib/server/redaction.ts` |
 | Cloudflare 429 | Recorded as rejected, not uncertain | Uncertain, with no resend | Design 5 | `lib/server/cloudflare-email.ts` |
 | Eval-only auth | `createEvalRequesterAuth` admits stubbed requester evals only with `FMAT_EVAL_AUDIENCE=requester`, outside Vercel, inside `eve dev` | No offline evals | Agent configuration | `lib/server/eve-auth.ts` |
+| Host setup eval auth | `createEvalHostSetupAuth` admits host setup evals only with `FMAT_EVAL_AUDIENCE=host_setup`, outside Vercel, inside `eve dev`, for a setup discussion the eval seeded (#152) | Signing internal bearers in the eval process: the eval would need the signing key and the message route's bookkeeping | Host setup evaluation | `lib/server/eve-auth.ts` |
 | Ranking model | `gpt-5.6-terra` through the model limits; live quality untested | Another model | Design 8 | `lib/server/evaluation.ts` |
 | Retired intake | Intake tables and `public_intake` values kept so the earlier test request still shows its transcript; nothing new is written | Dropping them now | Design 2 | A later migration drops `intakes` once no open request refers to one |
 
@@ -678,6 +679,7 @@ The user reviewed D1–D10 and O1–O4 one at a time on 2026-11-01 (task 0.1).
 | U17 (D5, D6) | A revised request carries the guest's windows still ahead and the excluded times: the declined time and the closed request's own excluded times, never a reason; its opening summary lists the times proposed before. Days the host names when declining are host-side and left to #58 | Carrying no times | Proposal U17; `meeting-requests` delta | `excludedBusy` in `lib/server/evaluation.ts`, `lib/server/revised-requests.ts`, `excludedWindowProblem` in `lib/server/request-reviews.ts` (a drafted time wholly inside them is refused with no reason) |
 | U18 (O1) | After a booking the conversation stays open for questions about the meeting, read-only | The closed notice | Proposal U18 | `fenced` in `lib/server/request-tools.ts`, `withPrincipalAuthority` in `lib/server/conversations.ts` |
 | U19 (O3) | No host block on revised requests; the chain of 10 and the creation bounds remain | A host's "no more from this guest" | Proposal U19 | `REVISED_CHAIN_LIMIT` |
+| U13 reopened (#53) | `read_request` also gives the guest's assistant the host's notes for Thyme, as quoted data for shaping proposals only; everything else of U13 stands (repository owner, 2026-11-23) | Keeping `read_request` to what the host offers every guest | [`host-preference-notes`](#host-preference-notes) | `guestNotesView` in `lib/server/host-notes.ts`, `readRequestForTool` in `lib/server/request-tools.ts` |
 
 ### Implementation decisions
 
@@ -832,6 +834,29 @@ The [design](../../openspec/changes/self-service-account-deletion/design.md) rec
 | D4 | Booked meetings are not cancelled; open requests close and their guests get an email; the host gets emails when it is scheduled, cancelled and run; account emails have no request and are deleted 30 days after they finish | Cancelling calendar events for the host; telling guests on chats | Proposal; design 5 | `lib/server/account-emails.ts`, `accountEmailCurrent`, the `account_emails` retention rule |
 | D5 | Scheduling signs out every session with Supabase's global scope | Keeping the session and offering a cancel button | Design 2 | `createAccountDeletionHandler` |
 | D6 | Chats and the MCP server never delete; they send `/app?settings=account` | A deletion tool behind confirmation | Design 6 | `agent/instructions/base.md`, `host-imessage.ts`, `lib/server/agent-mcp.ts` |
+
+## `host-preference-notes`
+
+The repository owner decided [issue #53](https://github.com/snuhcs-course/swpp-2026-project-team-01/issues/53) on 2026-11-23: build it. The [proposal](../../openspec/changes/archive/2026-11-23-host-preference-notes/proposal.md) and [design](../../openspec/changes/archive/2026-11-23-host-preference-notes/design.md) record the rest; the implementation choices below have had no teammate review yet.
+
+| # | Choice | Alternatives | Recorded in | To change it |
+|---|---|---|---|---|
+| Scope (owner) | Hosts get free-text notes for Thyme, set in setup, Settings and in words in the messenger. The guest's assistant uses them only to shape what it proposes; it never quotes them, never treats them as rules over the settings and never reveals more than its proposals show. This reopens U13 of `guest-flow-completion` | Keeping `read_request` to what the host offers every guest | Proposal | — |
+| Storage | `host_accounts.assistant_notes` and `assistant_notes_updated_at`, saved at once by `setup.save_assistant_notes`; null until answered, empty for none; cleared by a trigger when the account is marked deleted | A setup draft field, which needs a confirmation and a calendar recheck for text that schedules nothing; a `host_settings` column, absent before the first confirmation; editing `app.operator_delete_host` | Design 1–2; migration `20261123064947_host_assistant_notes` | `lib/server/host-notes.ts`, `supabase/schemas/app/tables/host_accounts.sql` |
+| Guest view | Only the requester `read_request`, as `host.notes: { quoted, use }`; not the cards, emails, the host-review assistant or agents through MCP or the CLI | Giving them to every guest-side surface | Design 3 | `guestNotesView`, `agent/instructions/requester.ts` |
+| Setup step | The last step, optional, with **No notes** and **Skip for now**; one receipt for the latest save | A step before the meeting mode | Design 4 | `apps/web/app/_components/setup/steps.ts`, `assistant-notes-card.tsx` |
+
+## `guest-account-history`
+
+The [design](../../openspec/changes/archive/2026-11-23-guest-account-history/design.md) records these choices for issues #48 and #233 and the guest part of #228, taken on 2026-11-23 from the repository owner's decisions on #48 and #233.
+
+| # | Choice | Alternatives | Recorded in | To change it |
+|---|---|---|---|---|
+| D1 | A closed request matched to an undeleted account is kept while the account exists; deleting the account removes the match and the 90-day rule applies again | A `retain_until` column on requests; copying the conversation to an account table | Design 1; `guest-account-history` "Account-owned request history" | `supabase/schemas/app/functions/cleanup_retained_records.sql` and a new migration |
+| D2 | A sent request that is not open shows its conversation read only in Requests, from an account-checked route; the agent serves that read only while an active account owns the request | Keeping the per-request link alive; a separate history page | Design 2 | `createSentRequestConversationHandler` in `lib/server/host-request-routes.ts`; `guestMayUse` in `lib/server/eve-auth.ts` |
+| D3 | `app.operator_delete_host` publishes one `account_requests_close` job, which withdraws the account's open sent requests and cancels its booked meetings ahead as the requester | Closing them in SQL; closing them only in the Settings job | Design 3 | `supabase/schemas/app/functions/data_deletion.sql`; `lib/server/account-requests-close.ts` |
+| D4 | The account's own Google grant lasts until it disconnects or is deleted; request closure clears only that request's choice | An expiry for account grants | Design 4 | `closeRequest` in `lib/server/request-lifecycle.ts` |
+| D5 | `delete-host` accepts a Google address for an account without a handle | A separate `delete-guest` command | Design 5 | `lib/server/data-deletion.ts` |
 
 ## `link-on-code`
 

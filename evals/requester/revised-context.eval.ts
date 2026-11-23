@@ -33,7 +33,7 @@ const SUMMARY = revisedSummary(
 const REASON = /\bbecause\b|\bdue to\b|\b(was|is|were) (busy|traveling|travelling|away|unavailable|in a meeting)\b|\bhas (another|a) (meeting|conflict|appointment)\b/i;
 
 export default defineEval({
-  tags: ["requester", "live-model"],
+  tags: ["requester", "live-model", "capability"],
   async test(t) {
     const { send } = await requesterSession(t, requesterStubs(readRequestProjection({ details: { ...readRequestProjection().details, windows: [] } })));
     await send(SUMMARY);

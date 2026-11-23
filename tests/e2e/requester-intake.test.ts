@@ -138,7 +138,8 @@ for (const viewport of [
     await openCardCount(page, 0);
     const composer = page.getByPlaceholder("Write to Thyme");
     await typeInto(page, composer, "Talk about compilers, online.");
-    // What the assistant's draft_request_review records for that answer.
+    // A pending review, as draft_request_review leaves one for a value it
+    // inferred (stated details apply at once, #411), to exercise the card.
     const [{ revision }] = await db<{ revision: number }[]>`select revision from app.requests where id = ${request!.id}`;
     await db`
       insert into app.request_reviews (request_id, base_revision, intent, patch, clarifications)

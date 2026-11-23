@@ -67,7 +67,7 @@ eve는 경로에서 이름을 도출합니다(`tools/<name>.ts`는 `<name>` 도�
 
 | 논의 | Principal(주체) | 시작 계기 | 지침 | 도구 |
 |---|---|---|---|---|
-| 호스트 설정 | `host:{hostId}` | 활성 호스트의 첫 `/app` 방문; 호스트당 하나 | base + host-setup (+ host-imessage) | `read_setup_state`, `draft_settings`, `list_host_requests`, `set_calendar_roles`, `preview_next_week`, `confirm_settings`, `choose_note_items`, `confirm_note_items`, `start_request`, `switch_conversation` |
+| 호스트 설정 | `host:{hostId}` | 활성 호스트의 첫 `/app` 방문; 호스트당 하나 | base + host-setup (+ host-imessage) | `read_setup_state`, `draft_settings`, `save_assistant_notes`, `list_host_requests`, `read_schedule`, `set_calendar_roles`, `preview_next_week`, `confirm_settings`, `choose_note_items`, `confirm_note_items`, `start_request`, `switch_conversation` |
 | 호스트 비공개 요청 논의 | `requestId` 속성과 `host_review` 대상이 있는 `host:{hostId}`; 호스트와 요청마다 논의 하나 | 호스트가 `/app`에서 요청을 선택(`/app?request={requestId}`)하거나, 정확한 `request <reference>` iMessage 명령을 보냄 | base + host-review | `read_request`(호스트 프로젝션), `list_host_requests`, `evaluate_candidates`, `propose_shared_changes`, `approve_proposal`, `decline_request`, `share_changes`, `dismiss_changes`, `read_settings`, `change_settings`, `start_request`, `switch_conversation`, `read_booking_status` |
 | 공유 요청자 논의 | `request:{requestId}` | 고정 단계(신원 확인, 캘린더 단계, 만남에 관한 페이지의 질문; [`guest-flow-completion` U8, U13](../../openspec/changes/guest-flow-completion/proposal.md#decisions)) 뒤에 예약 페이지에서 게스트가 보낸 첫 메시지, 또는 이메일로 시작된 요청의 첫 이메일; 같은 세션이 이후의 웹, 이메일, iMessage 메시지로 이어짐 | base + requester | `read_request`(요청자 프로젝션), `draft_request_review`, `evaluate_candidates`, `read_booking_status`, 그리고 말로 내리는 결정 `apply_request_review`, `choose_time`, `agree_to_proposal`, `change_agreement`, `withdraw_request`; `resend_booking_link` |
 
@@ -81,7 +81,7 @@ eve principal은 사람의 신원이 아니라 대상입니다. 요청자에게�
 
 `channels/eve.ts`는 순서가 있는 인증 목록과 함께 `eveChannel`을 내보냅니다. 결정을 내리는 항목은 호스트의 Supabase 세션 또는 요청자의 예약 링크에서 도출된 요청 자격 증명을 검증하는 애플리케이션 함수이며, eve 인증 컨텍스트를 반환합니다. 여기에는 위에서 설명한 `principalId`, `principalType: "user"`, `authenticator: "findmeatime"`, 그리고 속성 `audience`, `hostId`, `requestId`, `discussionId`가 포함됩니다. `vercelOidc()`는 사용하지 않으므로, 로컬 실행과 배포가 같은 규칙을 적용합니다. 이 함수는 `null`을 반환하지 않고 `UnauthenticatedError` 또는 `ForbiddenError`를 던지므로, 인증 목록 순회가 다음 항목으로 넘어갈 수 없습니다. 업로드는 비활성화되어 있습니다.
 
-그 앞에 오는 유일한 항목은 요청자 평가를 처리하며 그 밖의 모든 요청은 건너뜁니다. 이 항목은 Vercel 메타데이터가 없고 `localDev()`가 `eve dev`로 인식하는 프로세스에서 `FMAT_EVAL_AUDIENCE=requester`가 설정되어 있으며, 요청에 베어러도 Supabase 쿠키도 없을 때에만 호출자를 허용합니다. 그러면 평가가 로컬 데이터베이스에 시드한 요청의 요청자 principal을 도구 스텁을 허용한 채로 반환하며(평가 참고), 배포 환경, `eve start`, 일반 `eve dev`는 이 항목에 도달하지 않습니다.
+그 앞에 오는 세 항목은 평가를 처리하며 그 밖의 모든 요청은 건너뜁니다. `lib/server/eve-auth.ts`의 `createEvalRequesterAuth`, `createEvalHostReviewAuth`, `createEvalHostSetupAuth`입니다. 각 항목은 Vercel 메타데이터가 없고 `localDev()`가 `eve dev`로 인식하는 프로세스에서 `FMAT_EVAL_AUDIENCE`가 해당 대상(`requester`, `host_review` 또는 `host_setup`)을 지정하며, 요청에 베어러도 Supabase 쿠키도 없을 때에만 호출자를 허용합니다. 그러면 평가가 로컬 데이터베이스에 시드한 대화의 principal을 도구 스텁을 허용한 채로 반환하며(평가 참고), 시드된 요청의 요청자, 시드된 검토 대화의 호스트, 또는 시드된 설정 대화의 호스트가 됩니다. 이 principal은 생성 시에는 요청 ID(`x-fmat-eval-request`) 또는 설정의 경우 호스트 계정 ID(`x-fmat-eval-host`)로 지정되고, 이후에는 세션의 인덱스 행으로 지정됩니다. 배포 환경, `eve start`, 일반 `eve dev`는 이 항목들에 도달하지 않습니다. 이들은 인증 코드이므로 그렇게 검토합니다.
 
 애플리케이션 코드만 세션을 생성하고 메시지를 보냅니다. 브라우저의 메시지는 애플리케이션 라우트로 전달되며, 이 라우트가 호출자를 확인하고, 수락된 입력을 애플리케이션 세션 인덱스에 기록한 뒤, `EVE_INTERNAL_SIGNING_KEY`로 서명한 60초짜리 베어러 토큰과 함께 `eve/client`를 통해 eve를 호출합니다. 브라우저 자체는 인덱스가 자신의 소유라고 알려 주는 세션만 읽고 스트리밍합니다. 자세한 내용은 [기반 설계](../../openspec/changes/application-foundation/design.md#7-call-path-and-session-ownership)에 기록되어 있습니다.
 
@@ -95,8 +95,10 @@ eve principal은 사람의 신원이 아니라 대상입니다. 요청자에게�
 |---|---|---|---|
 | `read_setup_state` | 호스트 설정 | 현재 초안, 저장된 역할, 분석 근거, 다음 행동; 캘린더 이름과 그 인덱스, 그리고 `placeCandidates`(자주 나온 이벤트 장소 최대 다섯 개와 그 횟수, [`host-onboarding-in-chat` 설계 4](../../openspec/changes/host-onboarding-in-chat/design.md#4-the-place-question))는 인용된 데이터로만. 연동된 채팅이 있는 호스트에게는 `chatOnboarding`이 온보딩 메모 단계(`noteReview`: `waiting`, `done` 또는 없음)와 그 채팅에 마지막으로 보낸 슬롯 이미지(`slotPreview`: 그 `reviewRef`, 현재 검토의 것인지 여부, `sending`, `delivered` 또는 `not_delivered`)를 알려 줌. 작업이 어시스턴트의 마지막 도구 결과 뒤에 그 이미지를 보낼 수 있기 때문임([`calendar-note-review` 설계 8](../../openspec/changes/calendar-note-review/design.md#8-the-note-step-in-chat-onboarding)) | never |
 | `draft_settings` | 호스트 설정 | 리비전과 함께 초안 값을 기록하고 각 값을 명시됨 또는 추론됨으로 표시함(시작 기본값은 서비스 자체의 것); 정책은 절대 아니며, 방식, 장소, 이동 수단은 호스트가 카드에서 수락하거나 그것을 보여 주는 슬롯 이미지에 동의한 뒤에만 인정됨 | never |
-| `read_request` | 호스트 또는 요청자 | 현재 요청, 제안 버전, 결정, 허용된 대화를 대상별로 프로젝션하여 제공하며, 읽는 사람의 시간대로 오늘 날짜를 함께 줌(호스트에게는 시각과 이번 주, 다음 주도 함께, #273); 초안의 경우 `identified: false`와 연락처 존재 여부 `absent` | never |
+| `read_request` | 호스트 또는 요청자 | 현재 요청, 제안 버전, 결정, 허용된 대화를 대상별로 프로젝션하여 제공하며, 읽는 사람의 시간대로 오늘 날짜를 함께 줌(호스트에게는 시각과 이번 주, 다음 주도 함께, #273); 초안의 경우 `identified: false`와 연락처 존재 여부 `absent`. 요청자 프로젝션에만 `host.notes`가 추가되며, 이는 Thyme에게 남기는 호스트의 메모를 용도와 함께 인용된 데이터로 담고 있고, 브라우저의 이벤트 스트림에서는 가려짐(`audienceSafe`의 `redactHostNotes`) | never |
 | `list_host_requests` | 호스트 설정 또는 호스트 검토 | 참조, 상태, 결정이 필요한지 여부, 예약되었거나 제안된 시간과 그 시간이 속한 주와 함께 호스트의 요청, 그리고 호스트 시간대의 현재 날짜와 시각, 이번 주와 다음 주(월요일부터 일요일까지)(#300); 프로젝션을 넘어서는 요청자의 비공개 데이터는 없음. 설정에서는 #138부터부터. 그와 별개로 `sent`: 호스트가 다른 호스트에게 보낸 요청을 호스트, 목적, 상태, 참조별로 나열(R01 M-8) | never |
+| `read_schedule` | 호스트 설정 | Dashboard 프로젝션을 통해 호스트의 일정을 최대 31일(기본: 오늘부터 7일) 읽음: Find Me a Time 예약(`booked_meeting`), 호스트가 고른 Google Calendar의 다른 일정(`calendar_event`), 제안된 시간에 결정을 기다리는 받은 요청(`request_to_decide`), 호스트가 보낸 요청(`sent_request`)을 현지 시각, 각 일정이 속한 주, 현재 날짜와 함께 반환; 제목, 장소, 이름은 인용된 데이터이며 연락처와 참여 링크는 제외. 아무것도 쓰지 않음([`host-schedule-views`](../../openspec/changes/archive/2026-11-23-host-schedule-views/design.md)); MCP의 `get_schedule`도 같은 결과를 반환 | never |
+| `save_assistant_notes` | 호스트 설정 | 호스트의 말을 바탕으로, 웹이나 연동된 대화에서, Thyme에게 남기는 호스트의 메모 전체를 초안과 별개로 즉시 저장함; `read_setup_state`가 현재 `assistantNotes`를 제공함([`host-preference-notes`](../../openspec/changes/archive/2026-11-23-host-preference-notes/design.md)) | never |
 | `approve_proposal`, `decline_request`, `share_changes`, `dismiss_changes` | 호스트 검토 | 연동된 대화에서 호스트가 말로 내리는 결정([`host-imessage-channel` D23](../../openspec/changes/host-imessage-channel/proposal.md#decisions), [`channel-actions-in-words`](../../openspec/changes/channel-actions-in-words/proposal.md#decisions) D1): 각각 채널 접두사가 붙은 메시지에 답하는 턴이 아니거나, 현재 제안 버전 또는 대기 중인 제안을 명시하지 않으면 거부하며, 웹 버튼의 명령을 재시도 키 `tool:{callId}`로 한 번 실행 | never |
 | `read_settings`, `change_settings` | 호스트 검토 | 요청의 대화에서 `read_setup_state`와 `draft_settings`를 쓰는 도구로, 연동된 대화에서 온 턴에서만 동작함: 대화가 요청에 관한 것인 호스트가 선호 장소 같은 저장된 설정을 말로 바꾸면 설정에서처럼 바로 저장됨([`channel-actions-in-words` 설계 1](../../openspec/changes/channel-actions-in-words/design.md#1-tools-for-the-remaining-actions), 이슈 #367); 웹에서는 **Settings**를 가리키는 문제를 반환함 | never |
 | `set_calendar_roles` | 호스트 설정 | 호스트가 말로 지정한 충돌 확인 캘린더와 예약 대상 캘린더를 인덱스와 인용된 이름으로 받아 캘린더 카드와 같은 확인(실시간 목록에 있을 것, 쓰기 가능한 대상)을 거쳐 저장하고 새 분석을 게시함; 연동된 대화에서 온 턴에서만 동작함([`host-onboarding-in-chat` 설계 2](../../openspec/changes/host-onboarding-in-chat/design.md#2-default-calendar-roles)) | never |
@@ -105,7 +107,7 @@ eve principal은 사람의 신원이 아니라 대상입니다. 요청자에게�
 | `choose_note_items`, `confirm_note_items` | 호스트 설정 | 주간 메모 목록에 번호로 답함([`calendar-note-review` 설계 11](../../openspec/changes/calendar-note-review/design.md#11-answering-by-number)), 목록은 `read_setup_state`의 `weeklyNoteList.reviewRef`로 지정함. `choose_note_items`는 이전 목록, 목록에 없는 번호, 그 뒤 바뀐 항목(Google에서 다시 읽음)을 고정된 답으로 거절함; 항목을 바쁨으로 유지하는 것은 즉시 기록되지만, 비우는 것은 대기 중인 선택만 저장하고 제목을 인용된 데이터로 담은 확인 문구를 돌려줌. `confirm_note_items`는 그 확인 문구보다 나중 턴에서만, 한 번, 재시도 키 `tool:{callId}`로 메모 결정의 쓰기 반영을 통해 그 선택을 비움. 연동된 대화에서 온 턴에서만 동작함 | never |
 | `start_request` | 호스트 설정 또는 호스트 검토 | 호스트가 보낸 예약 링크나 @handle의 호스트에게 가는 요청을 호스트의 계정 명의(이름, Google 주소, 시간대, 호스트 캘린더)로 시작하거나 이어가고, 그 요청의 게스트 대화를 연동된 호스트 대화에 연결해 그곳에서 선택된 상태로 둠. 연동된 대화에서 온 메시지에 대해서만 동작하며, 호스트 본인의 링크는 아무것도 시작하지 않음([host-as-guest-messenger](../../openspec/changes/archive/2026-11-23-host-as-guest-messenger/proposal.md)) | never |
 | `switch_conversation` | 호스트 설정 또는 호스트 검토 | 연동된 대화에서 온 메시지에 대해서만 연동된 대화를 지정한 요청으로, 또는 설정으로 되돌림([`host-imessage-channel` D26](../../openspec/changes/host-imessage-channel/proposal.md#decisions)) | never |
-| `draft_request_review` | 요청자 | 세부 정보, 가용 시간, 질문 또는 알 수 없는 의도를 작성된 확인 질문과 함께 선언하며, 요청자가 카드에서 또는 말로 `apply_request_review`를 통해 적용하는 대기 중 검토를 생성. 요청자 지침은 호스트의 제안이 열어 둔 것이 하나도 빠지지 않았을 때에만 검토 하나를 작성하며(U13), 이름과 이메일은 신원 카드에서만 받음 | never |
+| `draft_request_review` | 요청자 | 세부 정보, 가용 시간, 질문 또는 알 수 없는 의도를 작성된 확인 질문과 함께 선언하며, 요청자가 밝힌 것은 바로 적용하고 요청이 준비되면 시간을 찾음. 추정한 값(`inferredTime`, `inferredMode`), 충돌하는 값, 연락처 값에 대해서만 대기 중 검토를 생성하고, 요청자는 이를 카드에서 또는 말로 `apply_request_review`를 통해 적용([`apply-stated-details`](../../openspec/changes/archive/2026-11-23-apply-stated-details/proposal.md)). 요청자 지침은 호스트의 제안이 열어 둔 것이 하나도 빠지지 않았을 때에만 검토 하나를 작성하며(U13), 이름과 이메일은 신원 카드에서만 받음 | never |
 | `evaluate_candidates` | 호스트 또는 요청자 | 결정론적 실현 가능성 평가를 내구성 있는 애플리케이션 작업으로 시작하고, 최대 20초 동안 기다려 대상 프로젝션을 반환하며, 아직 실행 중이면 평가의 식별자를 반환; 요청자 프로젝션은 제안된 시간을 시간 카드가 처음 보여 주는 세 개와 **Find other times**가 다음에 보여 주는 나머지로 나눔([U11](../../openspec/changes/guest-flow-completion/proposal.md#decisions)); 같은 리비전에서 실행 중인 평가가 있으면 새로 만들지 않고 그것을 반환하며, 요청 하나는 시간당 최대 10회 시작; 결과는 버전이 있는 카드로도 도착([3단계 설계](../../openspec/changes/archive/2026-11-02-requester-intake-and-feasibility/design.md#8-evaluation-runs-as-an-application-job)). 초안에서는 아무것도 찾지 않고 `identityRequired`로 답함 | never |
 | `propose_shared_changes` | 호스트 | **제안된 공유 변경 검토(Review proposed shared changes)** 카드를 위해 호스트가 요청한 변경된 공유 세부 정보(시간, 소요 시간, 방식, 장소 또는 링크)만 정확히 초안으로 작성하며, 요청자의 가능 시간대 밖의 시간도 그대로 작성함. 대기 중인 제안을 대체하면서 그 제안의 다른 변경 사항은 유지함([`host-assistant-story-fixes`](../../openspec/changes/archive/2026-11-23-host-assistant-story-fixes/proposal.md), #275); 공유는 시간을 확인 요청으로 제출하고 통과할 때에만 다음 제안 버전을 만드는 별도의 명령 | never |
 | `read_booking_status` | 호스트 또는 요청자 | 도메인 레코드의 예약됨, 진행 중(불확실), 영수증이 있는 확정, 분류가 있는 실패 상태 | never |
@@ -140,6 +142,7 @@ eve의 승인 정책(`once`, `always`, 사용자 정의)은 도구 실행을 제
 | 도구 | 호스트 설정 | 호스트 검토 | 요청자(초안 포함) |
 |---|---|---|---|
 | `read_setup_state` | 있음 | 없음 | 없음 |
+| `draft_settings`, `save_assistant_notes` | 있음 | 없음 | 없음 |
 | `draft_settings` | 있음 | 없음 | 없음 |
 | `read_settings`, `change_settings` | 없음 | 있음, 연동된 대화의 턴에서만 | 없음 |
 | `set_calendar_roles`, `preview_next_week`, `confirm_settings`, `choose_note_items`, `confirm_note_items` | 있음, 연동된 대화의 턴에서만 | 없음 | 없음 |
@@ -159,7 +162,9 @@ eve의 승인 정책(`once`, `always`, 사용자 정의)은 도구 실행을 제
 
 ## 모델
 
-`agent/agent.ts`는 `defineAgent({ model, modelContextWindowTokens, modelOptions, limits })`입니다. 2026-10-19에 결정되었습니다. Thyme은 팀 자체의 `OPENAI_API_KEY`로 OpenAI를 직접 호출하며, `eve/models/openai`에서 가져오는 eve 번들 `openai()` 헬퍼를 통해 `gpt-5.6-terra`를 사용합니다. AI Gateway는 사용하지 않습니다. `modelOptions.providerOptions.openai`는 제공자 저장을 끄고 standard 티어를 선택하며, eve가 Gateway 카탈로그에서 직접 모델의 윈도우를 읽을 수 없으므로 `modelContextWindowTokens`는 명시적으로 설정합니다. 값과 근거는 [기반 설계](../../openspec/changes/application-foundation/design.md#5-model-route-and-model)에 기록되어 있습니다. [모델 실행 계약](../../openspec/specs/model-execution/spec.md)은 `defineAgent`에 전달되는 모델 인스턴스를 감싸는 애플리케이션 소유 래퍼가 강제합니다. eve 훅은 이벤트가 기록된 뒤에만 실행되며 호출을 거부할 수 없기 때문입니다. eve 자체의 재시도와 압축 호출을 포함한 모든 제공자 호출은 이 래퍼를 거칩니다. 래퍼는 입력 크기 제한, 출력 상한, 제공자 정체에 대한 마감 시간, 그리고 프로세스 장애와 복구에도 유지되는 시도별 내구성 있는 예약을 강제합니다. eve의 `maxTokenCostUsdPerSession`은 사용하지 않습니다. 이 값은 AI Gateway 비용만 집계하며, 그 **Continue** 프롬프트는 계약이 금지하는 새로운 윈도우를 부여하기 때문입니다.
+`agent/agent.ts`는 기본 OpenAI 모델일 때 `defineAgent({ model, modelContextWindowTokens, modelOptions, limits })`입니다. 다른 제공자를 고르면 각 단계에서 모델과 함께 컨텍스트 창을 반환합니다(아래 참조). 2026-10-19에 결정되었습니다. Thyme은 팀 자체의 `OPENAI_API_KEY`로 OpenAI를 직접 호출하며, `eve/models/openai`에서 가져오는 eve 번들 `openai()` 헬퍼를 통해 `gpt-5.6-terra`를 사용합니다. AI Gateway는 사용하지 않습니다. `modelOptions.providerOptions.openai`는 제공자 저장을 끄고 standard 티어를 선택하며, eve가 Gateway 카탈로그에서 직접 모델의 윈도우를 읽을 수 없으므로 `modelContextWindowTokens`는 명시적으로 설정합니다. 값과 근거는 [기반 설계](../../openspec/changes/application-foundation/design.md#5-model-route-and-model)에 기록되어 있습니다. [모델 실행 계약](../../openspec/specs/model-execution/spec.md)은 `defineAgent`에 전달되는 모델 인스턴스를 감싸는 애플리케이션 소유 래퍼가 강제합니다. eve 훅은 이벤트가 기록된 뒤에만 실행되며 호출을 거부할 수 없기 때문입니다. eve 자체의 재시도와 압축 호출을 포함한 모든 제공자 호출은 이 래퍼를 거칩니다. 래퍼는 입력 크기 제한, 출력 상한, 제공자 정체에 대한 마감 시간, 그리고 프로세스 장애와 복구에도 유지되는 시도별 내구성 있는 예약을 강제합니다. eve의 `maxTokenCostUsdPerSession`은 사용하지 않습니다. 이 값은 AI Gateway 비용만 집계하며, 그 **Continue** 프롬프트는 계약이 금지하는 새로운 윈도우를 부여하기 때문입니다.
+
+모델은 코드 변경 없이 환경별로 고를 수 있습니다([#375](https://github.com/snuhcs-course/swpp-2026-project-team-01/issues/375)). `FMAT_ASSISTANT_MODEL`은 대화 에이전트의 모델을, `FMAT_RANKING_MODEL`은 시간 순위 매기기의 모델을 고르며, 각각 [`lib/server/model-choice.ts`](../../lib/server/model-choice.ts)가 읽는 `provider/model` 문자열입니다. 설정하지 않거나 비어 있으면 둘 다 `openai/gpt-5.6-terra`로 유지되고, 형식이 잘못된 값이나 다른 공급자는 대체값으로 넘어가지 않고 실패합니다. 공급자는 `openai`와 `anthropic`이며, 각각 eve의 헬퍼를 통해 `OPENAI_API_KEY` 또는 `ANTHROPIC_API_KEY`로 직접 호출합니다. 래퍼에는 공급자 모델 인스턴스가 필요하므로 Gateway 문자열은 받지 않습니다. 래퍼는 eve가 세션 ID에서 만드는 프롬프트 캐시 키로 대화 호출을 귀속시키는데, eve는 이 키를 OpenAI에 대해서만 만듭니다. 따라서 OpenAI를 고르면 이전과 같이 정적 모델이고, 다른 공급자의 모델은 각 모델 호출 전(`step.started`)에 세션으로부터 결정되며, [`lib/server/assistant-model.ts`](../../lib/server/assistant-model.ts)가 래퍼가 옵션을 읽기 전에 같은 키를 호출 옵션에 기록합니다. 정산은 Claude의 캐시 쓰기를 고유한 요율로 계산하며([`model-limits.ts`](../../lib/server/model-limits.ts)의 `MODEL_PRICES`), 가격이 나열되지 않은 모델은 계속 상한으로 청구됩니다. 에이전트는 모듈을 불러올 때 `FMAT_ASSISTANT_MODEL`을 읽으므로, 한 환경의 빌드와 런타임 모두에 설정하세요. 하나의 선택이 모든 대상에 적용되며, 어시스턴트별 선택은 비교 결과([Story path evaluation](13_story_path_evaluation.md#model-comparison))가 결정될 때까지 미룹니다.
 
 ## 메모리
 
@@ -208,6 +213,8 @@ eve 훅은 이벤트가 내구성 있게 기록된 뒤에 실행되며, 예외�
 
 고정된 방어 세트(`defense-cases.ts`를 `defense-runner.ts`를 통해 `defense.eval.ts`가 실행)는 OWASP LLM 범주별로 게스트 어시스턴트를 공격하며, 사례마다 세 번 실행하고, 각 대화 전후의 요청 행도 비교합니다. 수집 상태에서는 `evaluate_candidates`를 제외한 게스트 도구가 로컬 데이터베이스에 대해 실행됩니다. 채점, 통과 기준, 결과는 [게스트 방어 평가](10_guest_defense_evaluation.md)에 있으며, `FMAT_EVAL_AUDIENCE=requester npx eve eval requester/defense`로 실행합니다.
 
+호스트 설정 세트(`evals/host-setup/`)는 모든 설정 도구를 로컬 데이터베이스와 가짜 Google에 대해 실제로 실행하며, 대화가 남기는 설정 초안으로 채점합니다. 채점, 통과 기준, 실행 설정은 [호스트 설정 평가](14_host_setup_evaluation.md)에 있으며, `FMAT_EVAL_AUDIENCE=host_setup npx eve eval host-setup/setup --max-concurrency 8`로 실행합니다.
+
 ## 여기에 기록된 결정
 
 | 결정 | 선택 | 기각된 대안 |
@@ -217,7 +224,7 @@ eve 훅은 이벤트가 내구성 있게 기록된 뒤에 실행되며, 예외�
 | 캘린더 접근 | 저장된 허가를 사용하는 도메인 코드 | eve 연결 또는 Calendar 도구: 원본 이벤트와 토큰이 세션에 들어오게 됨 |
 | 메모리 | 첫 릴리스에서는 없음 | 호스트별 프로필 슬롯: 현재 흐름에는 필요한 것이 없음 |
 | eve 버전 | `eve` 0.80.1을 정확히 고정하고, 그 peer 범위를 위해 `ai` 7.0.143을 사용; 설치된 문서와 대조하여 확인([기반 설계](../../openspec/changes/application-foundation/design.md#2-runtime-version)) | 템플릿 락파일에서 가져온 유동적 범위; 템플릿의 0.73에 머무르기 |
-| 모델 | 팀의 키를 사용하는 직접 OpenAI, `gpt-5.6-terra`, eve의 `openai()` 헬퍼 경유 | 프로젝트 OIDC를 사용하는 AI Gateway: 팀이 직접 OpenAI 결제를 선택함 |
+| 모델 | 팀의 키를 사용하는 직접 OpenAI, `gpt-5.6-terra`, eve의 `openai()` 헬퍼 경유. `FMAT_ASSISTANT_MODEL`과 `FMAT_RANKING_MODEL`로 환경별로 다른 직접 OpenAI 또는 Anthropic 모델을 고를 수 있음(#375) | 프로젝트 OIDC를 사용하는 AI Gateway: 팀이 직접 OpenAI 결제를 선택함 |
 
 ## 미결 결정
 

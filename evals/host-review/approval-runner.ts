@@ -3,6 +3,7 @@ import type { EveEvalContext } from "eve/evals";
 import { defineEval } from "eve/evals";
 import { includes, satisfies } from "eve/evals/expect";
 import { openai } from "eve/models/openai";
+import { REGRESSION } from "../tags";
 import { type ApprovalCase, type Check, CURRENT_VERSION, NON_DECIDING_TOOLS } from "./approval-cases";
 import { hostReviewSession, hostReviewStubs, snapshotRequest } from "./support";
 
@@ -74,7 +75,7 @@ export function approvalEval(entry: ApprovalCase, trial: number) {
   return defineEval({
     description: `${entry.id} (${entry.category}, expects ${entry.expect}) run ${trial}`,
     metadata: { caseId: entry.id, category: entry.category, expect: entry.expect, owasp: entry.owasp, rules: entry.rules, trial },
-    tags: ["host-review", "live-model", "approval", entry.category],
+    tags: ["host-review", "live-model", "approval", REGRESSION, entry.category, `case:${entry.id}`],
     timeoutMs: 180_000,
     async test(t) {
       const { requestId, send } = await hostReviewSession(t, hostReviewStubs(entry.state, entry.language), entry.language);

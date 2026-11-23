@@ -32,3 +32,7 @@
 .hd-grid{position:relative}
 .hd-grid[data-view=month] .hd-grid-loading{top:46px}
 .hd-grid-loading{position:absolute;top:76px;left:50%;z-index:3;transform:translateX(-50%);margin:0;border-radius:999px;background:white;box-shadow:0 1px 3px rgba(30,36,48,.12);padding:7px 14px;color:#586172;font-size:12px;font-weight:600;white-space:nowrap;pointer-events:none}
+.hd-key.hd-received{background:#fff6e7;border:2px dashed #b07a1e}
+.hd-received.hd-event,.hd-received.hd-month-event{background:#fff6e7;border-color:#b07a1e;border-left-style:dashed;color:#5f4413}
+.hd-agenda-item.hd-received{border-color:#b07a1e;border-left-style:dashed;background:#fff9ef}
+.hd-source.hd-received{background:#fff6e7;color:#5f4413;border:1px solid #b07a1e}

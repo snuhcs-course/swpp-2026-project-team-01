@@ -1,5 +1,6 @@
 import { listSentRequests } from "./host-sent-requests";
 import { z } from "zod";
+import { readHostSchedule, type ReadScheduleInput, readScheduleToolInput } from "./host-schedule";
 import { readCalendarRoles, saveCalendarRolesCommand, recordDestinationAccess } from "./calendar-roles";
 import { channelOfTurn, linkedMessagingTurn } from "./channel-selection";
 import { CommandError, runCommand } from "./commands";
@@ -44,6 +45,12 @@ import { enqueueSettingsButtonRetirement } from "./telegram-jobs";
 export async function listHostRequestsForSetupTool(deps: SetupDependencies, call: SetupToolCall) {
   const actor = await authorizeSetupTool(deps.db, call.auth, call.sessionId);
   return hostRequestsForModel(await listHostRequests(deps.db, actor.id), await readHostTimezone(deps.db, actor.id), new Date(), await listSentRequests(deps.db, actor.id));
+}
+
+// The host's schedule for a period, read-only (host-schedule-views design 2).
+export async function readScheduleForSetupTool(deps: SetupDependencies, call: SetupToolCall, input: ReadScheduleInput = {}) {
+  const actor = await authorizeSetupTool(deps.db, call.auth, call.sessionId);
+  return readHostSchedule(deps.db, deps.calendar, actor.id, readScheduleToolInput.parse(input));
 }
 
 export const confirmSettingsToolInput = z
