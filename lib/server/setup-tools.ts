@@ -1,5 +1,6 @@
 import { z } from "zod";
 import type { AnalysisForModel } from "../contracts/analysis";
+import { HOST_NOTES_MAX_LENGTH } from "../contracts/host-notes";
 import {
   type DraftEntry,
   type DraftFields,
@@ -15,6 +16,7 @@ import { type Actor, assertRevision, canonicalJson, type CommandDefinition, Comm
 import type { Queryable, Transaction } from "./database";
 import { encodeDisplayName } from "./entry-documents";
 import { HOST_SETUP_AUDIENCE } from "./eve-auth";
+import { saveHostNotesCommand } from "./host-notes";
 import { checkHandle } from "./handles";
 import { weeklyNoteListForModel } from "./note-weekly-store";
 import { chatOnboardingForModel } from "./onboarding-note-step";
@@ -119,6 +121,9 @@ export function setupNextStep(action: SetupNextAction, origin: string): string {
 
 export type SetupModelProjection = {
   readonly nextAction: SetupNextAction;
+  // The host's notes for Thyme, their own words (host-preference-notes): null
+  // until answered, "" when they have none.
+  readonly assistantNotes: string | null;
   readonly dataNote: typeof CALENDAR_NAME_NOTE;
   readonly draftRevision: number;
   readonly calendar: {
@@ -183,6 +188,7 @@ export function modelProjection(state: SetupStateView): SetupModelProjection {
 
   return {
     analysis: state.analysis ? analysisForModel(state.analysis) : null,
+    assistantNotes: state.assistantNotes?.text ?? null,
     analysisSkipped: state.analysisSkipped,
     placeCandidates: (state.analysis?.evidence?.places.candidates ?? []).slice(0, 5).map(candidate => ({ name: encodeDisplayName(candidate.name), count: candidate.count })),
     calendar: {
@@ -449,4 +455,47 @@ export async function draftSettingsForTool(
   if (!state) throw new SetupToolDeniedError();
 
   return { changed: outcome.result.changed, revision: outcome.result.revision, saved: true, savedChange, state: modelProjection(state) };
+}
+
+// ---------------------------------------------------------------------------
+// save_assistant_notes
+
+export const saveAssistantNotesToolInput = z
+  .object({
+    notes: z
+      .string()
+      .max(HOST_NOTES_MAX_LENGTH)
+      .describe(
+        "The host's whole notes for Thyme after this change, in the host's own words: the current assistantNotes from read_setup_state with the new preference added, changed or removed. An empty string clears them.",
+      ),
+  })
+  .strict();
+
+export type SaveAssistantNotesToolResult =
+  | { readonly saved: true; readonly assistantNotes: string }
+  | { readonly saved: false; readonly error: "invalid_input"; readonly message: string };
+
+// Saves the host's notes for Thyme from their words (host-preference-notes), on
+// the web or a linked messenger. Notes are not scheduling policy, so they are
+// saved at once with no confirmation and no change to the confirmed settings.
+export async function saveAssistantNotesForTool(
+  deps: SetupDependencies,
+  call: SetupToolCall,
+  input: z.infer<typeof saveAssistantNotesToolInput>,
+): Promise<SaveAssistantNotesToolResult> {
+  const actor = await authorizeSetupTool(deps.db, call.auth, call.sessionId);
+  const outcome = await runCommand({ authenticate: async () => actor, db: deps.db }, saveHostNotesCommand(), {
+    input: { notes: input.notes },
+    resourceId: actor.id,
+    retryKey: `tool:${call.callId}`,
+  });
+
+  if (!outcome.ok) {
+    if (outcome.error.category === "invalid_input") {
+      return { error: "invalid_input", message: `Nothing was saved. Keep the notes to ${HOST_NOTES_MAX_LENGTH} characters.`, saved: false };
+    }
+    throw new SetupToolDeniedError();
+  }
+
+  return { assistantNotes: outcome.result.notes?.text ?? "", saved: true };
 }

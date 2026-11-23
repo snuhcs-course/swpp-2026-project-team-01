@@ -16,6 +16,8 @@ import {
   draftSettingsToolInput,
   isHostSetupSession,
   readSetupStateForTool,
+  saveAssistantNotesForTool,
+  saveAssistantNotesToolInput,
 } from "../../lib/server/setup-tools";
 
 // The host setup tools (agent configuration: tools and permission layer 2). They
@@ -46,6 +48,17 @@ export default defineDynamic({
               inputSchema: draftSettingsToolInput,
               execute: (input, toolCtx) =>
                 draftSettingsForTool(
+                  setupDependenciesFromEnvironment(),
+                  { auth: toolCtx.session.auth.current, callId: toolCtx.callId, sessionId: toolCtx.session.id },
+                  input,
+                ),
+            }),
+            save_assistant_notes: defineTool({
+              description:
+                "Save the host's notes for Thyme: free-text meeting preferences in their own words that the guest's assistant uses only to shape what it proposes (\"investment advisory meetings are 30 minutes\", \"a first meeting is online\"). Pass the whole notes after the change, starting from read_setup_state's assistantNotes. Use it when the host states such a preference or asks to remember, change or forget one, on the web or in their linked iMessage, WhatsApp or Telegram. It saves at once; guests never see the notes, and the settings still decide every offered time and form.",
+              inputSchema: saveAssistantNotesToolInput,
+              execute: (input, toolCtx) =>
+                saveAssistantNotesForTool(
                   setupDependenciesFromEnvironment(),
                   { auth: toolCtx.session.auth.current, callId: toolCtx.callId, sessionId: toolCtx.session.id },
                   input,

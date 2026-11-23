@@ -3,7 +3,9 @@
 import type { LocationAnswer, WeeklyWindow } from "@lib/contracts/setup";
 import { SettingsIcon } from "lucide-react";
 import { useEffect, useState } from "react";
+import { cleanHostNotes, HOST_NOTES_MAX_LENGTH } from "@lib/contracts/host-notes";
 import { DeleteAccountCard } from "@/app/_components/delete-account-card";
+import { AssistantNotesField } from "@/app/_components/setup/assistant-notes-card";
 import { describeLocation, weeklyPreview } from "@/app/_components/setup/format";
 import { WeeklyWindowsEditor } from "@/app/_components/setup/weekly-windows-editor";
 import { Button } from "@/components/ui/button";
@@ -46,6 +48,7 @@ export function HostSettingsDialog() {
   const [initialLocation, setInitialLocation] = useState("");
   const [focusDeletion, setFocusDeletion] = useState(false);
   const [focusWeeklyLimit, setFocusWeeklyLimit] = useState(false);
+  const [notesRaw, setNotesRaw] = useState("");
 
   useEffect(() => {
     const url = new URL(window.location.href);
@@ -70,6 +73,7 @@ export function HostSettingsDialog() {
     const location = editableLocation(nextSetup.fields.location.proposed?.value);
     setLocationRaw(location);
     setInitialLocation(location);
+    setNotesRaw(nextSetup.assistantNotes?.text ?? "");
   }
 
   useEffect(() => {
@@ -150,6 +154,26 @@ export function HostSettingsDialog() {
     await refresh();
   }
 
+  // The notes for Thyme are saved at once and never need a confirmation
+  // (host-preference-notes).
+  async function saveNotes() {
+    const notes = cleanHostNotes(notesRaw);
+    if (notes.length > HOST_NOTES_MAX_LENGTH) {
+      setNotice(`Keep the notes to ${HOST_NOTES_MAX_LENGTH} characters.`);
+      return;
+    }
+    setBusy(true);
+    const result = await runSetupCommand({
+      expectedRevision: null,
+      input: { notes },
+      operation: "setup.save_assistant_notes",
+      retryKey: crypto.randomUUID(),
+    });
+    setBusy(false);
+    setNotice(result.kind === "ok" ? (notes.length > 0 ? "Saved. Thyme keeps these notes in mind with your guests." : "Saved. Thyme has no notes now.") : result.message);
+    await refresh();
+  }
+
   async function setAccepting(accepting: boolean) {
     if (!intake) return;
     setBusy(true);
@@ -173,6 +197,7 @@ export function HostSettingsDialog() {
   const displayWindows = setup?.pendingChanges && windows ? windows : confirmedWindows;
   const timezone = intake?.confirmedTimezone ?? setup?.fields.timezone.proposed?.value ?? "Not set";
   const locationAnswer = setup?.fields.location.proposed?.value;
+  const notesDirty = Boolean(setup && cleanHostNotes(notesRaw) !== (setup.assistantNotes?.text ?? ""));
   const preferenceDirty = Boolean(setup && (limitRaw.trim() !== (setup.fields.weeklyLimit.proposed?.value?.toString() ?? "") || locationRaw.trim() !== initialLocation));
 
   return (
@@ -227,6 +252,14 @@ export function HostSettingsDialog() {
                 {locationAnswer && !editableLocation(locationAnswer) ? <p className="mt-1 text-sm text-muted-foreground">Current: {describeLocation(locationAnswer)}</p> : null}
                 <p className="mt-1 text-sm text-muted-foreground">Used when suggesting in-person meetings.</p>
               </div>
+            </section>
+            <section className="space-y-3 rounded-2xl bg-card p-4 sm:p-5" aria-label="Notes for Thyme">
+              <AssistantNotesField disabled={busy} id="settings-assistant-notes" onChange={setNotesRaw} value={notesRaw} />
+              {notesDirty ? (
+                <Button disabled={busy || cleanHostNotes(notesRaw).length > HOST_NOTES_MAX_LENGTH} onClick={() => void saveNotes()} size="sm" type="button">
+                  {busy ? "Saving..." : "Save notes"}
+                </Button>
+              ) : null}
             </section>
             <section className="space-y-2 rounded-2xl bg-card p-5" aria-label="New requests">
               <label className="intake-toggle flex min-h-11 items-center justify-between gap-4 font-medium">

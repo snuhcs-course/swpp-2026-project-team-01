@@ -219,6 +219,7 @@ export const SETUP_OPERATIONS = [
   "setup.update_draft",
   "setup.confirm_settings",
   "setup.request_tutorial",
+  "setup.save_assistant_notes",
 ] as const;
 export type SetupOperation = (typeof SETUP_OPERATIONS)[number];
 
