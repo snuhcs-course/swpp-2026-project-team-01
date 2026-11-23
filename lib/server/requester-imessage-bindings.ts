@@ -1,5 +1,6 @@
 import type { GuestChannel } from "../contracts/requester-imessage";
 import type { Queryable, Transaction } from "./database";
+import { awaitingAgreementVersion, enqueueAgreementNotice } from "./imessage-notices";
 import { recordOutbound } from "./imessage-outbox";
 import { openToken, sealToken, type TokenKey } from "./token-encryption";
 
@@ -33,11 +34,15 @@ export type RequesterBinding = {
   readonly space_ciphertext: string | null;
   readonly sealed_key_id: string;
   readonly created_at: Date;
+  // Null when the binding is the guest-host's own host conversation (design 6,
+  // #61, R01): the host binding's selection routes its messages, and its notices
+  // select it there.
+  readonly link_id: string | null;
 };
 
 export async function activeRequesterBinding(q: Queryable, requestId: string) {
   const [row] = await q<RequesterBinding[]>`
-    select id, request_id, channel, sender_hash, sender_ciphertext, sender_name_ciphertext, space_ciphertext, sealed_key_id, created_at
+    select id, request_id, channel, sender_hash, sender_ciphertext, sender_name_ciphertext, space_ciphertext, sealed_key_id, created_at, link_id
     from app.requester_imessage_bindings where request_id = ${requestId} and state = 'active'
   `;
   return row ?? null;
@@ -80,6 +85,9 @@ export async function bindRequester(
     readonly senderHash: string;
     readonly spaceId: string | null;
     readonly hostName: string;
+    // The Linked welcome; a start from the host conversation says
+    // "Now talking about your request with …" in its own reply instead.
+    readonly welcome?: boolean;
   },
 ) {
   await endRequesterBindings(tx, binding.requestId, "unlinked");
@@ -98,6 +106,7 @@ export async function bindRequester(
             (select r.received_at from app.imessage_links l join app.imessage_receipts r on r.id = l.received_by_receipt_id
              where l.id = ${binding.linkId}))
   `;
+  if (binding.welcome === false) return bindingId;
   await recordOutbound(tx, {
     dedupeKey: `requester-binding:${bindingId}`,
     kind: "linked",
@@ -109,6 +118,10 @@ export async function bindRequester(
     text: REQUESTER_LINK_TEXTS.linked(binding.hostName),
     tokenKey,
   });
+  // A guest who links while their agreement waits for the host gets what they
+  // sent, after the welcome (guest-email-and-agree-notices design 4).
+  const agreed = await awaitingAgreementVersion(tx, binding.requestId);
+  if (agreed !== null) await enqueueAgreementNotice(tx, binding.requestId, agreed);
   return bindingId;
 }
 

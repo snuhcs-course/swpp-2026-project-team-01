@@ -21,4 +21,8 @@
 
 - [ ] 5.1 Teammate review.
 - [ ] 5.2 After `agent-access` is archived, archive this change so its MODIFIED requirements apply to the archived specs.
+
+  Open: `agent-access` is not archived yet.
 - [ ] 5.3 With a real MCP client connected to production, ask it in words to approve a team request and record the result in the acceptance record.
+
+  Open: needs a person with a real MCP client connected to production; kept unarchived on 2026-11-23.

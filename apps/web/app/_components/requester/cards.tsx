@@ -356,23 +356,31 @@ export function CalendarSelectionCard({ context }: { readonly context: Requester
 // settings this request uses; nothing is used before **Use these settings**,
 // and **Not now** keeps the card from returning.
 const HOST_PROFILE_LINES: Readonly<Record<HostProfileItem, { readonly label: string; readonly line: string }>> = {
-  calendars: { label: "Calendars", line: "Check your busy time on the calendars you use as a host." },
+  calendars: { label: "Calendars", line: "Check your busy time on the calendars you use as a host, and offer times in your usual hours and lighter weeks first." },
   details: { label: "Basic details", line: "Fill in your time zone and travel mode." },
 };
+
+const MESSENGER_LINE = {
+  label: "Updates in your host conversation",
+  line: "Get this request's updates, and reply, in the messenger you use with Thyme as a host.",
+} as const;
 
 export function HostProfileCard({ context, onDone }: { readonly context: RequesterCardContext; readonly onDone: () => void }) {
   const profile = context.view.hostProfile;
   const [chosen, setChosen] = useState<Set<HostProfileItem>>(
     () => new Set(profile?.decided ? profile.items : (profile?.offered ?? [])),
   );
+  // #61: the request's updates in the account's own linked host conversation.
+  const [messenger, setMessenger] = useState(() => (profile?.decided ? profile.messenger.on : (profile?.messenger.offered ?? false)));
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   if (!profile) return null;
+  const offersMessenger = profile.messenger.offered || profile.messenger.on;
 
-  async function decide(items: readonly HostProfileItem[]) {
+  async function decide(items: readonly HostProfileItem[], useMessenger: boolean) {
     setBusy(true);
-    const outcome = await context.run("request.host_profile.decide", { items });
+    const outcome = await context.run("request.host_profile.decide", offersMessenger ? { items, messenger: useMessenger } : { items });
     setBusy(false);
     if (outcome.ok) onDone();
     else setError(outcome.error.message);
@@ -406,12 +414,26 @@ export function HostProfileCard({ context, onDone }: { readonly context: Request
             </span>
           </label>
         ))}
+        {offersMessenger ? (
+          <label className="flex min-h-11 items-start gap-2">
+            <input checked={messenger} className="mt-1 size-4" onChange={(event) => setMessenger(event.target.checked)} type="checkbox" />
+            <span className="min-w-0 break-words">
+              {MESSENGER_LINE.label}
+              <span className="block text-sm text-muted-foreground">{MESSENGER_LINE.line}</span>
+            </span>
+          </label>
+        ) : null}
       </fieldset>
       <GuestCardActions>
-        <Button className="min-h-11" disabled={busy || chosen.size === 0} onClick={() => void decide([...chosen])} type="button">
+        <Button
+          className="min-h-11"
+          disabled={busy || (chosen.size === 0 && !(offersMessenger && messenger))}
+          onClick={() => void decide([...chosen], messenger)}
+          type="button"
+        >
           Use these settings
         </Button>
-        <Button className="min-h-11" disabled={busy} onClick={() => void decide([])} type="button" variant="outline">
+        <Button className="min-h-11" disabled={busy} onClick={() => void decide([], false)} type="button" variant="outline">
           Not now
         </Button>
       </GuestCardActions>
@@ -433,25 +455,45 @@ const QUIET_ACTION = "h-8 min-h-8 px-1 text-xs";
 // The request's status as one line in the thread, not a standing card (DESIGN.md:
 // one thing to think about at once): from identification, where the booking
 // link went, with **Send the email again** or **Use verified Google email** as
-// quiet text actions, and that confirming is optional.
+// quiet text actions, and that confirming is optional. When the email bounced
+// or was suppressed, **Change email** opens a one-field form that replaces the
+// address and sends the link there (guest-email-and-agree-notices design 1).
 export function SentLine({ context }: { readonly context: RequesterCardContext }) {
   const [busy, setBusy] = useState(false);
   const [sentAgain, setSentAgain] = useState(false);
+  const [changing, setChanging] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const { confirmation, connection, contact } = context.view;
 
   if (!contact) return null;
 
-  async function command(operation: string, done?: () => void) {
+  async function command(operation: string, done?: () => void, input?: unknown) {
     setBusy(true);
     setError(null);
-    const outcome = await context.run(operation);
+    const outcome = await context.run(operation, input);
     setBusy(false);
     if (!outcome.ok) setError(outcome.error.message);
+    else if ((outcome.result as { status?: string } | null)?.status === "limited") setError(LIMITED_EMAIL);
     else done?.();
   }
 
   const retryLater = confirmation?.retryAt ? Date.parse(confirmation.retryAt) > Date.now() : false;
+  const bounced = !contact.confirmed && (confirmation?.delivery === "rejected" || confirmation?.delivery === "suppressed");
+
+  if (changing) {
+    return (
+      <ChangeEmailForm
+        busy={busy}
+        current={contact.email}
+        error={error}
+        onCancel={() => {
+          setChanging(false);
+          setError(null);
+        }}
+        onSubmit={(email) => void command(CHANGE_EMAIL_OPERATION, () => setChanging(false), { email })}
+      />
+    );
+  }
 
   return (
     <div className="flex min-h-8 min-w-0 flex-wrap items-center gap-x-2 gap-y-1 px-1 text-sm" data-guest-receipt="status" role="note">
@@ -463,6 +505,11 @@ export function SentLine({ context }: { readonly context: RequesterCardContext }
         <span className="text-muted-foreground">· Address confirmed</span>
       ) : (
         <>
+          {bounced ? (
+            <Button className={QUIET_ACTION} disabled={busy || retryLater} onClick={() => setChanging(true)} type="button" variant="link">
+              Change email
+            </Button>
+          ) : null}
           {connection.canUseGoogleEmail ? (
             <Button className={QUIET_ACTION} disabled={busy} onClick={() => void command("contact.use_google_email")} type="button" variant="link">
               Use verified Google email
@@ -483,6 +530,62 @@ export function SentLine({ context }: { readonly context: RequesterCardContext }
       )}
       <ErrorLine message={error} />
     </div>
+  );
+}
+
+export const CHANGE_EMAIL_OPERATION = "contact.change_email";
+const LIMITED_EMAIL = "Too many emails were sent just now. Try again in a minute.";
+
+// The address a bounced booking link goes to instead.
+export function ChangeEmailForm({
+  busy,
+  current,
+  error,
+  onCancel,
+  onSubmit,
+}: {
+  readonly busy: boolean;
+  readonly current: string;
+  readonly error: string | null;
+  readonly onCancel: () => void;
+  readonly onSubmit: (email: string) => void;
+}) {
+  const id = useId();
+  const [email, setEmail] = useState("");
+  const usable = /^[^\s@<>,"]+@[^\s@<>,"]+\.[^\s@<>,"]+$/.test(email.trim()) && email.trim().toLowerCase() !== current.toLowerCase();
+
+  return (
+    <form
+      className="flex min-w-0 flex-col gap-2 px-1 text-sm"
+      data-guest-receipt="change-email"
+      noValidate
+      onSubmit={(event) => {
+        event.preventDefault();
+        if (usable) onSubmit(email.trim());
+      }}
+    >
+      <label className="font-medium" htmlFor={`${id}-email`}>
+        Your booking link could not be delivered to {current}. Where should it go?
+      </label>
+      <div className="flex flex-wrap gap-2">
+        <input
+          autoComplete="email"
+          className="min-h-11 min-w-48 flex-1 rounded-md border bg-background px-3"
+          id={`${id}-email`}
+          inputMode="email"
+          onChange={(event) => setEmail(event.target.value)}
+          type="email"
+          value={email}
+        />
+        <Button className="min-h-11" disabled={busy || !usable} type="submit">
+          Send the link here
+        </Button>
+        <Button className="min-h-11" disabled={busy} onClick={onCancel} type="button" variant="outline">
+          Cancel
+        </Button>
+      </div>
+      <ErrorLine message={error} />
+    </form>
   );
 }
 

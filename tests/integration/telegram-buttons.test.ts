@@ -78,7 +78,7 @@ describe("decision buttons", () => {
     ["a", "en", "You approved the sample request."],
     ["d", "en", "You declined the sample request."],
     ["stop", "en", "You ended the tutorial."],
-    ["a", "ko", "튜토리얼 요청을 승인했어요."],
+    ["a", "ko", "샘플 요청을 승인했어요."],
   ])("keeps the sample selected and finishes it for %s (%s) without touching real requests", async (action, language, confirmation) => {
     let bound: Awaited<ReturnType<typeof tg.bind>> | undefined;
     const real = await agreedRequest(db, google, {

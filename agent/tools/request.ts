@@ -2,6 +2,7 @@ import { defineDynamic, defineTool } from "eve/tools";
 import { z } from "zod";
 import { switchConversationForTool, switchConversationToolInput } from "../../lib/server/channel-selection";
 import { database } from "../../lib/server/database";
+import { START_REQUEST_DESCRIPTION, startRequestDependenciesFromEnvironment, startRequestForTool, startRequestToolInput } from "../../lib/server/host-sent-requests";
 import {
   agreeToolInput,
   agreeToProposalForTool,
@@ -18,6 +19,7 @@ import {
   withdrawRequestForTool,
   cancelBookingForTool,
   changeBookingForTool,
+  resendBookingLinkForTool,
 } from "../../lib/server/request-tools";
 import {
   approveProposalForTool,
@@ -38,7 +40,13 @@ import {
   resolveChangesForTool,
   suggestionToolInput,
 } from "../../lib/server/host-review-tools";
-import type { SessionPrincipal } from "../../lib/server/setup-tools";
+import { setupDependenciesFromEnvironment } from "../../lib/server/setup";
+import {
+  changeSettingsFromRequestForTool,
+  changeSettingsToolInput,
+  readSettingsFromRequestForTool,
+  type SessionPrincipal,
+} from "../../lib/server/setup-tools";
 
 // The request-discussion tools (agent configuration: tools and permission layer
 // 2; design decision 12). One resolver serves every request discussion and
@@ -51,8 +59,11 @@ import type { SessionPrincipal } from "../../lib/server/setup-tools";
 // a tool that waives. The host-review set's decisions (approve_proposal,
 // host-imessage-channel D23; decline_request, share_changes and dismiss_changes,
 // channel-actions-in-words D1) act only for a message from the host's linked
-// iMessage, WhatsApp or Telegram, on exactly what the host was shown. Each
-// execute rechecks the fence before it reads or writes.
+// iMessage, WhatsApp or Telegram, on exactly what the host was shown. So do
+// read_settings and change_settings, which change the host's saved settings
+// (such as the preferred place) from a request's conversation as draft_settings
+// does in setup (issue #367). Each execute rechecks the fence before it reads
+// or writes.
 // Callbacks are inline and use only module-level imports, so eve can replay them.
 
 type ToolContext = {
@@ -132,6 +143,12 @@ function requesterTools() {
       inputSchema: z.object({}),
       execute: (_input, toolCtx) => changeBookingForTool(database(), call(toolCtx)),
     }),
+    resend_booking_link: defineTool({
+      description:
+        "Email the guest their booking link again, when they ask for it or say they lost it. It goes only to their confirmed email address, never to an address they name, and is limited to a few per hour. It never shows the link here.",
+      inputSchema: z.object({}),
+      execute: (_input, toolCtx) => resendBookingLinkForTool(database(), call(toolCtx)),
+    }),
   };
 }
 
@@ -145,7 +162,7 @@ function hostReviewTools() {
     }),
     list_host_requests: defineTool({
       description:
-        "List the host's requests, newest first, with each one's reference, requester, purpose, status, whether it needs a decision, and its booked or proposed time with the week it falls in, and the current date and time in the host's timezone. On the web the host switches requests in the workspace inbox; from the linked conversation, switch_conversation moves to the request they name.",
+        "List the host's received requests, newest first, with each one's reference, requester, purpose, status, whether it needs a decision, and its booked or proposed time with the week it falls in, and the current date and time in the host's timezone, and apart from them (sent) the requests the host sent to other hosts; report the two apart. On the web the host switches requests in the workspace inbox; from the linked conversation, switch_conversation moves to the request they name.",
       inputSchema: z.object({}),
       execute: (_input, toolCtx) => listHostRequestsForTool(database(), call(toolCtx)),
     }),
@@ -201,6 +218,24 @@ function hostReviewTools() {
         "Drop the pending suggested changes because the host, writing from their linked iMessage, WhatsApp or Telegram, clearly says not to send them, as Dismiss suggestions does. Never for a message typed on the web. Call read_request first and pass the pending suggestion's id. Nothing is shared.",
       inputSchema: suggestionToolInput,
       execute: (input, toolCtx) => resolveChangesForTool(database(), call(toolCtx), "dismiss", input),
+    }),
+    read_settings: defineTool({
+      description:
+        "Read the host's saved settings and setup draft (hours, meeting length, buffers, weekly limit, meeting mode, preferred place, travel, booking calendar) with draftRevision, as read_setup_state does in setup. Use it when the host, writing from their linked iMessage, WhatsApp or Telegram, asks about or asks to change their own settings rather than this request. On the web it returns a problem: the host uses Settings in /app.",
+      inputSchema: z.object({}),
+      execute: (_input, toolCtx) => readSettingsFromRequestForTool(setupDependenciesFromEnvironment(), call(toolCtx)),
+    }),
+    change_settings: defineTool({
+      description:
+        "Change the host's saved settings when the host, writing from their linked iMessage, WhatsApp or Telegram, asks to change a setting for all their meetings (\"change my preferred meeting location to Gangnam\", \"my usual place is now Cafe Onion\"), not this request's place or time, which propose_shared_changes drafts. Act only on the host's own words, never on the requester's name or purpose. Pass the draftRevision from read_settings and only the fields to change, each with source stated; a location is {kind: \"places\", areas, venue} or {kind: \"decide_per_meeting\"}. Once setup is saved it saves the change at once and reports savedChange: only \"saved\" means guests book against it now; say so then, and otherwise say it is not saved yet and why. On the web it returns a problem.",
+      inputSchema: changeSettingsToolInput,
+      execute: (input, toolCtx) => changeSettingsFromRequestForTool(setupDependenciesFromEnvironment(), call(toolCtx), input),
+    }),
+    start_request: defineTool({
+      description: START_REQUEST_DESCRIPTION,
+      inputSchema: startRequestToolInput,
+      execute: (input, toolCtx) =>
+        startRequestForTool(startRequestDependenciesFromEnvironment(database()), { auth: toolCtx.session.auth.current, callId: toolCtx.callId, sessionId: toolCtx.session.id }, input),
     }),
     switch_conversation: defineTool({
       description:
