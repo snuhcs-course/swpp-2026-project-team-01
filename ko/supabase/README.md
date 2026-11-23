@@ -12,4 +12,4 @@
 - `anon`과 `authenticated`는 `postgres`가 `public`에 만드는 테이블, 시퀀스, 함수에 대해 기본 권한이 없으며, `postgres`가 만든 어떤 함수도 `PUBLIC`이 실행할 수 없습니다. `service_role`은 `public`에서 플랫폼 기본값을 유지합니다.
 - 전역 함수 권한 취소는 pg-delta가 전역 기본 권한을 비교하지 않기 때문에 직접 작성한 마이그레이션입니다. `schemas/_custom/default_privileges.sql`이 이를 그대로 반영하여 이후 동기화도 같은 상태를 봅니다.
 
-`tests/`는 pgTAP으로 이 매트릭스를 증명합니다. `supabase start`와 `supabase test db`를 실행하십시오. `.github/workflows/check.yml`의 `database` 작업은 모든 푸시에서 같은 명령을 실행합니다. 미리 설치된 확장을 고려하고, 관리되는 스키마는 절대 편집하지 마십시오. `supabase db push --dry-run`을 검토하고 환경을 명시적으로 식별한 뒤에만 호스팅된 프로젝트에 배포하십시오.
+`tests/`는 pgTAP으로 이 매트릭스를 증명합니다. `supabase start`와 `supabase test db`를 실행하십시오. CI는 이 명령을 실행하지 않으므로, 스키마를 바꾸는 풀 리퀘스트 전에는 로컬에서 실행하십시오. 미리 설치된 확장을 고려하고, 관리되는 스키마는 절대 편집하지 마십시오. `supabase db push --dry-run`을 검토하고 환경을 명시적으로 식별한 뒤에만 호스팅된 프로젝트에 배포하십시오.
