@@ -381,7 +381,9 @@ describe("evaluation job", () => {
     const { evaluationId } = await evaluate(requestId, deps({ model }), retryKey);
     const view = await awaitEvaluation(db, evaluationId, 1_000);
 
-    expect(view!.candidates.slice(0, 3).map((candidate) => candidate.start)).toEqual(["10:30", "10:00", "10:15"].map(iso));
+    // The deterministic order spreads across the window (10:00, 12:00, 10:15, ...), so the
+    // model's picks, the third and the first, come first and the second follows (#242).
+    expect(view!.candidates.slice(0, 3).map((candidate) => candidate.start)).toEqual(["10:15", "10:00", "12:00"].map(iso));
     expect(await reservations(evaluationId)).toBe(1);
 
     const retried = await publish(requestId, retryKey);
