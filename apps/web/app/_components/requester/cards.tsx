@@ -1103,7 +1103,13 @@ export function AwaitingCard({ context }: { readonly context: RequesterCardConte
   return (
     <>
       <GuestCard
-        description={agreed ? `You agreed to ${displayTime(new Date(agreed.start), context.timezone)}` : "You agreed"}
+        description={
+          agreed?.times && agreed.times.length > 1
+            ? `You agreed to ${agreed.times.length} times: ${agreed.times.map((time) => displayTime(new Date(time.start), context.timezone)).join("; ")}. The host books one.`
+            : agreed
+              ? `You agreed to ${displayTime(new Date(agreed.start), context.timezone)}`
+              : "You agreed"
+        }
         id="awaiting"
         label="Request"
         title={`Waiting for ${context.view.host.displayName} to approve`}

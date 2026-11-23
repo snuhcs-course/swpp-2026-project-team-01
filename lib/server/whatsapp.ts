@@ -41,10 +41,11 @@ function text(value: unknown, max: number) {
 export const WHATSAPP_BUTTON_CONTENT = "button";
 
 // Button IDs we set (D17), in the Telegram plan's format (#112):
-//   a:<ref>-<version> approve, d:<ref>-<version> decline, s:<ref> show the
-//   request, c:<settingsRef> confirm settings.
+//   a:<ref>-<version> approve, a:<ref>-<version>-<n> approve the n-th time of a
+//   proposal of several (multiple-candidate-times), d:<ref>-<version> decline,
+//   s:<ref> show the request, c:<settingsRef> confirm settings.
 // The command is rebuilt from the ID alone; a title is never read.
-const BUTTON_ID = /^([adsc]):([0-9A-Z]{6}(?:-[1-9]\d{0,5})?|[0-9A-F]{8})$/i;
+const BUTTON_ID = /^([adsc]):([0-9A-Z]{6}(?:-[1-9]\d{0,5}(?:-[1-9])?)?|[0-9A-F]{8})$/i;
 
 export function buttonCommand(id: unknown): string | null {
   if (typeof id !== "string") return null;
@@ -54,7 +55,7 @@ export function buttonCommand(id: unknown): string | null {
   const versioned = /^[0-9A-Z]{6}-\d+$/i.test(ref);
   switch (action.toLowerCase()) {
     case "a":
-      return versioned ? `approve ${ref.toUpperCase()}` : null;
+      return versioned || /^[0-9A-Z]{6}-\d+-[1-9]$/i.test(ref) ? `approve ${ref.toUpperCase()}` : null;
     case "d":
       return versioned ? `decline ${ref.toUpperCase()}` : null;
     case "s":

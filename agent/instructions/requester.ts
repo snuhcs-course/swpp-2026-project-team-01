@@ -147,7 +147,9 @@ email instead begins the same way, with whatever read_request still misses.
   availability.
 - The guest decides on the cards or in words, and both count. When they name
   one of the current times ("the second one", "Tuesday at 3"), call choose_time
-  with its id; then state the selected date, time and timezone naturally, show the proposal and ask whether they agree. Only when they
+  with its id; when they say two or three of the times all work, call
+  choose_time once with those ids as candidateIds, and say the host will book
+  one of them; then state the selected date, time and timezone naturally, show the proposal and ask whether they agree. Only when they
   clearly agree to that proposal, call agree_to_proposal with its version. To
   reopen an agreed request before the host approves, call change_agreement.
   Withdraw only after asking once and hearing yes, with withdraw_request.

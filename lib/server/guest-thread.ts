@@ -215,15 +215,18 @@ export async function readGuestThread(db: Queryable, requestId: string, current:
     select id, created_at from app.evaluations where request_id = ${requestId} order by created_at
   `;
   const proposals = await db<
-    { agreed_at: Date | null; created_at: Date; end_at: Date; evaluation_id: string; start_at: Date; version: number }[]
+    { agreed_at: Date | null; created_at: Date; end_at: Date; evaluation_id: string; picked_from: number | null; start_at: Date; time_count: number; version: number }[]
   >`
-    select p.version, p.evaluation_id, p.start_at, p.end_at, p.created_at, a.agreed_at
+    select p.version, p.evaluation_id, p.start_at, p.end_at, p.created_at, a.agreed_at,
+           (p.details -> 'pickedFrom' ->> 'version')::int as picked_from,
+           coalesce(jsonb_array_length(case when jsonb_typeof(p.details -> 'times') = 'array' then p.details -> 'times' end), 1) as time_count
     from app.proposals p left join app.agreements a on a.proposal_id = p.id
     where p.request_id = ${requestId} order by p.version
   `;
 
   for (const evaluation of evaluations) {
-    const chosen = proposals.filter((proposal) => proposal.evaluation_id === evaluation.id).at(-1);
+    // The host's pick of one time is not the guest's choice (multiple-candidate-times).
+    const chosen = proposals.filter((proposal) => proposal.evaluation_id === evaluation.id && proposal.picked_from === null).at(-1);
     const isCurrent = evaluation.id === current.evaluationId;
     const base = { at: iso(evaluation.created_at), id: `times:${evaluation.id}`, kind: "times" as const };
 
@@ -231,7 +234,7 @@ export async function readGuestThread(db: Queryable, requestId: string, current:
     else if (chosen) {
       cards.push({
         ...base,
-        receipt: { end: iso(chosen.end_at), start: iso(chosen.start_at), text: "You chose" },
+        receipt: { end: iso(chosen.end_at), start: iso(chosen.start_at), text: chosen.time_count > 1 ? `You chose ${chosen.time_count} times` : "You chose" },
         status: "answered",
       });
     } else if (isCurrent) cards.push({ ...base, status: "waiting" });
@@ -254,8 +257,13 @@ export async function readGuestThread(db: Queryable, requestId: string, current:
     const base = { at: iso(proposal.created_at), id: `proposal:${proposal.version}`, kind: "proposal" as const };
     const window = { end: iso(proposal.end_at), start: iso(proposal.start_at) };
 
-    if (proposal.version === current.agreedVersion) {
-      cards.push({ ...base, at: iso(proposal.agreed_at ?? proposal.created_at), receipt: { ...window, text: "You agreed" }, status: "answered" });
+    const picked = proposals.some((entry) => entry.picked_from === proposal.version);
+    if (proposal.picked_from !== null && proposal.version === current.agreedVersion) {
+      cards.push({ ...base, receipt: { ...window, text: "The host chose" }, status: "answered" });
+    } else if (proposal.agreed_at && picked) {
+      cards.push({ ...base, at: iso(proposal.agreed_at), receipt: { ...window, text: `You agreed to ${proposal.time_count} times` }, status: "answered" });
+    } else if (proposal.version === current.agreedVersion) {
+      cards.push({ ...base, at: iso(proposal.agreed_at ?? proposal.created_at), receipt: { ...window, text: proposal.time_count > 1 ? `You agreed to ${proposal.time_count} times` : "You agreed" }, status: "answered" });
     } else if (proposal.version === current.proposalVersion) {
       cards.push({ ...base, receipt: { ...window, text: "Proposed" }, status: step === "proposal" ? "open" : "waiting" });
     } else cards.push({ ...base, status: "superseded" });

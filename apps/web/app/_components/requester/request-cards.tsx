@@ -1,7 +1,7 @@
 "use client";
 
 import { EVALUATION_FAILURE_MESSAGES, nearestTimesMessage, noMatchMessage, TIMES_SHOWN } from "@lib/contracts/feasibility";
-import type { LinkPlan, RequesterCandidate, RequestLanguage, RequestWindow, ReviewPatch } from "@lib/contracts/request";
+import { type LinkPlan, MAX_PROPOSAL_TIMES, type RequesterCandidate, type RequestLanguage, type RequestWindow, type ReviewPatch } from "@lib/contracts/request";
 import { displayTime, zoneLabel } from "@lib/contracts/timezone";
 import { type FormEvent, type ReactNode, useEffect, useId, useState } from "react";
 import { GUEST_CARD_SURFACE, GuestCard, GuestCardActions } from "@/app/_components/guest/guest-card";
@@ -561,7 +561,7 @@ export function ProposalCard({ context }: { readonly context: RequesterCardConte
     if ((outcome.result as { outcome?: string }).outcome === "agreed") {
       context.onAgreed(proposal.version);
     } else if ((outcome.result as { outcome?: string }).outcome === "time_unavailable") {
-      setError("This time is no longer free on the host's calendar, so nothing was agreed. Choose another time.");
+      setError(times ? "One of these times is no longer free on the host's calendar, so nothing was agreed. Choose again." : "This time is no longer free on the host's calendar, so nothing was agreed. Choose another time.");
       context.onAgreementFailure({
         action: "Choose another time",
         focusCard: "candidates",
@@ -571,27 +571,51 @@ export function ProposalCard({ context }: { readonly context: RequesterCardConte
     }
   }
   const host = proposal.participants.find((participant) => participant.role === "host")?.name ?? context.view.host.displayName;
+  // Several times at once (multiple-candidate-times): the guest agrees to all
+  // of them, and the host books one.
+  const times = proposal.times && proposal.times.length > 1 ? proposal.times : null;
   const rows: [string, ReactNode][] = [
     ["Meeting", context.view.request.details.purpose ?? `With ${host}`],
-    ["When", timeRange(proposal, context.timezone)],
+    [
+      "When",
+      times ? (
+        <ol className="flex flex-col gap-1">
+          {times.map((time) => (
+            <li key={time.start}>
+              {timeRange(time, context.timezone)}
+              {time.mode === "online" ? ` · ${linkPlanText(time.linkPlan)}` : ` · ${time.location ?? "In person"}`}
+            </li>
+          ))}
+        </ol>
+      ) : (
+        timeRange(proposal, context.timezone)
+      ),
+    ],
     ["Timezone", zoneLabel(context.timezone, new Date(proposal.start))],
     ["Length", `${proposal.durationMinutes} minutes`],
     ["Who", proposal.participants.map((participant) => participant.name).join(" and ")],
-    [proposal.mode === "online" ? "Online" : "Place", proposal.mode === "online" ? linkPlanText(proposal.linkPlan) : (proposal.location ?? "In person")],
-    ["Status", "Not agreed yet. After you agree, the host approves or declines; nothing is booked before that."],
+    ...(times
+      ? []
+      : ([[proposal.mode === "online" ? "Online" : "Place", proposal.mode === "online" ? linkPlanText(proposal.linkPlan) : (proposal.location ?? "In person")]] as [string, ReactNode][])),
+    [
+      "Status",
+      times
+        ? `Not agreed yet. After you agree, the host books one of these ${times.length} times or declines; nothing is booked before that.`
+        : "Not agreed yet. After you agree, the host approves or declines; nothing is booked before that.",
+    ],
   ];
 
   return (
     <GuestCard
-      description={`Proposal version ${proposal.version}. Agreeing covers exactly these details.`}
+      description={times ? `Proposal version ${proposal.version}. Agreeing means any of these times works for you.` : `Proposal version ${proposal.version}. Agreeing covers exactly these details.`}
       id="proposal"
       label="Proposal"
-      title="Agree to this time?"
+      title={times ? `Agree to these ${times.length} times?` : "Agree to this time?"}
     >
       <DetailList rows={rows} />
       <GuestCardActions>
         <Button className="min-h-11" disabled={busy} onClick={() => void agree()} type="button">
-          {busy ? "Agreeing..." : "Agree to this proposal"}
+          {busy ? "Agreeing..." : times ? "Agree to these times" : "Agree to this proposal"}
         </Button>
         <Button className="min-h-11" onClick={() => context.chooseAnotherTime()} type="button" variant="outline">
           Choose another time
@@ -711,10 +735,15 @@ export function CandidatesCard({ context }: { readonly context: RequesterCardCon
   const [notice, setNotice] = useState<string | null>(null);
   const [page, setPage] = useState(0);
   const [tripRevealed, setTripRevealed] = useState<{ evaluationId: string; count: number } | null>(null);
+  // Times the guest marked to offer together (multiple-candidate-times).
+  const [marked, setMarked] = useState<readonly string[]>([]);
   const missing = missingLabels(context);
   const lang = language(context);
 
-  useEffect(() => setPage(0), [evaluation?.id]);
+  useEffect(() => {
+    setPage(0);
+    setMarked([]);
+  }, [evaluation?.id]);
 
   useEffect(() => {
     if (evaluation?.state !== "pending") return;
@@ -796,13 +825,16 @@ export function CandidatesCard({ context }: { readonly context: RequesterCardCon
         : noMatchMessage(lang, place)
       : null;
 
-  async function choose(candidate: RequesterCandidate) {
+  async function choose(chosen: { candidateId: string } | { candidateIds: readonly string[] }) {
     setNotice(null);
-    const outcome = await act("request.choose_candidate", { candidateId: candidate.id, evaluationId: evaluation!.id });
+    const outcome = await act("request.choose_candidate", { ...chosen, evaluationId: evaluation!.id });
     if (outcome.ok && (outcome.result as { outcome?: string }).outcome === "needs_meeting_link") {
       setNotice("Add a meeting link in the meeting details to choose an online time.");
     }
   }
+
+  const toggleMarked = (id: string) =>
+    setMarked((current) => (current.includes(id) ? current.filter((entry) => entry !== id) : current.length < MAX_PROPOSAL_TIMES ? [...current, id] : current));
 
   return (
     <GuestCard
@@ -839,18 +871,42 @@ export function CandidatesCard({ context }: { readonly context: RequesterCardCon
               ) : (
                 <CandidateTime candidate={candidate} timeZone={context.timezone} />
               )}
-              <Button
-                aria-label={`Choose this time: ${timeRange(candidate, context.timezone)}`}
-                className="min-h-11"
-                disabled={busy || linkMissing(candidate)}
-                onClick={() => void choose(candidate)}
-                type="button"
-              >
-                Choose this time
-              </Button>
+              <div className="flex flex-wrap items-center gap-3">
+                <label className="flex min-h-11 items-center gap-2 text-sm">
+                  <input
+                    checked={marked.includes(candidate.id)}
+                    className="size-5"
+                    disabled={busy || linkMissing(candidate) || (!marked.includes(candidate.id) && marked.length >= MAX_PROPOSAL_TIMES)}
+                    onChange={() => toggleMarked(candidate.id)}
+                    type="checkbox"
+                  />
+                  <span>
+                    Also works<span className="sr-only">: {timeRange(candidate, context.timezone)}</span>
+                  </span>
+                </label>
+                <Button
+                  aria-label={`Choose this time: ${timeRange(candidate, context.timezone)}`}
+                  className="min-h-11"
+                  disabled={busy || linkMissing(candidate)}
+                  onClick={() => void choose({ candidateId: candidate.id })}
+                  type="button"
+                >
+                  Choose this time
+                </Button>
+              </div>
             </li>
           ))}
         </ul>
+      ) : null}
+      {offered.length > 1 ? (
+        <p className="text-muted-foreground text-sm">
+          If several times work, tick up to {MAX_PROPOSAL_TIMES} and offer them together; the host books one.
+        </p>
+      ) : null}
+      {marked.length > 1 ? (
+        <Button className="min-h-11 self-start" disabled={busy} onClick={() => void choose({ candidateIds: marked })} type="button">
+          Offer these {marked.length} times
+        </Button>
       ) : null}
       {trips.length > 0 ? (
         <ul aria-label="Times that depend on your trip" className="flex flex-col gap-2">

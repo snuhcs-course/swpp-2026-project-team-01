@@ -109,7 +109,7 @@ function requesterTools() {
     }),
     choose_time: defineTool({
       description:
-        "Choose one of the current candidate times, as Choose this time does, when the guest named it: give its id from read_request. It makes a proposal for the guest to agree to; it agrees to nothing.",
+        "Choose one of the current candidate times, as Choose this time does, when the guest named it: give its id from read_request. When the guest says two or three of the times all work, give their ids as candidateIds instead: the host then picks one and only that one is booked. It makes a proposal for the guest to agree to; it agrees to nothing.",
       inputSchema: chooseTimeToolInput,
       execute: (input, toolCtx) => chooseTimeForTool(database(), call(toolCtx), input),
     }),
@@ -185,7 +185,7 @@ function hostReviewTools() {
     }),
     approve_proposal: defineTool({
       description:
-        "Approve the current proposal because the host, writing from their linked iMessage, WhatsApp or Telegram, clearly approves it in their own words, such as \"looks good, book it\", \"yes\" right after the proposal, or \"Tuesday works\". Never call it when the host asks for a change, adds a condition (\"yes, but at 11\"), asks a question, approves only part, or means another proposal; and never for a message typed on the web, where the host presses Approve this proposal. Call read_request first and pass the current proposal's version. It approves exactly that version or nothing, and booking then continues on its own.",
+        "Approve the current proposal because the host, writing from their linked iMessage, WhatsApp or Telegram, clearly approves it in their own words, such as \"looks good, book it\", \"yes\" right after the proposal, or \"Tuesday works\". Never call it when the host asks for a change, adds a condition (\"yes, but at 11\"), asks a question, approves only part, or means another proposal; and never for a message typed on the web, where the host presses Approve this proposal. Call read_request first and pass the current proposal's version. When the proposal lists several times, the host books one: pass the option number of the time the host named (\"book time 2\", \"Thursday's\"), and ask which one when they did not name it. It approves exactly that version and time or nothing, and booking then continues on its own.",
       inputSchema: approveProposalToolInput,
       execute: (input, toolCtx) => approveProposalForTool(database(), call(toolCtx), input),
     }),

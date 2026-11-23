@@ -3,6 +3,7 @@ import { z } from "zod";
 import { tutorialAction } from "../contracts/host-tutorial";
 import { BOOKING_STATUS_TEXT } from "../contracts/booking";
 import type { HostRequestItem, HostRequestView, HostSuggestion } from "../contracts/host-request";
+import { MAX_PROPOSAL_TIMES } from "../contracts/request";
 import { currentTime, displayTime, weekOf } from "../contracts/timezone";
 import { finishSampleCommand, tutorialCompletionText } from "./host-tutorial";
 import { approveCommand, declinedDatesSchema, declineCommand, readBookingStatus } from "./bookings";
@@ -154,6 +155,18 @@ export function hostModelProjection(view: HostRequestView, now: Date = new Date(
           meetingLink: view.proposal.linkPlan?.kind ?? null,
           mode: view.proposal.mode,
           time: when(view.proposal.start, view.proposal.end, zone),
+          // Several times the guest can make (multiple-candidate-times): the host
+          // books one, by its option number.
+          ...(view.proposal.times && view.proposal.times.length > 1
+            ? {
+                times: view.proposal.times.map((time, index) => ({
+                  location: time.location,
+                  mode: time.mode,
+                  option: index + 1,
+                  time: when(time.start, time.end, zone),
+                })),
+              }
+            : {}),
           version: view.proposal.version,
         }
       : null,
@@ -338,6 +351,13 @@ export async function proposeSharedChangesForTool(
 export const approveProposalToolInput = z
   .object({
     version: z.number().int().positive().describe("The current proposal's version, as read_request returns it."),
+    option: z
+      .number()
+      .int()
+      .min(1)
+      .max(MAX_PROPOSAL_TIMES)
+      .optional()
+      .describe("When the proposal lists several times, the option number of the one time the host chose to book. Omit for a proposal of one time."),
   })
   .strict();
 
@@ -361,9 +381,17 @@ export async function approveProposalForTool(db: Database, call: HostReviewToolC
     return { approved: false as const, problem: `That is not the current proposal; the current one is version ${view.proposal.version}. Read the request again and ask the host about it.` };
   }
 
+  const times = view.proposal.times ?? [];
+  if (times.length > 1 && (input.option === undefined || input.option > times.length)) {
+    return {
+      approved: false as const,
+      problem: `The guest offered ${times.length} times. Ask the host which one to book, unless they already named it, and pass its option number.`,
+    };
+  }
+
   const outcome = await runCommand({ authenticate: async () => hostActor(hostAccountId), db }, approveCommand, {
     expectedRevision: view.revision,
-    input: { version: input.version },
+    input: input.option === undefined ? { version: input.version } : { option: input.option, version: input.version },
     resourceId: requestId,
     retryKey: `tool:${call.callId}`,
   });
@@ -383,6 +411,12 @@ export async function approveProposalForTool(db: Database, call: HostReviewToolC
     case "booking_pending":
       return { approved: false as const, problem: "A booking for this request is already under way." };
     case "invalid_input":
+      if (outcome.error.reason === "time_unavailable") {
+        return { approved: false as const, problem: "That time is no longer free on the host's calendar; nothing was approved. Offer the host the other times, or declining." };
+      }
+      if (outcome.error.reason !== "start_passed") {
+        return { approved: false as const, problem: "That time is not one of this proposal's times; nothing was approved. Read the request again." };
+      }
       return { approved: false as const, problem: "The proposed time has already started; nothing was approved." };
     default:
       return { approved: false as const, problem: "The proposal changed or still needs the requester's agreement; nothing was approved. Read the request again." };

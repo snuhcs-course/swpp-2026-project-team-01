@@ -37,6 +37,8 @@ const DURATIONS = [15, 30, 45, 60, 90, 120];
 function failureText(error: CommandFailure) {
   if (error.reason === "start_passed") return "That time has already started. Suggest a later one.";
   if (error.reason === "not_booked") return "Nothing is booked for this request.";
+  if (error.reason === "time_unavailable") return "That time is no longer free on your calendar, so nothing was approved. Book another of the times, or decline.";
+  if (error.reason === "time_choice_required") return "Choose which of the times to book.";
   if (error.reason === "proposal_superseded") return "A newer proposal replaced this one. The current one is shown.";
   if (error.category === "stale_revision") return "This request changed since you last saw it. Check it and try again.";
   if (error.category === "invalid_input") return "This cannot be done with the current details.";
@@ -99,15 +101,17 @@ export function ProposalReviewCard({ context, onRequestChanges }: { readonly con
   const [declinedDates, setDeclinedDates] = useState<readonly string[]>([]);
   const closed = ["declined", "withdrawn", "expired", "cancelled"].includes(view.state);
   const awaiting = view.state === "awaiting_host_approval" && proposal.agreedAt !== null;
+  // Several times the guest can make (multiple-candidate-times): the host books one.
+  const times = proposal.times && proposal.times.length > 1 ? proposal.times : null;
   const start = new Date(proposal.start);
   const day = new Intl.DateTimeFormat("en", { day: "numeric", month: "short", timeZone: view.hostTimezone }).format(start);
   const weekday = new Intl.DateTimeFormat("en", { timeZone: view.hostTimezone, weekday: "long" }).format(start);
   const time = (instant: string) => new Intl.DateTimeFormat("en", { hour: "2-digit", hourCycle: "h23", minute: "2-digit", timeZone: view.hostTimezone }).format(new Date(instant));
   const facts: readonly (readonly [string, ReactNode])[] = [
     ["Length", `${proposal.durationMinutes} minutes`],
-    ["Mode", MODE_LABELS[proposal.mode]],
-    ...(proposal.mode === "in_person" ? ([["Place", proposal.location ?? "Not set"]] as const) : []),
-    ...(proposal.mode === "online" ? ([["Meeting link", view.sample ? "Example Google Meet" : linkText(proposal.linkPlan) ?? "Not set"]] as const) : []),
+    ...(times ? [] : ([["Mode", MODE_LABELS[proposal.mode]]] as const)),
+    ...(!times && proposal.mode === "in_person" ? ([["Place", proposal.location ?? "Not set"]] as const) : []),
+    ...(!times && proposal.mode === "online" ? ([["Meeting link", view.sample ? "Example Google Meet" : linkText(proposal.linkPlan) ?? "Not set"]] as const) : []),
     ["With", view.requester.email
       ? `${view.requester.name} <${view.requester.email}>${view.requester.emailConfirmed ? "" : " (address not confirmed)"}`
       : view.requester.name],
@@ -119,12 +123,35 @@ export function ProposalReviewCard({ context, onRequestChanges }: { readonly con
       <div>
         {view.sample ? <p className="mb-1 text-xs font-semibold uppercase tracking-wide text-primary">Sample request</p> : null}
         <h3 className="text-[21px] leading-[1.3] font-semibold tracking-tight" id="proposal-review-heading">{closed ? view.state === "withdrawn" ? "Request withdrawn" : view.state === "cancelled" ? "Meeting cancelled" : view.state === "expired" ? "Expired" : "Declined" : awaiting ? "Approve this meeting?" : "Waiting for the requester"}</h3>
-        <p className="mt-1 text-sm text-muted-foreground">{view.sample ? "Try an action to complete this sample. No calendar event will be created and no guest will be notified." : closed ? "This request is closed." : awaiting ? `${view.requester.name} has agreed to the proposed details. Once you approve, we’ll check your calendar and confirm the booking.` : "We’re waiting for the requester to confirm the proposed details."}</p>
+        <p className="mt-1 text-sm text-muted-foreground">{view.sample ? "Try an action to complete this sample. No calendar event will be created and no guest will be notified." : closed ? "This request is closed." : awaiting && times ? `${view.requester.name} can make any of these ${times.length} times. Book the one you want; we’ll check your calendar for it and confirm the booking.` : awaiting ? `${view.requester.name} has agreed to the proposed details. Once you approve, we’ll check your calendar and confirm the booking.` : "We’re waiting for the requester to confirm the proposed details."}</p>
       </div>
+      {times ? (
+        <ol aria-label="Times the guest can make" className="flex flex-col gap-2">
+          {times.map((entry, index) => {
+            const label = `${displayTime(new Date(entry.start), view.hostTimezone)} – ${time(entry.end)}`;
+            return (
+              <li className="flex flex-wrap items-center justify-between gap-3 rounded-2xl bg-secondary px-4 py-3" key={entry.start}>
+                <div className="min-w-0">
+                  <p className="font-semibold">{index + 1}. {label}</p>
+                  <p className="text-xs text-muted-foreground">
+                    {MODE_LABELS[entry.mode]}{entry.mode === "in_person" ? ` · ${entry.location ?? "Place not set"}` : ` · ${linkText(entry.linkPlan) ?? "Link not set"}`}
+                  </p>
+                </div>
+                {awaiting && !closed && !confirmDecline ? (
+                  <Button aria-label={`Book time ${index + 1}: ${label}`} disabled={busy} onClick={() => void act("request.approve", { option: index + 1, version: proposal.version })} type="button">
+                    Book this time
+                  </Button>
+                ) : null}
+              </li>
+            );
+          })}
+        </ol>
+      ) : (
       <div className="grid grid-cols-[90px_1fr] items-center gap-3 rounded-2xl bg-secondary px-4 py-4 sm:grid-cols-[110px_1fr]">
         <div className="border-r border-border text-primary"><span className="block font-display text-[26px] leading-none">{day}</span><span className="text-xs font-semibold uppercase">{weekday}</span></div>
         <div className="min-w-0"><p className="text-lg font-semibold">{time(proposal.start)} – {time(proposal.end)}</p><p className="text-xs text-muted-foreground">{displayTime(start, view.hostTimezone).split(" ").at(-1)} · your time zone</p></div>
       </div>
+      )}
       <dl className="grid min-w-0 grid-cols-2 gap-x-4 gap-y-4 sm:grid-cols-3">
         {facts.map(([label, value]) => <div className={label === "With" ? "col-span-2 min-w-0" : "min-w-0"} key={label}><dt className="text-xs font-semibold text-muted-foreground">{label}</dt><dd className="mt-1 break-words text-sm">{value}</dd></div>)}
       </dl>
@@ -148,9 +175,11 @@ export function ProposalReviewCard({ context, onRequestChanges }: { readonly con
         </div>
       ) : (
         <div className="border-t border-border pt-4"><GuestCardActions>
-          <Button disabled={busy || !awaiting} onClick={() => view.sample ? void act("tutorial.finish", { action: "approve", version: proposal.version }) : void act("request.approve", { version: proposal.version })} type="button">
-            Approve this proposal
-          </Button>
+          {times ? null : (
+            <Button disabled={busy || !awaiting} onClick={() => view.sample ? void act("tutorial.finish", { action: "approve", version: proposal.version }) : void act("request.approve", { version: proposal.version })} type="button">
+              Approve this proposal
+            </Button>
+          )}
           <Button disabled={busy} onClick={view.sample ? () => void act("tutorial.finish", { action: "change" }) : onRequestChanges} type="button" variant="outline">
             Request changes
           </Button>
