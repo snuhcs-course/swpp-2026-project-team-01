@@ -117,6 +117,7 @@ Three utility templates, all `en_US`, each with one body parameter `{{1}}`, the 
 |---|---|---|
 | `fmat_request_received` | New request | `You have a new meeting request in Find Me a Time. Reply request {{1}} to see it here, or open findmeatime.com/app.` |
 | `fmat_proposal_waiting` | Proposal awaits approval | `A meeting proposal is waiting for your decision in Find Me a Time. Reply request {{1}} to review it here, or open findmeatime.com/app.` |
+| `fmat_weekly_limit_hold` | Weekly limit holds all feasible times | `A meeting request has no available time because of your weekly limit. Reply request {{1}} to review it, or open findmeatime.com/app?settings=weekly-limit to adjust your limit.` |
 | `fmat_booking_update` | Booking confirmed or not confirmed | `There is an update on one of your meeting requests in Find Me a Time. Reply request {{1}} for details, or open findmeatime.com/app.` |
 
 Each body uses `{{1}}` once: WhatsApp Manager refuses a template that repeats a variable (found when submitting them on 2026-11-04), so the reference appears only in the reply instruction. The code sends the one parameter unchanged.

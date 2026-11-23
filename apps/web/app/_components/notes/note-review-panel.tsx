@@ -15,6 +15,7 @@ import { NOTE_REVIEW_COPY } from "./note-review-copy";
 
 const POLL_MS = 3000;
 const MAX_POLLS = 40;
+const MAX_CONFIRM_ATTEMPTS = 3;
 
 async function post(operation: string, input: unknown) {
   const response = await fetch("/api/notes/commands", {
@@ -53,6 +54,7 @@ export function NoteReviewPanel({
   const [busy, setBusy] = useState(false);
   const [notice, setNotice] = useState<string | null>(null);
   const [polls, setPolls] = useState(0);
+  const [confirmAttempts, setConfirmAttempts] = useState(0);
   // After Confirm the page shows what is now free, with Back to change it.
   const [done, setDone] = useState(false);
   // The chat onboarding sends the open times once this 확인 is saved.
@@ -115,6 +117,7 @@ export function NoteReviewPanel({
           ? { ok: true, slotImage: false, stale: false }
           : await post("notes.confirm_review", { analysisId: review.analysisId, choices });
       if (!result.ok) setNotice(result.stale ? t.stale : t.failedSave);
+      setConfirmAttempts((attempts) => result.ok ? 0 : Math.min(attempts + 1, MAX_CONFIRM_ATTEMPTS));
       if (result.ok) setSlotImageFollows(result.slotImage);
       setPolls(0);
       await load(true);
@@ -179,7 +182,9 @@ export function NoteReviewPanel({
           key={version}
           locale={locale}
           onConfirm={(choices) => void confirm(choices)}
-          onContinue={onConfirmed ? () => void onConfirmed() : undefined}
+          confirmDisabled={confirmAttempts >= MAX_CONFIRM_ATTEMPTS}
+          onContinue={onConfirmed && confirmAttempts >= MAX_CONFIRM_ATTEMPTS ? () => void onConfirmed() : undefined}
+          skipWarning={confirmAttempts >= MAX_CONFIRM_ATTEMPTS ? t.skipWarning : undefined}
           onDay={(date) => {
             day.current = date;
           }}

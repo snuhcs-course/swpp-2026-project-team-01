@@ -29,6 +29,7 @@ Before each group, read the [Phase 5 reference repository files](../../../docume
 - [x] 5.3 Rewrite the entry documents' connection text and add the per-client notes ([design 11](design.md#11-per-client-acceptance)). Verify unit tests for the documents and that each named client has a row.
 
 - [x] 5.4 Keep agent connections through client refresh behaviour ([design 5](design.md#5-tokens-and-grants)): a refresh without `resource` keeps the token's resource, and a retried or concurrent refresh within the grace window returns another pair instead of revoking. Verify integration tests for an omitted resource, a concurrent and a retried refresh, the pair bound, and a reuse after the window, from another client and after the family moved on.
+- [x] 5.5 Add host calendar-role editing and disconnect to Connected apps, preserving existing bookings/events and closing intake until reconnection/setup.
 
 ## 6. Join
 

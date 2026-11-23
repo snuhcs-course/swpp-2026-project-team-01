@@ -199,6 +199,22 @@ async function noticeText(
         text: [texts.readyForApproval, requestSummary(view, language), follows, texts.selectedRequest].filter(Boolean).join("\n"),
       };
     }
+    case "weekly_limit_hold": {
+      const [current] = await q<{ revision: number; settings_revision: number | null; weekly_limit: number | null }[]>`
+        select r.revision, s.revision as settings_revision, nullif(s.settings ->> 'weeklyLimit', '')::int as weekly_limit
+        from app.requests r left join app.host_settings s on s.host_account_id = r.host_account_id
+        where r.id = ${requestId}
+      `;
+      if (
+        !current || current.revision !== notice.requestRevision || current.settings_revision !== notice.settingsRevision ||
+        current.weekly_limit !== notice.weeklyLimit || !view.evaluation?.weeklyLimitHold
+      ) return null;
+      const settingsLink = `${deps.origin}/app?settings=weekly-limit`;
+      const text = language === "ko"
+        ? `${view.requester.name}님이 신청한 미팅은 주간 한도(${notice.weeklyLimit}회)를 초과해 가능한 시간을 선택하지 못하고 있어요. 주간 한도를 조정할까요? 설정에서 변경할 수 있습니다: ${settingsLink}`
+        : `${view.requester.name} cannot choose a time because every available week is at your ${notice.weeklyLimit}-meeting weekly limit. Would you like to adjust it? Change the limit in Settings: ${settingsLink}`;
+      return { text };
+    }
     default: {
       const [booking] = await q<{ start_at: Date; end_at: Date }[]>`
         select start_at, end_at from app.bookings where id = ${notice.bookingId} and request_id = ${requestId}

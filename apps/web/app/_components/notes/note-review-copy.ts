@@ -37,6 +37,7 @@ export const NOTE_REVIEW_COPY = {
     retry: "Try again",
     failedLoad: "The review could not be loaded. Try again.",
     failedSave: "That did not save. Try again.",
+    skipWarning: "We couldn't save this review after three attempts. You can continue setup; these calendar entries will stay busy until you review them later.",
     stale: "This changed since you opened it. Here is the current list.",
   },
   ko: {
@@ -71,6 +72,7 @@ export const NOTE_REVIEW_COPY = {
     retry: "다시 시도",
     failedLoad: "목록을 불러오지 못했어요. 다시 시도해주세요.",
     failedSave: "저장하지 못했어요. 다시 시도해주세요.",
+    skipWarning: "세 번 시도했지만 검토 내용을 저장하지 못했어요. 설정은 계속할 수 있고, 나중에 다시 검토할 때까지 이 일정들은 계속 바쁜 시간으로 처리됩니다.",
     stale: "연 뒤에 바뀐 내용이 있어요. 지금 목록을 보여드려요.",
   },
 } as const;

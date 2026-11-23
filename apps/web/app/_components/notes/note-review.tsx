@@ -104,9 +104,11 @@ type Column = { readonly date: string; readonly day: WeekDay | null };
 export function NoteReviewWeek({
   busy = false,
   confirmLabel,
+  confirmDisabled = false,
   locale,
   onConfirm,
   onContinue,
+  skipWarning,
   onDay,
   onWeek,
   phone: phoneOverride,
@@ -117,9 +119,11 @@ export function NoteReviewWeek({
   readonly locale: Locale;
   readonly busy?: boolean;
   readonly confirmLabel?: string;
+  readonly confirmDisabled?: boolean;
   readonly onConfirm: (choices: NoteReviewChoice[]) => void;
   // With nothing left to check, a host of the review that moves on (the setup step).
   readonly onContinue?: () => void;
+  readonly skipWarning?: string;
   // Loads the week of this Monday into review.week.
   readonly onWeek?: (start: string) => void;
   // The phone view's first day on screen, kept by the host across reloads.
@@ -364,10 +368,12 @@ export function NoteReviewWeek({
 
           {contextUnavailable ? <p className="text-sm text-warning">{t.contextUnavailable}</p> : null}
 
+          {skipWarning ? <p className="rounded-xl bg-warning/10 px-3 py-2 text-sm text-foreground" role="status">{skipWarning}</p> : null}
           <div className="flex flex-wrap items-center gap-3">
-            <Button className="min-h-11" disabled={busy || !anySeen} onClick={confirm} type="button">
+            <Button className="min-h-11" disabled={busy || !anySeen || confirmDisabled} onClick={confirm} type="button">
               {busy ? t.confirming : (confirmLabel ?? t.confirm)}
             </Button>
+            {onContinue ? <Button className="min-h-11" disabled={busy} onClick={onContinue} type="button" variant="outline">{t.continue}</Button> : null}
           </div>
         </>
       ) : null}

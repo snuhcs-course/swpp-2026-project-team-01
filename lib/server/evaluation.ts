@@ -36,6 +36,7 @@ import {
 import { type ClaimedJob, type JobHandler, publishJob } from "./jobs";
 import { markNegotiating } from "./request-lifecycle";
 import type { NoticeDependencies } from "./booking-notices";
+import { enqueueHostNotice } from "./imessage-notices";
 import { settleSharedChange } from "./shared-change-settle";
 import { limitModel, type ModelLimits, type Principal } from "./model-limits";
 import {
@@ -1170,6 +1171,18 @@ export function createEvaluationHandler(
     `;
     // Still under the request lock and after the revision check above.
     await markNegotiating(tx, evaluation.request_id, projection.candidates.length);
+
+    // Tell the host when a requester has no selectable time because every
+    // otherwise feasible candidate is in a full week. Revision-keyed notices
+    // avoid repeats from retries while allowing a later request/settings edit.
+    if (held && audience === "requester" && current.settings_revision !== null) {
+      await enqueueHostNotice(tx, evaluation.request_id, {
+        kind: "weekly_limit_hold",
+        requestRevision: current.revision,
+        settingsRevision: current.settings_revision,
+        weeklyLimit: outcome.input.host.weeklyLimit!,
+      });
+    }
 
     if (sharedChangeId && fixed) {
       await settleSharedChange(tx, sharedChangeId, evaluationId!, intervalVerdict(outcome, fixed), deps.notices);
