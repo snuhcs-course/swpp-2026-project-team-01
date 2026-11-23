@@ -218,6 +218,11 @@ export function ModeChoiceCard({
 // ---------------------------------------------------------------------------
 // Review extracted details: **Apply these details** and **Dismiss**
 
+// Whether **Apply these details** answered that times can be found now.
+export function findsTimes(result: unknown) {
+  return typeof result === "object" && result !== null && (result as { findTimes?: unknown }).findTimes === true;
+}
+
 export function ReviewCard({ context }: { readonly context: RequesterCardContext }) {
   const review = context.view.pendingReview!;
   const { act, busy, error } = useAction(context);
@@ -232,15 +237,11 @@ export function ReviewCard({ context }: { readonly context: RequesterCardContext
   }
 
   // Applying details finds times for them at once (U13) when the meeting then
-  // has its purpose, length and form; the assistant gathers them first.
+  // has its length and form; the server decides from the request as applied,
+  // never from this card's view, which the apply has already replaced (#241).
   async function apply() {
     const applied = await act("request.apply_review", { reviewId: review.id });
-    const { details, state } = context.view.request;
-    const patch = review.patch ?? {};
-    const ready =
-      state !== "draft" &&
-      Boolean((patch.purpose ?? details.purpose) && (patch.durationMinutes ?? details.durationMinutes) && (patch.mode ?? details.mode));
-    if (applied.ok && ready) await act("request.evaluate", {}, null);
+    if (applied.ok && findsTimes(applied.result)) await act("request.evaluate", {}, null);
   }
 
   return (

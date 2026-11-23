@@ -667,7 +667,6 @@ async function evaluate(
       location: location ? { key: hash(location), text: location } : null,
       mode: details.mode ?? null,
       places: options.place !== undefined ? [] : hostPlaces(settings).map((text) => ({ key: hash(text), text })),
-      spreadDays: searchDefault,
       preferredWindows: (details.preferredWindows ?? []).map((window) => ({ start: new Date(window.start), end: new Date(window.end) })),
       lessPreferredWindows: (details.lessPreferredWindows ?? []).map((window) => ({ start: new Date(window.start), end: new Date(window.end) })),
       preferredWeeklyWindows: details.preferredWeeklyWindows ?? [],
@@ -867,7 +866,7 @@ async function evaluate(
     }
   }
 
-  const ordered = applyRanking(result.candidates, ranking);
+  const ordered = applyRanking(result.candidates, ranking, requesterZone);
 
   return {
     candidates: [...ordered, ...result.exclusions.map((exclusion) => ({ ...exclusion, status: "excluded" as const }))],
@@ -912,7 +911,7 @@ async function nearestOpenTimes(
   const search = async (window: { start: Date; end: Date }): Promise<FeasibilityResult | null> => {
     const day: FeasibilityInput = {
       ...input,
-      request: { ...input.request, lessPreferredWindows: [], preferredWeeklyWindows: [], preferredWindows: [], spreadDays: false, windows: [window] },
+      request: { ...input.request, lessPreferredWindows: [], preferredWeeklyWindows: [], preferredWindows: [], windows: [window] },
     };
     try {
       const missing = travelQueries({ ...day, estimate: lookup }).filter((query) => !routes.known.has(legQueryKey(query)));

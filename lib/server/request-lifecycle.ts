@@ -247,6 +247,13 @@ export function detailsComplete(details: Partial<RequestDetails>) {
   return Boolean(details.durationMinutes && details.mode);
 }
 
+// Whether times can be found for a request now: it is past the draft and its
+// details are complete. Applying a review finds times exactly when this holds,
+// on the web and through the assistant (#241).
+export function readyForTimes(state: RequestState, details: Partial<RequestDetails>) {
+  return state !== "draft" && detailsComplete(details);
+}
+
 // gathering -> negotiating, run by the evaluation job in its publishing
 // transaction, under the request lock it already holds and after its revision
 // check: a completed evaluation with candidates moves a gathering request whose
