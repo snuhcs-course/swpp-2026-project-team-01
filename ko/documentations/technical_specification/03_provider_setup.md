@@ -33,7 +33,7 @@ Supabase 프로젝트 **`anelszynxtvxoxqvzgqt`**(**FindMeATime**, 리전 **`us-e
 | 계층 | Supabase | 애플리케이션 런타임 | 변경 주체 |
 |---|---|---|---|
 | 개인 샌드박스 | 각 팀원이 개인 Supabase 조직에 만든 본인의 무료 프로젝트 | 팀원 컴퓨터의 `eve dev`와 `next dev`. eve는 대화 상태를 로컬 `.eve/.workflow-data` 디렉터리에 보관하며 Docker는 필요하지 않음 | 팀원이 자유롭게 |
-| 공유 | **FindMeATime** `anelszynxtvxoxqvzgqt` | `findmeatime.com`과 `release.findmeatime.com`에서 제공되는 `findmeatime-release`의 Vercel **Production** 배포이며, `main`에 푸시될 때마다 [`Deploy production`](../../.github/workflows/deploy-production.yml) 워크플로가 배포함. Vercel 프로젝트에는 Git 연결이 없으므로 풀 리퀘스트는 자동 **Preview** 배포를 받지 않으며, `--prod` 없이 `vercel deploy`를 실행하면 직접 만들 수 있음 | `main`에 머지될 때 CI가 수행. 사람이 직접 변경하지 않음(아래에 기록된 예외 한 번) |
+| 공유 | **FindMeATime** `anelszynxtvxoxqvzgqt` | `findmeatime.com`과 `release.findmeatime.com`에서 제공되는 `findmeatime-release`의 Vercel **Production** 배포이며, `main`에 푸시될 때마다 [`Deploy production`](../../.github/workflows/deploy-production.yml) 워크플로가 배포함. Vercel 프로젝트에는 Git 연결이 없으므로 풀 리퀘스트는 자동 **Preview** 배포를 받지 않으며, `--prod` 없이 `vercel deploy`를 실행하면 직접 만들 수 있음 | `main`에 머지될 때 CI가 수행. 사람이 직접 변경하지 않음(아래에 기록된 예외들) |
 | 릴리스 | 비운 뒤의 **FindMeATime2** `mriseqztcwmezvtawnbo` | 분리가 이루어진 뒤 `findmeatime.com`과 `release.findmeatime.com`을 서비스하는 `findmeatime-release`의 Vercel **Production**. 그러면 위의 공유 행은 스테이징으로서 `dev.findmeatime.com`의 `findmeatime-dev`로 옮겨집니다(D13) | GitHub 환경 승인 뒤의 `Deploy release Supabase` 워크플로; 병합된 `main` 리비전에서 저장소 소유자가 실행하는 `vercel deploy --prod`. 아직 사용하지 않음 |
 
 스키마 변경은 한 방향으로 흐릅니다.
@@ -41,9 +41,11 @@ Supabase 프로젝트 **`anelszynxtvxoxqvzgqt`**(**FindMeATime**, 리전 **`us-e
 1. 팀원이 토픽 브랜치에서 `supabase/schemas/` 아래의 원하는 SQL을 편집합니다.
 2. pg-delta로 마이그레이션을 생성하려면 섀도 데이터베이스를 위해 Docker가 필요합니다. Docker가 있는 팀원이 같은 풀 리퀘스트에서 마이그레이션을 생성하고 커밋하며, 생성에 전체 `supabase start` 스택은 필요하지 않습니다.
 3. 팀원은 `supabase db push`로 브랜치의 마이그레이션을 자신의 샌드박스에 적용하고, 브랜치를 전환하거나 이력이 어긋날 때 `supabase db reset --linked`로 샌드박스를 초기화합니다. 공유 픽스처는 `supabase/seed.sql`에 두어 초기화하면 복원되도록 합니다.
-4. 검토와 머지가 끝나면 [`Deploy production`](../../.github/workflows/deploy-production.yml) 워크플로가 `main`에 푸시될 때마다 실행됩니다. 이 워크플로는 먼저 [`Deploy shared Supabase`](../../.github/workflows/deploy-shared.yml) 워크플로를 실행하며, 그 워크플로가 `supabase db push --dry-run`을 출력하고, 마이그레이션을 공유 프로젝트에 푸시하며, 두 GitHub 시크릿이 모두 설정되어 있으면 워커 URL과 시크릿을 Vault에 쓰고, `supabase config push`를 실행합니다. 이 푸시는 `supabase/config.toml`이 선언한 모든 설정을 적용하므로, 그 파일의 변경은 호스팅 프로젝트의 변경으로 검토하십시오. 사이트 URL과 리디렉션 허용 목록은 `SUPABASE_AUTH_SITE_URL`과 쉼표로 구분한 `SUPABASE_AUTH_ADDITIONAL_REDIRECT_URLS` 변수에서 옵니다. CI에서는 GitHub 저장소 변수이고, 로컬 `supabase start`에서는 루트 `.env`입니다. 워크플로에는 `SUPABASE_ACCESS_TOKEN`, `SUPABASE_DB_PASSWORD`, `WORKER_URL`, `WORKER_SECRET` 저장소 시크릿이 필요합니다. `WORKER_URL`은 정식 origin의 프로덕션 워커 경로인 `https://findmeatime.com/api/internal/jobs`이고, `WORKER_SECRET`은 Vercel Production의 `WORKER_SECRET`과 같은 값(영문자, 숫자, `_`, `-` 32자 이상)입니다. 삽입 트리거와 매분 실행되는 `pg_cron` 스윕은 그 시크릿으로 그 URL에 요청을 보내며, 모든 샌드박스처럼 Vault 항목 중 하나라도 없으면 아무것도 하지 않습니다. 각 단계는 처리할 항목이 없으면 아무 일도 하지 않으므로 `supabase/**`가 바뀔 때만이 아니라 모든 푸시에서 실행되며, 덕분에 GitHub가 더 새로운 실행을 위해 대기 중인 실행을 취소하더라도 적용되지 않은 마이그레이션이 남지 않습니다. 워크플로는 이 단계가 성공한 경우에만 깨끗한 체크아웃에서 `npm ci`와 `vercel deploy --prod`를 실행합니다. CLI는 업로드하기 전에 `eve`를 가져오는 `vercel.ts`를 컴파일합니다. 그런 다음 워크플로가 `https://findmeatime.com/eve/v1/health`를 확인하므로, 마이그레이션이 실패했을 때 앱이 스키마보다 먼저 배포되는 일은 없습니다. 이 배포에는 프로젝트를 소유한 Vercel 계정의 토큰인 `VERCEL_TOKEN` 저장소 시크릿과, `.vercel/project.json`에 있는 ID인 `VERCEL_ORG_ID`, `VERCEL_PROJECT_ID` 저장소 변수가 필요합니다. 새 커밋 없이 다시 배포하려면 워크플로를 직접 시작하십시오. 릴리스 분리로 이 행이 `findmeatime-dev`로 옮겨지면(D13) `VERCEL_PROJECT_ID`와 워크플로가 확인하는 origin을 바꾸십시오.
+4. 검토와 머지가 끝나면 [`Deploy production`](../../.github/workflows/deploy-production.yml) 워크플로가 `main`에 푸시될 때마다 실행됩니다. 이 워크플로는 마이그레이션, 워커의 Vault 항목, 호스팅 구성을 공유 프로젝트에 푸시한 다음 Vercel Production을 배포합니다. 단계, 순서, 그리고 워크플로가 읽는 모든 시크릿과 변수는 아래의 [공유 환경에 배포하기](#deploying-to-the-shared-environment)에 있습니다. 이 푸시는 `supabase/config.toml`이 선언한 모든 설정을 적용하므로, 그 파일의 변경은 호스팅 프로젝트의 변경으로 검토하십시오. 사이트 URL과 리디렉션 허용 목록은 `SUPABASE_AUTH_SITE_URL`과 쉼표로 구분한 `SUPABASE_AUTH_ADDITIONAL_REDIRECT_URLS` 변수에서 옵니다. CI에서는 GitHub 저장소 변수이고, 로컬 `supabase start`에서는 루트 `.env`입니다. 삽입 트리거와 매분 실행되는 `pg_cron` 스윕은 `WORKER_SECRET`으로 `WORKER_URL`에 요청을 보내며, 모든 샌드박스처럼 Vault 항목 중 하나라도 없으면 아무것도 하지 않습니다. 릴리스 분리로 이 행이 `findmeatime-dev`로 옮겨지면(D13) `VERCEL_PROJECT_ID`와 워크플로가 확인하는 origin을 바꾸십시오.
 
-**첫 푸시, 2026-10-19.** Phase 1 마이그레이션은 풀 리퀘스트가 머지되기 전에, 사용자의 명시적 요청에 따라 Supabase CLI로 한 번 수동으로 공유 프로젝트에 적용되었습니다. 이는 위의 CI 전용 규칙에 대한 예외이며, 프로덕션 배포에 스키마가 필요했기 때문입니다. 상태(애플리케이션 스키마 없음, 원격 마이그레이션 없음)를 읽은 뒤 `supabase db push --linked --dry-run`이 14개 마이그레이션을 나열했고 `supabase db push --linked`가 이를 적용했습니다. `supabase migration list --linked`는 14개 모두를 보여 주며, `supabase db diff --linked`는 애플리케이션 드리프트가 없음을 보여 줍니다(체인이 선언하지 않는, 플랫폼에 미리 설치된 `pgmq` 확장만 나타남). `supabase config push`는 사이트 URL `https://findmeatime.com`과 리디렉션 허용 목록 `https://findmeatime.com/auth/callback`, `https://release.findmeatime.com/auth/callback`, `http://localhost:3000/auth/callback`을 적용했고, 그 뒤 `supabase config diff`는 갱신 항목이 없다고 보고했습니다. Google 공급자는 변경하지 않았습니다. Vault 워커 URL은 Production `WORKER_SECRET`과 함께 `https://findmeatime.com/api/internal/jobs`이며, `app-jobs-sweep` cron 작업은 매분 성공합니다. 공유 데이터베이스 비밀번호는 2026-10-19에 Management API로 재설정되었고 Production과 Preview의 `DATABASE_URL`에만 보관됩니다. Phase 2 마이그레이션 두 개는 2026-10-20에 같은 방식으로, 이번에도 사용자의 승인을 받아 적용되었습니다. `Deploy shared Supabase` 워크플로의 저장소 시크릿과 변수가 아직 설정되지 않았기 때문입니다. 이후의 변경이 워크플로를 거치도록 이와 같은 값으로 설정하십시오.
+**첫 푸시, 2026-10-19.** Phase 1 마이그레이션은 풀 리퀘스트가 머지되기 전에, 사용자의 명시적 요청에 따라 Supabase CLI로 한 번 수동으로 공유 프로젝트에 적용되었습니다. 이는 위의 CI 전용 규칙에 대한 예외이며, 프로덕션 배포에 스키마가 필요했기 때문입니다. 상태(애플리케이션 스키마 없음, 원격 마이그레이션 없음)를 읽은 뒤 `supabase db push --linked --dry-run`이 14개 마이그레이션을 나열했고 `supabase db push --linked`가 이를 적용했습니다. `supabase migration list --linked`는 14개 모두를 보여 주며, `supabase db diff --linked`는 애플리케이션 드리프트가 없음을 보여 줍니다(체인이 선언하지 않는, 플랫폼에 미리 설치된 `pgmq` 확장만 나타남). `supabase config push`는 사이트 URL `https://findmeatime.com`과 리디렉션 허용 목록 `https://findmeatime.com/auth/callback`, `https://release.findmeatime.com/auth/callback`, `http://localhost:3000/auth/callback`을 적용했고, 그 뒤 `supabase config diff`는 갱신 항목이 없다고 보고했습니다. Google 공급자는 변경하지 않았습니다. Vault 워커 URL은 Production `WORKER_SECRET`과 함께 `https://findmeatime.com/api/internal/jobs`이며, `app-jobs-sweep` cron 작업은 매분 성공합니다. 공유 데이터베이스 비밀번호는 2026-10-19에 Management API로 재설정되었고 Production과 Preview의 `DATABASE_URL`에만 보관됩니다. Phase 2 마이그레이션 두 개는 2026-10-20에 같은 방식으로, 이번에도 사용자의 승인을 받아 적용되었습니다. `Deploy shared Supabase` 워크플로의 저장소 시크릿과 변수가 그때는 설정되지 않았기 때문입니다.
+
+**이후의 수동 푸시와 배포.** 같은 예외가 2026-10-22에 Phase 3와 Phase 4, 2026-10-23에 Phase 6에 적용되었고, 2026-10-30에는 마이그레이션 다섯 개를 수동으로 푸시하고 리비전 `7c317609`를 Production에 배포했습니다. 워크플로가 2026-10-29까지의 실행 11회 모두에서 `supabase link` 단계에서 실패했기 때문입니다([인수 기록](07_acceptance_record.md#shared-push-and-deploy-2026-10-30)). `gh secret list`는 저장소 시크릿이 2026-11-03과 2026-11-14에 마지막으로 갱신되었다고 보여 줍니다. 워크플로는 2026-11-03까지 `supabase link` 단계에서 실패하다가 그날 처음 성공했고, 2026-11-14부터는 `Deploy production`의 첫 번째 작업으로 실행됩니다. 다른 작업처럼 여전히 실패할 수 있으며(예: 2026-11-19과 2026-11-20의 푸시 10건), 현재 상태는 `gh run list --workflow deploy-production.yml`이 보여 줍니다. 2026-11-23에는 CI 러너가 밀려 있는 동안 저장소 소유자가 깨끗한 체크아웃에서 `vercel deploy --prod`로 `ae322b0e`를 배포했으며, 이는 소유자가 보고한 내용이고 배포 ID는 기록되어 있지 않습니다. 이것이 아래의 [수동 대체 절차](#deploying-to-the-shared-environment)입니다.
 
 작업(jobs): 워커 경로는 Production 배포에서만 실행되고 프로덕션에서 만들어진 작업만 가져가므로, 작업 기반 처리는 이 경로를 통해 Preview 배포나 샌드박스에서 실행되지 않습니다. 샌드박스나 로컬 스택에서는 `npm run jobs:dev`가 같은 워커를 `DATABASE_URL`에 대해 실행하며 로컬에서 만들어진 작업만 가져갑니다. 이 명령은 공유 프로젝트와 릴리스 프로젝트의 ref를 거부합니다.
 
@@ -55,6 +57,59 @@ Supabase 프로젝트 **`anelszynxtvxoxqvzgqt`**(**FindMeATime**, 리전 **`us-e
 
 다음 중 하나가 일어나기 **전에** 릴리스 환경을 분리합니다. 외부 호스트가 실제 Google 캘린더를 연결하는 경우, 팀 외부 사람들에게 실제 이메일이나 iMessage 전달을 활성화하는 경우, 스키마가 변경되어도 데이터를 유지해야 하는 경우입니다. 그 전까지는 보호할 것이 없으며 하나의 환경이 일관성을 유지하기에 더 간단합니다.
 
+
+### 공유 환경에 배포하기
+
+공유 테스트 환경은 공유 Supabase 프로젝트 `anelszynxtvxoxqvzgqt`와 `https://findmeatime.com`, `https://release.findmeatime.com`에서 제공되는 `findmeatime-release`의 Vercel **Production** 배포를 합친 것입니다. 브랜치는 `main`에 머지될 때만 여기에 도달합니다. [`Deploy production`](../../.github/workflows/deploy-production.yml) 워크플로가 `main`에 대한 **모든** 푸시를 배포하므로, 머지가 곧 배포입니다. 모든 브랜치에 이 단계를 따르십시오. 환경을 설정한 사람에게 따로 물어볼 필요는 없습니다. 작성자가 아닌 팀원이 이 단계를 처음부터 끝까지 따라 해 본 적은 아직 없습니다([#141](https://github.com/snuhcs-course/swpp-2026-project-team-01/issues/141)).
+
+**일회성 접근 권한.** 정상 경로에는 저장소의 Actions 실행 기록을 읽을 수 있는 권한(`gh run list`)이면 충분합니다. 아래의 수동 대체 절차에는 `justdodos-projects` 팀에 접근할 수 있는 Vercel 로그인(`vercel whoami`, `vercel teams ls`)도 필요하며, 저장소 소유자에게 요청하십시오.
+
+**1. 풀 리퀘스트를 열기 전에.**
+
+- *마이그레이션.* [pg-delta 워크플로](../../AGENTS.md#supabase-schema-changes)로 생성하고 검토한 뒤, `supabase db push`로 자신의 샌드박스에 적용합니다(위 스키마 흐름의 3단계). 브랜치의 마이그레이션을 공유 프로젝트에 푸시하지 마십시오. 마이그레이션 푸시와 Vercel 배포 사이의 몇 분 동안에는 **현재** 앱이 **새** 스키마 위에서 동작하므로, 마이그레이션은 이미 `main`에 있는 앱과 계속 호환되어야 합니다. 열, 테이블, 함수는 한 풀 리퀘스트에서 추가하고, 기존 앱이 읽는 것을 삭제하거나 이름을 바꾸는 일은 그것을 읽지 않게 된 앱이 배포된 뒤의 다른 풀 리퀘스트에서만 하십시오.
+- *호스팅된 Auth 구성.* `supabase config push`는 머지 시 `supabase/config.toml`이 선언한 모든 설정을 공유 프로젝트에 적용하므로, 이 파일의 변경은 프로덕션 변경으로 취급하십시오.
+- *환경 변수.* 웹 서비스와 에이전트 서비스는 [`vercel.ts`](../../vercel.ts)가 `withEve`로 구성한 하나의 Vercel 프로젝트의 두 서비스이며, 별도의 eve 배포는 없고 둘 다 프로젝트의 변수를 읽습니다. 새 이름마다 [`.env.example`](../../.env.example)에 추가한 다음, 저장소 소유자가 `findmeatime-release`의 Production에, Preview에도 필요하다면 Preview에도 설정하도록 요청합니다(`vercel env add <NAME> production`; `vercel env ls production`이 이름을 나열). 배포는 빌드 시점에 존재하는 값을 읽으므로, 변수는 머지 **전에** 설정하십시오. 그 뒤에 설정한 변수는 재배포가 필요합니다(3단계). 2026-11-14에 Telegram 웹훅은 변수를 설정한 뒤 재배포하기 전까지 `401`로 응답했습니다([인수 기록](07_acceptance_record.md#phase-10--host-telegram-channel)).
+- *원한다면 Preview.* Vercel 프로젝트에는 Git 연결이 없으므로 풀 리퀘스트는 Preview를 받지 않습니다. 브랜치에서 `--prod` 없이 `vercel deploy`를 실행하면 직접 만들 수 있습니다. Preview는 Preview 변수를 사용하며, 그 `DATABASE_URL`은 공유 프로젝트를 가리키고, 이메일이나 iMessage를 보내지 않으며 작업 워커를 실행하지 않습니다. 마이그레이션이 아직 `main`에 없는 브랜치는 미리 보기하지 마십시오. 공유 스키마에 그 마이그레이션이 없습니다. 대신 샌드박스를 사용하십시오.
+
+**2. 머지.** 검토와 검사를 통과하면 풀 리퀘스트를 `main`에 머지합니다. 그러면 `Deploy production`이 다음 순서로 실행되며, 실패한 단계는 그 뒤의 모든 단계를 멈춥니다.
+
+1. **Supabase**, 재사용 가능한 [`Deploy shared Supabase`](../../.github/workflows/deploy-shared.yml) 워크플로: `supabase link`, `supabase db push --dry-run`(보류 중인 마이그레이션), `supabase db push --yes`, Vault에 워커 URL과 시크릿 기록, 그다음 `supabase config diff`와 `supabase config push`.
+2. **Vercel**, Supabase 작업이 성공한 뒤에만: `npm ci`, 이어서 깨끗한 체크아웃에서 `vercel deploy --prod`(Vercel이 원격으로 빌드하며 [`.vercelignore`](../../.vercelignore)가 env 파일을 제외), 그다음 `https://findmeatime.com/eve/v1/health`가 응답하는지 확인.
+
+실행들은 하나의 동시성 그룹을 공유하며 진행 중인 실행을 취소하지 않지만, GitHub는 더 새로운 푸시가 뒤에 대기하면 대기 중인 실행을 취소합니다. 각 단계는 보류 중인 것이 없으면 아무 일도 하지 않으므로, 더 새로운 실행이 모든 마이그레이션과 함께 더 새로운 리비전을 배포합니다.
+
+**3. 반영되었는지 확인.**
+
+- `gh run list --workflow deploy-production.yml --limit 5`는 머지 커밋의 실행을 보여 주고, `gh run watch <run-id>`는 그 실행을 따라가며, `gh run view <run-id> --log-failed`는 실패 이유를 보여 줍니다.
+- **Vercel** 작업의 요약은 커밋과 배포 URL을 명시합니다. **Supabase** 작업의 **Show pending migrations** 단계는 푸시된 항목을 나열하며, 이후 실행은 원격 데이터베이스가 최신이라고 보고합니다.
+- `curl -fsS https://findmeatime.com/eve/v1/health`가 성공하고, 변경이 건드린 페이지가 두 origin 모두에서 응답합니다.
+- 새 커밋 없이 재배포하려면, 예를 들어 변수를 바꾼 뒤에는 `main`에서 워크플로를 시작합니다: `gh workflow run deploy-production.yml --ref main`.
+- 인수 증거를 만드는 배포는 리비전, 실행 또는 배포 ID, 명령, 결과와 함께 [인수 기록](07_acceptance_record.md)에 기록합니다.
+
+**워크플로가 읽는 시크릿과 변수.** 이름만 적었으며, 값은 팀의 비밀번호 관리자에 있습니다. `gh secret list`와 `gh variable list`로 확인합니다.
+
+| 이름 | 구분 | 사용처 | 값 |
+|---|---|---|---|
+| `SUPABASE_ACCESS_TOKEN` | 시크릿 | Supabase 작업 | 공유 프로젝트에 접근할 수 있는 Supabase 액세스 토큰 |
+| `SUPABASE_DB_PASSWORD` | 시크릿 | Supabase 작업 | 공유 데이터베이스 비밀번호 |
+| `WORKER_URL` | 시크릿 | Supabase 작업(Vault) | `https://findmeatime.com/api/internal/jobs`. 이 값이나 `WORKER_SECRET`이 비어 있으면 Vault는 변경되지 않음 |
+| `WORKER_SECRET` | 시크릿 | Supabase 작업(Vault) | Vercel Production의 `WORKER_SECRET`, 영문자, 숫자, `_`, `-` 32자 이상 |
+| `GOOGLE_CLIENT_SECRET` | 시크릿 | Supabase 작업(config push) | Google OAuth 클라이언트 시크릿([호스트 로그인 값](#host-sign-in-values)) |
+| `GOOGLE_CLIENT_ID` | 변수 | Supabase 작업(config push) | Google OAuth 클라이언트 ID |
+| `SUPABASE_AUTH_SITE_URL` | 변수 | Supabase 작업(config push) | `https://findmeatime.com` |
+| `SUPABASE_AUTH_ADDITIONAL_REDIRECT_URLS` | 변수 | Supabase 작업(config push) | 쉼표로 구분한 콜백 허용 목록([호스트 로그인 값](#host-sign-in-values)) |
+| `VERCEL_TOKEN` | 시크릿 | Vercel 작업 | `findmeatime-release`를 소유한 Vercel 계정의 토큰 |
+| `VERCEL_ORG_ID`, `VERCEL_PROJECT_ID` | 변수 | Vercel 작업 | `vercel link` 뒤 `.vercel/project.json`에 있는 ID |
+
+애플리케이션 자체의 런타임 변수(`DATABASE_URL`, `APP_ORIGIN`, `EVE_INTERNAL_SIGNING_KEY`와 `.env.example`의 나머지)는 GitHub가 아니라 Vercel 프로젝트에 있습니다.
+
+**수동 대체 절차.** 이것은 수동 배포를 하지 않는다고 헤더에 적은 워크플로에 대한 예외이며, 사용할 때마다 저장소 소유자의 승인이 필요합니다. 위의 예외와 같이 사용할 때마다 기록하십시오. 워크플로가 이미 `main`에 있는 리비전을 배포하지 못할 때, 예를 들어 러너가 밀려 있을 때에만 사용합니다. 2026-11-23에 소유자는 CI 러너가 밀려 있는 동안 이 방식으로 `ae322b0e`를 배포했다고 보고했으며, 그 커밋에 대한 워크플로 실행은 취소됨으로 표시되어 있습니다.
+
+1. 더 오래된 리비전에 대한 `Deploy production` 실행이 진행 중이거나 대기 중이 아닌지 확인합니다(`gh run list --workflow deploy-production.yml --status in_progress`, 그리고 `--status queued`로 같은 명령). 그런 실행이 있으면 취소(`gh run cancel <run-id>`)하거나 기다리십시오. 그렇지 않으면 그 실행이 내 배포 뒤에 끝나 프로덕션을 되돌릴 수 있습니다.
+2. 공유 프로젝트에 해당 리비전의 마이그레이션이 이미 있는지 확인합니다. `supabase/` 트리가 같은 리비전에 대한 이전의 성공한 `Deploy production` 또는 `Deploy shared Supabase` 실행이 있어야 합니다. `gh workflow run deploy-shared.yml --ref main`을 시작하는 방법도 되지만, 같은 러너를 기다리므로 러너가 밀려 있을 때는 도움이 되지 않습니다. 앱을 스키마보다 앞서 배포하지 마십시오. `supabase db push --linked`로 마이그레이션을 수동 푸시하려면, 이전의 모든 예외가 그랬듯 소유자의 명시적 승인과 검토된 `--dry-run`이 필요합니다.
+3. 작업 사본이 아니라 정확한 리비전의 깨끗한 체크아웃을 만듭니다. `git fetch origin`을 실행한 뒤 `git worktree add --detach ../fmat-deploy <revision>`을 실행하고, 그 안에서 `npm ci`를 실행합니다.
+4. 프로젝트에 연결하거나(`npx vercel@65.7.0 link --scope justdodos-projects`, `findmeatime-release`를 선택) `VERCEL_ORG_ID`와 `VERCEL_PROJECT_ID`를 내보낸 다음, 워크플로가 고정한 CLI 버전인 `npx vercel@65.7.0 deploy --prod --yes`를 실행합니다.
+5. `https://findmeatime.com/eve/v1/health`와 건드린 페이지를 확인하고, 워크트리를 제거(`git worktree remove ../fmat-deploy`)한 뒤, 배포를 인수 기록에 기록합니다. 다음 `main` 푸시부터는 다시 워크플로를 통해 배포됩니다.
 
 ## Google 신원과 캘린더
 
@@ -239,7 +294,7 @@ Dots, Muse, Instinct, ChatGPT, Codex, Claude, Claude Code를 각각 개별적으
 
 - `npm run admin -- diagnostics snapshot --operator <name> --project <ref>`는 열 가지 범주를 출력합니다. 소진된 작업, 리스가 만료된 작업, 기한이 지난 작업; 쓰기가 존재할 수 있는 예약(`bookings_uncertain`)과 15분보다 오래된 예약 확보; 불확실한 트랜잭션 이메일과 스레드 답장; 불확실하거나 실패한 iMessage 발송; 실패한 대화 세션; 10분이 지나도 답이 없는 입력입니다. 각 범주는 개수, 가장 오래된 타임스탬프, 최대 20개의 식별자를 보여 줍니다(`--samples`로 줄이고, `--json`으로 객체를 출력). 만료된 리스를 포함해 아무것도 바꾸지 않으며, 비어 있는 스냅샷이 공급자나 전달이 정상이라는 증거는 아닙니다.
 - `npm run admin -- diagnostics rejections --operator <name> --project <ref>`는 현재 시간과 직전 23개 UTC 시간의 권한 거부 및 오래된 작업 횟수를 출력합니다. 배포에 `DIAGNOSTICS_REJECTIONS=1`이 설정되어 있는 동안에만, 명령 파이프라인에 도달한 실패에 한해 기록되며, 버킷은 10,000에서 멈추고 그 사실을 알립니다. 거부가 늘면 탐색 시도나 고장 난 클라이언트를, 오래된 작업이 늘면 사람들이 오래된 제안에 따라 행동하고 있음을 가리킵니다.
-- `npm run admin -- diagnostics usage --operator <name> --project <ref>`는 iMessage, WhatsApp, Telegram 각각에 대해 연결이 활성화된 호스트 수, 수신 메시지 수, 게스트가 해당 채널을 연결한 요청 수와 그 요청에서 확정된 예약 수를 최근 14개 UTC 일자별로 출력합니다(`--periods`로 최대 90). `--by week`는 월요일부터 시작하는 ISO 주 단위로 묶어(기본 8주, 최대 52주) 일자를 합산하고 활성 호스트는 가장 많았던 날의 값을 보여 줍니다. `--until <YYYY-MM-DD>`는 보고서를 더 이른 날짜에서 끝내고, `--json`은 객체를 출력합니다. 값은 `app.channel_usage_days`에서 오며, 매시간 실행되는 `app-channel-usage` pg_cron 작업이 최근 7일을 수신 기록, 연결, 예약에서 다시 집계하므로 해당 행이 30일 후 삭제된 뒤에도 남습니다([`channel-usage-report` 설계](../../openspec/changes/channel-usage-report/design.md)). 개수와 날짜만 출력하며 아무것도 바꾸지 않습니다. 기록되지 않았거나 일부만 기록된 기간은 활동이 없던 기간이 아니라 집계가 빠진 기간(첫 집계 이전이거나 pg_cron이 멈춘 동안)입니다. 요청은 시작된 채널을 기록하지 않으므로 게스트 연결 수가 가장 가까운 척도입니다.
+- `npm run admin -- diagnostics usage --operator <name> --project <ref>`는 iMessage, WhatsApp, Telegram 각각에 대해 연결이 활성화된 호스트 수, 수신 메시지 수, 게스트가 해당 채널을 연결한 요청 수와 그 요청에서 확정된 예약 수를 최근 14개 UTC 일자별로 출력합니다(`--periods`로 최대 90). `--by week`는 월요일부터 시작하는 ISO 주 단위로 묶어(기본 8주, 최대 52주) 일자를 합산하고 활성 호스트는 가장 많았던 날의 값을 보여 줍니다. `--until <YYYY-MM-DD>`는 보고서를 더 이른 날짜에서 끝내고, `--json`은 객체를 출력합니다. 값은 `app.channel_usage_days`에서 오며, 매시간 실행되는 `app-channel-usage` pg_cron 작업이 최근 7일을 수신 기록, 연결, 예약에서 다시 집계하므로 해당 행이 30일 후 삭제된 뒤에도 남습니다([`channel-usage-report` 설계](../../openspec/changes/archive/2026-11-23-channel-usage-report/design.md)). 개수와 날짜만 출력하며 아무것도 바꾸지 않습니다. 기록되지 않았거나 일부만 기록된 기간은 활동이 없던 기간이 아니라 집계가 빠진 기간(첫 집계 이전이거나 pg_cron이 멈춘 동안)입니다. 요청은 시작된 채널을 기록하지 않으므로 게스트 연결 수가 가장 가까운 척도입니다.
 
 ### 복구
 

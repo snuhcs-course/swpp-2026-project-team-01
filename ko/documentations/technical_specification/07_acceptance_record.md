@@ -46,7 +46,7 @@
 | AC-30 | `lib/server/whatsapp.test.ts`, `tests/integration/imessage-receiver.test.ts`(WhatsApp Business), `whatsapp-links.test.ts`, `whatsapp-channel.test.ts` | — | 통제된 Android 휴대폰 |
 | AC-31 | `tests/integration/whatsapp-window.test.ts`, `whatsapp-outbox.test.ts`, `whatsapp-channel.test.ts` | — | 통제된 Android 휴대폰, 닫힌 창, 승인된 템플릿 |
 
-앞서 기록된 두 공백이 해당 단계가 기록된 이후 바뀌었습니다. 6단계까지의 모든 마이그레이션이 이제 공유 프로젝트에 있으며(2026-10-23에 확인), 현재 프로덕션 배포(2026-10-23 07:02 KST)는 6단계 병합보다 앞서므로 6~8단계는 배포되지 않았습니다.
+앞서 기록된 두 공백이 해당 단계가 기록된 이후 바뀌었습니다. 6단계까지의 모든 마이그레이션은 2026-10-23까지 공유 프로젝트에 있었고, 2026-10-30에는 마이그레이션 다섯 개를 더 수동으로 푸시했으며 6~8단계를 포함하는 리비전 `7c317609`를 프로덕션에 배포했습니다([아래](#shared-push-and-deploy-2026-10-30)). 2026-11-14부터는 [`Deploy production`](../../.github/workflows/deploy-production.yml) 워크플로가 `main`에 푸시될 때마다 마이그레이션을 푸시하고 프로덕션을 배포합니다([공급자 설정](03_provider_setup.md#deploying-to-the-shared-environment)).
 
 ## 1단계 — `application-foundation`
 
@@ -120,7 +120,7 @@
 
 ### 알려진 공백
 
-- **배포 워크플로 시크릿.** `Deploy shared Supabase` 워크플로의 저장소 시크릿과 변수가 설정되지 않아 한 번도 실행되지 않았으며, 작업 2.3은 열려 있습니다. 지금까지의 푸시 한 번은 [제공자 설정](03_provider_setup.md#environments-and-collaboration)에 기록된 대로 수동이었습니다.
+- **배포 워크플로 시크릿.** 2026-11-03까지는 `Deploy shared Supabase` 워크플로의 저장소 시크릿과 변수가 설정되지 않아 그 실행이 `supabase link` 단계에서 실패했고 푸시는 [제공자 설정](03_provider_setup.md#environments-and-collaboration)에 기록된 대로 수동이었습니다. 이후 설정되었습니다. 워크플로는 2026-11-03에 처음 성공했고(`gh run list --workflow deploy-shared.yml`), 2026-11-14부터는 `main`에 푸시될 때마다 `Deploy production` 안에서 실행됩니다. 작업 2.3의 남은 검사(Vault 항목, Auth 구성, 실행 뒤 빈 `supabase db diff --linked`)가 유지되는지는 여기에 기록되어 있지 않으며, 작업 2.3은 [#21](https://github.com/snuhcs-course/swpp-2026-project-team-01/issues/21)에서 열려 있습니다.
 - **두 번째 오리진 로그인.** `https://release.findmeatime.com`에서 로그인한 사람은 아직 없으며, 리디렉션과 허용 목록 항목만 검증되었습니다.
 - **Google OAuth 게시 상태**는 기록되지 않았으며, 작업 2.8의 샌드박스 콜백 등록은 열려 있습니다.
 - **`pg_net` 권한 부여.** 플랫폼이 `net.http_request_queue`와 `net._http_response`에 대한 `PUBLIC` 접근을 부여하며 `postgres`는 이를 회수할 수 없습니다. 애플리케이션은 `net`을 Data API 밖에 두지만(`tests/integration/data-api-exposure.test.ts`), 대기열에 쌓인 깨우기에는 워커 시크릿이 잠시 담깁니다. 호스팅된 프로젝트에서는 점검하지 않았습니다.
@@ -381,7 +381,7 @@
 - **프로덕션 회선, 웹훅, 기기 실행 없음:** 프로덕션 Photon 회선 프로비저닝, 프로덕션의 `PHOTON_*` 변수 설정, 웹훅 등록, 그리고 통제된 iPhone에서의 남은 확인(휴대폰에서의 연결 단계, 데스크톱의 QR 코드, 실제 iPhone이 보내는 발신자 식별자, 휴대폰에서의 Google 로그인, 기기에서의 조건부 환영 메시지, 프로덕션에 대한 AC-16부터 AC-18, 기기와 클라이언트 버전)이 보류 중입니다(결정 기록의 "사용자 대기 항목"). 위의 PR #39 기기 확인은 `fmat-spike` 회선과 로컬 수신기만 사용했습니다.
 - **SDK에서 가정한 Spectrum 전송 경로:** `space.get`, `space.create`, `send`, `shareContactCard`는 `@spectrum-ts` 12.14.0에 맞춰 타입이 지정되었고 스탠드인을 통해서만 실행되었습니다.
 - **iMessage를 통한 실제 모델 응답**은 평가하지 않았으며, 여정에는 OpenAI 스탠드인을 썼습니다.
-- **프로덕션 배포.** 마이그레이션은 이것만 나열한 드라이 런 뒤 2026-10-23에 `873804b`에서 `supabase db push --linked`로 공유 프로젝트에 적용했으며, 이후 드라이 런은 원격 데이터베이스가 최신이라고 보고했습니다. `findmeatime-release`는 6단계로 다시 배포되지 않았습니다.
+- **프로덕션 배포.** 마이그레이션은 이것만 나열한 드라이 런 뒤 2026-10-23에 `873804b`에서 `supabase db push --linked`로 공유 프로젝트에 적용했으며, 이후 드라이 런은 원격 데이터베이스가 최신이라고 보고했습니다. `findmeatime-release`는 2026-10-30에 6단계와 함께 다시 배포되었습니다([공유 푸시와 배포, 2026-10-30](#shared-push-and-deploy-2026-10-30)).
 
 ## 7단계 — `requester-email-channel`
 
@@ -462,6 +462,17 @@
 | `dev.findmeatime.com` | `/`의 `curl` | 404: `findmeatime-dev`에 이를 서비스하는 현재 배포가 없으므로 스테이징은 라이브가 아님 |
 | 지연(D4) | `npm run perf:check -- --origin https://findmeatime.com`과 `--origin https://release.findmeatime.com`, 서울에서 경로마다 순차 표본 20개 | 모든 경로 통과. `findmeatime.com`: `/` p50 155ms, p95 267ms; `/SKILL.md` 269ms와 431ms; `/llms.txt` 255ms와 286ms; `/eve/v1/health` 250ms와 470ms. `release.findmeatime.com`: 200ms와 446ms; 262ms와 287ms; 250ms와 831ms; 273ms와 321ms. 승인에서 예약까지의 시간과 첫 응답 시간은 측정되지 않음 |
 | 릴리스 프로젝트 | 읽기 전용 `supabase db query --linked --project-ref mriseqztcwmezvtawnbo` | 여전히 1차 반복의 프로토타입임([공급자 설정](03_provider_setup.md#supabase-project)); 비워지지 않음 |
+
+### 공유 푸시와 배포, 2026-10-30
+
+2026-11-23에 [#50](https://github.com/snuhcs-course/swpp-2026-project-team-01/issues/50)에서 기록했습니다. 아래에 밝힌 Git 비교를 제외하면 이 항목의 유일한 출처이며, 프로젝트에 대해 다시 실행한 것은 없습니다. **확인되지 않음**은 이슈가 밝히지 않은 내용을 표시합니다.
+
+| 단계 | 날짜 | 리비전 | 명령 | 결과 |
+|---|---|---|---|---|
+| 공유 프로젝트 마이그레이션 | 2026-10-30 | 확인되지 않음: 이슈는 푸시가 실행된 체크아웃이 아니라 배포된 리비전으로 `7c317609`를 밝힘 | `anelszynxtvxoxqvzgqt`에 대한 수동 푸시. 정확한 명령, 그 앞의 드라이 런, 승인한 사람은 확인되지 않음 | 마이그레이션 다섯 개 적용. 이슈는 이름을 밝히지 않음. `7c317609`의 체인은 2026-10-23의 Phase 6 푸시가 프로젝트를 남긴 `873804b` 뒤에 정확히 다섯 개를 추가함(`git diff --name-status 873804b 7c317609 -- supabase/migrations`): `20261023062139_operational_diagnostics.sql`, `20261023063140_operator_recovery.sql`, `20261023063957_data_stewardship.sql`, `20261023070353_operations_review_fixes.sql`, `20261023134957_imessage_start.sql`. 이 목록은 `supabase migration list --linked`가 아니라 Git에서 얻은 것임 |
+| 프로덕션 배포 | 2026-10-30 | `7c317609` | 확인되지 않음 | `findmeatime-release` Production에 배포됨. 배포 ID, 별칭, 스모크 테스트는 확인되지 않음 |
+
+이 푸시는 CI 전용 규칙의 예외였으며, `Deploy shared Supabase` 워크플로가 2026-10-29까지의 실행 11회 모두에서 `supabase link` 단계에서 실패했기 때문입니다. 저장소에 시크릿이나 변수가 설정되어 있지 않았습니다. 프로덕션에서 iMessage는 꺼진 상태로 유지되었습니다. Photon 프로젝트에 전용 회선과 웹훅이 없었으므로 `PHOTON_WEBHOOK_ID`, `PHOTON_WEBHOOK_SECRET`, `PHOTON_LINE_NUMBER`는 설정되지 않았습니다.
 
 ## 9단계 — `host-whatsapp-channel`
 

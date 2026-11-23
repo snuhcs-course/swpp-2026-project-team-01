@@ -2,6 +2,7 @@
 
 Status: Draft for team review\
 Date: 2026-10-19\
+Revised: 2026-11-23 (user stories aligned with the testing baseline; owner decisions on #325)\
 Product: [findmeatime.com](https://findmeatime.com)\
 Source of truth: [One-pager](01_one_pager.md)
 
@@ -90,6 +91,8 @@ Drafted on 2026-11-23 by a coding agent, as the repository owner decided on #168
 - Automatic booking without host approval, including approval delegated to an AI's judgment.
 - Moving existing calendar events to make room for a request.
 - A native mobile application, payments, and general-purpose inbox or task management.
+- A host notice when a request first arrives: the host is told once the guest has picked a time (#122, kept on 2026-11-23 in #327) and can list incoming requests in the messenger at any time.
+- A recurring weekly report to the host (dropped on 2026-11-23, #330).
 - Guaranteed arrival times or a custom live-traffic prediction system. Map-provider travel estimates are included, with explicit host-defined buffers; missing or unsupported routes require clarification rather than assumed travel time.
 
 Booking links, email, and agent access are all in the one-pager's intended experience. Dots, Muse, Instinct, ChatGPT, Codex, Claude, and Claude Code are required compatibility targets. If delivery is staged, the team must agree on the sequence rather than silently dropping a channel or required integration. Remote MCP and a CLI are the chosen access direction; client connection methods, protocol versions, and supported client versions still need technical design and compatibility testing. ChatGPT and Codex are separate compatibility targets, as are Claude and Claude Code; support for one client does not establish support for another. These names identify required integrations, not verified capabilities already available in each client.
@@ -116,6 +119,10 @@ The following rules apply to every channel:
 3. Approval cannot override a conflicting calendar event or an unmet hard constraint. The host must resolve the conflict or explicitly change the applicable rule, then review a valid proposal.
 4. Calendar details, host preferences, private host discussions, and private reasoning are not exposed to requesters or their agents.
 5. All clients act on the same current request state. Old messages, concurrent decisions, and retries cannot revive a superseded proposal or duplicate a booking.
+6. Everything a host can do on the web must also be possible in the host's linked messenger (iMessage, Telegram), decided by the repository owner on 2026-11-23 (#325). Parts of this are still being built (#327, #328, #330, #333).
+7. The host web keeps no Thyme chat: setup and conversation about requests happen in the messenger, and the web keeps the settings screens, the dashboard and the request view with its controls (decided 2026-11-23, #326). A host who has not linked a messenger is led to link one first. The web setup chat and the request view's **Private messages** chat still exist in the code until #326 is built.
+
+The [user stories](user_experience/02_user_stories.md) state the ten stories (H01–H04, G01–G03, M01, A01, R01) of the [testing baseline](technical_specification/12_testing_baseline.md), which holds each story's step-by-step behavior and code status. Where this document and the baseline disagree on a flow, the baseline is the reference until the team updates one of them.
 
 ## 5. Main user journey
 
@@ -123,7 +130,7 @@ The following rules apply to every channel:
 2. **Request:** A requester opens the link, emails the assistant, or hands the host's booking link to Dots, Muse, Instinct, ChatGPT, Codex, Claude, or Claude Code with the prompt “Let me schedule a meeting with findmeatime.com/dodo”. Their agent starts the request from that link and supplies known details, asking the requester only for missing information or decisions outside its delegated authority.
 3. **Find options:** The system checks availability and constraints. AI ranks valid candidates and explains the next step without revealing private host context.
 4. **Negotiate:** The requester selects an option or supplies alternatives. When no valid option exists, the system requests more information or privately asks the host to revise a preference or decline.
-5. **Review:** The host sees the current proposal, requester context, relevant private constraint information, and any proposed exceptions through mobile web, a supported personal agent, or their linked iMessage conversation. The host approves, revises, or declines; ambiguous replies prompt clarification or a link to the current web review screen. The requester is notified by email of each outcome; email is the requester's authoritative notification channel. The notice comes from the product inbox without the booking link, so the requester can answer it by replying, and the conversation continues there, decisions included, until the host approves. A requester who linked iMessage from the booking page also gets each outcome there and can reply there the same way ([`guest-flow-completion`](../openspec/changes/guest-flow-completion/proposal.md) U15).
+5. **Review:** The host sees the current proposal, requester context, relevant private constraint information, and any proposed exceptions through mobile web, a supported personal agent, or their linked iMessage or Telegram conversation. The host's messenger hears about a request first when the guest has picked a time, not when the request arrives (#122). The host approves, revises, or declines; ambiguous replies prompt clarification or a link to the current web review screen. The requester is notified by email of each outcome; email is the requester's authoritative notification channel. The notice comes from the product inbox without the booking link, so the requester can answer it by replying, and the conversation continues there, decisions included, until the host approves. A requester who linked iMessage from the booking page also gets each outcome there and can reply there the same way ([`guest-flow-completion`](../openspec/changes/guest-flow-completion/proposal.md) U15).
 6. **Book:** After requester agreement and current host approval, the system rechecks feasibility and creates the calendar event. It reports a booking only after the event's creation is confirmed.
 7. **Recover when needed:** If a conflict appears, the proposal returns for revision. If event creation has an uncertain outcome, the product resolves that outcome before attempting another creation.
 
@@ -449,9 +456,10 @@ The team must resolve these decisions before the corresponding feature is treate
 
 - [One-pager](01_one_pager.md): product purpose, audience, and core principles.
 - [User journeys](user_experience/01_user_journeys.md): end-to-end experiences, interface map, and decision flows based on this draft.
-- [User stories](user_experience/02_user_stories.md): actor-focused needs mapped to these requirements and acceptance scenarios.
+- [User stories](user_experience/02_user_stories.md): the ten stories of the [testing baseline](technical_specification/12_testing_baseline.md), with the scope decided on 2026-11-23.
 - [Interfaces](user_experience/03_interfaces.md): channel responsibilities, agent access, and the proposed host email extension, which still needs release requirements and acceptance scenarios.
 - [Page list](user_experience/04_page_list.md): proposed web routes, access rules, contextual actions, and recovery states.
 - [Technical specification](04_technical_specification.md): proposed architecture, authorization boundaries, data model, and booking recovery; unresolved stack choices remain proposals.
 - [Frontend architecture](technical_specification/02_frontend_architecture.md): proposed Next.js/eve frontend and its boundary with the scheduling backend.
-- [Competitive landscape](business/competitor_research.md): research context and comparative test scenarios. Competitor capabilities are not requirements or evidence of this product's performance.
+- [Competitive landscape](business/competitor_research.md): research context and the comparison by user scenario. Competitor capabilities are not requirements or evidence of this product's performance.
+- [Market and positioning](business/market_and_positioning.md): the market we can earn from now, current players, the unsolved problem and our position, with sources.
