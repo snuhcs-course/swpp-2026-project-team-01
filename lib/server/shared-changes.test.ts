@@ -52,6 +52,36 @@ describe("replacementChanges", () => {
     });
   });
 
+  it("never stores a mode beside the other mode's place or link", () => {
+    const link = { kind: "requester_link", url: "https://meet.example/abc" } as const;
+    // Both a place and a link without a mode: the pending mode decides which stays.
+    expect(replacementChanges({ mode: "online", start: wednesday }, { linkPlan: link, location: "강남역" })).toEqual({
+      linkPlan: link,
+      mode: "online",
+      start: wednesday,
+    });
+    expect(replacementChanges({ mode: "in_person" }, { linkPlan: link, location: "강남역" })).toEqual({
+      location: "강남역",
+      mode: "in_person",
+    });
+    // A new mode wins over a place or link that contradicts it.
+    expect(replacementChanges({ start: wednesday }, { location: "강남역", mode: "online" })).toEqual({
+      mode: "online",
+      start: wednesday,
+    });
+    // A pending place and a new link: the link moves the meeting online.
+    expect(replacementChanges({ location: "강남역" }, { linkPlan: link })).toEqual({ linkPlan: link, mode: "online" });
+  });
+
+  it("keeps a pending place and link as they are while no mode is known", () => {
+    const link = { kind: "requester_link", url: "https://meet.example/abc" } as const;
+    expect(replacementChanges({ start: wednesday }, { linkPlan: link, location: "강남역" })).toEqual({
+      linkPlan: link,
+      location: "강남역",
+      start: wednesday,
+    });
+  });
+
   it("stores the new suggestion as it is when nothing is pending", () => {
     expect(replacementChanges(null, { durationMinutes: 60 })).toEqual({ durationMinutes: 60 });
   });

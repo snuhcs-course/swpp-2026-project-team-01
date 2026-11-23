@@ -20,7 +20,7 @@
 
 진입 문서(안내 버전 6)는 서버 추가 전에 동의를 구하고 토큰을 직접 다루지 않도록 안내합니다. 연결 후 호스트 에이전트는 `get_host_status`로 시작하여 `get_setup.nextStep`에 따라 캘린더 연결·선택·분석을 진행하고, 호스트가 동의한 설정만 제안합니다. `update_setup_field`와 `confirm_setup`에는 호스트 본인의 말인 `hostWords`가 필요하며, 이 말은 저장되지 않습니다. 설정 후 예약 링크를 공유하고 요청 확인은 호스트가 요청해야 한다고 알립니다. 에이전트에는 자동 알림이 없습니다. 호스트의 캘린더에 무엇이 있는지 물으면 `get_schedule`(`host:read`, 읽기 전용)을 호출하며, 이 도구는 Dashboard와 같은 라벨이 붙은 기간을 반환합니다: Find Me a Time 미팅, 호스트가 고른 Google Calendar의 다른 일정, 결정을 기다리는 받은 요청, 보낸 요청.
 
-채팅 연결에는 호스트가 `start_chat_link`(iMessage, WhatsApp, Telegram), 요청자는 요청 생성 후 `start_updates_link`(iMessage 또는 WhatsApp)를 사용합니다. 도구는 한 시도에 한정된 단기 `/connect/link/{token}` 브라우저 링크를 반환합니다. 사용자는 자기 전화로 코드를 보내고 가려진 발신자를 확인한 뒤 **Confirm and link**를 누릅니다. 호스트는 해당 계정 로그인이 필요하며, 요청자 링크는 예약 링크나 요청 내용을 노출하지 않고 해당 시도만 승인합니다. `get_host_status.chat`과 `get_request.updates`는 `none`, `pending`, `linked`를 보고합니다. 에이전트는 연결을 직접 확정하지 않습니다. 요청자가 시간에 동의하면 호스트 승인이 더 필요하고 아직 예약되지 않았으며 이메일로 결과가 온다고 안내합니다. 사용자는 나중에 다시 조회를 요청할 수 있습니다.
+채팅 연결에는 호스트가 `start_chat_link`(iMessage, WhatsApp, Telegram), 요청자는 요청 생성 후 `start_updates_link`(iMessage 또는 WhatsApp)를 사용합니다. 도구는 한 시도에 한정된 단기 `/connect/link/{token}` 브라우저 링크를 반환합니다. 사용자는 자기 전화로 코드를 보내고 가려진 발신자를 확인한 뒤 **Confirm and link**를 누릅니다. 호스트는 해당 계정 로그인이 필요하며, 요청자 링크는 예약 링크나 요청 내용을 노출하지 않고 해당 시도만 승인합니다. `get_host_status.chat`과 `get_request.updates`는 `none`, `pending`, `linked`를 보고합니다. 에이전트는 연결을 직접 확정하지 않습니다. 요청자가 시간에 동의하면 호스트 승인이 더 필요하고 아직 예약되지 않았으며 이메일로 결과가 온다고 안내합니다. 사용자는 나중에 다시 조회를 요청할 수 있습니다. 모든 `choose_time`과 `agree_to_proposal` 결과는 자체 다음 단계를 담습니다. 고른 시간은 아직 동의된 것이 아니고 호스트에게 묻지 않았으며, 더 이상 비어 있지 않은 시간은 아무것도 동의하지 않은 것입니다. 호스트가 승인하기 전까지 `change_agreement`는 예약 페이지의 **Change**처럼 동의를 다시 엽니다. 그러면 요청은 시간 선택 단계로 돌아가고 세부를 다시 바꿀 수 있습니다.
 
 ## 호스팅과 예약 요청을 계정 연결 하나로 처리
 

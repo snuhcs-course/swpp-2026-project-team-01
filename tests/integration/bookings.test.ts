@@ -349,6 +349,11 @@ describe("withdrawal, decline and status", () => {
     const emails = await deliveriesOf(db, request.requestId);
     expect(emails.map((email) => email.kind)).toEqual(["status_pending"]);
     expect(emails[0]!.parameters.bookingId).toBe(bookingId);
+    // The host gets no pending notice (#173).
+    const hostNotices = await db`
+      select 1 from app.jobs where kind = 'imessage_notice' and payload ->> 'requestId' = ${request.requestId} and payload -> 'notice' ->> 'kind' = 'booking_pending'
+    `;
+    expect(hostNotices).toHaveLength(0);
   });
 
   it("starts another reconciliation from Check booking status after retries ran out", async () => {

@@ -4,27 +4,18 @@ import type { DashboardData, DashboardEvent } from "@lib/server/host-dashboard";
 import { ChevronLeftIcon, ChevronRightIcon, Clock3Icon, MapPinIcon } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useReducer, useState } from "react";
+import { createDashboardCache, dateAt, fetchDashboardRange, monthStart, periodDays, periodRange, shift, shiftPeriod, type View, weekStart } from "./host-dashboard-data";
 import { blockLabel, detailNote, detailSource, meetingFacts, meetingRequestPath, receivedFacts, sentState, sourceLabel } from "./host-dashboard-labels";
 import { HostSettingsDialog } from "./host-settings-dialog";
 import { WorkspaceMenu } from "./workspace-menu";
+import { HostWordmark } from "./host-wordmark";
 import "./host-dashboard.css";
 
-type View = "week" | "month";
-const DAY = 86_400_000;
 const HOURS = Array.from({ length: 11 }, (_, index) => index + 8);
 const dayKey = (date: Date) => date.toISOString().slice(0, 10);
 const localToday = () => { const date = new Date(); return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}-${String(date.getDate()).padStart(2, "0")}`; };
-const dateAt = (key: string) => new Date(`${key}T12:00:00.000Z`);
-const shift = (date: Date, days: number) => new Date(date.getTime() + days * DAY);
-const weekStart = (date: Date) => shift(date, -((date.getUTCDay() + 6) % 7));
-const monthStart = (date: Date) => new Date(Date.UTC(date.getUTCFullYear(), date.getUTCMonth(), 1, 12));
-
-function periodDays(anchor: Date, view: View) {
-  const first = view === "week" ? weekStart(anchor) : weekStart(monthStart(anchor));
-  const count = view === "week" ? 7 : Math.ceil((new Date(Date.UTC(anchor.getUTCFullYear(), anchor.getUTCMonth() + 1, 0, 12)).getTime() - first.getTime() + DAY) / (7 * DAY)) * 7;
-  return Array.from({ length: count }, (_, index) => shift(first, index));
-}
+const LOAD_ERROR = "Your calendar could not be loaded. Try again later.";
 
 function zonedDay(iso: string, zone: string) {
   const parts = new Intl.DateTimeFormat("en-US", { timeZone: zone, year: "numeric", month: "2-digit", day: "2-digit" }).formatToParts(new Date(iso));
@@ -63,27 +54,34 @@ export function HostDashboard() {
   const [showThyme, setShowThyme] = useState(true);
   const [showSent, setShowSent] = useState(true);
   const [showReceived, setShowReceived] = useState(true);
-  const [data, setData] = useState<DashboardData | null>(null);
-  const [error, setError] = useState<string | null>(null);
+  // Loaded periods for this visit (#365): the grid stays while a period loads,
+  // a period seen before shows at once, and the periods either side load ahead.
+  const [cache] = useState(() => createDashboardCache(fetchDashboardRange));
+  const [, loaded] = useReducer((count: number) => count + 1, 0);
+  const [failed, setFailed] = useState<string | null>(null);
+  const [lastZone, setLastZone] = useState<string | null>(null);
   const days = useMemo(() => periodDays(anchor, view), [anchor, view]);
-  const range = `${new Date(days[0]!.getTime() - DAY).toISOString()}|${new Date(days.at(-1)!.getTime() + 2 * DAY).toISOString()}`;
+  const range = periodRange(anchor, view);
+  const previous = periodRange(shiftPeriod(anchor, view, -1), view);
+  const next = periodRange(shiftPeriod(anchor, view, 1), view);
 
   useEffect(() => {
-    const controller = new AbortController();
-    const [from, to] = range.split("|");
-    setData(null);
-    setError(null);
-    void fetch(`/api/host/dashboard?from=${encodeURIComponent(from!)}&to=${encodeURIComponent(to!)}`, { cache: "no-store", signal: controller.signal })
-      .then(async (response) => {
-        if (!response.ok) throw new Error("Your calendar could not be loaded. Try again later.");
-        return response.json() as Promise<DashboardData>;
-      })
-      .then(setData)
-      .catch(() => { if (!controller.signal.aborted) setError("Your calendar could not be loaded. Try again later."); });
-    return () => controller.abort();
-  }, [range]);
+    let live = true;
+    setFailed(null);
+    // A period already shown refreshes behind its cached events; only its own
+    // answer, read back by range, ever reaches the screen.
+    cache.load(range)
+      .then((answer) => { if (live) { setLastZone(answer.timeZone || null); loaded(); } })
+      .catch(() => { if (live) setFailed(range); });
+    cache.prefetch(previous);
+    cache.prefetch(next);
+    return () => { live = false; };
+  }, [cache, range, previous, next]);
 
-  const zone = data?.timeZone || Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC";
+  const data: DashboardData | null = cache.peek(range);
+  const error = !data && failed === range ? LOAD_ERROR : null;
+  const loading = !data && !error;
+  const zone = data?.timeZone || lastZone || Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC";
   const items = useMemo(() => (data?.events ?? []).filter((event) => event.source === "google" ? showGoogle : event.source === "sent" ? showSent : event.source === "received" ? showReceived : showThyme), [data, showGoogle, showReceived, showSent, showThyme]);
   const eventsFor = (key: string) => items.filter((event) => event.allDay ? event.start.slice(0, 10) <= key && key < event.end.slice(0, 10) : eventDay(event, zone) === key);
   const selectedEvents = eventsFor(selectedDay);
@@ -91,9 +89,9 @@ export function HostDashboard() {
   const today = zonedDay(new Date().toISOString(), zone);
 
   function navigate(direction: number) {
-    const next = view === "week" ? shift(anchor, direction * 7) : new Date(Date.UTC(anchor.getUTCFullYear(), anchor.getUTCMonth() + direction, 1, 12));
-    setAnchor(next);
-    setSelectedDay(dayKey(view === "week" ? weekStart(next) : monthStart(next)));
+    const target = shiftPeriod(anchor, view, direction);
+    setAnchor(target);
+    setSelectedDay(dayKey(view === "week" ? weekStart(target) : monthStart(target)));
     setSelectedId(null);
   }
   function goToday() { const now = dateAt(zonedDay(new Date().toISOString(), zone)); setAnchor(now); setSelectedDay(dayKey(now)); setSelectedId(null); }
@@ -101,7 +99,7 @@ export function HostDashboard() {
 
   return <div className="hd">
     <header className="hd-header">
-      <h1 className="wordmark-lockup min-w-0">Find Me a Time</h1>
+      <HostWordmark className="min-w-0" />
       <div className="hd-header-actions"><HostSettingsDialog /><WorkspaceMenu onSelectRequests={() => router.push("/app?view=requests")} /></div>
     </header>
     <div className="hd-layout">
@@ -112,7 +110,7 @@ export function HostDashboard() {
           <div className="hd-filters"><span>Show</span><label><input checked={showGoogle} onChange={(event) => setShowGoogle(event.target.checked)} type="checkbox" /><i className="hd-key hd-google" />Google Calendar</label><label><input checked={showThyme} onChange={(event) => setShowThyme(event.target.checked)} type="checkbox" /><i className="hd-key hd-thyme" />Find Me a Time meetings</label><label><input checked={showSent} onChange={(event) => setShowSent(event.target.checked)} type="checkbox" /><i className="hd-key hd-sent" />Sent requests</label><label><input checked={showReceived} onChange={(event) => setShowReceived(event.target.checked)} type="checkbox" /><i className="hd-key hd-received" />Requests to decide</label><small>{zone.replaceAll("_", " ")}</small></div>
           {error ? <p className="hd-notice" role="alert">{error}</p> : null}
           {data?.googleWarning ? <p className="hd-notice" role="status">{data.googleWarning} Find Me a Time meetings and requests are still shown.</p> : null}
-          {!data && !error ? <p className="hd-loading" role="status">Loading your calendar…</p> : view === "week" ?
+          <div className="hd-grid" data-view={view}><p className={loading ? "hd-grid-loading" : "sr-only"} role="status">{loading ? "Loading events…" : ""}</p>{view === "week" ?
             <div className="hd-week-scroll"><div className="hd-week"><div className="hd-spacer" />{days.map((date) => <button className={`hd-day-head ${dayKey(date) === today ? "hd-current" : ""}`} key={dayKey(date)} onClick={() => { setSelectedDay(dayKey(date)); setSelectedId(null); }} type="button"><span>{new Intl.DateTimeFormat("en-US", { weekday: "short", timeZone: "UTC" }).format(date)}</span><strong>{date.getUTCDate()}</strong></button>)}<div className="hd-time-axis">{HOURS.map((hour) => <span key={hour}>{String(hour).padStart(2, "0")}:00</span>)}</div>{days.map((date) => {
               const key = dayKey(date), dayItems = eventsFor(key);
               return <div className={`hd-day-column ${key === selectedDay ? "hd-selected-day" : ""}`} key={key} onClick={() => { setSelectedDay(key); setSelectedId(null); }}>
@@ -120,7 +118,7 @@ export function HostDashboard() {
                 {dayItems.filter((event) => !event.allDay).map((event) => { const start = minutes(event.start, zone), end = minutes(event.end, zone); if (end <= 480 || start >= 1140) return null; const top = Math.max(start, 480) - 480, height = Math.max(Math.min(end, 1140) - Math.max(start, 480), 28); const compact = height < 45; return <button aria-label={`${sourceLabel(event)}: ${event.title}, ${eventTime(event, zone)}${event.meeting ? `, with ${event.meeting.guest.name}` : ""}${event.source === "sent" ? `, ${sentState(event)}` : ""}${event.source === "received" && event.received ? `, from ${event.received.requesterName}` : ""}`} className={`hd-event hd-${event.source}${compact ? " hd-compact" : ""}`} key={event.id} onClick={(click) => { click.stopPropagation(); selectEvent(event); }} style={{ top: top + 38, height: height - 6 }} type="button"><strong>{eventTime(event, zone)}</strong><span>{compact ? blockLabel(event) : event.title}</span>{compact ? null : <small>{event.source === "sent" ? `Sent · ${sentState(event)}` : event.source === "received" ? `◇ ${blockLabel(event)} · To decide` : event.source === "thyme" ? `✦ ${event.meeting ? `With ${event.meeting.guest.name}` : "Thyme meeting"}` : "▣ Google event"}</small>}</button>; })}
               </div>;
             })}</div></div> :
-            <div className="hd-month">{["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"].map((name) => <span className="hd-month-head" key={name}>{name}</span>)}{days.map((date) => { const key = dayKey(date), dayItems = eventsFor(key); return <div className={`hd-month-day ${date.getUTCMonth() !== anchor.getUTCMonth() ? "hd-outside" : ""} ${key === selectedDay ? "hd-selected-day" : ""}`} key={key} onClick={() => { setSelectedDay(key); setSelectedId(null); }}><strong>{date.getUTCDate()}</strong>{dayItems.slice(0, 3).map((event) => <button className={`hd-month-event hd-${event.source}`} key={event.id} onClick={(click) => { click.stopPropagation(); selectEvent(event); }} title={event.title} type="button">{event.allDay ? "" : `${eventTime(event, zone).split(" – ")[0]} `}{event.title}</button>)}{dayItems.length > 3 ? <small>+{dayItems.length - 3} more</small> : null}</div>; })}</div>}
+            <div className="hd-month">{["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"].map((name) => <span className="hd-month-head" key={name}>{name}</span>)}{days.map((date) => { const key = dayKey(date), dayItems = eventsFor(key); return <div className={`hd-month-day ${date.getUTCMonth() !== anchor.getUTCMonth() ? "hd-outside" : ""} ${key === selectedDay ? "hd-selected-day" : ""}`} key={key} onClick={() => { setSelectedDay(key); setSelectedId(null); }}><strong>{date.getUTCDate()}</strong>{dayItems.slice(0, 3).map((event) => <button className={`hd-month-event hd-${event.source}`} key={event.id} onClick={(click) => { click.stopPropagation(); selectEvent(event); }} title={event.title} type="button">{event.allDay ? "" : `${eventTime(event, zone).split(" – ")[0]} `}{event.title}</button>)}{dayItems.length > 3 ? <small>+{dayItems.length - 3} more</small> : null}</div>; })}</div>}</div>
         </section>
       </main>
       <aside className="hd-detail" aria-label="Selected day and event details"><span className="hd-kicker">SELECTED DAY</span><h2>{new Intl.DateTimeFormat("en-US", { weekday: "long", month: "long", day: "numeric", timeZone: "UTC" }).format(dateAt(selectedDay))}</h2><p>{selectedEvents.length} {selectedEvents.length === 1 ? "event" : "events"}</p><div className="hd-agenda">{selectedEvents.map((event) => <button aria-pressed={selected?.id === event.id} className={`hd-agenda-item hd-${event.source}`} key={event.id} onClick={() => selectEvent(event)} type="button"><small>{eventTime(event, zone)} · {detailSource(event)}</small><strong>{event.title}</strong></button>)}{selectedEvents.length === 0 ? <span className="hd-empty">No events to show for this day.</span> : null}</div><div className="hd-detail-rule" /><span className="hd-detail-label">EVENT DETAILS</span>{selected ? <><span className={`hd-source hd-${selected.source}`}>{detailSource(selected)}</span><h3>{selected.title}</h3><EventFacts event={selected} zone={zone} /><p className="hd-detail-note">{detailNote(selected)}</p></> : <p className="hd-empty">Select a day or event to see details.</p>}</aside>

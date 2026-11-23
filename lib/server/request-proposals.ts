@@ -183,8 +183,9 @@ const allowTripInput = z
   .strict();
 
 // The requester's own allowance for the unresolved leg of one candidate (design
-// decision 10), then a new evaluation that reads it. A leg whose endpoint is
-// unknown cannot take an allowance, because an allowance names both endpoints.
+// decision 10), then a new evaluation that reads it. An event without a place
+// is named by the leg's `unknown:<reason>` key (#324), so its trip can take one
+// too; a leg without a travel mode or meeting place cannot.
 export const allowTripCommand: CommandDefinition<z.infer<typeof allowTripInput>, EvaluateResult> = {
   input: allowTripInput,
   operation: ALLOW_TRIP_OPERATION,

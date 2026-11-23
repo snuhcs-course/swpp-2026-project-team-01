@@ -360,7 +360,7 @@ describe("suggestFromEvidence", () => {
       value: STARTER_DEFAULTS.weeklyWindows,
     });
     expect(suggestions.weeklyWindows!.reason).toContain("too few");
-    expect(suggestions.durationMinutes).toMatchObject({ source: "starter_default", value: 30 });
+    expect(suggestions.durationMinutes).toMatchObject({ source: "starter_default", value: 60 });
     expect(suggestions.durationMinutes!.reason).toContain("too few");
     expect(suggestions.weeklyLimit).toMatchObject({ source: "starter_default", value: null });
   });
