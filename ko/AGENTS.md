@@ -8,7 +8,7 @@
 
 구현은 [`application-foundation`](openspec/changes/application-foundation/proposal.md) 변경으로 시작되었으며, 그 [설계](openspec/changes/application-foundation/design.md)가 런타임 스택을 기록합니다. Phase 1(로그인, `/app` 작업 공간, Supabase 스키마 기준선, 플랫폼 메커니즘)과 Phase 2([`host-onboarding`](openspec/changes/host-onboarding/proposal.md): 호스트 설정, 공개 호스트 페이지와 스킬 문서, 핸들과 가입 한도, 관리자 CLI)는 구현과 배포를 마쳤고 [인수 기록](documentations/technical_specification/07_acceptance_record.md)에 기록되어 있습니다. 요청자 및 예약 기능은 이후 변경과 함께 들어옵니다. 열린 OpenSpec 변경 안에서만 구현하십시오.
 
-공유 Supabase 프로젝트는 `anelszynxtvxoxqvzgqt`이며, 2026-10-19와 2026-10-20에 적용된 Phase 1 및 Phase 2 마이그레이션을 담고 있습니다([환경과 협업](documentations/technical_specification/03_provider_setup.md#environments-and-collaboration) 참고). 네임스페이스, 기본 권한, RLS는 스키마 기준선이 선언한 대로 유지하며, [제공자 설정](documentations/technical_specification/03_provider_setup.md#supabase-project)의 설명을 따르십시오. 상태를 확인하지 않은 프로젝트에 마이그레이션 체인을 푸시하지 마십시오.
+공유 Supabase 프로젝트는 `anelszynxtvxoxqvzgqt`이며, `main`의 마이그레이션 체인을 담고 있습니다. `findmeatime-release`의 Vercel Production 배포는 `main`에서 배포됩니다. `Deploy production` 워크플로가 `main`에 푸시될 때마다 마이그레이션을 푸시한 뒤 배포합니다(절차와 기록된 수동 예외는 [공유 환경에 배포하기](documentations/technical_specification/03_provider_setup.md#deploying-to-the-shared-environment) 참고). 네임스페이스, 기본 권한, RLS는 스키마 기준선이 선언한 대로 유지하며, [제공자 설정](documentations/technical_specification/03_provider_setup.md#supabase-project)의 설명을 따르십시오. 상태를 확인하지 않은 프로젝트에 마이그레이션 체인을 푸시하지 마십시오.
 
 ## 저장소 구조
 
