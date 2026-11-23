@@ -81,7 +81,7 @@ eve principal은 사람의 신원이 아니라 대상입니다. 요청자에게�
 
 `channels/eve.ts`는 순서가 있는 인증 목록과 함께 `eveChannel`을 내보냅니다. 결정을 내리는 항목은 호스트의 Supabase 세션 또는 요청자의 예약 링크에서 도출된 요청 자격 증명을 검증하는 애플리케이션 함수이며, eve 인증 컨텍스트를 반환합니다. 여기에는 위에서 설명한 `principalId`, `principalType: "user"`, `authenticator: "findmeatime"`, 그리고 속성 `audience`, `hostId`, `requestId`, `discussionId`가 포함됩니다. `vercelOidc()`는 사용하지 않으므로, 로컬 실행과 배포가 같은 규칙을 적용합니다. 이 함수는 `null`을 반환하지 않고 `UnauthenticatedError` 또는 `ForbiddenError`를 던지므로, 인증 목록 순회가 다음 항목으로 넘어갈 수 없습니다. 업로드는 비활성화되어 있습니다.
 
-그 앞에 오는 유일한 항목은 요청자 평가를 처리하며 그 밖의 모든 요청은 건너뜁니다. 이 항목은 Vercel 메타데이터가 없고 `localDev()`가 `eve dev`로 인식하는 프로세스에서 `FMAT_EVAL_AUDIENCE=requester`가 설정되어 있으며, 요청에 베어러도 Supabase 쿠키도 없을 때에만 호출자를 허용합니다. 그러면 평가가 로컬 데이터베이스에 시드한 요청의 요청자 principal을 도구 스텁을 허용한 채로 반환하며(평가 참고), 배포 환경, `eve start`, 일반 `eve dev`는 이 항목에 도달하지 않습니다.
+그 앞에 오는 세 항목은 평가를 처리하며 그 밖의 모든 요청은 건너뜁니다. `lib/server/eve-auth.ts`의 `createEvalRequesterAuth`, `createEvalHostReviewAuth`, `createEvalHostSetupAuth`입니다. 각 항목은 Vercel 메타데이터가 없고 `localDev()`가 `eve dev`로 인식하는 프로세스에서 `FMAT_EVAL_AUDIENCE`가 해당 대상(`requester`, `host_review` 또는 `host_setup`)을 지정하며, 요청에 베어러도 Supabase 쿠키도 없을 때에만 호출자를 허용합니다. 그러면 평가가 로컬 데이터베이스에 시드한 대화의 principal을 도구 스텁을 허용한 채로 반환하며(평가 참고), 시드된 요청의 요청자, 시드된 검토 대화의 호스트, 또는 시드된 설정 대화의 호스트가 됩니다. 이 principal은 생성 시에는 요청 ID(`x-fmat-eval-request`) 또는 설정의 경우 호스트 계정 ID(`x-fmat-eval-host`)로 지정되고, 이후에는 세션의 인덱스 행으로 지정됩니다. 배포 환경, `eve start`, 일반 `eve dev`는 이 항목들에 도달하지 않습니다. 이들은 인증 코드이므로 그렇게 검토합니다.
 
 애플리케이션 코드만 세션을 생성하고 메시지를 보냅니다. 브라우저의 메시지는 애플리케이션 라우트로 전달되며, 이 라우트가 호출자를 확인하고, 수락된 입력을 애플리케이션 세션 인덱스에 기록한 뒤, `EVE_INTERNAL_SIGNING_KEY`로 서명한 60초짜리 베어러 토큰과 함께 `eve/client`를 통해 eve를 호출합니다. 브라우저 자체는 인덱스가 자신의 소유라고 알려 주는 세션만 읽고 스트리밍합니다. 자세한 내용은 [기반 설계](../../openspec/changes/application-foundation/design.md#7-call-path-and-session-ownership)에 기록되어 있습니다.
 
@@ -209,6 +209,8 @@ eve 훅은 이벤트가 내구성 있게 기록된 뒤에 실행되며, 예외�
 3단계에서는 `evals/requester/` 아래에 요청자 세트를 추가합니다. 캘린더 내용, 규칙 또는 승인을 요구하는 인젝션, "네"와 "예약해 줘", 작성된 한국어 질문을 내야 하는 날짜 없는 시간, 그리고 도구 목록입니다. 이들은 `npm run eval`(`FMAT_EVAL_AUDIENCE=requester`를 설정함)로 로컬 Supabase 스택과 모델 키에 대해 실행합니다. 각 평가는 자체 열린 요청을 시드하고, 모델 한도가 귀속되도록 세션을 인덱싱하며, 모든 요청자 도구를 스텁 처리합니다. 이들은 실제 모델의 동작을 채점하므로 모델 호출 비용이 들고 CI는 이를 실행하지 않으며, 로컬 OpenAI 대역에 대해서는 연결 구성만 확인합니다.
 
 고정된 방어 세트(`defense-cases.ts`를 `defense-runner.ts`를 통해 `defense.eval.ts`가 실행)는 OWASP LLM 범주별로 게스트 어시스턴트를 공격하며, 사례마다 세 번 실행하고, 각 대화 전후의 요청 행도 비교합니다. 수집 상태에서는 `evaluate_candidates`를 제외한 게스트 도구가 로컬 데이터베이스에 대해 실행됩니다. 채점, 통과 기준, 결과는 [게스트 방어 평가](10_guest_defense_evaluation.md)에 있으며, `FMAT_EVAL_AUDIENCE=requester npx eve eval requester/defense`로 실행합니다.
+
+호스트 설정 세트(`evals/host-setup/`)는 모든 설정 도구를 로컬 데이터베이스와 가짜 Google에 대해 실제로 실행하며, 대화가 남기는 설정 초안으로 채점합니다. 채점, 통과 기준, 실행 설정은 [호스트 설정 평가](14_host_setup_evaluation.md)에 있으며, `FMAT_EVAL_AUDIENCE=host_setup npx eve eval host-setup/setup --max-concurrency 8`로 실행합니다.
 
 ## 여기에 기록된 결정
 

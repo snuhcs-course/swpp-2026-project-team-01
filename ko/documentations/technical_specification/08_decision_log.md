@@ -50,6 +50,7 @@
 | 가림 처리 | 게스트 입력에서 숫자나 구두점이 있는 8자 이상의 베어러 값, 연결 증명, 자격 증명 URL 매개변수, 예약 링크, 단독 UUID를 제거합니다 | 모든 베어러 단어 제거, 모든 곳에서 단독 UUID 제거 | 설계 14 | `lib/server/redaction.ts` |
 | Cloudflare 429 | 불확실이 아니라 거부로 기록 | 불확실로 기록하고 재전송 없음 | 설계 5 | `lib/server/cloudflare-email.ts` |
 | 평가 전용 인증 | `createEvalRequesterAuth`는 `FMAT_EVAL_AUDIENCE=requester`일 때만, Vercel 밖의 `eve dev` 안에서 스텁 요청자 평가를 허용합니다 | 오프라인 평가 없음 | 에이전트 구성 | `lib/server/eve-auth.ts` |
+| 호스트 설정 평가 인증 | `createEvalHostSetupAuth`는 `FMAT_EVAL_AUDIENCE=host_setup`일 때만, Vercel 밖의 `eve dev` 안에서, 평가가 시드한 설정 대화(#152)에 대해 호스트 설정 평가를 허용합니다 | 평가 프로세스에서 내부 bearer에 서명하기: 평가가 서명 키와 메시지 경로의 부기(bookkeeping)를 알아야 합니다 | 호스트 설정 평가 | `lib/server/eve-auth.ts` |
 | 순위 모델 | 모델 한도를 거치는 `gpt-5.6-terra`; 실제 품질은 검증하지 않음 | 다른 모델 | 설계 8 | `lib/server/evaluation.ts` |
 | 폐기된 접수 | 이전 테스트 요청이 기록을 계속 보여 주도록 접수 테이블과 `public_intake` 값을 유지하며, 새로 기록하는 것은 없습니다 | 지금 삭제 | 설계 2 | 열린 요청이 접수를 참조하지 않게 되면 이후 마이그레이션에서 `intakes`를 삭제 |
 

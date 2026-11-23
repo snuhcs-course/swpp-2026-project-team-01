@@ -16,7 +16,7 @@ The cases were written step by step from the testing baseline and its UAT sheet,
 |---|---|---|---|---|
 | Guest | 76 | 1 (GU-44 points to the existing defense set) | 75 | [`evals/requester/story-cases.ts`](../../evals/requester/story-cases.ts) |
 | Host review | 63 | 5 (RV-01 duplicates RV-P2; RV-34 needs an explanation the instructions do not give, #255; RV-11 and RV-X16 need the fixed reference `6ADSRV`, which the start states cannot give a seeded request; RV-32 needs an assistant question placed before the first turn, which the runner cannot script) | 58 | [`evals/host-review/story-cases.ts`](../../evals/host-review/story-cases.ts) |
-| Host setup | 97 | 4 (SU-24, SU-28, SU-65, SU-41: explanations, #255) | 93 | after [#152](https://github.com/snuhcs-course/swpp-2026-project-team-01/issues/152) adds the evaluation-only host setup entry |
+| Host setup | 97 | 4 (SU-24, SU-28, SU-65, SU-41: explanations, #255) | 93 | not yet in a case file; the evaluation-only host setup entry and a first set of six cases are in [Host setup evaluation](14_host_setup_evaluation.md) ([#152](https://github.com/snuhcs-course/swpp-2026-project-team-01/issues/152)) |
 
 Each case is normal, abnormal or an attack (OWASP Top 10 for LLM Applications, 2025), and has one of four shapes:
 
