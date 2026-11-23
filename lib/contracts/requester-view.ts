@@ -168,6 +168,7 @@ export const REQUESTER_OPERATIONS = [
   "request.agree",
   "request.withdraw",
   "contact.resend_confirmation",
+  "contact.change_email",
   "contact.use_google_email",
   "calendar.disconnect",
   "calendar.select",

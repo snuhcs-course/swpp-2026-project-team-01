@@ -7,7 +7,8 @@ import { TUTORIAL_TEXT } from "./host-tutorial";
 import { readHostRequest } from "./host-requests";
 import { decisionButtons, requestRef, requestSummary } from "./imessage-commands";
 import { activeBindingOfHost, bindingRecipient } from "./imessage-links";
-import { type GuestNotice, guestNoticeKey, type HostNotice, noticeKey } from "./imessage-notices";
+import { awaitingAgreementVersion, type GuestNotice, guestNoticeKey, type HostNotice, noticeKey } from "./imessage-notices";
+import { agreementNoticeText, readAgreementSummary } from "./agreement-notice";
 import { recordOutbound } from "./imessage-outbox";
 import type { WhatsAppButtons } from "./photon";
 import { activeRequesterBinding, requesterBindingRecipient } from "./requester-imessage-bindings";
@@ -92,7 +93,7 @@ export const GUEST_NOTICE_TEXTS = {
 } as const;
 
 // A guest notice's text from the event's own records, or null when the record is gone.
-async function guestNoticeText(q: Transaction, requestId: string, notice: GuestNotice) {
+async function guestNoticeText(q: Transaction, requestId: string, notice: Exclude<GuestNotice, { kind: "agreement_sent" }>) {
   const [request] = await q<{ host_name: string | null; language: string | null; timezone: string | null }[]>`
     select s.settings ->> 'displayName' as host_name, r.details ->> 'language' as language, r.details ->> 'timezone' as timezone
     from app.requests r left join app.host_settings s on s.host_account_id = r.host_account_id
@@ -132,11 +133,20 @@ async function guestNoticeText(q: Transaction, requestId: string, notice: GuestN
   return texts[notice.kind](host, timeOf(meeting.start_at, meeting.end_at));
 }
 
+// The agreement notice's text while its version still awaits the host's
+// approval, or null once the guest changed it or the host decided.
+async function agreementText(q: Transaction, requestId: string, version: number) {
+  if ((await awaitingAgreementVersion(q, requestId)) !== version) return null;
+  const summary = await readAgreementSummary(q, requestId, version);
+  return summary ? agreementNoticeText(summary) : null;
+}
+
 async function recordGuestNotice(tx: Transaction, deps: NoticeJobDependencies, requestId: string, notice: GuestNotice) {
   const binding = await activeRequesterBinding(tx, requestId);
   if (!binding) return { queued: false };
+  if (notice.kind === "agreement_sent" && notice.bindingId !== binding.id) return { queued: false };
 
-  const text = await guestNoticeText(tx, requestId, notice);
+  const text = notice.kind === "agreement_sent" ? await agreementText(tx, requestId, notice.version) : await guestNoticeText(tx, requestId, notice);
   if (!text) return { queued: false };
 
   await recordOutbound(tx, {

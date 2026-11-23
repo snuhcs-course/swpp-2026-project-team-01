@@ -348,6 +348,21 @@ The service SHALL offer a newly onboarded host one optional request-review tutor
 - **THEN** the tutorial ends and the sample disappears from the inbox
 - **AND** it creates no booking, sends no guest notification, and uses no request creation or meeting quota
 
+### Requirement: Agreement notice in the guest's linked chat
+When a guest with an active iMessage, WhatsApp or Telegram binding agrees to a proposal, and when a guest links such a chat while their agreement waits for the host's approval, the service SHALL send that chat one English message of what the guest sent: the people, the purpose, the date and time with the guest's timezone named, the duration, and online or the place. It SHALL say the request waits for the host's approval and is not booked, or, for a change to a booked meeting, that the booked meeting stands until then, and SHALL NOT contain the booking link. Each agreed version SHALL send at most one such message per binding, and a version the guest reopened or the host decided before it was sent SHALL send none. WhatsApp's 24-hour window rule SHALL apply as for every guest notice.
+
+#### Scenario: Linked guest agrees
+- **WHEN** a guest with a linked iMessage agrees to the current proposal
+- **THEN** one message there lists the people, purpose, time with the zone, length and place or online, says it waits for the host's approval and is not booked, and has no booking link
+
+#### Scenario: Guest links after agreeing
+- **WHEN** a guest agrees and then links their WhatsApp from the waiting card
+- **THEN** that chat receives the same message once
+
+#### Scenario: Retried agreement notice
+- **WHEN** the notice job runs again for the same version and binding
+- **THEN** no second message is sent
+
 ### Requirement: Guest composer availability
 The booking page composer SHALL be locked, saying the step above must be finished first, only before the fixed steps first hand the guest over to the assistant and only while one of those steps is open. The guest SHALL count as handed over once the Calendar step was settled, the request has a purpose, or the guest has written in the request's conversation, and SHALL stay handed over when the Calendar step reopens. A Calendar step that reopens after the handover SHALL appear where the thread is now, with the assistant's line saying it is open again and what to do, while the composer stays usable. A request that has ended while its page is open SHALL close the composer with the reason.
 

@@ -19,6 +19,7 @@ import {
   type ConfirmationLimits,
   readConfirmationStatus,
   resendConfirmationCommand,
+  changeEmailCommand,
 } from "./contact-confirmation";
 import { ADMISSION_LIMITED_MESSAGE, AdmissionLimitError } from "./conversation-admission";
 import {
@@ -594,6 +595,7 @@ export function requesterCommands(
     registered(decideHostProfileCommand()),
     registered(selectCalendarsCommand({ tokenKey: contact.tokenKey })),
     registered(resendConfirmationCommand(contact)),
+    registered(changeEmailCommand(contact)),
     registered(checkBookingCommand),
     registered(cancelBookingCommand()),
     registered(changeBookingCommand),

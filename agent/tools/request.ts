@@ -18,6 +18,7 @@ import {
   withdrawRequestForTool,
   cancelBookingForTool,
   changeBookingForTool,
+  resendBookingLinkForTool,
 } from "../../lib/server/request-tools";
 import {
   approveProposalForTool,
@@ -140,6 +141,12 @@ function requesterTools() {
         "Reopen the booked meeting for a change of time, place or meeting type, when the guest asks to move or change it, before it starts. The meeting stays booked until the host approves the new version; then the same calendar event is updated. After it, draft the change and find times as usual.",
       inputSchema: z.object({}),
       execute: (_input, toolCtx) => changeBookingForTool(database(), call(toolCtx)),
+    }),
+    resend_booking_link: defineTool({
+      description:
+        "Email the guest their booking link again, when they ask for it or say they lost it. It goes only to their confirmed email address, never to an address they name, and is limited to a few per hour. It never shows the link here.",
+      inputSchema: z.object({}),
+      execute: (_input, toolCtx) => resendBookingLinkForTool(database(), call(toolCtx)),
     }),
   };
 }
