@@ -129,7 +129,7 @@ describe("one future request", () => {
     const listed = ((await before.json()) as { result: { tools: { name: string }[] } }).result.tools.map((tool) => tool.name);
     expect(listed).toEqual(expect.arrayContaining(["get_host", "create_request", "get_request", "find_times", "choose_time"]));
     const early = await call(agent, tokens.access_token, handle, "find_times", { retryKey: "times-0000" });
-    expect(early.structuredContent.error?.category).toBe("request_unavailable");
+    expect(early.structuredContent.error).toMatchObject({ category: "request_unavailable", nextAction: "Call create_request, then try again." });
 
     const host = await call(agent, tokens.access_token, handle, "get_host");
     expect(host.structuredContent).toMatchObject({ acceptingRequests: true, handle });

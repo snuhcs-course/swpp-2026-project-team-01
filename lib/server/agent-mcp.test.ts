@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import { AGENT_SCOPES, REQUESTER_SCOPES } from "../contracts/agent-access";
 import { ACCOUNT_REQUESTER_TOOLS } from "./agent-account-requester-tools";
 import { HOST_TOOLS } from "./agent-host-tools";
-import { callable, challengeScopes, visibleTools } from "./agent-mcp";
+import { callable, challengeScopes, uncallableRefusal, visibleTools } from "./agent-mcp";
 import { REQUESTER_TOOLS } from "./agent-requester-tools";
 import { protectedResourceMetadata } from "./agent-resources";
 import type { GrantAccess } from "./agent-grants";
@@ -63,6 +63,12 @@ describe("requester tool visibility", () => {
     expect(REQUESTER_TOOLS.filter((candidate) => callable(unbound, candidate)).map((candidate) => candidate.name)).toEqual(["get_host", "create_request"]);
     expect(callable(bound, tool("find_times"))).toBe(true);
     expect(callable(bound, tool("create_request"))).toBe(true);
+  });
+
+  it("points an unbound grant's refusal at create_request, which it can run", () => {
+    expect(uncallableRefusal(unbound)).toEqual({ category: "request_unavailable", message: "Create the request first with create_request.", nextAction: "Call create_request, then try again." });
+    expect(uncallableRefusal(bound).category).toBe("already_created");
+    expect(uncallableRefusal({ ...bound, closed: true }).category).toBe("request_closed");
   });
 
   it("still lists only the tools the grant's scopes permit", () => {

@@ -278,6 +278,15 @@ async function dispatch(
   return { error: { code: -32601, message: `Method not found: ${method}` }, status: 404 };
 }
 
+// The refusal for a listed tool the grant cannot run yet or any more. Its
+// nextAction must name a tool that runs on this grant: an unbound grant runs
+// only get_host and create_request, so it points at create_request.
+export function uncallableRefusal(access: GrantAccess): Omit<Extract<ToolResult, { ok: false }>, "ok" | "correlationId"> {
+  if (access.closed) return { category: "request_closed", message: "The request is closed.", nextAction: "Read it with get_request for its status and receipt." };
+  if (access.requestId === null) return { category: "request_unavailable", message: "Create the request first with create_request.", nextAction: "Call create_request, then try again." };
+  return { category: "already_created", message: "This connection already created its one request.", nextAction: "Use get_request for the request this connection reaches." };
+}
+
 async function callTool(deps: AgentToolDependencies, access: GrantAccess, params: Record<string, unknown>): Promise<Dispatched> {
   const name = typeof params.name === "string" ? params.name : "";
   const tool = toolsFor(access.role).find((candidate) => candidate.name === name);
@@ -296,19 +305,7 @@ async function callTool(deps: AgentToolDependencies, access: GrantAccess, params
   }
 
   if (!callable(access, tool)) {
-    const closed = access.closed;
-    return {
-      result: toolResultBody({
-        category: closed ? "request_closed" : access.requestId === null ? "request_unavailable" : "already_created",
-        message: closed
-          ? "The request is closed."
-          : access.requestId === null
-            ? "Create the request first with create_request."
-            : "This connection already created its one request.",
-        nextAction: closed ? "Read it with get_request for its status and receipt." : "Use get_request for the request this connection reaches.",
-        ok: false,
-      }),
-    };
+    return { result: toolResultBody({ ...uncallableRefusal(access), ok: false }) };
   }
 
   try {
