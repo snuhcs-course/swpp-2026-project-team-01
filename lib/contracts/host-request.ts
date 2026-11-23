@@ -30,6 +30,18 @@ export type HostProposal = {
   readonly location: string | null;
   readonly linkPlan: LinkPlan | null;
   readonly agreedAt: string | null;
+  // The two or three times the guest agreed to at once, earliest first; the
+  // host approves one of them by its 1-based number (multiple-candidate-times).
+  // Absent for a proposal of one time.
+  readonly times?: readonly HostProposalTime[];
+};
+
+export type HostProposalTime = {
+  readonly start: string;
+  readonly end: string;
+  readonly mode: Exclude<MeetingMode, "either">;
+  readonly location: string | null;
+  readonly linkPlan: LinkPlan | null;
 };
 
 export type HostSuggestion = {

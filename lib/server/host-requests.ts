@@ -1,6 +1,6 @@
 import { cancelBookingCommand, changeBookingCommand } from "./booking-cancellation";
 import { type HostCandidate, type HostEvaluationSummary, type HostRequestItem, type HostRequestOperation, type HostRequestView, type HostSuggestion, revisedFromOutcome } from "../contracts/host-request";
-import type { LinkPlan, RequestDetails, RequestState } from "../contracts/request";
+import type { LinkPlan, ProposalTime, RequestDetails, RequestState } from "../contracts/request";
 import { isValidTimeZone } from "../contracts/setup";
 import { approveCommand, checkBookingCommand, declineCommand, readBookingStatus } from "./bookings";
 import type { CommandDefinition } from "./commands";
@@ -159,7 +159,7 @@ export async function readHostRequest(db: Database | Transaction, hostAccountId:
   if (!request) return null;
 
   const [proposal] = await db<
-    { agreed_at: Date | null; details: { durationMinutes: number; linkPlan: LinkPlan | null; location: string | null; mode: "online" | "in_person" }; end_at: Date; start_at: Date; version: number }[]
+    { agreed_at: Date | null; details: { durationMinutes: number; linkPlan: LinkPlan | null; location: string | null; mode: "online" | "in_person"; times?: readonly ProposalTime[] }; end_at: Date; start_at: Date; version: number }[]
   >`
     select p.version, p.start_at, p.end_at, p.details, a.agreed_at
     from app.proposals p left join app.agreements a on a.proposal_id = p.id
@@ -206,6 +206,17 @@ export async function readHostRequest(db: Database | Transaction, hostAccountId:
           location: proposal.details.location ?? null,
           mode: proposal.details.mode,
           start: proposal.start_at.toISOString(),
+          ...(proposal.details.times && proposal.details.times.length > 1
+            ? {
+                times: proposal.details.times.map((time) => ({
+                  end: time.end,
+                  linkPlan: time.linkPlan ?? null,
+                  location: time.location ?? null,
+                  mode: time.mode,
+                  start: time.start,
+                })),
+              }
+            : {}),
           version: proposal.version,
         }
       : null,

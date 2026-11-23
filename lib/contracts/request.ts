@@ -160,6 +160,23 @@ export type RequesterEvaluation = {
   readonly candidates: readonly RequesterCandidate[];
 };
 
+// The most candidate times a guest can agree to in one proposal
+// (multiple-candidate-times, #146): the host then picks one, and that time is
+// booked.
+export const MAX_PROPOSAL_TIMES = 3;
+
+// One of the times a proposal offers. A proposal of one time has none of these;
+// a proposal of several lists each, earliest first, and its top-level time,
+// mode, place and link plan are those of the first.
+export type ProposalTime = {
+  readonly candidateId: string;
+  readonly start: string;
+  readonly end: string;
+  readonly mode: Exclude<MeetingMode, "either">;
+  readonly location: string | null;
+  readonly linkPlan: LinkPlan | null;
+};
+
 // One immutable proposal version as the requester sees it.
 export type RequesterProposal = {
   readonly version: number;
@@ -171,7 +188,21 @@ export type RequesterProposal = {
   readonly mode: Exclude<MeetingMode, "either">;
   readonly location: string | null;
   readonly linkPlan: LinkPlan | null;
+  // Two or three times the guest agreed to at once, of which the host books
+  // one (multiple-candidate-times). Absent for a proposal of one time.
+  readonly times?: readonly ProposalTime[];
+  // The proposal of several times this one-time version narrowed, when the
+  // host picked one of its times: its version and the picked time's 1-based
+  // number. The guest agreed to this time as one of those.
+  readonly pickedFrom?: { readonly version: number; readonly option: number };
 };
+
+// The times a proposal offers: its listed times, or its one time.
+export function proposalTimes(proposal: Pick<RequesterProposal, "start" | "end" | "mode" | "location" | "linkPlan" | "times">): readonly Omit<ProposalTime, "candidateId">[] {
+  return proposal.times && proposal.times.length > 1
+    ? proposal.times
+    : [{ end: proposal.end, linkPlan: proposal.linkPlan, location: proposal.location, mode: proposal.mode, start: proposal.start }];
+}
 
 export type RequesterAgreement = {
   readonly proposalVersion: number;

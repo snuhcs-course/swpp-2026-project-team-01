@@ -149,14 +149,23 @@ export function requestSummary(view: HostRequestView, language: ChannelLanguage 
   const ref = requestRef(view.requestId);
   const lines: string[] = [texts.request(ref, view.requester.name, view.details.purpose)];
 
-  if (view.proposal) {
+  const times = view.proposal?.times;
+  if (view.proposal && times && times.length > 1) {
+    // Several times the guest can make (multiple-candidate-times): numbered,
+    // so the host books one by its number.
+    lines.push(texts.proposalTimes(view.proposal.version, times.length, view.proposal.durationMinutes));
+    times.forEach((time, index) => {
+      const place = time.mode === "online" ? texts.online : texts.inPerson(time.location);
+      lines.push(texts.proposalTime(index + 1, meetingTime(time.start, time.end, view.hostTimezone, language), place));
+    });
+  } else if (view.proposal) {
     const place = view.proposal.mode === "online" ? texts.online : texts.inPerson(view.proposal.location);
     lines.push(texts.proposal(view.proposal.version, meetingTime(view.proposal.start, view.proposal.end, view.hostTimezone, language), view.proposal.durationMinutes, place));
   }
 
   lines.push(texts.status(STATE_WORDS[language][view.state]));
 
-  if (!view.sample && view.state === "awaiting_host_approval" && view.proposal?.agreedAt) lines.push(texts.decideInWords);
+  if (!view.sample && view.state === "awaiting_host_approval" && view.proposal?.agreedAt) lines.push(times && times.length > 1 ? texts.decideTimeInWords : texts.decideInWords);
   return lines.join("\n");
 }
 
@@ -171,6 +180,15 @@ export function decisionButtons(view: HostRequestView, language: ChannelLanguage
   const texts = channelReplies(language);
   const ref = requestRef(view.requestId);
   const decision = reviewRef(view.requestId, view.proposal.version);
+  const times = view.proposal.times ?? [];
+  if (times.length > 1) {
+    // One button per time, `a:<ref>-<version>-<n>` (multiple-candidate-times);
+    // WhatsApp takes at most three, so Decline and details stay in words there.
+    return {
+      items: times.map((_, index) => ({ id: `a:${decision}-${index + 1}`, title: texts.approveTime(index + 1) })),
+      prompt: texts.decidePrompt(ref),
+    };
+  }
   return {
     items: [
       { id: `a:${decision}`, title: texts.buttons.approve },
@@ -179,6 +197,12 @@ export function decisionButtons(view: HostRequestView, language: ChannelLanguage
     ],
     prompt: texts.decidePrompt(ref),
   };
+}
+
+// `<version>` or, for one time of a proposal of several, `<version>-<n>`.
+export function decisionSuffix(suffix: string): { readonly version: number; readonly option: number | null } | null {
+  const match = /^([1-9]\d{0,5})(?:-([1-9]))?$/.exec(suffix);
+  return match ? { option: match[2] ? Number(match[2]) : null, version: Number(match[1]) } : null;
 }
 
 export function settingsButtons(proposalHash: string, language: ChannelLanguage = "en"): WhatsAppButtons {
@@ -347,8 +371,10 @@ async function decide(
 ): Promise<Reply & { requestId?: string }> {
   const texts = channelReplies(language);
   const parts = splitRef(ref);
-  const version = parts ? Number(parts.suffix) : Number.NaN;
-  const found = parts && Number.isInteger(version) && version > 0 ? await requestByRef(deps, message.hostAccountId, parts.request) : null;
+  const suffix = parts ? decisionSuffix(parts.suffix) : null;
+  const version = suffix?.version ?? Number.NaN;
+  // A decline names the whole proposal, never one of its times.
+  const found = parts && suffix && (kind === "approve" || suffix.option === null) ? await requestByRef(deps, message.hostAccountId, parts.request) : null;
   if (!found || "error" in found) return { text: texts.unknownRef(deps.origin) };
 
   const view = await readHostRequest(deps.db, message.hostAccountId, found.requestId);
@@ -376,8 +402,18 @@ async function decide(
   if (kind === "approve") {
     // The reference names the version; the revision read with it makes sure
     // nothing changed between this read and the decision.
-    const outcome = await run(deps, message, approveCommand, view.requestId, { version }, view.revision);
+    const times = view.proposal.times ?? [];
+    if (times.length > 1 && (suffix!.option === null || suffix!.option > times.length)) {
+      return {
+        buttons: decisionButtons(view, language),
+        requestId: view.requestId,
+        text: `${texts.chooseTime(times.length)}\n${requestSummary(view, language)}`,
+      };
+    }
+    const input = suffix!.option === null ? { version } : { option: suffix!.option, version };
+    const outcome = await run(deps, message, approveCommand, view.requestId, input, view.revision);
     if (outcome.ok) return { requestId: view.requestId, text: outcome.result.repeated ? texts.alreadyApproved : texts.approved };
+    if (outcome.error.reason === "time_unavailable") return { buttons: decisionButtons(view, language), requestId: view.requestId, text: texts.timeUnavailable };
     return { requestId: view.requestId, text: decisionRefusal(deps, outcome.error.category, current, language) };
   }
 

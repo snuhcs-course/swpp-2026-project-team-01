@@ -40,7 +40,9 @@ with your tools.
   state, and then say what was done:
   - approve: approve_proposal with the current version ("looks good, book it",
     "yes" right after the proposal, "Tuesday works"); say the time, the place
-    or link and the requester;
+    or link and the requester. When the proposal lists several times the guest
+    can make, pass the option of the one the host named ("book time 2",
+    "Thursday's"), and ask which one when they did not name it;
   - decline: decline_request with the current version, or null without one
     ("decline it", "I can't take this one"); when the host also names other dates that
     no longer work ("and Dec 3 and 5 don't work either"), pass them as

@@ -5,6 +5,7 @@ import {
   CLARIFICATION_CATEGORIES,
   type ClarificationCategory,
   type LinkPlan,
+  MAX_PROPOSAL_TIMES,
   type RequestDetails,
   type RequestLanguage,
   type RequesterProposal,
@@ -250,6 +251,10 @@ function minimizedProposal(proposal: RequesterProposal, timezone: string) {
     meetingLink: linkPlanLabel(proposal.linkPlan),
     mode: proposal.mode,
     time: window(proposal, timezone),
+    // Several times the guest is offering at once; the host books one of them.
+    ...(proposal.times && proposal.times.length > 1
+      ? { times: proposal.times.map((time) => ({ location: time.location, mode: time.mode, time: window(time, timezone) })) }
+      : {}),
     version: proposal.version,
   };
 }
@@ -655,20 +660,33 @@ async function applyAndEvaluate(
   return { evaluation, message: "Applied. Describe the times found.", recorded: true as const, state: row.state };
 }
 
-export const chooseTimeToolInput = z.object({ candidateId: z.string().min(1).max(64) });
+export const chooseTimeToolInput = z.object({
+  candidateId: z.string().min(1).max(64).optional().describe("The one time the guest named."),
+  candidateIds: z
+    .array(z.string().min(1).max(64))
+    .min(2)
+    .max(MAX_PROPOSAL_TIMES)
+    .optional()
+    .describe(`In place of candidateId: two to ${MAX_PROPOSAL_TIMES} times the guest said all work for them. The host picks one, and only that one is booked.`),
+});
 
 export async function chooseTimeForTool(db: Database, call: RequestToolCall, input: z.infer<typeof chooseTimeToolInput>): Promise<DecisionResult> {
   const id = await authorizeRequestTool(db, call);
   const evaluation = await readCurrentEvaluation(db, id);
   if (!evaluation) return { message: "There are no current times to choose from: find times first.", recorded: false };
 
-  const { outcome } = await decide(db, call, chooseCandidateCommand, { candidateId: input.candidateId, evaluationId: evaluation.id });
+  if ((input.candidateId === undefined) === (input.candidateIds === undefined)) {
+    return { message: "Give either one candidateId or two or three candidateIds.", recorded: false };
+  }
+  const chosen = input.candidateIds ? { candidateIds: input.candidateIds } : { candidateId: input.candidateId! };
+  const { outcome } = await decide(db, call, chooseCandidateCommand, { ...chosen, evaluationId: evaluation.id });
   if (!outcome.ok) return refused(outcome.error.category);
   if (outcome.result.outcome === "needs_meeting_link") {
     return { message: "This online time needs a meeting link first: ask whether Google Meet is fine or for their own link.", recorded: false };
   }
+  const several = input.candidateIds ? ` It offers ${input.candidateIds.length} times; after the guest agrees, the host picks one of them to book.` : "";
   return {
-    message: `Proposal version ${outcome.result.version} is ready for the guest's agreement. Nothing is agreed yet.`,
+    message: `Proposal version ${outcome.result.version} is ready for the guest's agreement. Nothing is agreed yet.${several}`,
     recorded: true,
     state: "negotiating",
   };

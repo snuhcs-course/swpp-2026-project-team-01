@@ -1,0 +1,40 @@
+{
+  "branch": "feat/multiple-candidate-times",
+  "user": "dodo41142727@gmail.com",
+  "sessions": {
+    "claude:5819573f-34ae-47ec-878e-0c0175dc8f72": {
+      "agent": "claude-code",
+      "client": "claude-desktop",
+      "agent_ms": 0,
+      "models": {
+        "claude-opus-5-5": {
+          "input": 226,
+          "cache_read": 23903634,
+          "cache_write_5m": 0,
+          "cache_write_1h": 417989,
+          "output": 64057,
+          "reasoning": 0
+        }
+      },
+      "first": "2026-11-23T06:36:10.236Z",
+      "last": "2026-11-23T10:41:57.422Z"
+    },
+    "claude:5819573f-34ae-47ec-878e-0c0175dc8f72/agent-af542ddf62676aa19": {
+      "agent": "claude-code",
+      "client": "claude-desktop",
+      "agent_ms": 0,
+      "models": {
+        "claude-sonnet-5-5": {
+          "input": 8,
+          "cache_read": 246889,
+          "cache_write_5m": 52205,
+          "cache_write_1h": 0,
+          "output": 1219,
+          "reasoning": 0
+        }
+      },
+      "first": "2026-11-23T10:41:21.290Z",
+      "last": "2026-11-23T10:41:30.533Z"
+    }
+  }
+}
