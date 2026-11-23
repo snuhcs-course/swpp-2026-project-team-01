@@ -1,7 +1,7 @@
 "use client";
 
 import { TUTORIAL_FEEDBACK, tutorialFinishResult } from "@lib/contracts/host-tutorial";
-import type { HostRequestOperation, HostRequestView } from "@lib/contracts/host-request";
+import { type HostRequestOperation, type HostRequestView, revisedFromText } from "@lib/contracts/host-request";
 import type { RequestState } from "@lib/contracts/request";
 import type { WorkspaceRequestItem } from "@lib/contracts/workspace-request";
 import { displayTime } from "@lib/contracts/timezone";
@@ -260,6 +260,12 @@ function RequestPanel({ onChanged, onUnavailable, requestId }: { readonly onChan
 
   return (
     <div className="min-w-0 border-t border-border px-5 pb-5 sm:px-6" id={`request-panel-${requestId}`} role="region">
+      {view?.revisedFrom ? (
+        // A revised request names the earlier one and how it ended (guest-flow-completion design 5, #59).
+        <p className="pt-5 text-sm text-muted-foreground" role="note">
+          {revisedFromText(view.revisedFrom)}
+        </p>
+      ) : null}
       {view ? <OpenCard context={{ run, view }} editing={editing} setEditing={setEditing} /> : <p className="pt-5 text-sm text-muted-foreground" role="status">Loading request details...</p>}
     </div>
   );

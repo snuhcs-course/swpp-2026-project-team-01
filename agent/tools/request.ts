@@ -68,7 +68,7 @@ function requesterTools() {
   return {
     read_request: defineTool({
       description:
-        "Read this meeting request as the requester may see it: status, meeting details (purpose, duration, mode, place or meeting link plan, availability windows in the requester's timezone), what is still missing, the pending review, the current candidate times and proposal, and what the host offers every guest (meeting length, online or in person or either, and the places they meet in). Contact details appear only as present or absent. It contains nothing else about the host's settings, nor their calendar or rules. It also gives today's date and the current time in the requester's timezone (now), whether a booked meeting has started, and the decisions the current status allows (next). Call it at the start of each turn.",
+        "Read this meeting request as the requester may see it: status, meeting details (purpose, duration, mode, place or meeting link plan, availability windows in the requester's timezone), what is still missing, the pending review, the current candidate times and proposal, and what the host offers every guest (meeting length, online or in person or either, and the places they meet in), and calendarReply, the reply to a question about either calendar. Contact details appear only as present or absent. It contains nothing else about the host's settings, nor their calendar or rules. It also gives today's date and the current time in the requester's timezone (now), whether a booked meeting has started, and the decisions the current status allows (next). Call it at the start of each turn.",
       inputSchema: z.object({}),
       execute: (_input, toolCtx) => readRequestForTool(database(), call(toolCtx)),
     }),

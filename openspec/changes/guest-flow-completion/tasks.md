@@ -38,6 +38,7 @@
 
 - [x] 5.5 (U16) A withdrawn request is revisable: `isRevisable` takes `withdrawn`, `closeRequest` no longer ends the guest binding at withdrawal, the revised discussion's summary and the host's view name the withdrawal; update `requester-imessage-links.test.ts` (withdrawal keeps the binding) and `revised-requests.test.ts` (a reply after withdrawal creates a revised request).
 - [x] 5.6 (U17) Revised request carry-over: the guest's windows; the declined time, with the closed request's excluded times, as exclusions of the new request's searches; the opening summary lists the earlier proposed times and the declined time, never a reason. Naming other dates when declining is host-side and moved to #58 (user, 2026-11-02).
+- [x] 5.7 (#59) The host's views name a withdrawn origin: `revisedFrom.outcome` takes `withdrawn` (`lib/contracts/host-request.ts`, `lib/server/host-requests.ts`), the `/app` request panel shows "Follows request {ref}, which the guest withdrew." (and the declined and expired lines, which it did not show before), and the host's awaiting-approval summary adds "It follows request {ref}, which the guest withdrew." (`followsText` in `imessage-notice-job.ts`, `channel-texts.ts`); unit tests beside both and `revised-requests.test.ts` (the withdrawn origin is named).
 
 ## 5a. Changes until the host approves (design 10)
 

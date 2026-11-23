@@ -3,6 +3,7 @@ import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { cancelBookingCommand, changeBookingCommand } from "../../lib/server/booking-cancellation";
 import { approveCommand, declineCommand, readBookingStatus } from "../../lib/server/bookings";
 import { createRequestExpiryHandler, withdrawRequestCommand } from "../../lib/server/request-lifecycle";
+import { readRequesterView } from "../../lib/server/requester-routes";
 import { agreeCommand, chooseCandidateCommand, evaluateCommand, readCurrentEvaluation } from "../../lib/server/request-proposals";
 import { type AgreedRequest, agreedRequest, asHost, bookingDeps, bookingOf, deliveriesOf, requestState, runBooking } from "./support/booking";
 import { testDatabase } from "./support/database";
@@ -113,6 +114,19 @@ describe("booking.change", () => {
     expect(changed).toHaveLength(2);
     expect(changed.every((email) => email.attachments.length === 0)).toBe(true);
     expect((await readBookingStatus(db, request.requestId, "requester"))?.receipt?.start).toBe(new Date(candidate.start).toISOString());
+  });
+
+  it("names the side that reopened the booked meeting on the guest's page (#321)", async () => {
+    const byHost = await booked();
+    await reopen(byHost, "host");
+    expect(await readRequesterView(db, byHost.requestId)).toMatchObject({ reopenedBy: "host" });
+    // The guest's Change while it is already open changes nothing, nor who reopened it.
+    await reopen(byHost);
+    expect(await readRequesterView(db, byHost.requestId)).toMatchObject({ reopenedBy: "host" });
+
+    const byGuest = await booked();
+    await reopen(byGuest);
+    expect(await readRequesterView(db, byGuest.requestId)).toMatchObject({ reopenedBy: "requester" });
   });
 
   it("refuses a request that is not booked, and a meeting that has started", async () => {

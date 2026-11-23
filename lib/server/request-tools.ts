@@ -1,6 +1,6 @@
 import { z } from "zod";
 import { clarificationQuestion } from "../contracts/clarifications";
-import { EVALUATION_FAILURE_MESSAGES, nearestTimesMessage, noMatchMessage, type RequesterEvaluationView, TIMES_SHOWN } from "../contracts/feasibility";
+import { CALENDAR_PRIVACY_REPLY, EVALUATION_FAILURE_MESSAGES, nearestTimesMessage, noMatchMessage, type RequesterEvaluationView, TIMES_SHOWN } from "../contracts/feasibility";
 import {
   CLARIFICATION_CATEGORIES,
   type ClarificationCategory,
@@ -316,6 +316,9 @@ export async function readRequestForTool(db: Database, call: RequestToolCall) {
   const phase = booking?.phase ?? null;
 
   return {
+    // A fixed reply for a question about either calendar (#311): an
+    // instruction alone still let the model offer only the listed times.
+    calendarReply: CALENDAR_PRIVACY_REPLY[language],
     contact: { email: presence(row.contact_email ?? undefined), name: presence(row.contact_email ?? undefined) },
     identified,
     current: {

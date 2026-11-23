@@ -8,7 +8,7 @@ import {
   type TokenError,
   type TokenSuccess,
 } from "./agent-grants";
-import { AGENT_LIMITS, admitAttempt, AttemptLimitError } from "./agent-limits";
+import { admitAttempt, AttemptLimitError, tokenBounds } from "./agent-limits";
 import {
   authorizationServerMetadata,
   hostResource,
@@ -176,8 +176,20 @@ export function createTokenHandler(load: () => AgentOAuthDependencies = agentOAu
     // resource; a refresh may omit it and keeps the one its token is bound to.
     if (!resource && grantType === "authorization_code") return oauthError("invalid_target", "Name the resource.");
 
+    const code = params.get("code");
+    const redirectUri = params.get("redirect_uri");
+    const codeVerifier = params.get("code_verifier");
+    const refreshToken = params.get("refresh_token");
+    if (grantType === "authorization_code" && (!code || !redirectUri || !codeVerifier || !resource)) {
+      return oauthError("invalid_request", "Send the code, redirect URI and code verifier.");
+    }
+    if (grantType === "refresh_token" && !refreshToken) return oauthError("invalid_request", "Send the refresh token.");
+
+    // Counted per credential and source, not per client ID, which a metadata
+    // document client shares among everyone who uses it (design 12).
+    const credential = grantType === "authorization_code" ? code! : refreshToken!;
     try {
-      await admitAttempt(deps.db, "token", [{ bound: AGENT_LIMITS.tokenPerClient, key: clientId }]);
+      await admitAttempt(deps.db, "token", tokenBounds({ clientId, credential, source: sourceHash(deps.tokenKey(), request) }));
     } catch (error) {
       if (error instanceof AttemptLimitError) {
         return oauthError("temporarily_unavailable", "Too many token requests. Try again later.", 429, { "retry-after": String(error.retryAfterSeconds) });
@@ -198,20 +210,14 @@ export function createTokenHandler(load: () => AgentOAuthDependencies = agentOAu
     if (!key) return oauthError("temporarily_unavailable", "Token issuance is not configured.", 503);
 
     if (grantType === "authorization_code") {
-      const code = params.get("code");
-      const redirectUri = params.get("redirect_uri");
-      const codeVerifier = params.get("code_verifier");
-      if (!code || !redirectUri || !codeVerifier || !resource) return oauthError("invalid_request", "Send the code, redirect URI and code verifier.");
-      return tokenResponse(await exchangeCode(deps.db, key, origin, { clientId, code, codeVerifier, redirectUri, resource }));
+      return tokenResponse(await exchangeCode(deps.db, key, origin, { clientId, code: code!, codeVerifier: codeVerifier!, redirectUri: redirectUri!, resource: resource! }));
     }
 
-    const refreshToken = params.get("refresh_token");
-    if (!refreshToken) return oauthError("invalid_request", "Send the refresh token.");
     const scope = params.get("scope");
     return tokenResponse(
       await refreshTokens(deps.db, key, origin, {
         clientId,
-        refreshToken,
+        refreshToken: refreshToken!,
         resource: resource || null,
         scope: scope === null ? null : scope.trim().split(/ +/).filter(Boolean),
       }),
