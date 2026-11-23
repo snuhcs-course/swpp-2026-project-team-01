@@ -6,7 +6,7 @@ Tracking issue: #183
 
 A signed-in host who opens another host's booking link is treated like a stranger: the page says "You need no account", the identity card asks them to type the name and email their account already holds (or to go through Google again), a request they already started with that host can be found only from `/app`, and the guest page offers no way back to their own workspace. The 2026-11-08 kickoff assigned "host and guest roles in one session".
 
-What already works, and stays as it is: the guest's Google consent creates no account session and leaves the host's session cookie untouched; a request identified manually while signed in is linked to the account (`recordHostSessionMatch`, #210); a request linked by a verified Google subject offers **Use your host settings for this request** ([guest-flow-completion design 6](../guest-flow-completion/design.md#6-host-profile-for-a-guest-who-is-a-host)); and `/app` Requests lists sent requests next to received ones and opens a sent one under its private link ([request-dashboard](../request-dashboard/proposal.md)).
+What already works, and stays as it is: the guest's Google consent creates no account session and leaves the host's session cookie untouched; a request identified manually while signed in is linked to the account (`recordHostSessionMatch`, #210); a request linked by a verified Google subject offers **Use your host settings for this request** ([guest-flow-completion design 6](../../guest-flow-completion/design.md#6-host-profile-for-a-guest-who-is-a-host)); and `/app` Requests lists sent requests next to received ones and opens a sent one under its private link ([request-dashboard](../../request-dashboard/proposal.md)).
 
 ## What Changes
 
