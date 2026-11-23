@@ -3,7 +3,8 @@ import { createBookingPendingHandler } from "./bookings";
 import type { ClaimedJob } from "./jobs";
 
 // The 15-minute pending check tells the guest and no longer the host (#173):
-// booking_confirmed follows shortly, and booking_failed reports a failure.
+// booking_confirmed or booking_failed follows. The guest's status_pending notice
+// is pinned by tests/integration/bookings.test.ts.
 
 function recordingTransaction(state: string) {
   const queries: string[] = [];

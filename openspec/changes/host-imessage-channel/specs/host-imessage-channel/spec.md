@@ -162,7 +162,7 @@ A linked host's free text SHALL become an accepted input of the discussion the h
 - **THEN** the message sent to the linked conversation starts after the markers
 
 ### Requirement: Summaries and outcomes
-A host with an active binding SHALL receive in the linked conversation one summary per event when a proposal awaits approval (with the exact approve and decline commands for its reference) and when a booking is confirmed or not confirmed. A booking still pending SHALL NOT be announced to the host, since its confirmation or failure follows (#173). A request's arrival SHALL NOT be announced: the guest is offered times first, and the awaiting-approval summary, the host's first message about the request, SHALL name the requester, the purpose and any earlier request it follows. Each summary SHALL be recorded in the transaction of the change it reports and frozen from that event's own records; a summary for a proposal version that is no longer the latest SHALL NOT be sent.
+A host with an active binding SHALL receive in the linked conversation one summary per event when a proposal awaits approval (with the exact approve and decline commands for its reference) and when a booking is confirmed or not confirmed. A booking still pending SHALL NOT be announced to the host: its confirmation or failure follows once the write resolves (#173). A request's arrival SHALL NOT be announced: the guest is offered times first, and the awaiting-approval summary, the host's first message about the request, SHALL name the requester, the purpose and any earlier request it follows. Each summary SHALL be recorded in the transaction of the change it reports and frozen from that event's own records; a summary for a proposal version that is no longer the latest SHALL NOT be sent.
 
 #### Scenario: Guest starts a request
 - **WHEN** a guest of a host with an active binding starts or revises a request
@@ -174,7 +174,7 @@ A host with an active binding SHALL receive in the linked conversation one summa
 
 #### Scenario: Booking still pending
 - **WHEN** a linked host's booking is still unconfirmed 15 minutes after dispatch
-- **THEN** the guest is told it is still in progress and nothing is sent to the host's linked conversation; the host's next summary is the booking's confirmation or failure
+- **THEN** the guest is told it is still in progress and nothing is sent to the host's linked conversation; the host's next summary is the booking's confirmation or failure once the write resolves
 
 ### Requirement: Truthful outbound delivery
 Every outbound iMessage SHALL be a frozen record dispatched by a job behind the messaging-environment gate. A send whose result is lost SHALL be recorded uncertain and never repeated automatically; a refusal before sending MAY be retried within a bound. A delivery result SHALL NOT change request, proposal or booking state, and a delivery retry SHALL NOT create a booking. The latest failed or uncertain delivery SHALL be visible in the web workspace, where the host can continue.

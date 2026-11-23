@@ -1,5 +1,5 @@
 import type { MessageStreamEvent } from "eve/client";
-import type { StoredChannel } from "../contracts/messaging-channel";
+import { type StoredChannel, stripChannelMarkers } from "../contracts/messaging-channel";
 import { agentUrlFromEnvironment, type ConversationRuntime, eveRuntime } from "./conversations";
 import { database, type Database, type Transaction } from "./database";
 import { turnReplyText } from "./email-replies";
@@ -283,7 +283,10 @@ export const TURN_FALLBACK = "I couldn't finish that. You can continue in Find M
 // guest the booking page, whose link only their email carries.
 export function imessageTurnText(text: string | null, origin: string, audience: "host" | "requester" = "host") {
   if (!text) return TURN_FALLBACK;
-  const redacted = redactCredentials(text, { bareUuids: true }).trim();
+  // turnReplyText already dropped any leading channel marker; a reply frozen
+  // before that guard (#410) loses it here too.
+  const redacted = stripChannelMarkers(redactCredentials(text, { bareUuids: true })).trim();
+  if (!redacted) return TURN_FALLBACK;
   const chars = Array.from(redacted);
   if (chars.length <= MAX_TURN_REPLY_CHARS) return redacted;
   const rest = audience === "requester" ? "The rest is on your booking page, linked in your email." : `The rest is in Find Me a Time: ${origin.replace(/\/+$/, "")}/app`;
