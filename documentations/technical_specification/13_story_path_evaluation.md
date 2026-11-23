@@ -173,4 +173,6 @@ The Iteration 3 prompts fail the guest's normal paths (drafting, applying and as
 
 ## Appended cases
 
-None yet.
+| Date | Case | Conversation | What it checks | Change |
+|---|---|---|---|---|
+| 2026-11-23 | RV-D01 | Host review (Telegram, Korean) | Declining with two more dates that no longer work and a reason passes both dates as `excludedDates`, stores them as whole Asia/Seoul days on the declined request, and keeps the reason out of the request | [`decline-with-unavailable-dates`](../../openspec/changes/decline-with-unavailable-dates/proposal.md), #58 |

@@ -2,7 +2,8 @@ import { randomUUID } from "node:crypto";
 import { z } from "zod";
 import type { BookingFailure, BookingReceipt, BookingState, BookingStatusView } from "../contracts/booking";
 import type { LinkPlan, RequestDetails, RequestState } from "../contracts/request";
-import type { ConfirmedSettings } from "../contracts/setup";
+import { isCalendarDate, MAX_DECLINED_DATES, withDeclinedDates } from "../contracts/declined-dates";
+import { type ConfirmedSettings, isValidTimeZone } from "../contracts/setup";
 import { type NoticeDependencies, enqueueChangeDropped, enqueueConfirmations, enqueueStatusNotice, noticeDependenciesFromEnvironment } from "./booking-notices";
 import { buildEventPayload, eventIdFor } from "./calendar-events";
 import { type Actor, assertRevision, type CommandDefinition, CommandError } from "./commands";
@@ -227,19 +228,50 @@ export const approveCommand: CommandDefinition<z.infer<typeof approveInput>, App
 
 export type DeclineResult = { readonly state: "declined" | "booked"; readonly revision: number };
 
+// The other dates that no longer work, beside the declined time
+// (decline-with-unavailable-dates, #58): at most 14 dates, YYYY-MM-DD in the
+// host's zone. Never a reason.
+export const declinedDatesSchema = z
+  .array(z.string().refine(isCalendarDate, "a YYYY-MM-DD date"))
+  .max(MAX_DECLINED_DATES)
+  .optional()
+  .describe(
+    "Other dates the host said no longer work, beside the declined time, as YYYY-MM-DD in the host's time zone, at most 14. Only dates the host named; never a reason. Omit when the host named none.",
+  );
+
+export const declineInput = z.object({ excludedDates: declinedDatesSchema }).strict();
+export type DeclineInput = z.infer<typeof declineInput>;
+
+// Adds the named dates, as whole days in the host's zone, to a request's
+// excluded times, which its revised request leaves out of every search.
+async function excludeDeclinedDates(tx: Transaction, request: HostLockedRequest, dates: readonly string[]) {
+  if (dates.length === 0) return;
+  const [row] = await tx<{ timezone: string | null }[]>`
+    select settings->>'timezone' as timezone from app.host_settings where host_account_id = ${request.host_account_id}
+  `;
+  const zone = row?.timezone && isValidTimeZone(row.timezone) ? row.timezone : "UTC";
+  const excludedTimes = withDeclinedDates(request.details.excludedTimes, dates, zone);
+  await tx`
+    update app.requests set details = details || ${tx.json({ excludedTimes } as unknown as Parameters<typeof tx.json>[0])}
+    where id = ${request.id}
+  `;
+}
+
 export function declineCommand(loadNotices: () => NoticeDependencies = noticeDependenciesFromEnvironment): CommandDefinition<
-  Record<string, never>,
+  DeclineInput,
   DeclineResult
 > {
   return {
-    input: z.object({}).strict() as unknown as z.ZodType<Record<string, never>>,
+    input: declineInput,
     operation: DECLINE_OPERATION,
     async run(tx, context) {
+      const input = context.input;
       const request = await lockHostRequest(tx, context.actor, context.resourceId);
       if (!request.open) throw new CommandError("request_closed");
       assertRevision(request.revision, context.expectedRevision);
 
-      // Declining a change after booking keeps the booked meeting as it was.
+      // Declining a change after booking keeps the booked meeting as it was,
+      // and no revised request follows, so named dates are not kept.
       if (await standingBookingOf(tx, request.id)) {
         await dropChange(tx, request.id, "declined");
         await enqueueChangeDropped(tx, loadNotices(), request.id, "declined");
@@ -249,6 +281,7 @@ export function declineCommand(loadNotices: () => NoticeDependencies = noticeDep
       if (request.state === "booking") await cancelReservedBooking(tx, request.id, "declined");
 
       if (!(await closeRequest(tx, request.id, "declined", { fromBooking: true }))) throw new CommandError("request_closed");
+      await excludeDeclinedDates(tx, request, [...new Set(input.excludedDates ?? [])]);
       await enqueueStatusNotice(tx, loadNotices(), request.id, { kind: "status_declined" });
 
       return { revision: request.revision + 1, state: "declined" };

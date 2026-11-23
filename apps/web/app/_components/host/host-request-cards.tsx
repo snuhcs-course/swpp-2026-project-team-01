@@ -4,7 +4,8 @@ import { BOOKING_STATUS_TEXT, type BookingFailure } from "@lib/contracts/booking
 import type { CommandFailure } from "@lib/contracts/command-errors";
 import type { HostCandidate, HostRequestOperation, HostRequestView, HostSuggestion } from "@lib/contracts/host-request";
 import type { LinkPlan } from "@lib/contracts/request";
-import { displayTime, instantFromLocal, zoneLabel } from "@lib/contracts/timezone";
+import { isCalendarDate, MAX_DECLINED_DATES } from "@lib/contracts/declined-dates";
+import { displayTime, instantFromLocal, localDate, zoneLabel } from "@lib/contracts/timezone";
 import { type FormEvent, type ReactNode, useId, useState } from "react";
 import { Receipt } from "@/app/_components/booking-receipt";
 import { GuestCard, GuestCardActions } from "@/app/_components/guest/guest-card";
@@ -94,6 +95,7 @@ export function ProposalReviewCard({ context, onRequestChanges }: { readonly con
   const proposal = view.proposal!;
   const { act, busy, error } = useAction(context);
   const [confirmDecline, setConfirmDecline] = useState(false);
+  const [declinedDates, setDeclinedDates] = useState<readonly string[]>([]);
   const closed = ["declined", "withdrawn", "expired", "cancelled"].includes(view.state);
   const awaiting = view.state === "awaiting_host_approval" && proposal.agreedAt !== null;
   const start = new Date(proposal.start);
@@ -126,10 +128,16 @@ export function ProposalReviewCard({ context, onRequestChanges }: { readonly con
         {facts.map(([label, value]) => <div className={label === "With" ? "col-span-2 min-w-0" : "min-w-0"} key={label}><dt className="text-xs font-semibold text-muted-foreground">{label}</dt><dd className="mt-1 break-words text-sm">{value}</dd></div>)}
       </dl>
       {closed ? null : confirmDecline ? (
-        <div className="flex flex-col gap-2" role="group" aria-label="Confirm decline">
+        <div className="flex flex-col gap-3" role="group" aria-label="Confirm decline">
           <p>Decline this request? {view.requester.name} is told by email, and the request closes.</p>
+          {view.booking?.state === "confirmed" ? null : <DeclinedDatesField dates={declinedDates} onChange={setDeclinedDates} requester={view.requester.name} timeZone={view.hostTimezone} />}
           <GuestCardActions>
-            <Button disabled={busy} onClick={() => void act("request.decline", {})} type="button" variant="destructive">
+            <Button
+              disabled={busy}
+              onClick={() => void act("request.decline", declinedDates.length > 0 ? { excludedDates: declinedDates } : {})}
+              type="button"
+              variant="destructive"
+            >
               Decline request
             </Button>
             <Button onClick={() => setConfirmDecline(false)} type="button" variant="ghost">
@@ -153,6 +161,81 @@ export function ProposalReviewCard({ context, onRequestChanges }: { readonly con
       )}
       <StatusLine message={error} />
     </section>
+  );
+}
+
+// Other dates that no longer work, named beside Decline
+// (decline-with-unavailable-dates, #58): up to 14 dates from today in the
+// host's zone. If the requester writes again, their next request leaves these
+// days out and never says why, so no reason is asked for.
+function DeclinedDatesField({
+  dates,
+  onChange,
+  requester,
+  timeZone,
+}: {
+  readonly dates: readonly string[];
+  readonly onChange: (dates: readonly string[]) => void;
+  readonly requester: string;
+  readonly timeZone: string;
+}) {
+  const [draft, setDraft] = useState("");
+  const id = useId();
+  const today = localDate(new Date(), timeZone);
+  const full = dates.length >= MAX_DECLINED_DATES;
+  const valid = isCalendarDate(draft) && draft >= today && !dates.includes(draft);
+  const label = (date: string) =>
+    new Intl.DateTimeFormat("en", { day: "numeric", month: "short", timeZone: "UTC", weekday: "short" }).format(new Date(`${date}T00:00:00Z`));
+
+  function add() {
+    if (!valid || full) return;
+    onChange([...dates, draft].sort());
+    setDraft("");
+  }
+
+  return (
+    <div className="flex flex-col gap-2">
+      <label className="text-sm font-medium" htmlFor={id}>
+        Other dates that no longer work (optional)
+      </label>
+      <p className="text-xs text-muted-foreground" id={`${id}-hint`}>
+        If {requester} writes again, their next request leaves these days out. They are not told why.
+      </p>
+      <div className="flex flex-wrap items-center gap-2">
+        <Input
+          aria-describedby={`${id}-hint`}
+          className="w-auto"
+          disabled={full}
+          id={id}
+          min={today}
+          onChange={(event) => setDraft(event.target.value)}
+          onKeyDown={(event) => {
+            if (event.key === "Enter") {
+              event.preventDefault();
+              add();
+            }
+          }}
+          type="date"
+          value={draft}
+        />
+        <Button disabled={!valid || full} onClick={add} type="button" variant="outline">
+          Add date
+        </Button>
+      </div>
+      {dates.length > 0 ? (
+        <ul aria-label="Dates that no longer work" className="flex flex-wrap gap-2">
+          {dates.map((date) => (
+            <li className="flex items-center gap-1 rounded-full bg-secondary py-1 pr-1 pl-3 text-sm" key={date}>
+              {label(date)}
+              <Button aria-label={`Remove ${label(date)}`} onClick={() => onChange(dates.filter((item) => item !== date))} size="icon-sm" type="button" variant="ghost">
+                ×
+              </Button>
+            </li>
+          ))}
+        </ul>
+      ) : null}
+      {full ? <p className="text-xs text-muted-foreground">You can name up to {MAX_DECLINED_DATES} dates.</p> : null}
+    </div>
   );
 }
 

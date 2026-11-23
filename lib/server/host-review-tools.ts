@@ -5,7 +5,7 @@ import { BOOKING_STATUS_TEXT } from "../contracts/booking";
 import type { HostRequestItem, HostRequestView, HostSuggestion } from "../contracts/host-request";
 import { currentTime, displayTime, weekOf } from "../contracts/timezone";
 import { finishSampleCommand, tutorialCompletionText } from "./host-tutorial";
-import { approveCommand, declineCommand, readBookingStatus } from "./bookings";
+import { approveCommand, declinedDatesSchema, declineCommand, readBookingStatus } from "./bookings";
 import { channelOfTurn } from "./channel-selection";
 import { type Actor, runCommand } from "./commands";
 import type { Database, Queryable } from "./database";
@@ -368,6 +368,7 @@ export const declineRequestToolInput = z
       .positive()
       .nullable()
       .describe("The current proposal's version, as read_request returns it, or null when the request has no proposal."),
+    excludedDates: declinedDatesSchema,
   })
   .strict();
 
@@ -398,9 +399,10 @@ export async function declineRequestForTool(
     };
   }
 
+  const dates = [...new Set(input.excludedDates ?? [])];
   const outcome = await runCommand({ authenticate: async () => hostActor(hostAccountId), db }, declineCommand(loadNotices), {
     expectedRevision: view.revision,
-    input: {},
+    input: dates.length > 0 ? { excludedDates: dates } : {},
     resourceId: requestId,
     retryKey: `tool:${call.callId}`,
   });
@@ -408,7 +410,13 @@ export async function declineRequestForTool(
   if (outcome.ok) {
     return outcome.result.state === "booked"
       ? { declined: true as const, message: "Declined the change. The meeting stays booked as it was, and the requester is told." }
-      : { declined: true as const, message: "Declined. The requester is told; nothing was booked." };
+      : {
+          declined: true as const,
+          message:
+            dates.length > 0
+              ? `Declined. The requester is told; nothing was booked. If they write again, their next request leaves out the ${dates.length} other date(s) the host named, and no reason is given.`
+              : "Declined. The requester is told; nothing was booked.",
+        };
   }
   if (outcome.error.category === "request_closed") return { declined: false as const, problem: "The request is already closed; nothing changed." };
   return { declined: false as const, problem: "The request changed meanwhile; nothing was declined. Read the request again." };
