@@ -45,7 +45,7 @@ Physical meeting feasibility SHALL check previous commitment to candidate and ca
 - **THEN** the candidate is excluded even if the meeting interval is free
 
 ### Requirement: Travel uncertainty requires resolution
-Unknown locations, unsupported routes, provider failures, and stale travel context SHALL remain unresolved until clarified or replaced by a specific host-confirmed manual allowance. Missing estimates SHALL never be zero travel.
+Unknown locations, unsupported routes, provider failures, and stale travel context SHALL remain unresolved until clarified or replaced by a specific confirmed manual allowance: the host's for a host leg, the requester's for their own. A host commitment with no location at all SHALL be taken to happen at the host's usual place when the host has one, which makes its trip an estimate like any other. Missing estimates SHALL never be zero travel.
 
 #### Scenario: Routes returns no route
 - **WHEN** the provider returns no route for the requested geography and mode
@@ -155,7 +155,7 @@ Overnight boundaries SHALL use actual local calendar dates and timezone rules. A
 - **THEN** the display identifies 02:00 as next day and does not save the draft without the existing explicit confirmation
 
 ### Requirement: Route estimates, geography and freshness
-Travel legs SHALL be estimated with Google Routes for the host's confirmed travel mode and the leg's departure time, wherever the provider returns a route; no country list SHALL limit evaluation. A leg SHALL be checked against the nearest host commitment before or after the candidate on the same local day, whatever the gap; a candidate in an overnight window belongs to the window's starting day through the window's end. An adjacent commitment with no location, only a conference link, or both a place and a conference link SHALL leave its leg unresolved. An estimate MAY be reused for 24 hours for the same endpoints, mode and 15-minute departure slot. Cleartext event locations SHALL NOT be stored with cached estimates.
+Travel legs SHALL be estimated with Google Routes for the host's confirmed travel mode and the leg's departure time, wherever the provider returns a route; no country list SHALL limit evaluation. A leg SHALL be checked against the nearest host commitment before or after the candidate on the same local day, whatever the gap; a candidate in an overnight window belongs to the window's starting day through the window's end. An adjacent host commitment with no location and no conference link SHALL be taken to happen at the host's usual place, the first named area, else the venue, so its trip is estimated from or to that place with the usual buffers, and no trip is needed when the meeting is at that place; without a usual place its leg SHALL stay unresolved. An adjacent commitment with only a conference link, or both a place and a conference link, SHALL leave its leg unresolved. An estimate MAY be reused for 24 hours for the same endpoints, mode and 15-minute departure slot. Cleartext event locations SHALL NOT be stored with cached estimates.
 
 #### Scenario: Mode without routes in a region
 - **WHEN** the provider returns no route for the host's mode between two places
@@ -164,6 +164,14 @@ Travel legs SHALL be estimated with Google Routes for the host's confirmed trave
 #### Scenario: Previous meeting was online
 - **WHEN** the commitment before an in-person candidate has only a conference link
 - **THEN** the inbound leg is unresolved rather than assumed to start at home or the office
+
+#### Scenario: Previous commitment has no location
+- **WHEN** the host's areas start with 관악구, the commitment before an in-person candidate near 서울대 has no location, and the trip from 관악구 plus the buffers fits the gap
+- **THEN** the candidate is offered, and the host's basis says the trip was taken from their usual area
+
+#### Scenario: No usual place
+- **WHEN** the host decides the place per meeting and the commitment before an in-person candidate has no location
+- **THEN** the inbound leg is unresolved
 
 #### Scenario: Cached estimate
 - **WHEN** two evaluations within 24 hours need the same endpoints, mode and departure slot
@@ -178,7 +186,7 @@ Travel legs SHALL be estimated with Google Routes for the host's confirmed trave
 - **THEN** the inbound leg from that commitment is still checked
 
 ### Requirement: Manual travel allowance scope
-A manual travel allowance SHALL cover one leg of one candidate: the party whose trip it is, the candidate's interval, the direction, the origin and destination and the travel mode, in 5-minute steps from 5 to 240 minutes. The host SHALL confirm allowances for host legs and the requester for their own legs. An allowance SHALL be applied together with that party's buffers, SHALL be void when the candidate's interval, either endpoint or the mode changes, SHALL NOT waive busy intervals or other hard constraints, and a host allowance SHALL NOT appear in requester output.
+A manual travel allowance SHALL cover one leg of one candidate: the party whose trip it is, the candidate's interval, the direction, the origin and destination and the travel mode, in 5-minute steps from 5 to 240 minutes. An adjacent commitment without a usable place SHALL be named by why it has none (no location, only a conference link, or both a place and a link), so its leg can take an allowance. The host SHALL confirm allowances for host legs and the requester for their own legs. An allowance SHALL be applied together with that party's buffers, SHALL be void when the candidate's interval, either endpoint or the mode changes, including when a commitment without a place gains one, SHALL NOT waive busy intervals or other hard constraints, and a host allowance SHALL NOT appear in requester output.
 
 #### Scenario: Allowance resolves one leg
 - **WHEN** the host confirms 40 minutes for the inbound trip of one candidate
@@ -187,6 +195,14 @@ A manual travel allowance SHALL cover one leg of one candidate: the party whose 
 #### Scenario: Endpoint changes
 - **WHEN** the adjacent event's location changes after an allowance was confirmed
 - **THEN** the allowance no longer applies and the leg is unresolved again
+
+#### Scenario: Trip to an event without a location
+- **WHEN** a candidate is held back because the requester's next event has no location, and the requester chooses **Allow 30 minutes for my trip**
+- **THEN** the allowance is recorded and the candidate is offered once the 30 minutes fit the gap
+
+#### Scenario: The event gains a place
+- **WHEN** that event later gets a location
+- **THEN** the allowance no longer applies and the leg is estimated or unresolved again
 
 ### Requirement: Requester travel legs
 When the requester connected Google Calendar and the meeting is in person, feasibility SHALL also check the requester's trip from their previous event and to their next event on the same local day in the requester's timezone, using the travel mode the requester chose, with the same unresolved rules as host legs and no host buffer. A requester leg that does not fit SHALL exclude the candidate. An unresolved requester leg SHALL keep the candidate from being offered until the requester confirms an allowance for it. Requester event details SHALL NOT appear in host or agent output.
@@ -228,6 +244,85 @@ When a requester evaluation over the requester's own windows offers no candidate
 #### Scenario: Picking a nearest time
 - **WHEN** the requester picks one of the nearest times
 - **THEN** it becomes a time to choose only after it is drafted as the requester's availability and found again
+
+### Requirement: A guest-host's own preferences order candidates
+When the requester is a host who uses their host calendars for the request, feasibility SHALL order the candidates by that guest-host's own weekly windows and weekly limit as soft preferences: after the host's weekly-limit and trip preferences and the request's stated preferences, times inside the guest-host's weekly windows first, then times in weeks below the guest-host's weekly limit first. The guest-host's limit SHALL count their Find Me a Time bookings, and their other meetings when they count every meeting, by week in their own timezone. Their own events with no location SHALL be taken to happen at their usual place, as for the host. These preferences SHALL NOT remove a candidate or change the host's own weekly-limit order. Each time shown to the guest MAY carry sentences explaining these preferences; they SHALL NOT appear in the host's record, the host's view or the host's model context.
+
+#### Scenario: Inside the guest-host's hours
+- **WHEN** a guest-host whose Monday hours are 12:00 to 13:00 asks for Monday 10:00 to 13:00
+- **THEN** 12:00, 12:15 and 12:30 come first, and the morning times are still offered after them
+
+#### Scenario: A full week for the guest-host
+- **WHEN** the guest-host's weekly limit is 2 and this week already has 2 of their bookings
+- **THEN** next week's times come first and this week's are still offered
+
+#### Scenario: The host's limit comes first
+- **WHEN** next week is at the host's weekly limit and this week is at the guest-host's
+- **THEN** this week's times still come first
+
+#### Scenario: Explaining the order to the guest only
+- **WHEN** a time is inside the guest-host's usual Monday hours
+- **THEN** the guest sees "Inside your usual Monday hours 12:00–13:00." under it, and the host's basis for that time does not mention it
+
+### Requirement: Same-day trip preference
+A host MAY confirm in setup a preference to group trips by day; it SHALL be off by default and on every policy confirmed before it existed, and it SHALL be a preference, never a hard constraint. With it on, for an in-person meeting whose place the host's travel mode puts beyond 30 minutes of the host's preferred area, candidates on days that already hold a timed in-person commitment within 15 minutes of the meeting place SHALL come first, and candidates on days whose in-person commitments all lie within 15 minutes of the preferred area SHALL come last. Distances SHALL come from the same route estimates and cache as the travel check, not straight-line distance. The preference SHALL order candidates after the weekly meeting load preference and before requester preferences and the spread across days, SHALL never remove a candidate, and SHALL leave the order unchanged for online meetings, an unknown meeting place, a per-trip travel mode, or missing estimates. The host's private explanation MAY say the host is already near the meeting place that day; requester output SHALL contain only the times.
+
+#### Scenario: Already out that way
+- **WHEN** the policy is on, the meeting place is far from the preferred area, and one day holds an in-person commitment near the meeting place
+- **THEN** that day's candidates are offered before other days' and the host's explanation says they are already near the meeting place that day
+
+#### Scenario: A day in the preferred area
+- **WHEN** the policy is on, the meeting place is far, and one day's in-person commitments are all near the preferred area
+- **THEN** that day's candidates come after every other day's, and no candidate is removed
+
+#### Scenario: Weekly limit still wins
+- **WHEN** the day with a nearby commitment falls in a week at the weekly limit and another week is below it
+- **THEN** candidates from the week below the limit come first
+
+#### Scenario: Online meeting
+- **WHEN** the meeting is online
+- **THEN** the order is the same as with the policy off
+
+#### Scenario: Requester view
+- **WHEN** a candidate is ranked by the preference
+- **THEN** the requester's projection contains no basis, place or explanation of the rank
+
+### Requirement: Time and place pairs
+When an in-person request names no place and the host's confirmed location answer lists places, each candidate SHALL be a pair of a time and one of those places, the venue first and then the areas in the host's order. Each pair SHALL pass every feasibility check with its own place as the meeting place, including both parties' travel legs, buffers, allowances and unresolved rules. The candidate cut before the travel check SHALL count pairs, so an evaluation needs no more route estimates than with one place. The requester SHALL see each pair's time and place, with each time's first offered pair before any time's second. A request that names a place, a host who decides the place per meeting, and online meetings SHALL keep one place or none per candidate. Observed place evidence from calendar analysis SHALL NOT become a pair's place.
+
+#### Scenario: Two host places
+- **WHEN** the host lists a venue and one area, the guest asks to meet in person without naming a place, and a time is free
+- **THEN** that time is checked once at the venue and once in the area, and each feasible pair is its own option showing its time and place
+
+#### Scenario: Travel decides the place
+- **WHEN** the host's commitment before a time leaves too little gap to reach the venue but enough to reach the area
+- **THEN** the pair at the area is offered and the pair at the venue is not, and the guest sees no reason
+
+#### Scenario: Guest named a place
+- **WHEN** the request names a place
+- **THEN** every candidate is at that place only, with the candidate IDs and order it had before pairs existed
+
+### Requirement: Another meeting area
+When the guest asks to meet in another area, its place SHALL become the request's place through the existing review, and the next evaluation SHALL offer only pairs at that place under the same checks. When none is offered, the requester SHALL be told that no time works there yet, with no reason that reveals the host's calendar, commitments, travel, allowances or rules. Asking for another area SHALL count as an evaluation under the existing limit per request.
+
+#### Scenario: Feasible pairs elsewhere
+- **WHEN** the guest asks for another area and some times there fit the host's calendar and travel
+- **THEN** the guest sees those times, each with the area they asked for
+
+#### Scenario: Nothing works there
+- **WHEN** no time in the guest's area passes the checks
+- **THEN** the guest is told no time works there yet and may try another area, other days or one of the host's places, and nothing names the host's events or trips
+
+#### Scenario: Repeated areas
+- **WHEN** a guest who already started 10 evaluations of the request in the last hour asks for yet another area
+- **THEN** no evaluation starts and the guest is told to try again later
+
+### Requirement: The chosen pair stays as chosen
+Choosing a pair SHALL make a proposal with exactly its time and place. Agreement's calendar recheck and booking revalidation SHALL check that pair's place, and the host's approval and the booked event SHALL carry that place unchanged.
+
+#### Scenario: Recheck at the chosen place
+- **WHEN** the guest chose the pair at the area and agrees to it
+- **THEN** the recheck checks travel to the area, not to the venue, and the host approves and books the area at that time
 
 ### Requirement: Offered times spread across the range
 Feasibility SHALL order the times it offers across the requested range and the parts of each day, for the default search and the requester's own windows alike. Within each rank set by the host's weekly-limit and trip preferences and the requester's preferences, each local day's first time SHALL come before any day's second, and a later time on a day SHALL come at least two hours from that day's earlier times while such a time remains; the remaining times SHALL follow in their order. The spread SHALL NOT remove a time or move one across a rank. A model ranking SHALL be spread the same way, its order breaking ties, so it cannot put one day's times first.

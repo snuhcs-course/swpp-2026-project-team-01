@@ -38,7 +38,7 @@ After link codes, a sender with one active binding SHALL route to it; a sender w
 - **THEN** the discussion holds one input and one reply is sent at most
 
 ### Requirement: Replies and notices without credentials
-The assistant's final text for a routed message SHALL be sent back in the same conversation through the frozen outbox, and a send that began without a confirmed result SHALL be recorded uncertain and never repeated. Guest notices and replies SHALL NOT contain the booking link, link codes, host notes, host rules, exception reasons or calendar contents.
+The assistant's final text for a routed message SHALL be sent back in the same conversation through the frozen outbox, without any leading channel marker such as `[iMessage]` (#410), and a send that began without a confirmed result SHALL be recorded uncertain and never repeated. Guest notices and replies SHALL NOT contain the booking link, link codes, host notes, host rules, exception reasons or calendar contents.
 
 #### Scenario: Guest asks to book
 - **WHEN** a linked guest writes "book it" about the current proposal

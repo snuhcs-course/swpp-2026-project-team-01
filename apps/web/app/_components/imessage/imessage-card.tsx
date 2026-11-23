@@ -10,6 +10,7 @@ import {
   qrDeepLink,
 } from "@lib/contracts/imessage";
 import {
+  appLinkTarget,
   askChannels,
   channelName,
   deviceKind,
@@ -672,8 +673,9 @@ export function PendingCode({
 }
 
 // A Telegram code (host-telegram-channel design 6): the bot's start link, which a phone opened already; a
-// computer gets Open Telegram (Telegram Desktop or Telegram Web), the link's QR code and Copy. A host who opens
-// the bot another way can send the code itself.
+// computer gets Open Telegram (Telegram Desktop or Telegram Web), the link's QR code and Copy. On a computer
+// Open Telegram opens a new tab, so this card stays to show Confirm and link once Start arrives (#369). A
+// host who opens the bot another way can send the code itself.
 function PendingTelegram({
   busy,
   notice,
@@ -712,7 +714,7 @@ function PendingTelegram({
         <div className="flex flex-wrap items-center gap-2 pt-1">
           {link ? (
             <Button asChild>
-              <a href={link}>
+              <a href={link} {...appLinkTarget("telegram", phone)}>
                 <MessageCircleIcon aria-hidden />
                 Open Telegram
               </a>

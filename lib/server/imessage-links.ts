@@ -11,6 +11,7 @@ import {
 } from "../contracts/imessage";
 import { configuredChannels, type MessagingChannel } from "../contracts/messaging-channel";
 import { defaultCalendarRoles, readDefaultRoleCalendars } from "./calendar-roles";
+import { SETUP_OVERVIEW, withoutSetupStep, withSetupStep } from "../contracts/setup-progress";
 import { hostConversationLanguage } from "./channel-language";
 import { channelReplies } from "./channel-texts";
 import { googleCalendarConfigFromEnvironment, type GoogleCalendarDependencies, type CalendarListEntry } from "./google-calendar";
@@ -25,7 +26,7 @@ import { lockOpenRequest } from "./request-guard";
 import { imessageContinuationUrl } from "./imessage-continuation";
 import { photonRegistrar, type PhotonRegistrar } from "./photon";
 import { channelHash, imessageHash } from "./photon-receiver";
-import { calendarUsable, readReadiness } from "./readiness";
+import { calendarUsable, readReadiness, savedSettingsOnce } from "./readiness";
 import { openToken, sealToken, type TokenKey } from "./token-encryption";
 
 // Linking a host's iMessage (host-imessage-channel design 4, 6 and 11; D3, D5,
@@ -145,7 +146,7 @@ export const LINK_TEXTS = {
   // A ready host gets this; one still setting up gets a welcome into setup here (D19).
   linked: "Linked. Send help for what I can do here.",
   welcomeCalendar: (url: string) =>
-    `You're connected! I'm Thyme, and we can set up your meetings right here. First, connect Google Calendar: ${url}\n${PERMISSION_REASONS.en.googleSignIn}`,
+    `You're connected! I'm Thyme, and we can set up your meetings right here. ${SETUP_OVERVIEW.en}\n${withSetupStep("en", "calendar", `First, connect Google Calendar: ${url}`)}\n${PERMISSION_REASONS.en.googleSignIn}`,
   backFromGoogle: "You're back from Google. Let's keep going here: tell me your meeting preferences, or send setup to see what's next.",
   fallbackCode: (code: string, minutes: number) => `Your Find Me a Time code is ${code}. It expires in ${minutes} minutes.`,
 } as const;
@@ -404,9 +405,13 @@ async function linkedText(tx: Transaction, hostAccountId: string, options: BindO
     select ${calendarUsable(tx)} as usable from app.provider_grants g where g.host_account_id = ${hostAccountId}
   `;
   if (!grant?.usable) return LINK_TEXTS.welcomeCalendar(calendarConnectUrl(options.origin));
-  const name = await defaultCalendarRoles(tx, hostAccountId, options.liveCalendars ?? null);
-  const texts = channelReplies(await hostConversationLanguage(tx, hostAccountId)).onboarding;
-  return name ? texts.rolesDefault(name) : texts.rolesNeeded;
+  const roles = await defaultCalendarRoles(tx, hostAccountId, options.liveCalendars ?? null);
+  const language = await hostConversationLanguage(tx, hostAccountId);
+  const texts = channelReplies(language).onboarding;
+  const text = roles ? texts.rolesDefault(roles.calendar, roles.others) : texts.rolesNeeded;
+  // Setup starts here, so the message first says what it covers (issue #368);
+  // a host who saved settings before is not starting setup over.
+  return (await savedSettingsOnce(tx, hostAccountId)) ? withoutSetupStep(text) : `${SETUP_OVERVIEW[language]}\n${text}`;
 }
 
 const noInput = z.object({}).strict() as unknown as z.ZodType<Record<string, never>>;
@@ -1099,9 +1104,10 @@ export async function resumeImessageOnboarding(db: Database, key: TokenKey, host
     const [grant] = await tx<{ usable: boolean }[]>`select ${calendarUsable(tx)} as usable from app.provider_grants g where g.host_account_id = ${hostAccountId}`;
     let text: string = LINK_TEXTS.backFromGoogle;
     if (grant?.usable && !(await readReadiness(tx, hostAccountId)).ready) {
-      const name = await defaultCalendarRoles(tx, hostAccountId, live);
+      const roles = await defaultCalendarRoles(tx, hostAccountId, live);
       const texts = channelReplies(await hostConversationLanguage(tx, hostAccountId)).onboarding;
-      text = name ? texts.rolesDefault(name) : texts.rolesNeeded;
+      const roleText = roles ? texts.rolesDefault(roles.calendar, roles.others) : texts.rolesNeeded;
+      text = (await savedSettingsOnce(tx, hostAccountId)) ? withoutSetupStep(roleText) : roleText;
     }
     await recordOutbound(tx, {
       bindingId: binding.id,

@@ -13,6 +13,7 @@ import { resumeImessageOnboarding } from "./imessage-links";
 import { readDefaultRoleCalendars } from "./calendar-roles";
 import { googleCalendarConfigFromEnvironment } from "./google-calendar";
 import { recordGoogleGrant } from "./provider-grants";
+import { calendarUsable } from "./readiness";
 import { type AppOrigins, appOriginsFromEnvironment, crossSiteRefusal, requestAppOrigin, unknownHost } from "./same-origin";
 import { admitSignUp, SIGNUP_LIMITS, SignUpLimitError, type SignUpLimits, sourceHash } from "./signup-limits";
 import { createRequestAuthClient, type SupabaseAuthConfig, supabaseAuthConfigFromEnvironment } from "./supabase-auth";
@@ -126,7 +127,9 @@ export async function completeGoogleSignIn(
 // transaction again and returns there, otherwise to /app. No query parameter
 // ever chooses the destination. Sign-in started from Thyme's iMessage links
 // (`return=imessage`, host-imessage-channel D19) records "imessage" instead, so
-// the callback tells the linked conversation to carry on; it still returns to /app.
+// the callback tells the linked conversation to carry on; it still returns to
+// /app, as /app?calendar=connected once the Calendar grant is usable, so the
+// link step says Calendar is connected rather than confirming the link again.
 export const RETURN_COOKIE = "fmat_auth_return";
 const RETURN_IMESSAGE = "imessage";
 const RETURN_SECONDS = 10 * 60;
@@ -238,6 +241,7 @@ export function createGoogleCallbackHandler(load: () => GoogleSignInDependencies
     const logged = (event: string) => (error: unknown) => {
       console.error(JSON.stringify({ error: error instanceof Error ? error.name : typeof error, event }));
     };
+    let calendarReturn = false;
     if (account.status === "active") {
       // A claim may bind the sender, which saves the default calendar roles from
       // the live list as an arriving code does (link-on-code design 5).
@@ -255,6 +259,9 @@ export function createGoogleCallbackHandler(load: () => GoogleSignInDependencies
       // it on arrival; a second "you're back" would repeat it.
       if (recorded === RETURN_IMESSAGE && !claimed) {
         await resumeImessageOnboarding(deps.db, deps.tokenKey, account.id, code).catch(logged("imessage_resume_failed"));
+        // Only Thyme's Calendar link: the sign-in link in Thyme's reply records the
+        // same return but still ends in Confirm and link, which keeps its words.
+        if (!continued) calendarReturn = await calendarConnected(deps.db, account.id).catch(() => false);
       }
     }
 
@@ -264,8 +271,17 @@ export function createGoogleCallbackHandler(load: () => GoogleSignInDependencies
       return auth.redirect(`${origin}/connect/link/${encodeURIComponent(linkToken!)}`, clear);
     }
     const consent = recorded && !linkToken && recorded !== RETURN_IMESSAGE && (await isLiveHostTransaction(deps.db, recorded)) ? `${origin}/connect/consent?transaction=${recorded}` : null;
-    return auth.redirect(consent ?? `${origin}/app`, clear);
+    return auth.redirect(consent ?? `${origin}/app${calendarReturn ? "?calendar=connected" : ""}`, clear);
   };
+}
+
+// Whether the host's Google grant can use Calendar now, by the same predicate
+// readiness uses, so /app never says Calendar is connected when it is not.
+async function calendarConnected(db: Database, hostAccountId: string) {
+  const [row] = await db<{ usable: boolean }[]>`
+    select ${calendarUsable(db)} as usable from app.provider_grants g where g.host_account_id = ${hostAccountId}
+  `;
+  return row?.usable === true;
 }
 
 // POST /auth/sign-out: ends the Supabase session and its cookies, then returns to

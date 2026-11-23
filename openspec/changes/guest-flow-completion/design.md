@@ -94,7 +94,7 @@ Rejected: matching by email address (not an identity); applying without the card
 
 ### 7. Soft guest preferences
 
-Moved to #60 (user, 2026-11-02). Ordering candidates by the guest-host's weekly hours and limit changes the engine's order, which the request's host sees too, so it is host-side work.
+Moved to #60 (user, 2026-11-02). Ordering candidates by the guest-host's weekly hours and limit changes the engine's order, which the request's host sees too, so it is host-side work. Done in [`feasibility-in-person-and-preferences`](../archive/2026-11-23-feasibility-in-person-and-preferences/design.md#3-a-guest-hosts-preferences), riding on the **Calendars** item.
 
 ### 8. Screens
 

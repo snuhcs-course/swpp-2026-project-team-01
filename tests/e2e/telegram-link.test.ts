@@ -211,6 +211,7 @@ test.describe("on a Windows computer", () => {
     expect(code).toMatch(CODE);
     await expect(page.getByTestId("imessage-qr").locator("svg")).toBeVisible();
     await expect(page.getByRole("link", { name: "Open Telegram" })).toHaveAttribute("href", startLink(code));
+    await expect(page.getByRole("link", { name: "Open Telegram" })).toHaveAttribute("target", "_blank");
     await expect(page.getByText(startLink(code), { exact: true })).toBeVisible();
     await expect(page.getByText(code, { exact: true })).toBeVisible();
   });
@@ -257,6 +258,15 @@ test.describe("on a Windows computer", () => {
     await expect(card.getByRole("button", { name: "Copy the Telegram link" })).toBeVisible();
     await expect(card.getByText(PRIVACY)).toBeVisible();
 
+    // Open Telegram opens Telegram's launch page in a new tab, so this page stays to show Confirm and link (#369).
+    await context.route("https://telegram.me/**", (route) => route.fulfill({ body: "Telegram", contentType: "text/plain" }));
+    const appUrl = page.url();
+    const [telegramTab] = await Promise.all([context.waitForEvent("page"), card.getByRole("link", { name: "Open Telegram" }).click()]);
+    await telegramTab.waitForLoadState();
+    expect(telegramTab.url()).toBe(startLink(code));
+    expect(page.url()).toBe(appUrl);
+    await telegramTab.close();
+
     await hostStartsBot(db, newTelegramUser(), code);
     // It links on arrival and replaces the iMessage link; opened from Connected apps, the card stays expanded.
     await expect(card.getByRole("heading", { name: "Telegram is linked" })).toBeVisible({ timeout: 10_000 });
@@ -274,6 +284,7 @@ test.describe("on a Windows computer", () => {
     expect(code).toMatch(CODE);
     await expect(popup.getByText(`Thyme · @${BOT}`)).toBeVisible();
     await expect(popup.getByRole("link", { name: "Open Telegram" })).toHaveAttribute("href", startLink(code));
+    await expect(popup.getByRole("link", { name: "Open Telegram" })).toHaveAttribute("target", "_blank");
     await expect(popup.getByTestId("imessage-qr").locator("svg")).toBeVisible();
 
     await hostStartsBot(db, newTelegramUser(), code);

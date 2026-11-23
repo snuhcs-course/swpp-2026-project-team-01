@@ -4,7 +4,10 @@ import { HOST_PROFILE_ITEMS, type HostProfileItem, type RequesterHostProfileView
 import type { ConfirmedSettings } from "../contracts/setup";
 import { type CommandDefinition, CommandError } from "./commands";
 import type { Queryable, Transaction } from "./database";
+import { bindHostConversation } from "./host-conversation-bindings";
 import { assertIdentified, type LockedRequest, lockOpenRequest } from "./request-guard";
+import { endRequesterBindings } from "./requester-imessage-bindings";
+import type { TokenKey } from "./token-encryption";
 
 // A guest who is a host (guest-flow-completion design 6, D7 and D8). On the
 // requester Google return, the verified Google subject is compared with host
@@ -66,17 +69,44 @@ async function profileOf(q: Queryable, requestId: string, lock = false) {
 export async function readHostProfileView(q: Queryable, requestId: string): Promise<RequesterHostProfileView | null> {
   const profile = await profileOf(q, requestId);
   if (!profile) return null;
-  return { decided: profile.decided_at !== null, items: profile.items, offered: HOST_PROFILE_ITEMS };
+  return { decided: profile.decided_at !== null, items: profile.items, messenger: await messengerState(q, requestId, profile.host_account_id), offered: HOST_PROFILE_ITEMS };
 }
 
-const decideInput = z.object({ items: z.array(z.enum(HOST_PROFILE_ITEMS)).max(HOST_PROFILE_ITEMS.length) }).strict();
+// Whether the guest-host has a linked host conversation, and whether this
+// request is bound to it (#61).
+async function messengerState(q: Queryable, requestId: string, hostAccountId: string) {
+  const [row] = await q<{ offered: boolean; bound: boolean }[]>`
+    select true as offered,
+           exists (
+             select 1 from app.requester_imessage_bindings rb
+             where rb.request_id = ${requestId} and rb.state = 'active' and rb.link_id is null and rb.sender_hash = b.sender_hash
+           ) as bound
+    from app.imessage_bindings b
+    where b.host_account_id = ${hostAccountId} and b.state = 'active'
+  `;
+  return { offered: Boolean(row?.offered), on: Boolean(row?.bound) };
+}
+
+const decideInput = z
+  .object({
+    items: z.array(z.enum(HOST_PROFILE_ITEMS)).max(HOST_PROFILE_ITEMS.length),
+    // Updates in the host conversation (#61); left as it is when omitted.
+    messenger: z.boolean().optional(),
+  })
+  .strict();
 
 // request.host_profile.decide: **Use these settings** with the checked items,
 // or **Not now** with none; **Change** on the receipt decides again. Calendars
 // settle the Calendar step (the evaluation also counts any calendars connected
 // for the request); taking them back reopens it unless such a grant exists. Basic details become a pending
 // review the guest applies.
-export function decideHostProfileCommand(): CommandDefinition<z.infer<typeof decideInput>, { items: HostProfileItem[] }> {
+// **Updates in your host conversation** (#61) binds the request's guest
+// conversation to the guest-host's linked host conversation, with the Linked
+// welcome there; turning it off unlinks that binding. Its notices then select
+// it there, and `request <ref>` names it (host-sent-requests.ts).
+export function decideHostProfileCommand(
+  keys?: { readonly tokenKey: TokenKey; readonly tokenKeys: readonly TokenKey[] },
+): CommandDefinition<z.infer<typeof decideInput>, { items: HostProfileItem[]; messenger?: boolean }> {
   return {
     input: decideInput,
     operation: "request.host_profile.decide",
@@ -106,6 +136,24 @@ export function decideHostProfileCommand(): CommandDefinition<z.infer<typeof dec
       }
 
       if (added("details")) await draftHostDetails(tx, request, profile.host_account_id);
+
+      if (context.input.messenger !== undefined && keys) {
+        const state = await messengerState(tx, request.id, profile.host_account_id);
+        if (context.input.messenger && !state.on) {
+          const [host] = await tx<{ name: string }[]>`
+            select coalesce(nullif(s.settings ->> 'displayName', ''), h.display_name, 'your host') as name
+            from app.host_accounts h left join app.host_settings s on s.host_account_id = h.id
+            where h.id = ${request.host_account_id}
+          `;
+          const bound = await bindHostConversation(tx, keys, {
+            hostAccountId: profile.host_account_id, hostName: host?.name ?? "your host", requestId: request.id, select: false, welcome: true,
+          });
+          if (!bound) throw new CommandError("invalid_input");
+        } else if (!context.input.messenger && state.on) {
+          await endRequesterBindings(tx, request.id, "unlinked");
+        }
+        return { items, messenger: context.input.messenger };
+      }
 
       return { items };
     },
@@ -150,6 +198,9 @@ export type GuestHostSource = {
   readonly hostAccountId: string;
   readonly email: string | null;
   readonly conflictCalendars: ConfirmedSettings["conflictCalendars"];
+  // The guest-host's own weekly windows and weekly limit, which order this
+  // request's candidates as soft preferences (#60, design 7).
+  readonly preferences: Pick<ConfirmedSettings, "timezone" | "weeklyWindows" | "weeklyLimit" | "weeklyLimitCounts" | "location">;
 };
 
 export async function readGuestHostSource(q: Queryable, requestId: string): Promise<GuestHostSource | null> {
@@ -161,14 +212,32 @@ export async function readGuestHostSource(q: Queryable, requestId: string): Prom
     join app.host_settings s on s.host_account_id = p.host_account_id
     where p.request_id = ${requestId} and p.decided_at is not null and 'calendars' = any(p.items)
   `;
-  return row ? { conflictCalendars: row.settings.conflictCalendars, email: row.email, hostAccountId: row.host_account_id } : null;
+  return row
+    ? {
+        conflictCalendars: row.settings.conflictCalendars,
+        email: row.email,
+        hostAccountId: row.host_account_id,
+        preferences: {
+          location: row.settings.location,
+          timezone: row.settings.timezone,
+          weeklyLimit: row.settings.weeklyLimit,
+          weeklyLimitCounts: row.settings.weeklyLimitCounts,
+          weeklyWindows: row.settings.weeklyWindows,
+        },
+      }
+    : null;
 }
 
 // A failed or revoked guest-host grant clears the calendar item and reopens the
-// Calendar step (design 6): never free time.
+// Calendar step (design 6): never free time. A request the account itself sent
+// (account-requests.ts, the item decided at creation) has no Calendar card to
+// reopen, so its item stays and each search pauses until the account reconnects
+// Calendar (R01 M-2, P-3).
 export async function dropGuestHostCalendars(tx: Transaction, requestId: string) {
-  await tx`
-    update app.requester_host_profiles set items = array_remove(items, 'calendars') where request_id = ${requestId}
+  const dropped = await tx`
+    update app.requester_host_profiles set items = array_remove(items, 'calendars')
+    where request_id = ${requestId} and decided_at is distinct from created_at
   `;
+  if (dropped.count === 0) return;
   await tx`update app.requests set calendar_settled_at = null where id = ${requestId}`;
 }

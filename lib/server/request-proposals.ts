@@ -18,7 +18,7 @@ import {
   readEvaluation,
   type StoredCandidate,
 } from "./evaluation";
-import { enqueueButtonRetirement, enqueueHostNotice } from "./imessage-notices";
+import { enqueueAgreementNotice, enqueueButtonRetirement, enqueueHostNotice } from "./imessage-notices";
 import { assertIdentified, lockOpenRequest } from "./request-guard";
 import { detailsComplete } from "./request-lifecycle";
 
@@ -183,8 +183,9 @@ const allowTripInput = z
   .strict();
 
 // The requester's own allowance for the unresolved leg of one candidate (design
-// decision 10), then a new evaluation that reads it. A leg whose endpoint is
-// unknown cannot take an allowance, because an allowance names both endpoints.
+// decision 10), then a new evaluation that reads it. An event without a place
+// is named by the leg's `unknown:<reason>` key (#324), so its trip can take one
+// too; a leg without a travel mode or meeting place cannot.
 export const allowTripCommand: CommandDefinition<z.infer<typeof allowTripInput>, EvaluateResult> = {
   input: allowTripInput,
   operation: ALLOW_TRIP_OPERATION,
@@ -365,6 +366,7 @@ export function agreeCommand(
         where id = ${request.id}
       `;
       await enqueueHostNotice(tx, request.id, { kind: "awaiting_approval", version: latest.version });
+      await enqueueAgreementNotice(tx, request.id, latest.version);
       await enqueueButtonRetirement(tx, request.id);
 
       return { outcome: "agreed", revision: request.revision + 1, state: "awaiting_host_approval", version: latest.version };

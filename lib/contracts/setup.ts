@@ -169,6 +169,11 @@ export type DraftEntry<F extends SetupFieldName = SetupFieldName> = {
 
 export type DraftFields = { readonly [F in SetupFieldName]?: DraftEntry<F> };
 
+// The meeting length used wherever no one has said how long a meeting is: the
+// setup starter default, a request without a duration, the tutorial meeting
+// and the host's change form (#376).
+export const DEFAULT_MEETING_MINUTES = 60;
+
 export const STARTER_DEFAULTS = {
   weeklyWindows: (["monday", "tuesday", "wednesday", "thursday", "friday"] as const).map((weekday) => ({
     weekday,
@@ -179,7 +184,7 @@ export const STARTER_DEFAULTS = {
   weeklyLimitCounts: "bookings",
   groupTrips: false,
   noteExclusions: [],
-  durationMinutes: 30,
+  durationMinutes: DEFAULT_MEETING_MINUTES,
   bufferBeforeMinutes: 10,
   bufferAfterMinutes: 10,
   travelBufferMinutes: 15,

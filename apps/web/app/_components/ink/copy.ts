@@ -200,6 +200,9 @@ const en = {
     // The code links on arrival (link-on-code D1, D2): the linked screen names the sender and offers the way back.
     connected: "Your iMessage is linked.",
     connectedLede: "You can onboard with Thyme in iMessage. Thyme just sent you a hello there.",
+    // Back from Google consent started at Thyme's Calendar link (host-imessage-channel D19).
+    calendarConnected: "Google Calendar is connected.",
+    calendarConnectedLede: "Setup continues in iMessage. Thyme just sent you the next step there.",
     linkedTo: "Linked to",
     notMine: "Not my number — unlink",
     unlinking: "Unlinking…",
@@ -254,6 +257,7 @@ const en = {
       altPhone: "Rather not now?",
       connected: "Your WhatsApp is linked.",
       connectedLede: "You can onboard with Thyme in WhatsApp. Thyme just sent you a hello there.",
+      calendarConnectedLede: "Setup continues in WhatsApp. Thyme just sent you the next step there.",
     },
   },
   // The words that differ for Telegram, laid over the iMessage ones by channelCopy.
@@ -290,6 +294,7 @@ const en = {
       connected: "Your Telegram is linked.",
       notMine: "Not my Telegram — unlink",
       connectedLede: "You can onboard with Thyme in Telegram. Thyme just sent you a hello there.",
+      calendarConnectedLede: "Setup continues in Telegram. Thyme just sent you the next step there.",
     },
   },
 };
