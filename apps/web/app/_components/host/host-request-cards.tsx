@@ -109,9 +109,12 @@ export function ProposalReviewCard({ context, onRequestChanges }: { readonly con
   const day = new Intl.DateTimeFormat("en", { day: "numeric", month: "short", timeZone: view.hostTimezone }).format(start);
   const weekday = new Intl.DateTimeFormat("en", { timeZone: view.hostTimezone, weekday: "long" }).format(start);
   const time = (instant: string) => new Intl.DateTimeFormat("en", { hour: "2-digit", hourCycle: "h23", minute: "2-digit", timeZone: view.hostTimezone }).format(new Date(instant));
-  const waiting = suggested
-    ? `You suggested ${displayTime(start, view.hostTimezone).split(", ")[0]}, ${time(proposal.start)}–${time(proposal.end)}. We’re waiting for ${view.requester.name} to agree before you can approve.`
-    : "We’re waiting for the requester to confirm the proposed details.";
+  // A suggestion that kept the time names what it changed in general terms.
+  const waiting = !suggested
+    ? "We’re waiting for the requester to confirm the proposed details."
+    : view.suggestion?.changes.start
+      ? `You suggested ${displayTime(start, view.hostTimezone).split(", ")[0]}, ${time(proposal.start)}–${time(proposal.end)}. We’re waiting for ${view.requester.name} to agree before you can approve.`
+      : `You shared revised details. We’re waiting for ${view.requester.name} to agree before you can approve.`;
   const facts: readonly (readonly [string, ReactNode])[] = [
     ["Length", `${proposal.durationMinutes} minutes`],
     ...(times ? [] : ([["Mode", MODE_LABELS[proposal.mode]]] as const)),

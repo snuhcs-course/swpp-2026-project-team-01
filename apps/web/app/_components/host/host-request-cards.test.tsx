@@ -52,6 +52,13 @@ describe("the host's request page after a suggestion", () => {
     expect(html).toContain("Decline");
   });
 
+  it("says revised details rather than a time when the suggestion kept the time", () => {
+    const placeOnly = view({ proposal: { ...earlier, location: "역삼역", version: 2 }, suggestion: suggestion({ changes: { location: "역삼역" }, proposalVersion: 2, state: "shared" }) } as never);
+    const html = renderToStaticMarkup(<ProposalReviewCard context={context(placeOnly)} onRequestChanges={noop} />);
+    expect(html).toContain("You shared revised details. We’re waiting for Grace Hopper to agree before you can approve.");
+    expect(html).not.toContain("You suggested");
+  });
+
   it("goes back to the usual proposal once the guest agrees or picks another time", () => {
     const agreed = view({ proposal: { ...suggested, agreedAt: "2026-11-24T00:00:00.000Z" }, state: "awaiting_host_approval", suggestion: suggestion({ proposalVersion: 2, state: "shared" }) } as never);
     expect(renderToStaticMarkup(<ProposalReviewCard context={context(agreed)} onRequestChanges={noop} />)).toContain("Approve this meeting?");
