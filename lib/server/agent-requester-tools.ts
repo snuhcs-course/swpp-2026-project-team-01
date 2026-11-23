@@ -25,6 +25,7 @@ import { withdrawRequestCommand } from "./request-lifecycle";
 import { agreeCommand, allowTripCommand, changeAgreementCommand, chooseCandidateCommand, evaluateCommand } from "./request-proposals";
 import { localPatchSchema, updateDetailsCommand } from "./request-reviews";
 import { readRequesterView } from "./requester-routes";
+import { hostCalendarsCommand, type HostCalendarsOutcome, hostCalendarsMessage, readHostCalendarsView } from "./requester-host-profiles";
 import { isValidTimeZone } from "../contracts/timezone";
 
 // The requester's MCP tools (agent-access design 4 and 8). An unbound bootstrap
@@ -70,7 +71,15 @@ export function agentRequesterProjection(view: RequesterView, requestId: string)
 async function projection(context: AgentToolContext, requestId: string) {
   const view = await readRequesterView(context.deps.db, requestId);
   const options = linkOptions(context.deps);
-  return view ? { ...agentRequesterProjection(view, requestId), updates: chatStatus(await readRequesterImessageStatus(context.deps.db, options.tokenKeys, requestId, options.lineNumber, options.whatsappNumber, options.telegramUsername)) } : null;
+  if (!view) return null;
+  // The person's own host calendars when the request is linked to their host
+  // account (R01 M-2.1): use_host_calendars changes whether they count.
+  const hostCalendars = view.open ? await readHostCalendarsView(context.deps.db, requestId) : null;
+  return {
+    ...agentRequesterProjection(view, requestId),
+    ...(hostCalendars ? { yourHostCalendars: hostCalendars } : {}),
+    updates: chatStatus(await readRequesterImessageStatus(context.deps.db, options.tokenKeys, requestId, options.lineNumber, options.whatsappNumber, options.telegramUsername)),
+  };
 }
 
 // Whether the request now awaits the host's approval; a failed read keeps the
@@ -391,3 +400,17 @@ export const REQUESTER_TOOLS: readonly AgentTool[] = [
     title: "Check booking status",
   }),
 ];
+
+// Only on the account connection, whose requester is a host (R01 M-2.1, #334):
+// whether the account's host calendars count for one sent request. A per-host
+// connection's requester has no host account to draw on.
+export const HOST_CALENDARS_TOOL: AgentTool = requestCommandTool({
+  description:
+    "Choose whether the account's own host conflict calendars count as the person's busy time for this sent request only, when they say so (get_sent_request shows yourHostCalendars: their names and whether they count) (\"don't check my calendars for this one\", \"check my calendars too\"). It never changes their host settings or which calendars their own hosting checks. It uses all of those calendars or none: when they name only some (\"skip my work calendar\"), say it can use all of them or none for one request, and ask which. Only while times are being chosen; then find_times again.",
+  name: "use_host_calendars",
+  command: () => loose(hostCalendarsCommand),
+  commandInput: hostCalendarsCommand.input,
+  next: (result) => hostCalendarsMessage(result as HostCalendarsOutcome, "find_times"),
+  scope: "request:write",
+  title: "Use host calendars for this request",
+});

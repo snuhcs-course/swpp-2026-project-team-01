@@ -481,11 +481,40 @@ async function hostConversationRoute(
   }
   const named = namedSentRequest(text, here, host.selected_request_id === null || Boolean(selected));
   if (named === "host") return selected ? "host" : undefined;
+  // A change to the host's own meetings in general while a sent request is
+  // selected (R01 M-7, P-8): setup has the tools for it, and the sent request
+  // keeps its details. A message about this one meeting stays with it.
+  if (selected && !named && impliesOwnSetup(text)) return "host";
   if (named && named !== selected) {
     await select(named);
     return { binding: named, forward: true, switched: true };
   }
   return selected ? { binding: selected, switched: false } : undefined;
+}
+
+// Whether a message changes the host's own meetings in general rather than
+// the one request it is written beside (R01 M-7). Kept conservative, since a
+// match moves the conversation to setup:
+//   - a settings word with "my" ("change my settings", "my default length",
+//     "제 설정", "내 기본 미팅 길이");
+//   - or the host's meetings in general ("make my meetings", "all my
+//     meetings", "모든 미팅", "내 미팅은 전부") with a change of length or
+//     form ("45 minutes", "online", "45분", "온라인").
+// A guest also says "my meeting", "제 미팅" or "my booking link" about the
+// request, and "전체 회의" (an all-hands) or "after all meetings" about their
+// time; those are not. "Make it 45 minutes" or "this meeting" names the
+// request and is not either.
+const OWN_SETTINGS =
+  /\bmy (?:settings|setup|set-up|defaults|default (?:meeting )?(?:length|duration)|meeting settings|weekly limit|buffers?)\b|(?:내|제|나의|저의)\s*(?:설정|셋업|기본\s*(?:미팅\s*)?(?:길이|시간)|미팅\s*설정|주간\s*한도)/i;
+const OWN_MEETINGS =
+  /\b(?:make|set|change|switch|update|turn)\b[^.?!]*\b(?:all |every |each of )?my meetings\b(?! with)|\b(?:all|every|each of) my (?:meetings|guests)\b|(?:모든|전체)\s*(?:미팅|회의)(?:을|를|은|는|도)?\s*(?:다|전부|모두)?\s*\d|(?:모든|전체)\s*(?:미팅|회의)(?:을|를|은|는|도)?\s*(?:온라인|대면)|(?:내|제)\s*(?:미팅|회의|약속)들?\s*(?:은|는|을|를|도)?\s*(?:전부|모두|항상)(?![가-힣])|앞으로\s*(?:모든|전부|모두)(?![가-힣])/i;
+const MEETING_CHANGE = /\b\d+\s*(?:min|mins|minutes|hours?|hrs?)\b|\bonline\b|\bin[- ]person\b|\d+\s*분|온라인|대면/i;
+const THIS_ONE = /\b(?:this|that) (?:one|meeting|request)\b|\b(?:it|this) to be\b|이번|이\s*(?:미팅|요청|약속|회의)|그\s*(?:미팅|요청)/i;
+
+export function impliesOwnSetup(text: string) {
+  const normalized = text.normalize("NFKC");
+  if (THIS_ONE.test(normalized)) return false;
+  return OWN_SETTINGS.test(normalized) || (OWN_MEETINGS.test(normalized) && MEETING_CHANGE.test(normalized));
 }
 
 // Which sent request a message names: the host role in words, a request by its

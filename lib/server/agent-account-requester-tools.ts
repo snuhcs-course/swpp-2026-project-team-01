@@ -3,7 +3,7 @@ import { normalizeHandle, isUsableHandle } from "../contracts/handles";
 import { currentGrantAccess } from "./agent-grants";
 import { createAccountRequest, readAccountRequester } from "./account-requests";
 import { createRequestInput } from "./agent-requests";
-import { REQUESTER_TOOLS } from "./agent-requester-tools";
+import { HOST_CALENDARS_TOOL, REQUESTER_TOOLS } from "./agent-requester-tools";
 import { type AgentTool, type AgentToolContext, commandError, retryKeySchema, runAsGrant, unavailable } from "./agent-tools";
 import { CommandError, type CommandDefinition } from "./commands";
 import { findReadyHostByHandle } from "./readiness";
@@ -77,15 +77,20 @@ function createCommand(context: AgentToolContext): CommandDefinition<z.infer<typ
   };
 }
 
+// A change to the person's own meetings in general is their host setup, not
+// this sent request (R01 P-8, #334).
+const OWN_SETUP_NOTE =
+  ' It changes this sent request only: when the person asks to change their own meetings in general ("make my meetings 45 minutes", "change my settings"), that is their host setup, which update_setup_field changes; leave this request as it is.';
+
 // Reuse the requester tools, retaining their schemas, commands, proposal
 // versions and closure rules. Only the explicit request selector differs.
-const sentTools: readonly AgentTool[] = REQUESTER_TOOLS
+const sentTools: readonly AgentTool[] = [...REQUESTER_TOOLS, HOST_CALENDARS_TOOL]
   .filter((tool) => tool.name !== "get_host" && tool.name !== "create_request")
   .map((tool): AgentTool => ({
     ...tool,
     role: "host",
     name: SENT_NAMES[tool.name] ?? tool.name,
-    description: `${sentText(tool.description)} On this account connection, supply requestId from create_request or list_sent_requests. Read sent requests with get_sent_request.`,
+    description: `${sentText(tool.description)}${tool.name === "update_request_details" ? OWN_SETUP_NOTE : ""} On this account connection, supply requestId from create_request or list_sent_requests. Read sent requests with get_sent_request.`,
     input: z.object({ requestId: z.uuid(), arguments: tool.input.optional().describe("The request action arguments; omit for reads.") }).strict(),
     async run(context, raw) {
       const args = raw as { requestId: string; arguments?: unknown };
