@@ -878,3 +878,13 @@ D1과 D3과 함께 감수하는 남은 위험: 코드의 주인이 보내기 전
 | # | 선택 | 대안 | 기록 위치 | 바꾸려면 |
 |---|---|---|---|---|
 | D1 | 호스트가 온라인 또는 대면을 제안했고 게스트가 만날 곳으로 장소를 말하면("어디서 만날까요?"에 "역삼역으로요") 게스트 어시스턴트는 그 장소를 검토 카드에 담아 대면으로 초안을 작성합니다. 장소가 지나가듯 나오거나 같은 답이 온라인 쪽으로 기울 때만 방식을 묻습니다 | 장소가 나오면 항상 방식을 묻기(#280 규칙); 언급된 모든 장소를 대면으로 보기 | `meeting-requests` 델타 "Guest assistant answers within its scope"; 문서 13의 GU-50, GU-A04, GU-A08, GU-A09 | `agent/instructions/requester.ts`의 장소와 방식 규칙 및 `evals/requester/story-cases.ts`의 해당 케이스 |
+
+## `host-decisions-in-one-message`
+
+[제안서](../../openspec/changes/host-decisions-in-one-message/proposal.md#decisions)는 이슈 #382에 대한 이 선택들을 기록합니다. 변경을 구현한 세션에서 2026-11-24에 이슈의 기대 동작을 바탕으로 정했습니다. `host-imessage-channel` D23과 D26, `channel-actions-in-words` D1을 확장하며, 아직 팀원 검토를 받지 않았습니다.
+
+| # | 선택 | 대안 | 기록 위치 | 바꾸려면 |
+|---|---|---|---|---|
+| D1 | `approve_proposal`과 `decline_request`는 선택 항목 `request`(참조 번호 또는 호스트가 쓴 요청자 이름)를 받으며, 한 메시지가 정하는 요청마다 한 번씩 호출됩니다. 대화는 원래 요청에 머뭅니다 | 결정 목록을 받는 일괄 도구, 호출 사이에 대화를 전환하는 방식 | 제안서, `host-imessage-channel` 델타 "Several decisions in one message" | `lib/server/host-review-tools.ts`의 `requestReferenceInput`과 `decisionTarget`, `agent/tools/request.ts`, `agent/instructions/host-imessage.ts` |
+| D2 | 참조는 호스트 자신의 요청 가운데서 `switch_conversation`과 같은 방식으로 찾습니다. 승인일 때 여러 요청이 맞으면 승인을 기다리는 유일한 요청으로 좁힙니다. 여러 요청이 맞거나 하나도 맞지 않으면 그 요청에 대해서는 아무것도 정하지 않고, 어시스턴트는 그 요청만 따로 묻습니다 | 가장 최근 또는 첫 번째로 맞는 요청을 고르는 방식 | 제안서 | `lib/server/channel-selection.ts`의 `matchHostRequests`, `host-review-tools.ts`의 `chooseDecisionTarget` |
+| D3 | 이름으로 지목한 요청의 결정은 `list_host_requests`가 준 그 요청의 `proposalVersion`에 답하며, 대화의 요청과 같은 방식으로 확인합니다 | 지목한 요청에는 버전을 요구하지 않는 방식 | 제안서 | `host-review-tools.ts`의 `hostRequestsForModel` |

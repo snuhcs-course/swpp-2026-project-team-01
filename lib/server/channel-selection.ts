@@ -1,4 +1,5 @@
 import { z } from "zod";
+import type { HostRequestItem } from "../contracts/host-request";
 import { IMESSAGE_PREFIX, type MessagingChannel, TELEGRAM_PREFIX, WHATSAPP_PREFIX } from "../contracts/messaging-channel";
 import type { Database, Queryable } from "./database";
 import { HOST_REVIEW_AUDIENCE, HOST_SETUP_AUDIENCE } from "./eve-auth";
@@ -71,6 +72,19 @@ function normalize(value: string) {
   return value.normalize("NFKC").toLowerCase().replace(/\s+/g, " ").trim();
 }
 
+// The host's requests a reference names, as the host wrote it: a request
+// reference such as 6ADSRV (with or without "request "), or else the
+// requester's name, either way contained in the other. An open request wins over
+// a closed one with the same name. switch_conversation and the decision tools
+// that name another request (issue #382) resolve the same way.
+export function matchHostRequests(requests: readonly HostRequestItem[], reference: string): HostRequestItem[] {
+  const target = normalize(reference);
+  const byRef = requests.filter((item) => requestRef(item.requestId).toLowerCase() === target.replace(/^request\s+/, ""));
+  const byName = byRef.length ? byRef : requests.filter((item) => normalize(item.requesterName).includes(target) || target.includes(normalize(item.requesterName)));
+  const open = byName.filter((item) => OPEN_STATES.has(item.state));
+  return open.length ? open : byName;
+}
+
 export async function switchConversationForTool(db: Database, call: SwitchConversationCall, input: z.infer<typeof switchConversationToolInput>): Promise<Switched> {
   const hostAccountId = uuid.safeParse(call.auth?.principalId);
   const audience = call.auth?.attributes?.audience;
@@ -105,12 +119,7 @@ export async function switchConversationForTool(db: Database, call: SwitchConver
     return { message: "From the host's next message, this conversation is about setup. Tell them so.", switched: true, to: "setup" };
   }
 
-  const requests = await listHostRequests(db, hostAccountId.data);
-  const byRef = requests.filter((item) => requestRef(item.requestId).toLowerCase() === target.replace(/^request\s+/, ""));
-  const byName = byRef.length ? byRef : requests.filter((item) => normalize(item.requesterName).includes(target) || target.includes(normalize(item.requesterName)));
-  // An open request wins over a closed one with the same name.
-  const open = byName.filter((item) => OPEN_STATES.has(item.state));
-  const matches = open.length ? open : byName;
+  const matches = matchHostRequests(await listHostRequests(db, hostAccountId.data), input.to);
 
   if (matches.length === 0) {
     return { problem: `No request matches "${input.to}". Call list_host_requests or ask the host which request they mean.`, switched: false };

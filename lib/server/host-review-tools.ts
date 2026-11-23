@@ -7,7 +7,7 @@ import { MAX_PROPOSAL_TIMES } from "../contracts/request";
 import { currentTime, displayTime, weekOf } from "../contracts/timezone";
 import { finishSampleCommand, tutorialCompletionText } from "./host-tutorial";
 import { approveCommand, declinedDatesSchema, declineCommand, readBookingStatus } from "./bookings";
-import { channelOfTurn } from "./channel-selection";
+import { channelOfTurn, matchHostRequests } from "./channel-selection";
 import { type Actor, runCommand } from "./commands";
 import type { Database, Queryable } from "./database";
 import { encodeDisplayName } from "./entry-documents";
@@ -217,7 +217,13 @@ export const WEEK_NOTE =
 // the week each falls in, so "next week's meetings" is worked out from now.
 // Received requests, and apart from them (sent) the requests the host sent to
 // other hosts as their account (R01 M-8): never mixed, never dropped.
-export function hostRequestsForModel(items: readonly HostRequestItem[], zone: string, now: Date = new Date(), sentItems: readonly SentRequestItem[] = []) {
+export function hostRequestsForModel(
+  items: readonly HostRequestItem[],
+  zone: string,
+  now: Date = new Date(),
+  sentItems: readonly SentRequestItem[] = [],
+  proposalVersions: ReadonlyMap<string, number> = new Map(),
+) {
   const slot = (start: string) => ({ time: displayTime(new Date(start), zone), week: weekOf(new Date(start), zone, now) });
   return {
     sent: sentItems.map((item) => ({
@@ -236,6 +242,10 @@ export function hostRequestsForModel(items: readonly HostRequestItem[], zone: st
       booked: item.bookedStart ? slot(item.bookedStart) : null,
       needsDecision: item.needsDecision,
       proposed: item.proposalStart && item.proposalStart !== item.bookedStart && ACTIVE_STATES.has(item.state) ? slot(item.proposalStart) : null,
+      // The current proposal's version, which approve_proposal and
+      // decline_request take with this ref when the host decides this request
+      // from another request's conversation (issue #382).
+      ...(proposalVersions.has(item.requestId) ? { proposalVersion: proposalVersions.get(item.requestId) } : {}),
       purpose: item.purpose === null ? null : encodeDisplayName(item.purpose),
       ref: requestRef(item.requestId),
       requester: encodeDisplayName(item.requesterName),
@@ -252,9 +262,87 @@ export const SENT_NOTE =
 export const SELECT_NOTE =
   "On the web the host opens another request from the inbox. From the linked iMessage, WhatsApp or Telegram, switch_conversation moves the conversation to the request the host names.";
 
+// The latest proposal version of each of the host's open requests.
+async function openProposalVersions(db: Queryable, hostAccountId: string) {
+  const rows = await db<{ requestId: string; version: number }[]>`
+    select r.id as "requestId", max(p.version)::int as version
+    from app.requests r join app.proposals p on p.request_id = r.id
+    where r.host_account_id = ${hostAccountId} and r.state in ('negotiating', 'awaiting_host_approval', 'booking', 'booked')
+    group by r.id
+  `;
+  return new Map(rows.map((row) => [row.requestId, row.version]));
+}
+
 export async function listHostRequestsForTool(db: Database, call: HostReviewToolCall) {
   const { hostAccountId } = await authorizeHostReviewTool(db, call);
-  return hostRequestsForModel(await listHostRequests(db, hostAccountId), await readHostTimezone(db, hostAccountId), new Date(), await listSentRequests(db, hostAccountId));
+  return hostRequestsForModel(
+    await listHostRequests(db, hostAccountId),
+    await readHostTimezone(db, hostAccountId),
+    new Date(),
+    await listSentRequests(db, hostAccountId),
+    await openProposalVersions(db, hostAccountId),
+  );
+}
+
+// Several decisions in one message (issue #382): approve_proposal and
+// decline_request act on the conversation's own request, or on the one the
+// host named in the same message. The reference resolves as switch_conversation
+// resolves it, among the host's own requests only, and never moves the
+// conversation. When a name matches several requests the tool decides nothing
+// and lists them, so the assistant asks about that one decision alone.
+export const requestReferenceInput = z
+  .string()
+  .trim()
+  .min(1)
+  .max(120)
+  .optional()
+  .describe(
+    "Only when the host's message names another request than this conversation's (\"approve Eunwoo's and decline this one\"): that request's reference or its requester's name as the host wrote it. Pass its proposalVersion from list_host_requests as version. Omit for this conversation's request.",
+  );
+
+type DecisionTarget = { readonly requestId: string; readonly named: { readonly ref: string; readonly requester: string } | null };
+type TargetProblem = { readonly problem: string; readonly matches?: readonly { readonly ref: string; readonly requester: string; readonly purpose: string | null; readonly state: string }[] };
+
+export function chooseDecisionTarget(
+  requests: readonly HostRequestItem[],
+  boundRequestId: string,
+  reference: string,
+  decision: "approve" | "decline",
+): DecisionTarget | TargetProblem {
+  // Another request's sample tutorial is never decided from here.
+  let matches = matchHostRequests(requests, reference).filter((item) => !item.sample || item.requestId === boundRequestId);
+  // Only a request awaiting the host can be approved, so "approve Dohyeon's"
+  // means the one of Dohyeon's requests that waits for approval.
+  if (decision === "approve" && matches.length > 1) {
+    const awaiting = matches.filter((item) => item.state === "awaiting_host_approval");
+    if (awaiting.length === 1) matches = awaiting;
+  }
+  const verb = decision === "approve" ? "approved" : "declined";
+  if (matches.length === 0) {
+    return { problem: `No request matches "${reference}"; nothing was ${verb} for it. Call list_host_requests or ask the host which request they mean.` };
+  }
+  if (matches.length > 1) {
+    return {
+      matches: matches.slice(0, 5).map((item) => ({
+        purpose: item.purpose === null ? null : encodeDisplayName(item.purpose),
+        ref: requestRef(item.requestId),
+        requester: encodeDisplayName(item.requesterName),
+        state: item.state,
+      })),
+      problem: `More than one request matches "${reference}"; nothing was ${verb} for it. Ask the host which one, naming each by requester, purpose and reference, and still report the other decisions of their message.`,
+    };
+  }
+  const [chosen] = matches;
+  return { named: { ref: requestRef(chosen!.requestId), requester: encodeDisplayName(chosen!.requesterName) }, requestId: chosen!.requestId };
+}
+
+async function decisionTarget(db: Queryable, hostAccountId: string, boundRequestId: string, reference: string | undefined, decision: "approve" | "decline") {
+  if (reference === undefined) return { named: null, requestId: boundRequestId } satisfies DecisionTarget;
+  return chooseDecisionTarget(await listHostRequests(db, hostAccountId), boundRequestId, reference, decision);
+}
+
+function readAgain(target: DecisionTarget) {
+  return target.named ? "Call list_host_requests for its current proposalVersion and ask the host about it." : "Read the request again and ask the host about it.";
 }
 
 export async function evaluateCandidatesForHostTool(
@@ -358,6 +446,7 @@ export const approveProposalToolInput = z
       .max(MAX_PROPOSAL_TIMES)
       .optional()
       .describe("When the proposal lists several times, the option number of the one time the host chose to book. Omit for a proposal of one time."),
+    request: requestReferenceInput,
   })
   .strict();
 
@@ -368,24 +457,31 @@ export const approveProposalToolInput = z
 // `approve <ref>` run, so the version must still be current and agreed, and
 // the revision read here must not have moved.
 export async function approveProposalForTool(db: Database, call: HostReviewToolCall, input: z.infer<typeof approveProposalToolInput>) {
-  const { hostAccountId, requestId } = await authorizeHostReviewTool(db, call);
+  const { hostAccountId, requestId: boundRequestId } = await authorizeHostReviewTool(db, call);
 
   // The message this turn answers is the session's current input.
   if (!(await channelOfTurn(db, call.sessionId, hostAccountId))) {
     return { approved: false as const, problem: "Approval in words works only from the host's linked iMessage, WhatsApp or Telegram. On the web, the host presses Approve this proposal." };
   }
 
+  const target = await decisionTarget(db, hostAccountId, boundRequestId, input.request, "approve");
+  if ("problem" in target) return { approved: false as const, ...target };
+  const named = target.named ? { request: target.named } : {};
+  const { requestId } = target;
+
   const view = await readHostRequest(db, hostAccountId, requestId);
-  if (!view?.proposal) return { approved: false as const, problem: "There is no proposal to approve yet." };
+  if (!view?.proposal) return { approved: false as const, ...named, problem: "There is no proposal to approve yet." };
   if (view.proposal.version !== input.version) {
-    return { approved: false as const, problem: `That is not the current proposal; the current one is version ${view.proposal.version}. Read the request again and ask the host about it.` };
+    return { approved: false as const, ...named, problem: `That is not the current proposal; the current one is version ${view.proposal.version}. ${readAgain(target)}` };
   }
 
   const times = view.proposal.times ?? [];
   if (times.length > 1 && (input.option === undefined || input.option > times.length)) {
     return {
       approved: false as const,
+      ...named,
       problem: `The guest offered ${times.length} times. Ask the host which one to book, unless they already named it, and pass its option number.`,
+      times: times.map((time, index) => ({ option: index + 1, time: when(time.start, time.end, view.hostTimezone) })),
     };
   }
 
@@ -399,27 +495,30 @@ export async function approveProposalForTool(db: Database, call: HostReviewToolC
   if (outcome.ok) {
     return {
       approved: true as const,
+      ...named,
       message: outcome.result.repeated
         ? "That proposal was already approved; the booking is under way."
-        : "Approved. The booking is being added to Google Calendar; tell the host it is approved, and do not call it booked until read_booking_status says it is confirmed.",
+        : target.named
+          ? `Approved ${target.named.requester}'s request (${target.named.ref}). The booking is being added to Google Calendar; tell the host it is approved and the booking is under way, and never call it booked or confirmed. This conversation stays on its own request.`
+          : "Approved. The booking is being added to Google Calendar; tell the host it is approved, and do not call it booked until read_booking_status says it is confirmed.",
     };
   }
 
   switch (outcome.error.category) {
     case "request_closed":
-      return { approved: false as const, problem: "The request is closed; nothing was approved." };
+      return { approved: false as const, ...named, problem: "The request is closed; nothing was approved." };
     case "booking_pending":
-      return { approved: false as const, problem: "A booking for this request is already under way." };
+      return { approved: false as const, ...named, problem: "A booking for this request is already under way." };
     case "invalid_input":
       if (outcome.error.reason === "time_unavailable") {
-        return { approved: false as const, problem: "That time is no longer free on the host's calendar; nothing was approved. Offer the host the other times, or declining." };
+        return { approved: false as const, ...named, problem: "That time is no longer free on the host's calendar; nothing was approved. Offer the host the other times, or declining." };
       }
       if (outcome.error.reason !== "start_passed") {
-        return { approved: false as const, problem: "That time is not one of this proposal's times; nothing was approved. Read the request again." };
+        return { approved: false as const, ...named, problem: `That time is not one of this proposal's times; nothing was approved. ${readAgain(target)}` };
       }
-      return { approved: false as const, problem: "The proposed time has already started; nothing was approved." };
+      return { approved: false as const, ...named, problem: "The proposed time has already started; nothing was approved." };
     default:
-      return { approved: false as const, problem: "The proposal changed or still needs the requester's agreement; nothing was approved. Read the request again." };
+      return { approved: false as const, ...named, problem: `The proposal changed or still needs the requester's agreement; nothing was approved. ${readAgain(target)}` };
   }
 }
 
@@ -432,6 +531,7 @@ export const declineRequestToolInput = z
       .nullable()
       .describe("The current proposal's version, as read_request returns it, or null when the request has no proposal."),
     excludedDates: declinedDatesSchema,
+    request: requestReferenceInput,
   })
   .strict();
 
@@ -446,19 +546,28 @@ export async function declineRequestForTool(
   input: z.infer<typeof declineRequestToolInput>,
   loadNotices?: () => NoticeDependencies,
 ) {
-  const { hostAccountId, requestId } = await authorizeHostReviewTool(db, call);
+  const { hostAccountId, requestId: boundRequestId } = await authorizeHostReviewTool(db, call);
   if (!(await channelOfTurn(db, call.sessionId, hostAccountId))) {
     return { declined: false as const, problem: "Declining in words works only from the host's linked iMessage, WhatsApp or Telegram. On the web, the host presses Decline." };
   }
 
+  const target = await decisionTarget(db, hostAccountId, boundRequestId, input.request, "decline");
+  if ("problem" in target) return { declined: false as const, ...target };
+  const named = target.named ? { request: target.named } : {};
+  const { requestId } = target;
+
   const view = await readHostRequest(db, hostAccountId, requestId);
   if (!view) throw new HostReviewToolDeniedError();
-  if (view.state === "declined") return { declined: true as const, message: "The request was already declined; nothing else changed." };
+  if (view.state === "declined") return { declined: true as const, ...named, message: "The request was already declined; nothing else changed." };
   const current = view.proposal?.version ?? null;
   if (current !== input.version) {
     return {
       declined: false as const,
-      problem: current === null ? "The request has no proposal now. Read the request again and ask the host." : `That is not the current proposal; the current one is version ${current}. Read the request again and ask the host about it.`,
+      ...named,
+      problem:
+        current === null
+          ? `The request has no proposal now; pass null as version. ${readAgain(target)}`
+          : `That is not the current proposal; the current one is version ${current}. ${readAgain(target)}`,
     };
   }
 
@@ -470,19 +579,25 @@ export async function declineRequestForTool(
     retryKey: `tool:${call.callId}`,
   });
 
+  const whose = target.named ? `Declined ${target.named.requester}'s request (${target.named.ref}).` : "Declined.";
   if (outcome.ok) {
     return outcome.result.state === "booked"
-      ? { declined: true as const, message: "Declined the change. The meeting stays booked as it was, and the requester is told." }
+      ? {
+          declined: true as const,
+          ...named,
+          message: `Declined the change${target.named ? ` to ${target.named.requester}'s meeting (${target.named.ref})` : ""}. The meeting stays booked as it was, and the requester is told.`,
+        }
       : {
           declined: true as const,
+          ...named,
           message:
             outcome.result.keptDates > 0
-              ? `Declined. The requester is told; nothing was booked. If they write again, their next request leaves out the ${outcome.result.keptDates} other date(s) the host named, and no reason is given.`
-              : "Declined. The requester is told; nothing was booked.",
+              ? `${whose} The requester is told; nothing was booked. If they write again, their next request leaves out the ${outcome.result.keptDates} other date(s) the host named, and no reason is given.`
+              : `${whose} The requester is told; nothing was booked.`,
         };
   }
-  if (outcome.error.category === "request_closed") return { declined: false as const, problem: "The request is already closed; nothing changed." };
-  return { declined: false as const, problem: "The request changed meanwhile; nothing was declined. Read the request again." };
+  if (outcome.error.category === "request_closed") return { declined: false as const, ...named, problem: "The request is already closed; nothing changed." };
+  return { declined: false as const, ...named, problem: `The request changed meanwhile; nothing was declined. ${readAgain(target)}` };
 }
 
 // Cancelling the booked meeting in the host's own words (post-booking-changes
