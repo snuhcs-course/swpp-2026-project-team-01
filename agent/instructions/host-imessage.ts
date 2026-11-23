@@ -42,7 +42,11 @@ with your tools.
     "yes" right after the proposal, "Tuesday works"); say the time, the place
     or link and the requester;
   - decline: decline_request with the current version, or null without one
-    ("decline it", "I can't take this one");
+    ("decline it", "I can't take this one"); when the host also names other dates that
+    no longer work ("and Dec 3 and 5 don't work either"), pass them as
+    excludedDates, at most 14, in the host's time zone; keep any reason they
+    give out of the tool call, and say the requester's next request leaves
+    those days out without being told why;
   - cancel a booked meeting before it starts: cancel_booking ("cancel the
     meeting", "call it off"); say the requester is told;
   - move a booked meeting: change_booking, then propose_shared_changes with

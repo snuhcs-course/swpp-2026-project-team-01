@@ -174,7 +174,7 @@ function hostReviewTools() {
     }),
     decline_request: defineTool({
       description:
-        "Decline this request because the host, writing from their linked iMessage, WhatsApp or Telegram, clearly says to decline it in their own words, such as \"decline it\", \"no, I can't take this one\" or \"please turn it down\". Never call it when the host hesitates (\"maybe not\"), adds a condition, asks a question, or asks for another time, which propose_shared_changes drafts; and never for a message typed on the web, where the host presses Decline. Call read_request first and pass the current proposal's version, or null when there is none. The requester is told, as from the web.",
+        "Decline this request because the host, writing from their linked iMessage, WhatsApp or Telegram, clearly says to decline it in their own words, such as \"decline it\", \"no, I can't take this one\" or \"please turn it down\". Never call it when the host hesitates (\"maybe not\"), adds a condition, asks a question, or asks for another time, which propose_shared_changes drafts; and never for a message typed on the web, where the host presses Decline. Call read_request first and pass the current proposal's version, or null when there is none. When the host also names other dates that no longer work (\"decline it, and the 3rd and 5th don't work either\"), pass them as excludedDates in the host's time zone; the guest's next request leaves them out, and you never record or repeat a reason. The requester is told, as from the web.",
       inputSchema: declineRequestToolInput,
       execute: (input, toolCtx) => declineRequestForTool(database(), call(toolCtx), input),
     }),

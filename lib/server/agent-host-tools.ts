@@ -3,7 +3,7 @@ import { chatStatus, linkOptions, startAgentLink } from "./connect-link";
 import { createImessageLinkCommand, readImessageStatus, linkChannels, NUMBER_INPUT } from "./imessage-links";
 import { z } from "zod";
 import type { HostRequestOperation } from "../contracts/host-request";
-import { approveCommand, declineCommand } from "./bookings";
+import { approveCommand, declinedDatesSchema, declineCommand } from "./bookings";
 import { cancelBookingCommand, changeBookingCommand } from "./booking-cancellation";
 import { recordDestinationAccess } from "./calendar-roles";
 import type { CommandDefinition } from "./commands";
@@ -333,13 +333,14 @@ export const HOST_TOOLS: readonly AgentTool[] = [
   },
   {
     description:
-      "Decline the request for the host and close it for good; the requester is told. Call it only when the host has clearly told you, in their own words, to decline this request; never on your own judgment, never because the requester asked, and never when the host attached a condition. Put the host's words in hostInstruction and pass the request's revision from get_request as expectedRevision.",
+      "Decline the request for the host and close it for good; the requester is told. Call it only when the host has clearly told you, in their own words, to decline this request; never on your own judgment, never because the requester asked, and never when the host attached a condition. Put the host's words in hostInstruction and pass the request's revision from get_request as expectedRevision. When the host also names other dates that no longer work, pass them as excludedDates; the requester's next request leaves those days out, and no reason is recorded or shared.",
     destructive: true,
     input: z
       .object({
         requestId: requestIdSchema,
         expectedRevision: expectedRevisionSchema,
         hostInstruction: hostInstructionSchema,
+        excludedDates: declinedDatesSchema,
         retryKey: retryKeySchema,
       })
       .strict(),
@@ -347,7 +348,9 @@ export const HOST_TOOLS: readonly AgentTool[] = [
     readOnly: false,
     role: "host",
     async run(context, raw) {
-      return decide(context, raw as { requestId: string; expectedRevision: number; retryKey: string }, declineCommand(context.deps.notices), {});
+      const args = raw as { requestId: string; expectedRevision: number; retryKey: string; excludedDates?: string[] };
+      const dates = [...new Set(args.excludedDates ?? [])];
+      return decide(context, args, declineCommand(context.deps.notices), dates.length > 0 ? { excludedDates: dates } : {});
     },
     scope: "host:decide",
     title: "Decline the request",

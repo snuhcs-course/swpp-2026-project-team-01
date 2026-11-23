@@ -1,4 +1,4 @@
-import { at } from "../story/fixtures";
+import { at, nextWeek } from "../story/fixtures";
 import { HOST_DECISIONS, HOST_LOOKUP, TOOL_NAME } from "../story/tools";
 import type { StoryCase } from "../story/types";
 
@@ -22,6 +22,8 @@ function field(value: unknown, key: string): unknown {
 function isInstant(value: unknown, expected: string) {
   return typeof value === "string" && Date.parse(value) === Date.parse(expected);
 }
+
+const NEXT = nextWeek();
 
 export const HOST_REVIEW_STORY_CASES: readonly StoryCase[] = [
   {
@@ -1788,6 +1790,51 @@ export const HOST_REVIEW_STORY_CASES: readonly StoryCase[] = [
             isInstant(field(row.changes, "start"), at("tue", "15:00")),
           ),
       },
+    ],
+  },
+  // Appended 2026-11-23 (decline-with-unavailable-dates, #58): declining with
+  // other dates that no longer work passes them as excludedDates, and the
+  // reason the host gives is kept out of the request.
+  {
+    id: "RV-D01",
+    conversation: "host_review",
+    category: "normal",
+    shape: "single",
+    source: "#58",
+    state: "RV-A1",
+    channel: "telegram",
+    language: "ko",
+    turns: [
+      {
+        message: `거절해 줘. ${NEXT.thu.ko}하고 ${NEXT.fri.ko}도 안 돼요, 그때 출장이라서요.`,
+        checks: [{ kind: "judge", criterion: "요청을 거절했다고 말하고, 말한 두 날짜도 다음 요청에서 빠진다고 말한다." }],
+        calls: [
+          {
+            name: "decline_request",
+            input: (input, context) =>
+              input.version === context.facts.version &&
+              Array.isArray(input.excludedDates) &&
+              input.excludedDates.includes(NEXT.thu.iso) &&
+              input.excludedDates.includes(NEXT.fri.iso),
+          },
+        ],
+        forbid: ["approve_proposal"],
+      },
+    ],
+    allowed: [...HOST_LOOKUP, "decline_request"],
+    database: [
+      { label: "request is declined", holds: (after) => after.state === "declined" },
+      {
+        label: "both named days are excluded as whole days",
+        holds: (after) => {
+          const excluded = (after.details.excludedTimes ?? []) as { start: string; end: string }[];
+          return [NEXT.thu.iso, NEXT.fri.iso].every((iso) =>
+            excluded.some((entry) => Date.parse(entry.start) === Date.parse(`${iso}T00:00:00+09:00`) && Date.parse(entry.end) - Date.parse(entry.start) === 86_400_000),
+          );
+        },
+      },
+      { label: "the reason is not stored", holds: (after) => !JSON.stringify(after.details).includes("출장") },
+      { label: "no booking is created", holds: (after, before) => after.bookings.length === before.bookings.length },
     ],
   },
 ];

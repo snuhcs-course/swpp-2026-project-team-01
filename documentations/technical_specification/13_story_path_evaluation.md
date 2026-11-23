@@ -185,5 +185,6 @@ The Iteration 3 prompts fail the guest's normal paths (drafting, applying and as
 | 2026-11-23 | RV-F02 | #274: sharing in English says the new time is being checked, not that it was sent |
 | 2026-11-23 | RV-F03 | #275: RV-22 with a database check that can pass. RV-22's check looks for a pending suggestion at Tuesday 11:00, which its start state (`RV-A3`, Wednesday 15:00) never suggests, so it fails whatever the assistant does; RV-F03 checks that the new suggestion keeps Wednesday 15:00 and is in person at 강남역, whichever input the assistant passes |
 | 2026-11-23 | RV-F04 | #276: RV-06 in English, a time outside the guest's window drafted as asked |
+| 2026-11-23 | RV-D01 | #58: declining in Korean on Telegram with two more dates that no longer work and a reason passes both dates as `excludedDates`, stores them as whole Asia/Seoul days on the declined request, and keeps the reason out of the request ([`decline-with-unavailable-dates`](../../openspec/changes/decline-with-unavailable-dates/proposal.md)) |
 
 The four cases were added with [`host-assistant-story-fixes`](../../openspec/changes/host-assistant-story-fixes/proposal.md) and have not run yet; that change's release tasks run them with the failing cases they follow.

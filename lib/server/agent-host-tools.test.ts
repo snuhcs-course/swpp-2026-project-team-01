@@ -44,6 +44,17 @@ describe("host decision tools", () => {
     expect(decline.safeParse({ ...declineBase, onlyIf: "they can't move it" }).success).toBe(false);
   });
 
+  it("take up to 14 other dates that no longer work, and no reason (#58)", () => {
+    const decline = tool("decline_request").input;
+    const base = { expectedRevision: 3, hostInstruction: "Decline it, and the 3rd doesn't work either", requestId, retryKey: "decline-0001" };
+    expect(decline.safeParse({ ...base, excludedDates: ["2026-12-03"] }).success).toBe(true);
+    expect(decline.safeParse({ ...base, excludedDates: Array.from({ length: 15 }, (_, index) => `2026-12-${String(index + 1).padStart(2, "0")}`) }).success).toBe(false);
+    expect(decline.safeParse({ ...base, excludedDates: ["Dec 3"] }).success).toBe(false);
+    expect(decline.safeParse({ ...base, excludedDates: ["2026-02-30"] }).success).toBe(false);
+    expect(decline.safeParse({ ...base, excludedDates: ["2026-12-03"], reason: "travel" }).success).toBe(false);
+    expect(toolDefinition(tool("decline_request")).inputSchema.required).not.toContain("excludedDates");
+  });
+
   it("offer cancel_booking under host:decide with the host's words, destructive", () => {
     const cancel = tool("cancel_booking");
     expect(cancel.scope).toBe("host:decide");
