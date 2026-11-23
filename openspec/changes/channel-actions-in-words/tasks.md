@@ -22,4 +22,8 @@
 
 - [ ] 4.1 Teammate review.
 - [ ] 4.2 With a linked phone, decline, share and confirm settings in Korean and English words, and record the replies.
+
+  Open: needs a person with a linked phone; kept unarchived on 2026-11-23.
 - [ ] 4.3 After `host-imessage-channel` and `guest-flow-completion` are archived, archive this change so its MODIFIED requirements apply to the archived specs.
+
+  Open: `host-imessage-channel` and `guest-flow-completion` are not archived yet.

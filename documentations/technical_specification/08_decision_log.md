@@ -751,7 +751,7 @@ The [proposal](../../openspec/changes/agent-decisions-in-words/proposal.md#decis
 
 ## `guest-time-place-pairs`
 
-The [design](../../openspec/changes/guest-time-place-pairs/design.md) records these choices, taken on 2026-11-14 in the session that wrote the change, for issue #182 from the Iteration 4 kickoff (2026-11-08). They have had no teammate review yet.
+The [design](../../openspec/changes/archive/2026-11-23-guest-time-place-pairs/design.md) records these choices, taken on 2026-11-14 in the session that wrote the change, for issue #182 from the Iteration 4 kickoff (2026-11-08). They have had no teammate review yet.
 
 | # | Choice | Alternatives | Recorded in | To change it |
 |---|---|---|---|---|
@@ -763,7 +763,7 @@ The [design](../../openspec/changes/guest-time-place-pairs/design.md) records th
 
 ## `same-day-trips`
 
-The [design](../../openspec/changes/same-day-trips/design.md) records these choices for issue #103. The engine decisions (1–5) shipped in PR #106; the setup decisions (6–7) were taken on 2026-11-14 in the session that implemented them and have had no teammate review yet.
+The [design](../../openspec/changes/archive/2026-11-23-same-day-trips/design.md) records these choices for issue #103. The engine decisions (1–5) shipped in PR #106; the setup decisions (6–7) were taken on 2026-11-14 in the session that implemented them and have had no teammate review yet.
 
 | # | Choice | Alternatives | Recorded in | To change it |
 |---|---|---|---|---|
