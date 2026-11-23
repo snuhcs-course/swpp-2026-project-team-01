@@ -153,10 +153,17 @@ async function recordGuestNotice(tx: Transaction, deps: NoticeJobDependencies, r
 }
 
 // A revised request names the earlier one (guest-flow-completion design 5).
-function followsText(view: HostRequestView, language: ChannelLanguage) {
+export function followsText(view: Pick<HostRequestView, "revisedFrom">, language: ChannelLanguage) {
   if (!view.revisedFrom) return "";
   const texts = channelReplies(language);
-  return view.revisedFrom.outcome === "declined" ? texts.followsDecline(view.revisedFrom.ref) : texts.followsExpired(view.revisedFrom.ref);
+  switch (view.revisedFrom.outcome) {
+    case "declined":
+      return texts.followsDecline(view.revisedFrom.ref);
+    case "expired":
+      return texts.followsExpired(view.revisedFrom.ref);
+    case "withdrawn":
+      return texts.followsWithdrawal(view.revisedFrom.ref);
+  }
 }
 
 // The notice's text, with the decision buttons a WhatsApp summary of a proposal

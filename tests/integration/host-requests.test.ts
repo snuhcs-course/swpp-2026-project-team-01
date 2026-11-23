@@ -6,6 +6,7 @@ import { displayTime } from "../../lib/contracts/timezone";
 import { listHostRequests, readHostRequest, readHostTimezone } from "../../lib/server/host-requests";
 import { hostRequestsForModel } from "../../lib/server/host-review-tools";
 import { agreeCommand, readCurrentEvaluation } from "../../lib/server/request-proposals";
+import { readRequesterView } from "../../lib/server/requester-routes";
 import { allowHostTripCommand, hostEvaluateCommand, waiveWeeklyLimitCommand } from "../../lib/server/request-exceptions";
 import { dismissChangesCommand, shareChangesCommand, suggestChangesCommand } from "../../lib/server/shared-changes";
 import { localAuthConfig, signInHost } from "./support/auth";
@@ -146,6 +147,8 @@ describe("shared changes", () => {
 
     const view = await readHostRequest(db, request.hostAccountId, request.requestId);
     expect(view?.suggestion).toMatchObject({ proposalVersion: 2, state: "shared" });
+    // The guest's page says the host reopened the agreed time, not the guest (#321).
+    expect(await readRequesterView(db, request.requestId)).toMatchObject({ reopenedBy: "host" });
     expect(view?.proposal).toMatchObject({ agreedAt: null, durationMinutes: 45, start: new Date(later).toISOString(), version: 2 });
     const deliveries = await deliveriesOf(db, request.requestId);
     expect(deliveries.map((email) => email.kind)).toEqual(["status_new_version"]);

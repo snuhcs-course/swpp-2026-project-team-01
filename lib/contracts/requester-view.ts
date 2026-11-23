@@ -108,6 +108,10 @@ export type OpenRequesterView = {
   // Populated by the agreement email flow (#178) only after delivery is
   // confirmed. The waiting card must not infer a sent email from agreement.
   readonly agreementEmailSentTo?: string | null;
+  // Who moved an agreed request back to choosing a time (#321): the host by
+  // sharing a change after the latest agreement, or the requester with Change
+  // (guest-flow-completion D10). Null while nothing reopened it.
+  readonly reopenedBy?: "host" | "requester" | null;
   // The thread's cards in order.
   readonly thread: readonly ThreadCard[];
   // The booking once the host approved: in progress, failed, or confirmed with

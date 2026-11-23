@@ -180,8 +180,8 @@ describe("a revised request by iMessage", () => {
     expect(revised).toMatchObject({ state: "gathering" });
     const inputs = await inputsOf(revised!.id);
     expect(inputs[0]).toContain(`request ${requestRef(earlier.requestId)} was withdrawn by the guest`);
-    // The host's view names only a declined or expired origin; a withdrawn one is #59.
-    expect((await readHostRequest(db, earlier.hostAccountId, revised!.id))?.revisedFrom).toBeNull();
+    // The host's view names the withdrawn origin (#59).
+    expect((await readHostRequest(db, earlier.hostAccountId, revised!.id))?.revisedFrom).toEqual({ outcome: "withdrawn", ref: requestRef(earlier.requestId) });
   });
 
   it("answers with the closed notice and creates nothing when the chain is full, the host is unavailable or the bounds refuse", async () => {

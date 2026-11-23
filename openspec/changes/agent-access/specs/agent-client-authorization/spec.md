@@ -86,7 +86,7 @@ Each MCP endpoint SHALL be a protected resource whose identifier is its exact UR
 - **THEN** the answer is a neutral not-found that reveals no reason
 
 ### Requirement: Bounded client registration
-The service SHALL accept clients identified by a client ID metadata document, clients registered dynamically and its own pre-registered command-line client. Metadata documents SHALL be fetched only from `https` URLs with a path on public addresses, without redirects, within fixed time and size limits, and SHALL be accepted only when their `client_id` equals the URL. Redirect URIs SHALL be `https` or loopback `http`, matched exactly except that a loopback redirect's port, on `127.0.0.1`, `[::1]` or `localhost`, may differ. Registration SHALL be rate-limited and SHALL grant no application authority.
+The service SHALL accept clients identified by a client ID metadata document, clients registered dynamically and its own pre-registered command-line client. Metadata documents SHALL be fetched only from `https` URLs with a path on public addresses, without redirects, within fixed time and size limits, and SHALL be accepted only when their `client_id` equals the URL. Redirect URIs SHALL be `https` or loopback `http`, matched exactly except that a loopback redirect's port, on `127.0.0.1`, `[::1]` or `localhost`, may differ. Registration SHALL be rate-limited and SHALL grant no application authority. Token requests SHALL be rate-limited per presented code or refresh token and per source, not per client ID, because one metadata document client ID is shared by everyone who uses that client.
 
 #### Scenario: Metadata document names another client
 - **WHEN** the fetched document's `client_id` differs from its URL or it lists no redirect URIs
@@ -103,6 +103,10 @@ The service SHALL accept clients identified by a client ID metadata document, cl
 #### Scenario: Registration flood
 - **WHEN** one source registers more clients than the hourly bound
 - **THEN** further registrations are refused with a retry time and no client is created
+
+#### Scenario: Many people on one hosted client
+- **WHEN** more people than one client's former per-minute bound redeem or refresh their own credentials under the same metadata document client ID from a shared egress address
+- **THEN** each request is admitted, while repeated requests with one credential are still refused with a retry time
 
 ### Requirement: Role-bound permission scopes
 Host resources SHALL accept only `host:read`, `host:write` and `host:decide`; requester resources SHALL accept only `request:read`, `request:write` and `request:decide`. `host:decide` SHALL only prepare an approval or decline of the current proposal for the host's own confirmation in the browser. `request:decide` SHALL permit agreeing to the current proposal and withdrawing the request. Refresh SHALL NOT widen scopes.
