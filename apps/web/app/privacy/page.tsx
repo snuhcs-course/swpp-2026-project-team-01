@@ -4,7 +4,8 @@ import { type LegalDocument, LegalPage, type LegalSearchParams } from "../_compo
 // The public data notice, P11 (data-stewardship: public data notice;
 // operations-and-release design 10 and 11, D11 and D12): what each audience's
 // data is used for, who processes it, how long it is kept, deletion (a host's
-// own from Settings, self-service-account-deletion D7, or on request)
+// own from Settings, self-service-account-deletion D7, or on request; a guest
+// account's history and deletion, guest-account-history D1 to D3)
 // and the support contact, in English and in Korean (?lang=ko). It states only
 // what the code does; change it together with the retention rules in
 // supabase/schemas/app/functions/cleanup_retained_records.sql. /privacy-policy
@@ -58,7 +59,7 @@ const EN: LegalDocument = {
       id: "calendar",
       paragraphs: [
         "Calendar access is used only to schedule the meetings you ask for. A host's private events, rules and notes are never shown to the person booking, and a requester's calendar is never shown to the host: each side sees only the times offered and the meeting agreed.",
-        "A requester's calendar access lasts only for one request and is deleted when the request closes, when its link expires or when you choose Disconnect. A host can disconnect Google at any time.",
+        "A requester's calendar access lasts only for one request and is deleted when the request closes, when its link expires or when you choose Disconnect. If you book while signed in to your own account, the request uses that account's Google connection instead, which stays until you disconnect Google or delete the account. A host can disconnect Google at any time.",
       ],
       title: "How we use your calendar",
     },
@@ -104,10 +105,11 @@ const EN: LegalDocument = {
       id: "retention",
       items: [
         "A closed request (booked, declined, withdrawn or expired) and everything under it, including the conversation: deleted 90 days after it closed.",
+        "A request you sent while signed in to your account, with its conversation: kept while the account exists, so your Requests list shows it. When the account is deleted, the request follows the 90-day rule above.",
         "A draft started on a host's page and never completed: deleted after 24 hours.",
         "Email threads, and iMessage and Telegram records: deleted after 30 days.",
         "Records that prevent duplicate actions and enforce limits: deleted after 30 days; spending records of the assistant after 90 days.",
-        "A host's account and settings: kept until the host deletes the account, 7 days after they ask for it in Settings.",
+        "An account and its settings: kept until you delete the account, 7 days after you ask for it in Settings.",
       ],
       paragraphs: [
         "Copies outside our database are not removed by these rules: the event in a host's calendar, emails in your own mailbox, threads in AgentMail, messages on your phone, the chat Telegram keeps (a bot cannot delete its messages after 48 hours), OpenAI's abuse-monitoring logs, and the conversation runtime's own session record at our host.",
@@ -117,7 +119,7 @@ const EN: LegalDocument = {
     {
       id: "deletion",
       paragraphs: [
-        `A host deletes their account in Settings: open Delete account and type your handle. The deletion runs 7 days later, and signing in again before then cancels it; we email you when it is scheduled, cancelled and done. It deletes the account's data, its Google connection and its sign-in, and closes your open requests and tells their guests by email; we keep only the handle you used so that nobody else can take it over. Events already in a calendar stay there.`,
+        `You delete your account in Settings, whether you host or only book with others: open Delete account and type your handle, or your Google address if you have no handle. The deletion runs 7 days later, and signing in again before then cancels it; we email you when it is scheduled, cancelled and done. It deletes the account's data, its request history, its Google connection and its sign-in. Requests you received that are still open are closed and their guests told by email; meetings you hosted stay in your calendar. Requests you sent to other hosts that are still open are withdrawn, and meetings you booked with them that have not started are cancelled, which removes the event and tells the host. We keep only the handle you used so that nobody else can take it over.`,
         `If you cannot sign in, or want a request deleted, write to ${SUPPORT_ADDRESS} from the address you use with us. For a request we delete the request and its conversation.`,
       ],
       title: "Deleting your data",
@@ -171,7 +173,7 @@ const KO: LegalDocument = {
       id: "calendar",
       paragraphs: [
         "캘린더 접근은 요청한 미팅의 일정을 잡는 데만 씁니다. 호스트의 비공개 일정, 규칙, 메모는 미팅을 요청한 분에게 보이지 않고, 요청한 분의 캘린더도 호스트에게 보이지 않습니다. 양쪽 모두 제안된 시간과 합의된 미팅만 봅니다.",
-        "요청한 분의 캘린더 접근은 한 요청에만 유효하며, 요청이 닫히거나 링크가 만료되거나 Disconnect를 누르면 삭제합니다. 호스트는 언제든 Google 연결을 끊을 수 있습니다.",
+        "요청한 분의 캘린더 접근은 한 요청에만 유효하며, 요청이 닫히거나 링크가 만료되거나 Disconnect를 누르면 삭제합니다. 본인 계정에 로그인한 채 요청하면 그 계정의 Google 연결을 대신 쓰며, 이 연결은 Google 연결을 끊거나 계정을 삭제할 때까지 유지됩니다. 호스트는 언제든 Google 연결을 끊을 수 있습니다.",
       ],
       title: "캘린더를 쓰는 방식",
     },
@@ -215,10 +217,11 @@ const KO: LegalDocument = {
       id: "retention",
       items: [
         "닫힌 요청(확정, 거절, 철회, 만료)과 대화를 포함한 그 아래 모든 기록: 닫힌 뒤 90일이 지나면 삭제합니다.",
+        "본인 계정에 로그인한 채 보낸 요청과 그 대화: 요청 목록에 보이도록 계정이 있는 동안 보관합니다. 계정을 삭제하면 그 요청은 위의 90일 규칙을 따릅니다.",
         "호스트 페이지에서 시작했지만 완성하지 않은 초안: 24시간 뒤 삭제합니다.",
         "이메일 스레드, iMessage와 Telegram 기록: 30일 뒤 삭제합니다.",
         "중복 동작을 막고 한도를 지키기 위한 기록: 30일 뒤, 어시스턴트 비용 기록은 90일 뒤 삭제합니다.",
-        "호스트 계정과 설정: 호스트가 설정에서 삭제를 요청하면 7일 뒤 삭제합니다.",
+        "계정과 설정: 설정에서 삭제를 요청하면 7일 뒤 삭제합니다.",
       ],
       paragraphs: [
         "저희 데이터베이스 밖의 사본은 이 규칙으로 지워지지 않습니다: 호스트 캘린더의 일정, 본인 메일함의 이메일, AgentMail의 스레드, 휴대폰의 메시지, Telegram이 보관하는 대화(봇은 48시간이 지난 메시지를 지울 수 없습니다), OpenAI의 남용 감시 기록, 호스팅 업체에 있는 대화 런타임의 세션 기록.",
@@ -228,7 +231,7 @@ const KO: LegalDocument = {
     {
       id: "deletion",
       paragraphs: [
-        `호스트는 설정의 계정 삭제에서 핸들을 입력해 계정을 삭제할 수 있습니다. 삭제는 7일 뒤 진행되며, 그 전에 다시 로그인하면 취소됩니다. 예약, 취소, 삭제 완료 때마다 이메일로 알려 드립니다. 계정 데이터, Google 연결, 로그인을 삭제하고, 진행 중인 요청은 닫은 뒤 게스트에게 이메일로 알리며, 다른 사람이 가져가지 못하도록 쓰던 핸들만 남깁니다. 이미 캘린더에 있는 일정은 그대로 남습니다.`,
+        `호스트든 다른 사람에게 미팅을 요청만 하든, 설정의 계정 삭제에서 핸들(핸들이 없으면 Google 주소)을 입력해 계정을 삭제할 수 있습니다. 삭제는 7일 뒤 진행되며, 그 전에 다시 로그인하면 취소됩니다. 예약, 취소, 삭제 완료 때마다 이메일로 알려 드립니다. 계정 데이터, 요청 기록, Google 연결, 로그인을 삭제합니다. 받은 요청 중 진행 중인 요청은 닫은 뒤 게스트에게 이메일로 알리며, 호스트로서 잡은 미팅은 캘린더에 그대로 남습니다. 다른 호스트에게 보낸 요청 중 진행 중인 요청은 철회하고, 아직 시작하지 않은 확정 미팅은 취소해 일정을 지우고 호스트에게 알립니다. 다른 사람이 가져가지 못하도록 쓰던 핸들만 남깁니다.`,
         `로그인할 수 없거나 요청 삭제를 원하면 저희와 쓰는 주소에서 ${SUPPORT_ADDRESS}로 요청해 주세요. 요청의 경우 요청과 그 대화를 삭제합니다.`,
       ],
       title: "데이터 삭제",

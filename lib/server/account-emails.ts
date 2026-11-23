@@ -61,7 +61,7 @@ function copyOf(template: AccountEmailTemplate, language: RequestLanguage, param
         action: "Sign in to keep my account",
         paragraphs: [
           `Your Find Me a Time account is scheduled for deletion on ${date}.`,
-          "Sign in with Google before then to cancel deletion. When deletion runs, your settings, requests, conversations and Google connection are permanently deleted. Open requests are closed and their guests notified. Events already on your calendar stay there, so cancel any you no longer want before the deletion date.",
+          "Sign in with Google before then to cancel deletion. When deletion runs, your settings, requests, conversations and Google connection are permanently deleted. Open requests you received are closed and their guests notified. Meetings you host stay on your calendar, so cancel any you no longer want before the deletion date. Open requests you sent to other hosts are withdrawn, and meetings you booked with them are cancelled and their hosts notified.",
           "If you did not request deletion, sign in to cancel it and contact support@findmeatime.com.",
         ],
         subject: "Your account is scheduled for deletion",

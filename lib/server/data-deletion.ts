@@ -21,14 +21,17 @@ import {
 // host's data and Auth user and keeps only a suspended, nameless account row
 // with its handle history; delete-request removes one request with everything
 // under it. Each runs through one app.operator_* function that writes its audit
-// row, without the deleted content, in the same statement.
+// row, without the deleted content, in the same statement. A guest account
+// has no handle, so delete-host also takes the account's Google address, the
+// address the deletion request came from (guest-account-history D3).
 
-export const DELETION_USAGE = `  npm run admin -- delete-host --host <handle-or-id> --reason <text> --operator <name> (--local | --project <ref>) [--yes]
+export const DELETION_USAGE = `  npm run admin -- delete-host --host <handle-id-or-google-address> --reason <text> --operator <name> (--local | --project <ref>) [--yes]
   npm run admin -- delete-request --request <id> --reason <text> --operator <name> (--local | --project <ref>) [--yes]`;
 
 export type DeletionRequest = {
   readonly command: "delete-host" | "delete-request";
-  // A host account ID or normalized handle, or a request ID.
+  // A host account ID, normalized handle or lower-cased Google address, or a
+  // request ID.
   readonly subject: string;
   readonly reason: string;
   readonly operator: string;
@@ -45,6 +48,10 @@ const OPTIONS = {
   request: { type: "string" },
   yes: { type: "boolean" },
 } as const;
+
+// One address, as Google reports it on sign-in; quoting in deletionSql keeps
+// anything else harmless, and this keeps a typo from reaching the database.
+const GOOGLE_ADDRESS = /^[^\s@'"]{1,64}@[a-z0-9.-]{1,253}\.[a-z]{2,63}$/;
 
 export function parseDeletionArguments(argv: readonly string[]): DeletionRequest {
   let parsed;
@@ -68,8 +75,13 @@ export function parseDeletionArguments(argv: readonly string[]): DeletionRequest
   if (command === "delete-host") {
     if (values.request !== undefined) throw new AdminUsageError("delete-host takes no --request.");
     const raw = values.host?.trim() ?? "";
-    subject = UUID.test(raw) ? raw.toLowerCase() : normalizeHandle(raw);
-    if (!UUID.test(subject) && !isUsableHandle(subject)) throw new AdminUsageError("--host must be a host account ID or a valid handle.");
+    if (raw.includes("@")) {
+      subject = raw.toLowerCase();
+      if (!GOOGLE_ADDRESS.test(subject)) throw new AdminUsageError("--host must be a host account ID, a valid handle or a Google address.");
+    } else {
+      subject = UUID.test(raw) ? raw.toLowerCase() : normalizeHandle(raw);
+      if (!UUID.test(subject) && !isUsableHandle(subject)) throw new AdminUsageError("--host must be a host account ID, a valid handle or a Google address.");
+    }
   } else {
     if (values.host !== undefined) throw new AdminUsageError("delete-request takes no --host.");
     subject = identifier(values.request, "request");
@@ -88,15 +100,21 @@ export function parseDeletionArguments(argv: readonly string[]): DeletionRequest
 export function deletionSql(request: DeletionRequest) {
   const audit = `${sqlLiteral(request.operator)}, ${sqlLiteral(request.reason)}, ${sqlLiteral(environmentName(request.target))}`;
 
+  // An address resolves to its account's ID; one that matches no account
+  // leaves the address itself, which operator_delete_host refuses as unknown.
+  const target = request.subject.includes("@")
+    ? `coalesce((select g.host_account_id::text from app.google_identities g where lower(g.email) = ${sqlLiteral(request.subject)}), ${sqlLiteral(request.subject)})`
+    : sqlLiteral(request.subject);
+
   return request.command === "delete-host"
     ? `select result_host_account_id::text as id, result_previous_status as previous_state
-from app.operator_delete_host(${sqlLiteral(request.subject)}, ${audit})`
+from app.operator_delete_host(${target}, ${audit})`
     : `select result_request_id::text as id, result_previous_state as previous_state
 from app.operator_delete_request(${sqlLiteral(request.subject)}::uuid, ${audit})`;
 }
 
 const REFUSALS = [
-  [/unknown host/, "no host matches that handle or ID."],
+  [/unknown host/, "no account matches that handle, ID or address."],
   [/host already deleted/, "that host's data was already deleted."],
   [/unknown request/, "no request matches that ID."],
   [/booking in flight/, "a booking write may exist; reconcile it with recover booking first."],

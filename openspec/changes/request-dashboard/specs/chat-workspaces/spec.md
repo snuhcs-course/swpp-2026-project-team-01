@@ -41,8 +41,8 @@ The Requests view SHALL combine requests received by the signed-in account with 
 - **THEN** the request is linked to that account after identification succeeds, without using the typed contact email as proof
 
 #### Scenario: Open a sent request
-- **WHEN** the account selects a sent request with a valid private link
-- **THEN** the existing guest workspace opens under that link, with its existing requester permissions
+- **WHEN** the account selects an open sent request with a valid private link
+- **THEN** the existing guest workspace opens under that link, with its existing requester permissions; a closed sent request shows its conversation read only in the list instead ([guest-account-history](../../../../specs/guest-account-history/spec.md))
 
 #### Scenario: Expired private link
 - **WHEN** the sent request's private link has expired

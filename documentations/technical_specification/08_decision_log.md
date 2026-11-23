@@ -818,3 +818,15 @@ The [design](../../openspec/changes/self-service-account-deletion/design.md) rec
 | D4 | Booked meetings are not cancelled; open requests close and their guests get an email; the host gets emails when it is scheduled, cancelled and run; account emails have no request and are deleted 30 days after they finish | Cancelling calendar events for the host; telling guests on chats | Proposal; design 5 | `lib/server/account-emails.ts`, `accountEmailCurrent`, the `account_emails` retention rule |
 | D5 | Scheduling signs out every session with Supabase's global scope | Keeping the session and offering a cancel button | Design 2 | `createAccountDeletionHandler` |
 | D6 | Chats and the MCP server never delete; they send `/app?settings=account` | A deletion tool behind confirmation | Design 6 | `agent/instructions/base.md`, `host-imessage.ts`, `lib/server/agent-mcp.ts` |
+
+## `guest-account-history`
+
+The [design](../../openspec/changes/archive/2026-11-23-guest-account-history/design.md) records these choices for issues #48 and #233 and the guest part of #228, taken on 2026-11-23 from the repository owner's decisions on #48 and #233.
+
+| # | Choice | Alternatives | Recorded in | To change it |
+|---|---|---|---|---|
+| D1 | A closed request matched to an undeleted account is kept while the account exists; deleting the account removes the match and the 90-day rule applies again | A `retain_until` column on requests; copying the conversation to an account table | Design 1; `guest-account-history` "Account-owned request history" | `supabase/schemas/app/functions/cleanup_retained_records.sql` and a new migration |
+| D2 | A sent request that is not open shows its conversation read only in Requests, from an account-checked route; the agent serves that read only while an active account owns the request | Keeping the per-request link alive; a separate history page | Design 2 | `createSentRequestConversationHandler` in `lib/server/host-request-routes.ts`; `guestMayUse` in `lib/server/eve-auth.ts` |
+| D3 | `app.operator_delete_host` publishes one `account_requests_close` job, which withdraws the account's open sent requests and cancels its booked meetings ahead as the requester | Closing them in SQL; closing them only in the Settings job | Design 3 | `supabase/schemas/app/functions/data_deletion.sql`; `lib/server/account-requests-close.ts` |
+| D4 | The account's own Google grant lasts until it disconnects or is deleted; request closure clears only that request's choice | An expiry for account grants | Design 4 | `closeRequest` in `lib/server/request-lifecycle.ts` |
+| D5 | `delete-host` accepts a Google address for an account without a handle | A separate `delete-guest` command | Design 5 | `lib/server/data-deletion.ts` |

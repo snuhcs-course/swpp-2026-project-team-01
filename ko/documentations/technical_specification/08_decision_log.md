@@ -817,3 +817,15 @@ Dohyeon Park이 2026-11-16에 결정했으며, 2026-11-14 UAT 회의가 [이슈 
 | D4 | 예약된 미팅은 취소하지 않습니다. 열린 요청은 닫히고 게스트는 이메일을 받으며, 호스트는 예약, 취소, 실행 때 이메일을 받습니다. 계정 이메일에는 요청이 없으므로 끝난 지 30일 뒤에 삭제합니다 | 호스트 대신 캘린더 이벤트 취소; 채팅으로 게스트에게 알리기 | 제안; 설계 5 | `lib/server/account-emails.ts`, `accountEmailCurrent`, `account_emails` 보존 규칙 |
 | D5 | 예약하면 Supabase의 전역 범위로 모든 세션에서 로그아웃합니다 | 세션을 유지하고 취소 버튼 제공 | 설계 2 | `createAccountDeletionHandler` |
 | D6 | 채팅과 MCP 서버는 삭제하지 않고 `/app?settings=account`를 안내합니다 | 확인 절차를 거치는 삭제 도구 | 설계 6 | `agent/instructions/base.md`, `host-imessage.ts`, `lib/server/agent-mcp.ts` |
+
+## `guest-account-history`
+
+[설계](../../openspec/changes/archive/2026-11-23-guest-account-history/design.md)는 이슈 #48과 #233, 그리고 #228의 게스트 부분에 대한 다음 선택을 기록합니다. #48과 #233에 대한 저장소 소유자의 결정을 바탕으로 2026-11-23에 정했습니다.
+
+| # | 선택 | 대안 | 기록 위치 | 바꾸려면 |
+|---|---|---|---|---|
+| D1 | 삭제되지 않은 계정과 연결된 종료된 요청은 계정이 있는 동안 보관하며, 계정을 삭제하면 연결이 사라져 90일 규칙이 다시 적용됩니다 | 요청에 `retain_until` 컬럼 추가; 대화를 계정 테이블로 복사 | 설계 1; `guest-account-history` "Account-owned request history" | `supabase/schemas/app/functions/cleanup_retained_records.sql`과 새 마이그레이션 |
+| D2 | 열려 있지 않은 보낸 요청은 계정을 확인하는 라우트에서 Requests에 대화를 읽기 전용으로 보여 주며, 에이전트는 활성 계정이 그 요청을 소유한 동안에만 이를 제공합니다 | 요청별 링크 유지; 별도의 기록 페이지 | 설계 2 | `lib/server/host-request-routes.ts`의 `createSentRequestConversationHandler`; `lib/server/eve-auth.ts`의 `guestMayUse` |
+| D3 | `app.operator_delete_host`가 `account_requests_close` 작업 하나를 발행하며, 이 작업이 계정의 열린 보낸 요청을 철회하고 앞으로 예정된 예약 미팅을 요청자로서 취소합니다 | SQL에서 닫기; 설정 작업에서만 닫기 | 설계 3 | `supabase/schemas/app/functions/data_deletion.sql`; `lib/server/account-requests-close.ts` |
+| D4 | 계정 자체의 Google 권한 부여는 연결을 해제하거나 계정이 삭제될 때까지 유지되며, 요청을 닫으면 그 요청의 선택만 지워집니다 | 계정 권한 부여에 만료 두기 | 설계 4 | `lib/server/request-lifecycle.ts`의 `closeRequest` |
+| D5 | `delete-host`는 핸들이 없는 계정에 대해 Google 주소를 받습니다 | 별도의 `delete-guest` 명령 | 설계 5 | `lib/server/data-deletion.ts` |

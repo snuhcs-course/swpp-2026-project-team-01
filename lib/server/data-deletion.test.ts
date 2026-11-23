@@ -24,7 +24,7 @@ describe("fmat-admin deletion arguments", () => {
   it.each([
     [["delete", "--host", "alice", "--reason", "r", ...local], /delete-host or delete-request/],
     [["delete-host", "--host", "alice", "--reason", "r", "--operator", "ops"], /exactly one environment/],
-    [["delete-host", "--host", "x'; drop table app.host_accounts; --", "--reason", "r", ...local], /host account ID or a valid handle/],
+    [["delete-host", "--host", "x'; drop table app.host_accounts; --", "--reason", "r", ...local], /host account ID, a valid handle or a Google address/],
     [["delete-host", "--host", "app", "--reason", "r", ...local], /valid handle/],
     [["delete-host", "--host", "alice", ...local], /--reason is required/],
     [["delete-host", "--host", "alice", "--request", id, "--reason", "r", ...local], /takes no --request/],
@@ -33,6 +33,16 @@ describe("fmat-admin deletion arguments", () => {
   ])("refuses %j", (argv, message) => {
     expect(() => parseDeletionArguments(argv)).toThrow(AdminUsageError);
     expect(() => parseDeletionArguments(argv)).toThrow(message);
+  });
+
+  it("takes a guest account's Google address, lower-cased", () => {
+    const request = parseDeletionArguments(["delete-host", "--host", "Guest.Name@Example.com", "--reason", "asked by email", ...local]);
+    expect(request.subject).toBe("guest.name@example.com");
+    expect(deletionSql(request)).toContain(
+      "app.operator_delete_host(coalesce((select g.host_account_id::text from app.google_identities g where lower(g.email) = 'guest.name@example.com'), 'guest.name@example.com'), 'ops', 'asked by email', 'local')",
+    );
+    expect(() => parseDeletionArguments(["delete-host", "--host", "a'b@example.com", "--reason", "r", ...local])).toThrow(/Google address/);
+    expect(() => parseDeletionArguments(["delete-host", "--host", "nobody@", "--reason", "r", ...local])).toThrow(/Google address/);
   });
 
   it("builds each statement with quoted literals", () => {
