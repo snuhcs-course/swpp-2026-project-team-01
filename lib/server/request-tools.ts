@@ -35,6 +35,7 @@ import {
 } from "./request-proposals";
 import { appOriginFromEnvironment } from "./same-origin";
 import { tokenKeyFromEnvironment } from "./token-encryption";
+import { resendLinkCommand } from "./link-resend";
 import { markIdentityRequested } from "./request-start";
 import { CHANGE_NOTE, localNow, meetingPhase, nextSteps, statusText } from "./request-status-texts";
 import {
@@ -793,4 +794,31 @@ export async function changeBookingForTool(db: Database, call: RequestToolCall):
     recorded: true,
     state: outcome.result.state,
   };
+}
+
+// Resending the booking link when the guest asks for it in chat
+// (guest-email-and-agree-notices design 3): only to the request's confirmed
+// contact address, under the limits of **Lost your booking link?**. The link
+// itself never appears in the conversation.
+export async function resendBookingLinkForTool(db: Database, call: RequestToolCall): Promise<{ readonly recorded: boolean; readonly message: string }> {
+  const id = await authorizeRequestTool(db, call, { booked: true });
+  const outcome = await runCommand(
+    { authenticate: async () => actorOf(id), db },
+    resendLinkCommand({ origin: appOriginFromEnvironment(), tokenKey: tokenKeyFromEnvironment() }),
+    { expectedRevision: null, input: {}, resourceId: id, retryKey: `tool:${call.callId}` },
+  );
+
+  if (!outcome.ok) return refused(outcome.error.category);
+  switch (outcome.result.status) {
+    case "queued":
+      return { message: "The booking link is on its way to the guest's confirmed email address. Never write the link or the address yourself.", recorded: true };
+    case "limited":
+      return { message: "The booking link was sent too often just now, so nothing was sent. Ask the guest to try again in a while.", recorded: false };
+    case "unconfirmed":
+      return {
+        message:
+          "Nothing was sent: the link goes only to a confirmed email address, and this one is not confirmed. Say the booking link went to the email they gave when the request started, and that this conversation keeps working without it.",
+        recorded: false,
+      };
+  }
 }

@@ -16,11 +16,11 @@ import { newTelegramUpdateId, newTelegramUser, telegramDelivery, telegramMessage
 
 // Linking Telegram against the local stack (host-telegram-channel task 3.1): a
 // Telegram attempt names the bot; /start <code> or the bare code from the host's
-// private chat records the sender with their Telegram name and no reply, and
-// binds only after Confirm and link, whose welcome is the bot's first message;
-// /start without a code gets the unlinked-sender reply once a day; a code from
-// the other channel voids the attempt; confirming Telegram ends an iMessage
-// binding and suppresses what was queued for it; exact retries change nothing.
+// private chat binds the sender with their Telegram name as soon as it arrives
+// (link-on-code D1), and the welcome is the bot's first message; /start without
+// a code gets the unlinked-sender reply once a day; a code from the other
+// channel voids the attempt; linking Telegram ends an iMessage binding and
+// suppresses what was queued for it; exact retries change nothing.
 
 const db = testDatabase();
 let photon: FakePhoton;
@@ -59,7 +59,7 @@ async function sentTo(recipientHash: string) {
 const telegramHash = (userId: number) => channelHash(testTokenKey, "telegram", "sender", String(userId));
 
 describe("linking Telegram", () => {
-  it("names the bot, records the sender by name with no reply, and binds only after confirmation", async () => {
+  it("names the bot, binds the sender on arrival, and shows them by name", async () => {
     const hostAccountId = await newHostAccount(db);
     const userId = newTelegramUser();
     const pending = await pendingTelegram(hostAccountId);
@@ -67,17 +67,10 @@ describe("linking Telegram", () => {
 
     const start = telegramMessage({ firstName: "Dohyeon", text: `/start ${pending.code}`, userId, username: "dohyeon" });
     expect((await im.deliverTelegram(start))?.outcome).toBe("link_received");
-    const received = await im.status(hostAccountId);
-    expect(received).toMatchObject({ channel: "telegram", replaces: null, sender: "Dohyeon (@dohyeon)", state: "received" });
-    expect(await im.bindingOf(hostAccountId)).toBeNull();
-    // The bot never writes first: nothing goes back until Confirm and link.
-    expect(await sentTo(telegramHash(userId))).toEqual([]);
-
-    if (received.state !== "received") throw new Error("Expected received.");
-    expect((await im.command(hostAccountId, "imessage.link.confirm", { linkId: received.linkId })).ok).toBe(true);
     expect(await im.bindingOf(hostAccountId)).toMatchObject({ channel: "telegram", sender_hash: telegramHash(userId), state: "active" });
     expect(await im.status(hostAccountId)).toMatchObject({ channel: "telegram", lineNumber: TEST_TELEGRAM_BOT, sender: "Dohyeon (@dohyeon)", state: "linked" });
 
+    // The welcome is the bot's only message: no "go back to your browser" reply.
     const sent = await sentTo(telegramHash(userId));
     expect(sent).toEqual([expect.objectContaining({ channel: "telegram", kind: "linked" })]);
     // A host still setting up is welcomed into setup, Calendar first.
@@ -95,10 +88,7 @@ describe("linking Telegram", () => {
     const userId = newTelegramUser();
     const pending = await pendingTelegram(hostAccountId);
     expect((await im.deliverTelegram(telegramMessage({ firstName: "Mina", text: pending.code.toLowerCase(), userId })))?.outcome).toBe("link_received");
-    const received = await im.status(hostAccountId);
-    expect(received).toMatchObject({ sender: "Mina", state: "received" });
-    if (received.state !== "received") throw new Error("Expected received.");
-    await im.command(hostAccountId, "imessage.link.confirm", { linkId: received.linkId });
+    expect(await im.status(hostAccountId)).toMatchObject({ sender: "Mina", state: "linked" });
 
     expect((await im.command(hostAccountId, "imessage.unlink")).ok).toBe(true);
     const [binding] = await db<{ state: string; sender_ciphertext: string | null; sender_name_ciphertext: string | null }[]>`
@@ -120,10 +110,8 @@ describe("linking Telegram", () => {
     const { hostAccountId } = await hostWithUser(db);
     const host = newTelegramUser();
     const pending = await pendingTelegram(hostAccountId);
-    await im.deliverTelegram(telegramMessage({ text: `/start ${pending.code}`, userId: host }));
-    const received = await im.status(hostAccountId);
-    if (received.state !== "received") throw new Error("Expected received.");
-    await im.command(hostAccountId, "imessage.link.confirm", { linkId: received.linkId });
+    expect((await im.deliverTelegram(telegramMessage({ text: `/start ${pending.code}`, userId: host })))?.outcome).toBe("link_received");
+    expect(await im.status(hostAccountId)).toMatchObject({ state: "linked" });
     expect((await im.deliverTelegram(telegramMessage({ text: "/start", userId: host })))?.outcome).toBe("command");
     expect((await sentTo(telegramHash(host))).map((row) => [row.kind, row.kind === "command" ? row.text : null])).toEqual([
       ["linked", null],
@@ -150,7 +138,7 @@ describe("linking Telegram", () => {
     expect(await sentTo(telegramHash(userId))).toEqual([{ channel: "telegram", kind: "link_refused", state: "queued", text: LINK_TEXTS.refusedTelegram }]);
   });
 
-  it("replaces an iMessage binding after confirmation and suppresses what was queued for it", async () => {
+  it("replaces an iMessage binding when the Telegram code arrives and suppresses what was queued for it", async () => {
     const hostAccountId = await newHostAccount(db);
     const imessage = await im.link(hostAccountId);
     const queued = await db<{ id: string }[]>`
@@ -159,13 +147,10 @@ describe("linking Telegram", () => {
     expect(queued).toHaveLength(1);
 
     const pending = await pendingTelegram(hostAccountId);
-    await im.deliverTelegram(telegramMessage({ firstName: "Dohyeon", text: `/start ${pending.code}`, userId: newTelegramUser() }));
-    const received = await im.status(hostAccountId);
-    expect(received).toMatchObject({ channel: "telegram", replaces: "imessage", state: "received" });
-    // Until the tap, the iMessage binding stands.
+    // While the Telegram code is pending, the iMessage binding stands.
     expect(await im.bindingOf(hostAccountId)).toMatchObject({ channel: "imessage", state: "active" });
-    if (received.state !== "received") throw new Error("Expected received.");
-    await im.command(hostAccountId, "imessage.link.confirm", { linkId: received.linkId });
+    await im.deliverTelegram(telegramMessage({ firstName: "Dohyeon", text: `/start ${pending.code}`, userId: newTelegramUser() }));
+    expect(await im.status(hostAccountId)).toMatchObject({ channel: "telegram", sender: "Dohyeon", state: "linked" });
 
     const bindings = await db<{ channel: string; state: string }[]>`
       select channel, state from app.imessage_bindings where host_account_id = ${hostAccountId} order by linked_at
@@ -181,7 +166,7 @@ describe("linking Telegram", () => {
     expect((await im.deliver({ sender: imessage.sender, text: "requests" })).outcome).toBe("unlinked_reply");
   });
 
-  it("changes nothing on exact retries of the code's receipt and of the commands", async () => {
+  it("changes nothing on exact retries of the code's receipt and of the create command", async () => {
     const hostAccountId = await newHostAccount(db);
     const first = await im.command(hostAccountId, "imessage.link.create", { channel: "telegram" }, "tg-create");
     const again = await im.command(hostAccountId, "imessage.link.create", { channel: "telegram" }, "tg-create");
@@ -202,18 +187,11 @@ describe("linking Telegram", () => {
     `;
     expect(receipts).toHaveLength(1);
     await im.processTwice(receipts[0]!.id);
-    const received = await im.status(hostAccountId);
-    expect(received).toMatchObject({ sender: "Dohyeon", state: "received" });
-    if (received.state !== "received") throw new Error("Expected received.");
+    expect(await im.status(hostAccountId)).toMatchObject({ sender: "Dohyeon", state: "linked" });
 
-    // A double tap of Start sends the same code again: still the same attempt.
+    // A double tap of Start sends the same code again: the same link, no refusal.
     expect((await im.deliverTelegram(telegramMessage({ text: `/start ${pending.code}`, userId })))?.outcome).toBe("link_received");
-    expect(await im.status(hostAccountId)).toMatchObject({ linkId: received.linkId, state: "received" });
-
-    const confirmed = await im.command(hostAccountId, "imessage.link.confirm", { linkId: received.linkId }, "tg-confirm");
-    const replayed = await im.command(hostAccountId, "imessage.link.confirm", { linkId: received.linkId }, "tg-confirm");
-    expect(replayed).toMatchObject({ ok: true, replayed: true });
-    expect(confirmed.ok && confirmed.result).toEqual(replayed.ok && replayed.result);
+    expect(await im.status(hostAccountId)).toMatchObject({ sender: "Dohyeon", state: "linked" });
     const bindings = await db<{ count: number }[]>`select count(*)::int as count from app.imessage_bindings where host_account_id = ${hostAccountId}`;
     expect(bindings[0]!.count).toBe(1);
     expect((await sentTo(telegramHash(userId))).map((row) => row.kind)).toEqual(["linked"]);

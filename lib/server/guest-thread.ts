@@ -42,6 +42,7 @@ const ORDER = new Map(THREAD_CARD_KINDS.map((kind, index) => [kind, index]));
 const PROFILE_LABELS: Readonly<Record<string, string>> = {
   calendars: "your calendars",
   details: "your basic details",
+  messenger: "updates in your host conversation",
 };
 
 // The review receipt names the applied fields as the cards do.
@@ -75,6 +76,8 @@ type RequestRow = {
   profile_at: Date | null;
   profile_decided_at: Date | null;
   profile_items: string[] | null;
+  // The request is bound to the guest-host's own host conversation (#61).
+  profile_messenger: boolean;
   purpose: string | null;
   requester_name: string | null;
   state: RequestState;
@@ -115,6 +118,10 @@ export async function readGuestThread(db: Queryable, requestId: string, current:
            (select max(a.agreed_at) from app.agreements a join app.proposals p on p.id = a.proposal_id
              where p.request_id = r.id) as agreed_at,
            p.created_at as profile_at, p.decided_at as profile_decided_at, p.items as profile_items,
+           exists (select 1 from app.requester_imessage_bindings b
+                   join app.imessage_bindings h on h.sender_hash = b.sender_hash and h.state = 'active'
+                     and h.host_account_id = p.host_account_id
+                   where b.request_id = r.id and b.state = 'active' and b.link_id is null) as profile_messenger,
            exists (select 1 from app.requester_grants g
                    where g.request_id = r.id and g.kind = 'calendar' and g.revoked_at is null) as calendar_grant,
            exists (select 1 from app.requester_grants g
@@ -166,7 +173,7 @@ export async function readGuestThread(db: Queryable, requestId: string, current:
   }
 
   if (request.profile_at) {
-    const items = request.profile_items ?? [];
+    const items = [...(request.profile_items ?? []), ...(request.profile_messenger ? ["messenger"] : [])];
     cards.push({
       at: iso(request.profile_decided_at ?? request.profile_at),
       id: "host_profile",

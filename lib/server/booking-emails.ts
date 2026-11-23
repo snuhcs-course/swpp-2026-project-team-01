@@ -63,6 +63,9 @@ export type BookingEmailParameters = MeetingParameters & {
   readonly changed?: boolean;
   // Why a change after booking was dropped.
   readonly reason?: "declined" | "expired";
+  // The requester's confirmation replies to the product inbox, so a reply
+  // reaches Thyme rather than the host (guest-email-and-agree-notices design 2).
+  readonly replyToAssistant?: boolean;
 };
 
 // The parts of a proposal the host can change.
@@ -189,6 +192,7 @@ const LABELS = {
     online: "Online",
     organizer: "Organizer",
     support: "Replying to this email reaches the other participant.",
+    supportAssistant: "Reply to this email to reach Thyme, your scheduling assistant, about this meeting.",
     what: "What",
     when: "When",
     where: "Where",
@@ -202,6 +206,7 @@ const LABELS = {
     online: "온라인",
     organizer: "주최자",
     support: "이 메일에 답장하면 상대방에게 전달됩니다.",
+    supportAssistant: "이 미팅에 대해서는 이 메일에 답장해 일정 도우미 Thyme에게 물어보세요.",
     what: "무엇",
     when: "언제",
     where: "어디",
@@ -279,6 +284,7 @@ function renderConfirmation(language: RequestLanguage, parameters: BookingEmailP
   const meeting = blocks(parameters, language);
   const bookingAction = parameters.audience === "host" ? "Open request" : labels.bookingAction;
   const join = parameters.mode === "online" && parameters.joinUrl ? parameters.joinUrl : null;
+  const support = parameters.audience === "requester" && parameters.replyToAssistant ? labels.supportAssistant : labels.support;
 
   const html = page(language, subject, [
     `<p><strong style="display:inline-block;border:1px solid #111;border-radius:999px;padding:2px 10px">${escapeHtml(labels.confirmed)}</strong></p>`,
@@ -289,7 +295,7 @@ function renderConfirmation(language: RequestLanguage, parameters: BookingEmailP
     ),
     button(viewUrl, bookingAction),
     ...(join ? [button(join, labels.join)] : []),
-    `<p style="color:#555;font-size:14px">${escapeHtml(labels.support)}</p>`,
+    `<p style="color:#555;font-size:14px">${escapeHtml(support)}</p>`,
   ]);
   const text = [
     labels.confirmed,
@@ -299,7 +305,7 @@ function renderConfirmation(language: RequestLanguage, parameters: BookingEmailP
     `${bookingAction}: ${viewUrl}`,
     ...(join ? [`${labels.join}: ${join}`] : []),
     "",
-    labels.support,
+    support,
     "",
     "Find Me a Time",
   ].join("\n");

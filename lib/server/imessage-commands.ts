@@ -425,6 +425,13 @@ async function decide(
   return { requestId: view.requestId, text: declineText(texts, outcome.result) };
 }
 
+// The reply to a settings save. The first save ends setup, so it says so
+// plainly with the booking link (issue #368) and adds the one tutorial offer.
+export function savedSettingsText(language: ChannelLanguage, booking: string, firstSave: boolean) {
+  const texts = channelReplies(language);
+  return firstSave ? `${texts.setupDone(booking)}\n\n${TUTORIAL_TEXT[language].offer}` : texts.saved(booking);
+}
+
 // The decline reply names the other dates only when the decline kept some.
 function declineText(texts: ReturnType<typeof channelReplies>, result: Record<string, unknown> | null) {
   const kept = typeof result?.keptDates === "number" ? result.keptDates : 0;
@@ -513,8 +520,7 @@ async function confirmSettings(deps: CommandDependencies, message: BoundMessage,
 
   const outcome = await run(deps, message, confirmSettingsCommand(live, deps.setup.appOrigin, { bindingId: message.bindingId }), message.hostAccountId, { proposalHash: proposal.proposalHash }, proposal.records.draftRevision);
   if (outcome.ok) {
-    const saved = texts.saved(outcome.result.links.booking);
-    return { saved: true, text: outcome.result.tutorialOffered ? `${saved}\n\n${TUTORIAL_TEXT[language].offer}` : saved };
+    return { saved: true, text: savedSettingsText(language, outcome.result.links.booking, outcome.result.tutorialOffered) };
   }
   if (outcome.error.reason === "destination_not_writable") {
     await recordDestinationAccess(deps.db, message.hostAccountId, live);
@@ -552,8 +558,7 @@ async function savedDecisionReply(
       return { requestId, text: texts.dropped };
     case "setup.confirm_settings": {
       const links = saved.result?.links as { booking?: string } | undefined;
-      const text = texts.saved(links?.booking ?? `${deps.origin}/app`);
-      return { requestId, text: saved.result?.tutorialOffered ? `${text}\n\n${TUTORIAL_TEXT[language].offer}` : text };
+      return { requestId, text: savedSettingsText(language, links?.booking ?? `${deps.origin}/app`, saved.result?.tutorialOffered === true) };
     }
     default:
       return null;

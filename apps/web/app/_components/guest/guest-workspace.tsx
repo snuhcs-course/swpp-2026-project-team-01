@@ -38,7 +38,8 @@ import { guestDiscussionClient, readNdjson } from "@/lib/chat/guest";
 import { GuestReceipt } from "./guest-card";
 import { GuestConversation, projectMessages, type ThreadEntry } from "./guest-conversation";
 import { AuthoredMessages } from "@/app/_components/setup/authored-messages";
-import { COMPOSER_LOCKED, GuestFrame, openingMessages, RequestPanel } from "./guest-frame";
+import { CALENDAR_REOPENED, guestComposerState } from "./composer-state";
+import { GuestFrame, openingMessages, RequestPanel } from "./guest-frame";
 import { TimezoneLine, useGuestTimezone } from "./timezone";
 
 // The guest workspace on the booking page (design decisions 2 and 12;
@@ -166,8 +167,15 @@ export function GuestWorkspace({
   }, []);
   const context = useRequesterCards(bookingId, view, timezone.zone, refresh, details, chooseAnotherTime, onAgreed, onAgreementFailure);
 
-  // The fixed steps hand over to the assistant once the Calendar step is done.
-  const handedOver = view.thread.some((card) => card.kind === "calendar" && card.status === "answered");
+  // The fixed steps hand over to the assistant once the Calendar step is first
+  // done; a Calendar step that reopens later leaves the composer usable and
+  // moves its card to where the thread is now, under Thyme's line about it
+  // (#373).
+  const composer = guestComposerState(view);
+  const handedOver = view.handedOver;
+  // Set after render, so the server and the first client render agree.
+  const [reopenedAt, setReopenedAt] = useState<string | null>(null);
+  useEffect(() => setReopenedAt(composer.calendarReopened ? new Date().toISOString() : null), [composer.calendarReopened]);
 
   const { entries, panel } = useMemo(() => {
     const placed = context
@@ -175,6 +183,7 @@ export function GuestWorkspace({
           choosingAgain: choosingAgain !== null && choosingAgain === view.proposal?.version,
           editing: detailsAt !== null,
           handedOver,
+          reopenedAt,
           profile: { again: profileAgain, close: () => setProfileAgain(false), reopen: () => setProfileAgain(true) },
           send: async (text) => sendRef.current?.(text),
         })
@@ -196,7 +205,7 @@ export function GuestWorkspace({
     );
     if (context && detailsAt) list.push({ at: detailsAt, id: "meeting-details", node: <DetailsCard context={context} /> });
     return { entries: list, panel: placed.panel };
-  }, [choosingAgain, context, detailsAt, handedOver, notice, profileAgain, view.proposal?.version, view.thread]);
+  }, [choosingAgain, context, detailsAt, handedOver, notice, profileAgain, reopenedAt, view.proposal?.version, view.thread]);
 
   useFocusNewCards(entries);
 
@@ -271,7 +280,8 @@ export function GuestWorkspace({
           }}
           onSettled={() => void refresh()}
           placeholder="Write to Thyme"
-          lockedReason={handedOver ? null : COMPOSER_LOCKED}
+          closedReason={composer.closedReason}
+          lockedReason={composer.lockedReason}
           sendRef={sendRef}
         />
       </GuestFrame>
@@ -361,6 +371,8 @@ function threadEntries(
     readonly editing: boolean;
     readonly choosingAgain: boolean;
     readonly handedOver: boolean;
+    // When a Calendar step reopened after the handover was first seen here.
+    readonly reopenedAt: string | null;
     readonly profile: { readonly again: boolean; readonly close: () => void; readonly reopen: () => void };
     readonly send: (text: string) => Promise<void>;
   },
@@ -452,8 +464,12 @@ function threadEntries(
         break;
       case "calendar":
         if (state === "open") {
-          if (view.connection.calendar) open("calendar-selection", card, <CalendarSelectionCard context={context} />);
-          else open("calendar-connect", card, <ConnectCalendarCard context={context} />);
+          // Reopened after the handover: placed where the thread is now, with
+          // Thyme saying why it is back.
+          const placed = options.reopenedAt ? { ...card, at: options.reopenedAt } : card;
+          const line = options.reopenedAt ? <FixedMessage text={CALENDAR_REOPENED} /> : null;
+          if (view.connection.calendar) open("calendar-selection", placed, <>{line}<CalendarSelectionCard context={context} /></>);
+          else open("calendar-connect", placed, <>{line}<ConnectCalendarCard context={context} /></>);
         } else if (state === "answered") {
           const action = choosing
             ? change("Change your calendar", () => void context.run("request.set_manual_availability", { manual: false }))

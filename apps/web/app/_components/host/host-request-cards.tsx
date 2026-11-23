@@ -5,6 +5,7 @@ import type { CommandFailure } from "@lib/contracts/command-errors";
 import type { HostCandidate, HostRequestOperation, HostRequestView, HostSuggestion } from "@lib/contracts/host-request";
 import type { LinkPlan } from "@lib/contracts/request";
 import { isCalendarDate, MAX_DECLINED_DATES } from "@lib/contracts/declined-dates";
+import { DEFAULT_MEETING_MINUTES } from "@lib/contracts/setup";
 import { displayTime, instantFromLocal, localDate, zoneLabel } from "@lib/contracts/timezone";
 import { type FormEvent, type ReactNode, useId, useState } from "react";
 import { Receipt } from "@/app/_components/booking-receipt";
@@ -287,7 +288,7 @@ export function SuggestionEditor({ context, onClose }: { readonly context: HostC
   const initial = localParts(base?.start, view.hostTimezone);
   const [date, setDate] = useState(initial.date);
   const [time, setTime] = useState(initial.time);
-  const [duration, setDuration] = useState(String(base?.durationMinutes ?? view.details.durationMinutes ?? 30));
+  const [duration, setDuration] = useState(String(base?.durationMinutes ?? view.details.durationMinutes ?? DEFAULT_MEETING_MINUTES));
   const [mode, setMode] = useState<"online" | "in_person">(base?.mode ?? (view.details.mode === "in_person" ? "in_person" : "online"));
   const [place, setPlace] = useState(base?.location ?? view.details.location ?? "");
   const [link, setLink] = useState(base?.linkPlan?.kind === "requester_link" ? base.linkPlan.url : "");
@@ -399,7 +400,7 @@ function suggestionRows(suggestion: HostSuggestion, view: HostRequestView): [str
   const { changes } = suggestion;
 
   if (changes.start) {
-    const minutes = changes.durationMinutes ?? base?.durationMinutes ?? 30;
+    const minutes = changes.durationMinutes ?? base?.durationMinutes ?? view.details.durationMinutes ?? DEFAULT_MEETING_MINUTES;
     const end = new Date(Date.parse(changes.start) + minutes * 60_000).toISOString();
     rows.push(["When", base ? when(base.start, base.end, view) : "Not set", when(changes.start, end, view)]);
   }

@@ -151,6 +151,9 @@ export type RequesterCandidate = {
   readonly location: string | null;
   readonly linkPlan: LinkPlan | null;
   readonly unresolvedRequesterLeg: "inbound" | "outbound" | null;
+  // For a guest who is a host and uses their host settings: sentences about
+  // their own usual hours and weekly limit (#60). Never shown to the host.
+  readonly notes?: readonly string[];
 };
 
 // app.evaluations.requester_projection.
