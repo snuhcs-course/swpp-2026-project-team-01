@@ -20,7 +20,7 @@ Rejected: a `retain_until` column on requests | it duplicates the match and need
 
 `operator_delete_host` reads, before the catalog loop deletes the matches, the account's sent requests that are open (`gathering`, `negotiating`, `awaiting_host_approval`, `booking`) or have a confirmed booking that has not started, and publishes one `account_requests_close` job (dedupe `account:{id}`, 20 attempts) naming them. The producer environment follows `app.publish_request_expiry`: production when the worker URL is in Vault, otherwise local. Publishing from the function keeps the operator CLI, which runs only SQL, and the Settings job on one rule.
 
-The job's handler locks each request in ID order and decides from its state (`sentRequestClosing`): an open request is withdrawn (`closeRequest`); one still booking has its reserved booking cancelled first; a change after booking is dropped when its meeting has started, and otherwise cancels the meeting; a booked meeting still to come is cancelled through `cancelLockedMeeting`, the body of `booking.cancel` as the requester, which publishes `booking_cancel` and tells the host; an expired open request is left to the expiry job. A booking whose write may exist throws `booking_pending`, so the whole job backs off and retries. Withdrawal sends the host nothing, as a requester's withdrawal never does; the host sees it in Requests.
+The job's handler locks each request in ID order and decides from its state (`sentRequestClosing`): an open request is withdrawn (`closeRequest`); one still booking has its reserved booking cancelled first; a change after booking is dropped when its meeting has started, and otherwise cancels the meeting; a booked meeting still to come is cancelled through `cancelLockedMeeting`, the body of `booking.cancel` as the requester, which publishes `booking_cancel` and tells the host. An open request past its expiry is closed the same way rather than left to the expiry job, which would book a change's meeting back and email the deleted account. All the requests are locked in ID order before any host lock, so a command on one of them waits for the job instead of deadlocking with it. A booking whose write may exist throws `booking_pending`, so the whole job backs off and retries. Withdrawal sends the host nothing, as a requester's withdrawal never does; the host sees it in Requests.
 
 Rejected: closing the requests inside the SQL function | the cancellation's notices and calendar job are application code. Rejected: closing them in the `host_deletion` handler only | the operator path would skip it.
 
@@ -30,7 +30,7 @@ The account's Google Calendar grant is the account's; a request uses it only whe
 
 ### D5. The operator names a guest account by its address
 
-A guest account has no handle. `delete-host --host` accepts a Google address, lower-cased and checked for shape, and the statement resolves it from `app.google_identities`; an address that matches no account reaches the function unchanged and is refused as unknown.
+A guest account has no handle. `delete-host --host` accepts a Google address, lower-cased and checked for shape, and the statement resolves it from `app.google_identities` (the newest undeleted account, should two share it); an address that matches no account reaches the function unchanged and is refused as unknown.
 
 ## Risks
 

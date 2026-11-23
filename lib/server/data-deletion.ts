@@ -100,10 +100,11 @@ export function parseDeletionArguments(argv: readonly string[]): DeletionRequest
 export function deletionSql(request: DeletionRequest) {
   const audit = `${sqlLiteral(request.operator)}, ${sqlLiteral(request.reason)}, ${sqlLiteral(environmentName(request.target))}`;
 
-  // An address resolves to its account's ID; one that matches no account
-  // leaves the address itself, which operator_delete_host refuses as unknown.
+  // An address resolves to its account's ID (the newest undeleted one, should
+  // two accounts ever share it); one that matches no account leaves the
+  // address itself, which operator_delete_host refuses as unknown.
   const target = request.subject.includes("@")
-    ? `coalesce((select g.host_account_id::text from app.google_identities g where lower(g.email) = ${sqlLiteral(request.subject)}), ${sqlLiteral(request.subject)})`
+    ? `coalesce((select g.host_account_id::text from app.google_identities g join app.host_accounts a on a.id = g.host_account_id where lower(g.email) = ${sqlLiteral(request.subject)} order by a.deleted_at is null desc, a.created_at desc limit 1), ${sqlLiteral(request.subject)})`
     : sqlLiteral(request.subject);
 
   return request.command === "delete-host"

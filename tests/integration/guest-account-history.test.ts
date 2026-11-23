@@ -100,9 +100,13 @@ describe("account deletion and sent requests", () => {
   it("withdraws the account's open sent requests and cancels its booked meeting, telling the host", async () => {
     const guest = await signInHost(db);
     const open = await createTestRequest(db);
+    const lapsed = await createTestRequest(db);
     const closed = await createTestRequest(db);
     await own(open.requestId, guest.hostAccountId);
+    await own(lapsed.requestId, guest.hostAccountId);
     await own(closed.requestId, guest.hostAccountId);
+    // Past its expiry but not yet swept: closed by the job, not the expiry job.
+    await db`update app.requests set expires_at = now() - interval '1 minute' where id = ${lapsed.requestId}`;
     await db`update app.requests set state = 'declined', closed_at = now() where id = ${closed.requestId}`;
     const booked = await bookedFor(guest.hostAccountId);
 
@@ -113,12 +117,13 @@ describe("account deletion and sent requests", () => {
     const [payload] = await db<{ request_ids: string[] }[]>`
       select array(select jsonb_array_elements_text(payload -> 'requestIds')) as request_ids from app.jobs where id = ${job!.id}
     `;
-    expect([...payload!.request_ids].sort()).toEqual([open.requestId, booked.requestId].sort());
+    expect([...payload!.request_ids].sort()).toEqual([open.requestId, lapsed.requestId, booked.requestId].sort());
     // The deletion removed the account's matches but not the hosts' requests.
     expect(await db`select 1 from app.requester_host_profiles where host_account_id = ${guest.hostAccountId}`).toHaveLength(0);
 
     expect(await runJob(db, job!.id, createAccountRequestsCloseHandler(() => testNotices))).toBe("completed");
     expect((await requestState(db, open.requestId)).state).toBe("withdrawn");
+    expect((await requestState(db, lapsed.requestId)).state).toBe("withdrawn");
     expect((await requestState(db, closed.requestId)).state).toBe("declined");
     expect((await requestState(db, booked.requestId)).state).toBe("cancelled");
     expect(await bookingOf(db, booked.bookingId)).toMatchObject({ failure_category: "requester_cancelled", state: "cancelled" });

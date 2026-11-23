@@ -39,7 +39,7 @@ describe("fmat-admin deletion arguments", () => {
     const request = parseDeletionArguments(["delete-host", "--host", "Guest.Name@Example.com", "--reason", "asked by email", ...local]);
     expect(request.subject).toBe("guest.name@example.com");
     expect(deletionSql(request)).toContain(
-      "app.operator_delete_host(coalesce((select g.host_account_id::text from app.google_identities g where lower(g.email) = 'guest.name@example.com'), 'guest.name@example.com'), 'ops', 'asked by email', 'local')",
+      "app.operator_delete_host(coalesce((select g.host_account_id::text from app.google_identities g join app.host_accounts a on a.id = g.host_account_id where lower(g.email) = 'guest.name@example.com' order by a.deleted_at is null desc, a.created_at desc limit 1), 'guest.name@example.com'), 'ops', 'asked by email', 'local')",
     );
     expect(() => parseDeletionArguments(["delete-host", "--host", "a'b@example.com", "--reason", "r", ...local])).toThrow(/Google address/);
     expect(() => parseDeletionArguments(["delete-host", "--host", "nobody@", "--reason", "r", ...local])).toThrow(/Google address/);

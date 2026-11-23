@@ -38,4 +38,6 @@ None in `openspec/specs/`. Retention and operator deletion are still pending del
 - Schema: `app.cleanup_retained_records` and `app.operator_delete_host` replaced in one hand-written migration (`supabase migration new guest_account_history`), not generated, not yet applied.
 - Server: `lib/server/account-requests-close.ts` (new job), `lib/server/booking-cancellation.ts` (`cancelLockedMeeting` shared with `booking.cancel`), `lib/server/eve-auth.ts`, `lib/server/workspace-requests.ts`, `lib/server/host-request-routes.ts`, `lib/server/data-deletion.ts`, `lib/server/account-emails.ts`, `lib/server/job-handlers.ts`.
 - Web: the conversation route, `apps/web/app/_components/host/host-requests.tsx` and `sent-request-conversation.tsx`, the Delete account card, `/privacy`.
-- Documents: the operator runbook in provider setup, the CLI direction, the page list and the decision log, with their Korean mirrors.
+- Documents: the operator runbook in provider setup, the PRD's data rule, the page list and the decision log, with their Korean mirrors where one exists.
+
+This change has two tracking issues because the owner decided #233 as part of #48's rules; #228 stays open for its remaining archive task in `self-service-account-deletion`.

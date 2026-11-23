@@ -21,8 +21,6 @@ export const ACCOUNT_REQUESTS_CLOSE_JOB = "account_requests_close";
 
 export type SentRequestFacts = {
   readonly state: RequestState;
-  // Past its expiry: the request_expiry job closes it as usual.
-  readonly expired: boolean;
   // A confirmed booking stands while the request changes it.
   readonly standingBooking: boolean;
   // That confirmed booking has not started.
@@ -35,8 +33,10 @@ export type SentRequestClosing = "withdraw" | "withdraw_booking" | "drop_change"
 export function sentRequestClosing(facts: SentRequestFacts): SentRequestClosing {
   const open = isActionableRequestState(facts.state) || facts.state === "booking";
 
+  // An open request past its expiry is closed here too, before the expiry job
+  // could book a change's meeting back or email the deleted account.
   if (facts.state === "booked") return facts.meetingAhead ? "cancel_meeting" : "leave";
-  if (!open || (facts.expired && facts.state !== "booking")) return "leave";
+  if (!open) return "leave";
   if (facts.standingBooking) return facts.meetingAhead ? "cancel_meeting" : "drop_change";
   return facts.state === "booking" ? "withdraw_booking" : "withdraw";
 }
@@ -60,19 +60,20 @@ export function createAccountRequestsCloseHandler(
     let withdrawn = 0;
     let cancelled = 0;
     let left = 0;
-    let notices: NoticeDependencies | null = null;
 
-    // In ID order, as operator_delete_host listed them, so two jobs lock alike.
-    for (const requestId of [...payload.data.requestIds].sort()) {
-      const [request] = await tx<{ id: string; host_account_id: string; state: RequestState; revision: number; expired: boolean }[]>`
-        select id, host_account_id, state, revision, expires_at <= now() as expired
-        from app.requests where id = ${requestId}
-        for update
-      `;
-      if (!request) {
-        left += 1;
-        continue;
-      }
+    // Every request is locked first, in ID order, before any host lock: a
+    // command on one of them then waits for this job instead of holding the
+    // request while it waits for a host lock this job holds.
+    const ids = [...new Set(payload.data.requestIds)].sort();
+    const locked = ids.length === 0 ? [] : await tx<{ id: string; host_account_id: string; state: RequestState; revision: number }[]>`
+      select id, host_account_id, state, revision
+      from app.requests where id in ${tx(ids)}
+      order by id
+      for update
+    `;
+    left += ids.length - locked.length;
+
+    for (const request of locked) {
 
       const standing = (await standingBookingOf(tx, request.id)) !== null;
       const [ahead] = await tx<{ ahead: boolean }[]>`
@@ -80,7 +81,7 @@ export function createAccountRequestsCloseHandler(
           select 1 from app.bookings where request_id = ${request.id} and state = 'confirmed' and start_at > clock_timestamp()
         ) as ahead
       `;
-      const closing = sentRequestClosing({ expired: request.expired, meetingAhead: Boolean(ahead?.ahead), standingBooking: standing, state: request.state });
+      const closing = sentRequestClosing({ meetingAhead: Boolean(ahead?.ahead), standingBooking: standing, state: request.state });
 
       switch (closing) {
         case "withdraw":
@@ -94,8 +95,7 @@ export function createAccountRequestsCloseHandler(
           if (await dropChange(tx, request.id, "withdrawn")) withdrawn += 1;
           break;
         case "cancel_meeting":
-          notices ??= loadNotices();
-          await cancelLockedMeeting(tx, request, { byHost: false, changing: request.state !== "booked", notices });
+          await cancelLockedMeeting(tx, request, { byHost: false, changing: request.state !== "booked", notices: loadNotices });
           cancelled += 1;
           break;
         case "leave":

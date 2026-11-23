@@ -23,4 +23,4 @@
 
 ## Documents
 
-- [x] Update the operator runbook, the CLI direction, the page list and the decision log, and regenerate their Korean mirrors.
+- [x] Update the operator runbook (deletion and retention), the PRD's data rule, the page list and the decision log, and regenerate the Korean mirrors that exist (the page list has none). The CLI direction lists no deletion command and needed no change.

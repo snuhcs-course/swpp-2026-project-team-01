@@ -9,7 +9,6 @@ import type { Transaction } from "./database";
 // tests/integration/guest-account-history.test.ts.
 
 const facts = (state: RequestState, overrides: Partial<SentRequestFacts> = {}): SentRequestFacts => ({
-  expired: false,
   meetingAhead: false,
   standingBooking: false,
   state,
@@ -23,7 +22,6 @@ describe("sentRequestClosing", () => {
 
   it("cancels a reserved booking and withdraws a request still booking", () => {
     expect(sentRequestClosing(facts("booking"))).toBe("withdraw_booking");
-    expect(sentRequestClosing(facts("booking", { expired: true }))).toBe("withdraw_booking");
   });
 
   it("cancels a booked meeting still to come and leaves one that started", () => {
@@ -37,9 +35,6 @@ describe("sentRequestClosing", () => {
     expect(sentRequestClosing(facts("negotiating", { standingBooking: true }))).toBe("drop_change");
   });
 
-  it("leaves an expired open request to the expiry job", () => {
-    expect(sentRequestClosing(facts("negotiating", { expired: true }))).toBe("leave");
-  });
 
   it.each(["draft", "declined", "withdrawn", "expired", "cancelled"] as const)("leaves a %s request", (state) => {
     expect(sentRequestClosing(facts(state))).toBe("leave");

@@ -100,7 +100,7 @@ export function cancelBookingCommand(
       if (request.state !== "booked" && !changing) throw new CommandError("invalid_input", { reason: "not_booked" });
       assertRevision(request.revision, context.expectedRevision);
 
-      return cancelLockedMeeting(tx, request, { byHost: context.actor.kind === "host_account", changing, notices: loadNotices() });
+      return cancelLockedMeeting(tx, request, { byHost: context.actor.kind === "host_account", changing, notices: loadNotices });
     },
   };
 }
@@ -111,7 +111,7 @@ export function cancelBookingCommand(
 export async function cancelLockedMeeting(
   tx: Transaction,
   request: { readonly id: string; readonly host_account_id: string; readonly revision: number },
-  { byHost, changing, notices }: { readonly byHost: boolean; readonly changing: boolean; readonly notices: NoticeDependencies },
+  { byHost, changing, notices }: { readonly byHost: boolean; readonly changing: boolean; readonly notices: () => NoticeDependencies },
 ): Promise<CancelBookingResult> {
   await lockHost(tx, request.host_account_id);
   // The pre-dispatch cancellation categories reuse withdrawal and decline.
@@ -156,10 +156,10 @@ export async function cancelLockedMeeting(
     start: booking.start_at.toISOString(),
   };
   if (byHost) {
-    await enqueueStatusNotice(tx, notices, request.id, { bookingId: booking.id, kind: "status_cancelled", meeting });
+    await enqueueStatusNotice(tx, notices(), request.id, { bookingId: booking.id, kind: "status_cancelled", meeting });
   } else {
     await enqueueHostNotice(tx, request.id, { bookingId: booking.id, kind: "booking_cancelled" });
-    await enqueueHostCancellation(tx, notices, request.id, meeting);
+    await enqueueHostCancellation(tx, notices(), request.id, meeting);
   }
 
   return { bookingId: booking.id, end: meeting.end, revision: request.revision + 1, start: meeting.start, state: "cancelled" };
