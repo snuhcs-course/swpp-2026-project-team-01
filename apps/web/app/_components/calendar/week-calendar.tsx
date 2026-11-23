@@ -45,6 +45,8 @@ export type CalendarMark = Span & {
 };
 
 export const HOUR_PX = 48;
+// On a phone a 30-minute time is a 44px touch target (DESIGN.md).
+export const NARROW_HOUR_PX = 88;
 const ALL_DAY_PX = 26;
 const NARROW_QUERY = "(max-width: 639px)";
 
@@ -99,6 +101,8 @@ export function WeekCalendar(props: WeekCalendarProps) {
 
   const shown = narrow ? [day] : week;
   const hours = visibleHours(marks, shown, timeZone);
+  const hourPx = narrow ? NARROW_HOUR_PX : HOUR_PX;
+  const lanes = markLanes(marks, timeZone);
   const rows = hours[1] - hours[0];
   const timed = items.filter((item) => !item.allDay);
   const allDay = items.filter((item) => item.allDay);
@@ -111,7 +115,7 @@ export function WeekCalendar(props: WeekCalendarProps) {
   function pick(event: MouseEvent<HTMLDivElement>, key: string) {
     if (!props.onPick) return;
     const rect = event.currentTarget.getBoundingClientRect();
-    const offset = ((event.clientY - rect.top - band) / HOUR_PX) * 60;
+    const offset = ((event.clientY - rect.top - band) / hourPx) * 60;
     if (offset < 0) return;
     const start = pickedInstant(key, offset, hours, timeZone);
     if (start) props.onPick(start);
@@ -119,6 +123,11 @@ export function WeekCalendar(props: WeekCalendarProps) {
 
   const column = (key: string) => shown.indexOf(key);
   const position = (index: number) => ({ left: `${(index * 100) / shown.length}%`, width: `${100 / shown.length}%` });
+  // Marks that overlap each other share their column side by side.
+  const lanePosition = (index: number, { count, lane }: { count: number; lane: number }) => ({
+    left: `${((index + lane / count) * 100) / shown.length}%`,
+    width: `${100 / shown.length / count}%`,
+  });
   const sortedMarks = [...marks].sort((a, b) => a.start.localeCompare(b.start));
   const sortedItems = [...items].sort((a, b) => a.start.localeCompare(b.start));
   const elsewhere = marks.filter((mark) => !shown.includes(dayIn(mark.start, timeZone))).length;
@@ -160,13 +169,13 @@ export function WeekCalendar(props: WeekCalendarProps) {
             ))}
           </>
         )}
-        <div aria-hidden className="cw-axis" style={{ paddingTop: band, height: rows * HOUR_PX + band }}>
-          {Array.from({ length: rows }, (_, index) => <span key={index}>{String(hours[0] + index).padStart(2, "0")}:00</span>)}
+        <div aria-hidden className="cw-axis" style={{ paddingTop: band, height: rows * hourPx + band }}>
+          {Array.from({ length: rows }, (_, index) => <span key={index} style={{ height: hourPx }}>{String(hours[0] + index).padStart(2, "0")}:00</span>)}
         </div>
-        <div className="cw-body" style={{ gridColumn: `2 / span ${shown.length}`, height: rows * HOUR_PX + band }}>
+        <div className="cw-body" style={{ gridColumn: `2 / span ${shown.length}`, height: rows * hourPx + band }}>
           {shown.map((key, index) => (
             // A pointer shortcut only: the caller's form is the keyboard path.
-            <div aria-hidden className={`cw-column${props.onPick ? " cw-pickable" : ""}${key === today ? " cw-today" : ""}`} key={key} onClick={(event) => pick(event, key)} style={{ ...position(index), backgroundPosition: `0 ${band}px`, backgroundSize: `100% ${HOUR_PX}px` }} />
+            <div aria-hidden className={`cw-column${props.onPick ? " cw-pickable" : ""}${key === today ? " cw-today" : ""}`} key={key} onClick={(event) => pick(event, key)} style={{ ...position(index), backgroundPosition: `0 ${band}px`, backgroundSize: `100% ${hourPx}px` }} />
           ))}
           {sortedItems.length > 0 ? (
             <ul aria-label={props.itemsLabel} className="cw-layer">
@@ -182,9 +191,9 @@ export function WeekCalendar(props: WeekCalendarProps) {
                 return shown.flatMap((key) => {
                   const at = placement(item, key, timeZone, hours);
                   if (!at) return [];
-                  const height = (at.height / 60) * HOUR_PX;
+                  const height = (at.height / 60) * hourPx;
                   return [
-                    <li className={`cw-item cw-${item.tone}${height < 30 ? " cw-short" : ""}`} key={`${item.id}:${key}`} style={{ ...position(column(key)), top: band + (at.top / 60) * HOUR_PX + 1, height: height - 2 }}>
+                    <li className={`cw-item cw-${item.tone}${height < 30 ? " cw-short" : ""}`} key={`${item.id}:${key}`} style={{ ...position(column(key)), top: band + (at.top / 60) * hourPx + 1, height: height - 2 }}>
                       <span className="sr-only">{item.srLabel}</span>
                       <span aria-hidden className="cw-item-text">{height < 30 ? item.title : <><strong>{clockRange(item, timeZone)}</strong> {item.title}</>}</span>
                     </li>,
@@ -201,9 +210,9 @@ export function WeekCalendar(props: WeekCalendarProps) {
                 // A time on another day is counted under the grid instead.
                 if (!at) return [];
                 const covered = timed.some((item) => overlaps(item, mark));
-                const height = (at.height / 60) * HOUR_PX;
+                const height = (at.height / 60) * hourPx;
                 return [
-                  <li className={`cw-mark cw-${mark.tone}${covered ? " cw-inset" : ""}${height < 34 ? " cw-short" : ""}`} key={mark.id} style={{ ...position(column(key)), top: band + (at.top / 60) * HOUR_PX + 1, height: Math.max(height - 2, 22) }}>
+                  <li className={`cw-mark cw-${mark.tone}${covered ? " cw-inset" : ""}${height < 34 ? " cw-short" : ""}`} key={mark.id} style={{ ...lanePosition(column(key), lanes.get(mark.id) ?? { count: 1, lane: 0 }), top: band + (at.top / 60) * hourPx + 1, height: Math.max(height - 2, narrow ? 44 : 22) }}>
                     <MarkBody mark={mark} timeZone={timeZone} />
                   </li>,
                 ];
@@ -237,4 +246,41 @@ function MarkBody({ mark, timeZone }: { readonly mark: CalendarMark; readonly ti
 
 function allDayOn(item: CalendarItem, day: string) {
   return item.start.slice(0, 10) <= day && day < item.end.slice(0, 10);
+}
+
+/**
+ * Side-by-side lanes for marks that overlap on the same day: each mark gets
+ * the first free lane, and every mark in an overlapping group divides the
+ * column by the group's lane count.
+ */
+export function markLanes(marks: readonly CalendarMark[], timeZone: string) {
+  const result = new Map<string, { lane: number; count: number }>();
+  const byDay = new Map<string, CalendarMark[]>();
+  for (const mark of marks) {
+    const key = dayIn(mark.start, timeZone);
+    byDay.set(key, [...(byDay.get(key) ?? []), mark]);
+  }
+  for (const dayMarks of byDay.values()) {
+    const sorted = [...dayMarks].sort((a, b) => a.start.localeCompare(b.start) || a.end.localeCompare(b.end));
+    let group: { id: string; lane: number }[] = [];
+    let groupEnd = 0;
+    let laneEnds: number[] = [];
+    const close = () => {
+      for (const entry of group) result.set(entry.id, { count: laneEnds.length, lane: entry.lane });
+      group = [];
+      laneEnds = [];
+    };
+    for (const mark of sorted) {
+      const start = Date.parse(mark.start);
+      const end = Date.parse(mark.end);
+      if (group.length > 0 && start >= groupEnd) close();
+      groupEnd = group.length === 0 ? end : Math.max(groupEnd, end);
+      let lane = laneEnds.findIndex((laneEnd) => laneEnd <= start);
+      if (lane === -1) lane = laneEnds.push(end) - 1;
+      else laneEnds[lane] = end;
+      group.push({ id: mark.id, lane });
+    }
+    close();
+  }
+  return result;
 }

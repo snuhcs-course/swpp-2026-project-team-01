@@ -27,7 +27,7 @@
 .cw-day-head strong{font-size:15px;line-height:1.2}
 .cw-day-head[aria-current=date] strong{background:var(--primary);color:var(--primary-foreground);border-radius:9999px;padding:0 7px}
 .cw-axis{display:flex;flex-direction:column;border-top:1px solid #eef1f5}
-.cw-axis span{height:48px;flex:none;padding-right:6px;text-align:right;font-size:10px;color:#6b7482;font-variant-numeric:tabular-nums;transform:translateY(-6px)}
+.cw-axis span{flex:none;padding-right:6px;text-align:right;font-size:10px;color:#6b7482;font-variant-numeric:tabular-nums;transform:translateY(-6px)}
 .cw-axis span:first-child{transform:none}
 .cw-body{position:relative;border-top:1px solid #eef1f5}
 .cw-column{position:absolute;top:0;bottom:0;border-left:1px solid #eef1f5;background-image:linear-gradient(to bottom,#eef1f5 1px,transparent 1px);background-repeat:repeat-y}

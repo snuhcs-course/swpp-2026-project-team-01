@@ -260,28 +260,26 @@ export function SuggestionEditor({
 }: {
   readonly context: HostCardContext;
   readonly onClose: () => void;
-  // Reports the start the form holds, so the calendar beside it can mark it.
-  readonly onDraft?: (start: string | null) => void;
+  // Reports the start and length the form holds, so the calendar beside it can mark them.
+  readonly onDraft?: (draft: { readonly start: string; readonly durationMinutes: number } | null) => void;
   // A time picked on the calendar (calendar-views design 2), filled in as the start.
-  readonly picked?: string | null;
+  readonly picked?: { readonly start: string } | null;
 }) {
   const { view } = context;
   const base = view.proposal;
-  const initial = localParts(picked ?? base?.start, view.hostTimezone);
+  const initial = localParts(picked?.start ?? base?.start, view.hostTimezone);
   const [date, setDate] = useState(initial.date);
   const [time, setTime] = useState(initial.time);
 
   // A later pick on the calendar replaces the date and time.
   useEffect(() => {
     if (!picked) return;
-    const next = localParts(picked, view.hostTimezone);
+    const next = localParts(picked.start, view.hostTimezone);
     setDate(next.date);
     setTime(next.time);
   }, [picked, view.hostTimezone]);
 
-  useEffect(() => {
-    onDraft?.(date && time ? instantFromLocal(date, time, view.hostTimezone) : null);
-  }, [date, time, onDraft, view.hostTimezone]);
+
   const [duration, setDuration] = useState(String(base?.durationMinutes ?? view.details.durationMinutes ?? 30));
   const [mode, setMode] = useState<"online" | "in_person">(base?.mode ?? (view.details.mode === "in_person" ? "in_person" : "online"));
   const [place, setPlace] = useState(base?.location ?? view.details.location ?? "");
@@ -289,6 +287,11 @@ export function SuggestionEditor({
   const [problem, setProblem] = useState<string | null>(null);
   const { act, busy, error } = useAction(context);
   const ids = useId();
+
+  useEffect(() => {
+    const start = date && time ? instantFromLocal(date, time, view.hostTimezone) : null;
+    onDraft?.(start ? { durationMinutes: Number(duration), start } : null);
+  }, [date, time, duration, onDraft, view.hostTimezone]);
 
   async function submit(event: FormEvent) {
     event.preventDefault();

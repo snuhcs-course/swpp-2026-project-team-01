@@ -1,6 +1,6 @@
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it } from "vitest";
-import { WeekCalendar } from "./week-calendar";
+import { markLanes, WeekCalendar } from "./week-calendar";
 
 const base = {
   focusDay: "2026-12-01",
@@ -42,5 +42,21 @@ describe("WeekCalendar", () => {
     expect(html).toContain('aria-label="Wednesday 2 Dec, 1 time"');
     expect(html).toContain('aria-label="Next day"');
     expect(html).toContain("1 more time on other days");
+  });
+});
+
+describe("markLanes", () => {
+  it("puts overlapping times side by side and leaves others full width", () => {
+    const mark = (id: string, start: string, end: string) => ({ end, id, srLabel: id, start, tone: "option" as const });
+    const lanes = markLanes(
+      [
+        mark("a", "2026-12-01T01:00:00.000Z", "2026-12-01T01:30:00.000Z"),
+        mark("b", "2026-12-01T01:00:00.000Z", "2026-12-01T01:30:00.000Z"),
+        mark("c", "2026-12-01T01:15:00.000Z", "2026-12-01T01:45:00.000Z"),
+        mark("d", "2026-12-01T03:00:00.000Z", "2026-12-01T03:30:00.000Z"),
+      ],
+      "Asia/Seoul",
+    );
+    expect(Object.fromEntries(lanes)).toEqual({ a: { count: 3, lane: 0 }, b: { count: 3, lane: 1 }, c: { count: 3, lane: 2 }, d: { count: 1, lane: 0 } });
   });
 });

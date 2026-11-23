@@ -61,12 +61,19 @@ export async function readRequesterBusy(
   const spans: BusySpan[] = [];
   let connected = false;
 
+  // A booked meeting being changed is not busy time for its own new time,
+  // as in the evaluation (post-booking-changes design 5).
+  const [standing] = await deps.db<{ event_id: string }[]>`
+    select event_id from app.bookings where request_id = ${requestId} and state = 'confirmed'
+  `;
+  const notOwnEvent = (event: CalendarEvent) => !standing || (event.id !== standing.event_id && event.iCalUID !== `${standing.event_id}@google.com`);
+
   try {
     const grant = await readRequesterCalendarGrant(deps.db, deps.tokenKeys, requestId);
     if (grant) {
       connected = true;
       const events = await readRequesterEvents(deps.requesterCalendar, grant, range);
-      spans.push(...toSpans(events, grant.email, zone));
+      spans.push(...toSpans(events.filter(notOwnEvent), grant.email, zone));
     }
 
     const guestHost = await readGuestHostSource(deps.db, requestId);
@@ -75,7 +82,7 @@ export async function readRequesterBusy(
       const calendar = await openHostCalendar({ config: deps.hostCalendar, db: deps.db, tokenKeys: deps.tokenKeys }, guestHost.hostAccountId);
       const events: CalendarEvent[] = [];
       for (const entry of guestHost.conflictCalendars) events.push(...(await calendar.listEvents(entry.id, range)));
-      spans.push(...toSpans(events, guestHost.email, zone));
+      spans.push(...toSpans(events.filter(notOwnEvent), guestHost.email, zone));
     }
   } catch (error) {
     throw new RequesterBusyUnavailableError({ cause: error });

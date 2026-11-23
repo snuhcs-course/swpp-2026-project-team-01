@@ -25,7 +25,7 @@ import {
   SuggestionCard,
   SuggestionEditor,
 } from "./host-request-cards";
-import { HostDecisionCalendar, showsDecisionCalendar } from "./host-decision-calendar";
+import { type Draft, HostDecisionCalendar, showsDecisionCalendar } from "./host-decision-calendar";
 
 // The host's requests in /app (host-review-and-booking design 2 and 3;
 // chat-workspaces: host request inbox). With no request selected, the inbox
@@ -225,8 +225,9 @@ function RequestPanel({ onChanged, onUnavailable, requestId }: { readonly onChan
   const [view, setView] = useState<HostRequestView | null>(null);
   const [editing, setEditing] = useState(false);
   // A time picked on the calendar, and the start the open editor holds.
-  const [picked, setPicked] = useState<string | null>(null);
-  const [draftStart, setDraftStart] = useState<string | null>(null);
+  // Each pick is a new object, so picking the same time again still applies it.
+  const [picked, setPicked] = useState<{ readonly start: string } | null>(null);
+  const [draft, setDraft] = useState<Draft | null>(null);
   const retryKeys = useRef(new Map<string, string>());
 
   const reload = useCallback(async () => {
@@ -280,22 +281,22 @@ function RequestPanel({ onChanged, onUnavailable, requestId }: { readonly onChan
           <OpenCard
             context={{ run, view }}
             editing={editing}
-            onDraft={setDraftStart}
+            onDraft={setDraft}
             picked={picked}
             setEditing={(value) => {
               setEditing(value);
               if (!value) {
                 setPicked(null);
-                setDraftStart(null);
+                setDraft(null);
               }
             }}
           />
           {showsDecisionCalendar(view, editing) ? (
             <div className="pt-5">
               <HostDecisionCalendar
-                draftStart={editing ? draftStart : null}
-                onPick={CLOSED_STATES.includes(view.state) && !editing ? undefined : (start) => {
-                  setPicked(start);
+                draft={editing ? draft : null}
+                onPick={(start) => {
+                  setPicked({ start });
                   setEditing(true);
                 }}
                 view={view}
@@ -308,9 +309,7 @@ function RequestPanel({ onChanged, onUnavailable, requestId }: { readonly onChan
   );
 }
 
-const CLOSED_STATES: readonly RequestState[] = ["booked", "declined", "withdrawn", "expired", "cancelled"];
-
-function OpenCard({ context, editing, onDraft, picked, setEditing }: { readonly context: HostCardContext; readonly editing: boolean; readonly onDraft: (start: string | null) => void; readonly picked: string | null; readonly setEditing: (value: boolean) => void }) {
+function OpenCard({ context, editing, onDraft, picked, setEditing }: { readonly context: HostCardContext; readonly editing: boolean; readonly onDraft: (draft: Draft | null) => void; readonly picked: { readonly start: string } | null; readonly setEditing: (value: boolean) => void }) {
   if (context.view.sample && context.view.state !== "awaiting_host_approval") {
     return <GuestCard id="tutorial-complete" title={tutorialFeedback.complete} description={tutorialFeedback.practice} />;
   }
@@ -332,7 +331,7 @@ function OpenCard({ context, editing, onDraft, picked, setEditing }: { readonly 
   );
 }
 
-function stepCard(step: ReturnType<typeof nextHostStep>, context: HostCardContext, requestChanges: () => void, closeEditor: () => void, picked: string | null, onDraft: (start: string | null) => void) {
+function stepCard(step: ReturnType<typeof nextHostStep>, context: HostCardContext, requestChanges: () => void, closeEditor: () => void, picked: { readonly start: string } | null, onDraft: (draft: Draft | null) => void) {
   switch (step) {
     case "editor":
       return <SuggestionEditor context={context} onClose={closeEditor} onDraft={onDraft} picked={picked} />;

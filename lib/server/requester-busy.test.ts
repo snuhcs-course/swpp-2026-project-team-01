@@ -9,7 +9,9 @@ vi.mock("./google-calendar", () => ({ openHostCalendar: async () => ({ listEvent
 
 const { busyRange, readRequesterBusy, RequesterBusyUnavailableError } = await import("./requester-busy");
 
-const deps = { db: {} as never, hostCalendar: {} as never, requesterCalendar: {} as never, tokenKeys: [] };
+let standing: { event_id: string }[] = [];
+const db = (async () => standing) as never;
+const deps = { db, hostCalendar: {} as never, requesterCalendar: {} as never, tokenKeys: [] };
 const range = { end: new Date("2026-12-08T00:00:00Z"), start: new Date("2026-11-29T00:00:00Z") };
 const event = (overrides: Record<string, unknown>) => ({
   attendees: [],
@@ -26,6 +28,7 @@ const event = (overrides: Record<string, unknown>) => ({
 });
 
 beforeEach(() => {
+  standing = [];
   grant.mockReset();
   events.mockReset();
   guestHost.mockReset().mockResolvedValue(null);
@@ -62,6 +65,13 @@ describe("the guest's own busy times", () => {
       connected: true,
     });
     expect(JSON.stringify(answer)).not.toMatch(/dentist|Secret/);
+  });
+
+  it("leaves out the booked meeting being changed, as the evaluation does", async () => {
+    standing = [{ event_id: "booked" }];
+    grant.mockResolvedValue({ calendarIds: ["primary"], email: null, refreshToken: "t" });
+    events.mockResolvedValue([event({ iCalUID: "booked@google.com", id: "copy" })]);
+    await expect(readRequesterBusy(deps, "r1", range, "Asia/Seoul")).resolves.toEqual({ busy: [], connected: true });
   });
 
   it("reports a failed read without treating it as free time", async () => {

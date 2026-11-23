@@ -16,16 +16,25 @@ import { sourceLabel } from "@/app/_components/host-dashboard-labels";
 // changes with that time filled in; nothing is shared until the host shares
 // the suggestion.
 
-const CLOSED = ["booked", "declined", "withdrawn", "expired", "cancelled"];
+// The states in which the host can still request changes; a booking in
+// progress or a closed request shows no calendar.
+const DECIDING = ["gathering", "negotiating", "awaiting_host_approval"];
 
 /** Whether the request has a time on screen to see against the host's week. */
 export function showsDecisionCalendar(view: HostRequestView, editing: boolean) {
-  if (view.sample || (CLOSED.includes(view.state) && !editing)) return false;
-  return Boolean(editing || view.proposal || view.suggestion?.changes.start || view.evaluation?.candidates.some((candidate) => candidate.status === "offered"));
+  if (view.sample || !DECIDING.includes(view.state)) return false;
+  if (view.booking && ["reserved", "dispatching"].includes(view.booking.state)) return false;
+  return Boolean(editing || view.proposal || suggestedStart(view) || view.evaluation?.candidates.some((candidate) => candidate.status === "offered"));
 }
 
+function suggestedStart(view: HostRequestView) {
+  return view.suggestion && ["pending", "checking", "shared"].includes(view.suggestion.state) ? view.suggestion.changes.start : undefined;
+}
+
+export type Draft = { readonly start: string; readonly durationMinutes: number };
+
 /** The marked times for a request: proposal, suggestion, the host's draft and open times. */
-export function decisionMarks(view: HostRequestView, draftStart: string | null, onPick?: (start: string) => void): CalendarMark[] {
+export function decisionMarks(view: HostRequestView, draft: Draft | null, onPick?: (start: string) => void): CalendarMark[] {
   const zone = view.hostTimezone;
   const minutes = view.proposal?.durationMinutes ?? view.details.durationMinutes ?? 30;
   const span = (start: string, length = minutes) => ({ end: new Date(Date.parse(start) + length * 60_000).toISOString(), start });
@@ -36,14 +45,14 @@ export function decisionMarks(view: HostRequestView, draftStart: string | null, 
     const { end, start } = view.proposal;
     marks.push({ end, id: "proposal", srLabel: `Proposed time: ${describe(start, end)}`, start, tag: "Proposed", tone: "proposed" });
   }
-  const suggested = view.suggestion && ["pending", "checking", "shared"].includes(view.suggestion.state) ? view.suggestion.changes.start : undefined;
+  const suggested = suggestedStart(view);
   if (suggested && view.suggestion) {
     const at = span(suggested, view.suggestion.changes.durationMinutes ?? minutes);
     const tag = view.suggestion.state === "shared" ? "Shared suggestion" : "Your suggestion";
     marks.push({ ...at, id: "suggestion", srLabel: `${tag}: ${describe(at.start, at.end)}`, tag, tone: "draft" });
   }
-  if (draftStart && draftStart !== suggested && draftStart !== view.proposal?.start) {
-    const at = span(draftStart);
+  if (draft && draft.start !== suggested && (draft.start !== view.proposal?.start || draft.durationMinutes !== view.proposal.durationMinutes)) {
+    const at = span(draft.start, draft.durationMinutes);
     marks.push({ ...at, id: "draft", srLabel: `New time you are suggesting: ${describe(at.start, at.end)}`, tag: "New time", tone: "draft" });
   }
   const taken = new Set(marks.map((mark) => mark.start));
@@ -76,13 +85,15 @@ export function decisionItems(events: readonly DashboardEvent[], requestId: stri
     }));
 }
 
-export function HostDecisionCalendar({ draftStart, onPick, view }: { readonly draftStart: string | null; readonly onPick?: (start: string) => void; readonly view: HostRequestView }) {
+export function HostDecisionCalendar({ draft, onPick, view }: { readonly draft: Draft | null; readonly onPick?: (start: string) => void; readonly view: HostRequestView }) {
   const [events, setEvents] = useState<readonly DashboardEvent[]>([]);
   const [state, setState] = useState<"loading" | "ready" | "failed">("loading");
   const [warning, setWarning] = useState<string | null>(null);
   const loaded = useRef(new Map<string, DashboardData>());
+  // The week on screen: an answer for any other week is kept but not shown.
+  const current = useRef<string | null>(null);
   const zone = view.hostTimezone;
-  const marks = decisionMarks(view, draftStart, onPick);
+  const marks = decisionMarks(view, draft, onPick);
   const focus = marks.find((mark) => mark.id === "draft") ?? marks.find((mark) => mark.id === "suggestion") ?? marks.find((mark) => mark.id === "proposal") ?? marks[0];
   const focusDay = dayIn(focus?.start ?? new Date().toISOString(), zone);
 
@@ -90,7 +101,9 @@ export function HostDecisionCalendar({ draftStart, onPick, view }: { readonly dr
   const loadWeek = useCallback((days: readonly string[]) => {
     const { from, to } = daysRange(days);
     const key = `${from}|${to}`;
+    current.current = key;
     const show = (data: DashboardData) => {
+      if (current.current !== key) return;
       setEvents(data.events);
       setWarning(data.googleWarning ?? null);
       setState("ready");
@@ -105,7 +118,9 @@ export function HostDecisionCalendar({ draftStart, onPick, view }: { readonly dr
         loaded.current.set(key, data);
         show(data);
       })
-      .catch(() => setState("failed"));
+      .catch(() => {
+        if (current.current === key) setState("failed");
+      });
   }, []);
 
   return (

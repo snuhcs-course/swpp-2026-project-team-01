@@ -63,13 +63,17 @@ export function CandidateCalendar({
   const shared = useMemo(() => sharedDetails([...offered, ...trips], timeZone), [offered, trips, timeZone]);
   const [calendar, setCalendar] = useState<{ connected: boolean; busy: readonly BusySpan[]; failed: boolean }>({ busy: [], connected: false, failed: false });
   const loaded = useRef(new Map<string, readonly BusySpan[]>());
-  const first = offered[0] ?? trips[0];
-  const focusDay = first ? dayIn(first.start, timeZone) : dayIn(new Date().toISOString(), timeZone);
+  // The grid opens at the earliest time, not the first in the search's spread order.
+  const earliest = [...offered, ...trips].map((candidate) => candidate.start).sort()[0];
+  const focusDay = dayIn(earliest ?? new Date().toISOString(), timeZone);
+  // The week on screen: an answer for any other week is kept but not shown.
+  const current = useRef<string | null>(null);
 
   // The guest's own busy times for the shown week, once per week per visit.
   const loadWeek = useCallback((days: readonly string[]) => {
     const { from, to } = daysRange(days);
     const key = `${from}|${to}`;
+    current.current = key;
     const cached = loaded.current.get(key);
     if (cached) {
       setCalendar((current) => ({ ...current, busy: cached }));
@@ -78,11 +82,12 @@ export function CandidateCalendar({
     void fetch(`/api/requests/${encodeURIComponent(bookingId)}/busy?from=${encodeURIComponent(from)}&to=${encodeURIComponent(to)}&tz=${encodeURIComponent(timeZone)}`, { cache: "no-store" })
       .then(async (response) => {
         // 503: a connected calendar that could not be read now.
+        if (current.current !== key) return;
         if (response.status === 503) return setCalendar((current) => ({ ...current, busy: [], connected: true, failed: true }));
         if (!response.ok) return;
         const answer = (await response.json()) as { connected: boolean; busy: BusySpan[] };
         loaded.current.set(key, answer.busy);
-        setCalendar({ busy: answer.busy, connected: answer.connected, failed: false });
+        if (current.current === key) setCalendar({ busy: answer.busy, connected: answer.connected, failed: false });
       })
       .catch(() => {});
   }, [bookingId, timeZone]);
