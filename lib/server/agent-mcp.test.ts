@@ -119,5 +119,6 @@ describe("tools the testing baseline names", () => {
     const check = REQUESTER_TOOLS.find((tool) => tool.name === "check_booking")!;
 
     expect(callable(guest, check)).toBe(true);
+    expect(callable({ ...guest, bootstrap: true, creationRetryKey: null, requestId: null }, check)).toBe(false);
   });
 });

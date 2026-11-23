@@ -2,7 +2,7 @@
 
 Status: **draft**, first version\
 Date: 2026-11-24\
-Basis: [Testing baseline](12_testing_baseline.md) at `aff38155`, which already reflects the merged work on #326, #329, #331 and #332; the repository owner's 2026-11-23 decisions on [#325](https://github.com/snuhcs-course/swpp-2026-project-team-01/issues/325) and its sub-issues #326 to #334
+Basis: [Testing baseline](12_testing_baseline.md) at `aff38155`, which already reflects the merged work on #326, #329, #331, #332 and most of #330 and #334; the repository owner's 2026-11-23 decisions on [#325](https://github.com/snuhcs-course/swpp-2026-project-team-01/issues/325) and its sub-issues #326 to #334
 
 Testing is split into four levels: module tests ([module test map](15_module_test_map.md)), AI response tests ([story path evaluation](13_story_path_evaluation.md)), UAT and QA. UAT walks one representative use case per story end to end on the team's UAT sheet. This sheet is the QA level: it walks every interface (web, messenger, email, MCP) through the failure, branch and off-path rows of the testing baseline, one case each, and records a result per case. It is a separate sheet; the UAT sheet is not edited.
 
@@ -377,7 +377,7 @@ On 2026-11-23 the repository owner decided every sub-issue of #325. #326, #329, 
 | G03 M-5.2 | Online meeting booked | "Send the join link again" | Expected AI behavior: Send the join link (Join meeting) exactly as read_booking_status returns it | To verify: record what happens |  |  |  |  |
 | G03 M-5.3/1 | Booked or in progress | "Send my booking page link again" | Expected AI behavior: Call resend_booking_link and say the link was emailed to the confirmed address, without writing it |  |  |  |  |  |
 | G03 M-5.3/2 | Booked or in progress | "Send my booking page link again"<br>Case: Address not confirmed | nothing is sent; say the link went to the email given when the request started |  |  |  |  |  |
-| G03 M-6 | Linked messenger | A non-text message (photo, sticker, voice) | Service message: I can read text messages only. (Telegram: Photos, stickers and voice messages don't reach Thyme.) |  |  |  |  |  |
+| G03 M-6 | Linked messenger | A non-text message (photo, sticker, voice) | Service message: I can read text messages only. (Telegram: Photos, stickers and voice messages don't reach Thyme.) | Known defect on Telegram: a guest gets the plain reply, not the Telegram wording (imessage-receipts.ts:666; module test map, Found while mapping) |  |  |  |  |
 
 #### G03 · Email · status and confirmation emails
 
