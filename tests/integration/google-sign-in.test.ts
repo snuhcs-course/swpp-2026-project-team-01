@@ -5,6 +5,7 @@ import {
   createGoogleCallbackHandler,
   createGoogleSignInHandler,
   type GoogleSignInDependencies,
+  RETURN_COOKIE,
 } from "../../lib/server/google-sign-in";
 import { createGrantedScopesFetcher } from "../../lib/server/google-token-info";
 import { START_COOKIE, startImessageLink } from "../../lib/server/imessage-start";
@@ -119,6 +120,24 @@ describe("Google sign-in", () => {
       where g.google_subject = ${user.googleSubject}
     `;
     expect(link).toEqual({ state: "pending" });
+  });
+
+  it("returns from Thyme's Calendar link to /app?calendar=connected only once Calendar is usable (D19)", async () => {
+    const scopes: Record<string, string> = {};
+    const info = await startFakeTokenInfo(scopes);
+    const fromLink = createGoogleCallbackHandler(() => ({ ...deps, fetchGrantedScopes: createGrantedScopesFetcher(info.url) }));
+    try {
+      for (const granted of [true, false]) {
+        const { accessToken, code, flow } = await signedInFlow();
+        scopes[accessToken] = ["openid", "email", ...(granted ? GOOGLE_CALENDAR_SCOPES : [])].join(" ");
+        const response = await fromLink(
+          new Request(`${origin}/auth/callback?code=${code}`, { headers: { cookie: `${flow.cookie}; ${RETURN_COOKIE}=imessage` } }),
+        );
+        expect(response.headers.get("location")).toBe(granted ? `${origin}/app?calendar=connected` : `${origin}/app`);
+      }
+    } finally {
+      await info.close();
+    }
   });
 
   it("returns a completed sign-in to /app with a session, ignoring a supplied destination", async () => {

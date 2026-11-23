@@ -11,7 +11,7 @@ Read product purpose and requirements, then UX and architecture. Detailed agreed
 | [Design principles](03_design_principles.md) | Agent action parity, suggestion-first setup and separate user/admin CLIs |
 | [Visual design](../DESIGN.md) | Thyme brand assets, palette, typography and accessible styling direction |
 | [User journeys](user_experience/01_user_journeys.md) | End-to-end experience across channels |
-| [User stories](user_experience/02_user_stories.md) | Actor needs linked to PRD requirements |
+| [User stories](user_experience/02_user_stories.md) | The ten stories of the testing baseline (H01–H04, G01–G03, M01, A01, R01) and the scope decided on 2026-11-23 |
 | [Interfaces](user_experience/03_interfaces.md) | Web, requester email, host iMessage, personal agents, MCP and CLI responsibilities |
 | [Page list](user_experience/04_page_list.md) | Single host workspace, the guest thread from the public page to the protected requester destination, and action cards |
 | [Host onboarding flow](user_experience/05_host_onboarding_flow.md) | Setup states, step-by-step server checks, recorded data and resume behavior for hosts |
@@ -22,13 +22,14 @@ Read product purpose and requirements, then UX and architecture. Detailed agreed
 | [Provider setup](technical_specification/03_provider_setup.md) | Recorded environment direction and future verification prerequisites |
 | [Agent configuration](technical_specification/04_agent_configuration.md) | How the eve agent is defined on disk: instructions, tools, skills, connections, channels, memory and model |
 | [CLI direction](technical_specification/05_cli.md) | Separate user/admin clients; administrator CLI implemented, user CLI pending |
-| [Implementation plan](technical_specification/06_implementation_plan.md) | Proposed sequence of bounded OpenSpec changes, decision deadlines and acceptance evidence per phase |
+| [Implementation plan](technical_specification/06_implementation_plan.md) | Proposed sequence of bounded OpenSpec changes, decision deadlines and acceptance evidence per phase, and the proposed next iteration plan |
 | [Acceptance record](technical_specification/07_acceptance_record.md) | Evidence each phase produced, with command, date, revision and environment, and its known gaps |
 | [Decision log](technical_specification/08_decision_log.md) | Every decision point per phase with its alternatives, where it is recorded and how to change it, plus steps blocked on the user |
 | [Guest defense evaluation](technical_specification/10_guest_defense_evaluation.md) | Fixed attack set for the guest assistant, its grading, pre-declared pass criteria, run settings and results |
 | [Host approval evaluation](technical_specification/11_host_approval_evaluation.md) | Draft: fixed set of host messages for approval in words, its grading, proposed pass criteria and run settings |
-| [Story path evaluation](technical_specification/13_story_path_evaluation.md) | Draft: fixed set of story-path cases from the testing baseline, real-tool runner, run settings and testing progress |
-| [Competitor research](business/competitor_research.md) | Dated research context; no product compatibility claim |
+| [Story path evaluation](technical_specification/13_story_path_evaluation.md) | Draft: fixed set of story-path cases from the testing baseline, real-tool runner, run settings, testing progress and the proposed Iteration 4 metrics and baselines |
+| [Competitor research](business/competitor_research.md) | Dated research context and a comparison by user scenario for host and guest; no product compatibility claim |
+| [Market and positioning](business/market_and_positioning.md) | Draft: the market we can earn from now, current players, the unsolved problem and our position, with sources |
 | [Transplant guide](transplant/en/transplant-guide.md) | Iteration 1 prototype features F01–F11, journeys and design decomposed for reuse; copied from `dev` for review, not yet reconciled |
 
 ## Maintenance

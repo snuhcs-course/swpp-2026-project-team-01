@@ -47,19 +47,21 @@ export type SuggestResult = { readonly changes: SharedChanges; readonly suggesti
 const suggestInput = z.object({ changes: sharedChangesSchema }).strict();
 
 // The changes a new suggestion stores when it replaces a pending one: the
-// pending suggestion's changes with the new ones laid over them. A new mode
-// drops the pending place or link that the other mode would not use. A new
-// place without a mode means in person and a new link without a mode means
-// online: the stored suggestion then names that mode, so sharing neither keeps
-// a contradicting pending mode nor falls back to the proposal's mode and drops
-// what the host just asked for.
+// pending suggestion's changes, if any, with the new ones laid over them. A new place
+// without a mode means in person and a new link without a mode means online;
+// a new suggestion that names both without a mode keeps the pending mode. The
+// stored suggestion never pairs a mode with the other mode's place or link:
+// whichever mode it ends with drops the other mode's detail, so sharing it
+// neither keeps a contradicting pending mode nor falls back to the proposal's
+// mode and drops what the host just asked for.
 export function replacementChanges(pending: SharedChanges | null, next: SharedChanges): SharedChanges {
-  if (!pending) return next;
-  const kept: SharedChanges = { ...pending };
-  const mode = next.mode ?? (next.location ? "in_person" : next.linkPlan ? "online" : undefined);
-  if (mode === "online") delete kept.location;
-  if (mode === "in_person") delete kept.linkPlan;
-  return { ...kept, ...next, ...(mode ? { mode } : {}) };
+  const base: SharedChanges = pending ?? {};
+  const inferred = next.location && !next.linkPlan ? "in_person" : next.linkPlan && !next.location ? "online" : undefined;
+  const mode = next.mode ?? inferred ?? base.mode;
+  const merged: SharedChanges = { ...base, ...next, ...(mode ? { mode } : {}) };
+  if (mode === "online") delete merged.location;
+  if (mode === "in_person") delete merged.linkPlan;
+  return merged;
 }
 
 export function suggestChangesCommand(source: "assistant" | "host"): CommandDefinition<z.infer<typeof suggestInput>, SuggestResult> {

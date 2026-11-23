@@ -1,0 +1,5 @@
+schema: spec-driven
+created: 2026-11-23
+goal: Let a guest recover from a bounced address, reach Thyme by replying to
+  the booking confirmation, get the booking link again from chat, and see in
+  their linked chat what they sent when they agree to a proposal.
