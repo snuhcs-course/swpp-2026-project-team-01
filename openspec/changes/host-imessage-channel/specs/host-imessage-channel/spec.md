@@ -184,7 +184,7 @@ A linked host SHALL be able to enter the shared setup discussion with `setup` an
 
 #### Scenario: Back from Google
 - **WHEN** a linked host signs in with Google from Thyme's Calendar link
-- **THEN** one message is queued to the linked conversation even if the sign-in is replayed, it does not claim Calendar was granted, and the browser returns to `/app`
+- **THEN** one message is queued to the linked conversation even if the sign-in is replayed, it does not claim Calendar was granted, and the browser returns to `/app`, which says Google Calendar is connected when the grant can use it
 
 #### Scenario: Stale settings review
 - **WHEN** the host sends `confirm <ref>` after the draft changed

@@ -53,11 +53,23 @@ The host workspace SHALL offer Google sign-in through Supabase Auth and SHALL NO
 - **THEN** the request is rejected without sending an authentication email
 
 ### Requirement: Single host workspace
-Host sign-in, channel linking, request selection, review and settings SHALL remain inside `/app` as authorized states, cards or dialogs. A host with incomplete setup SHALL complete setup in the verified messaging conversation, with browser authentication and consent returning to the authorized linking or conversation state. A ready host SHALL retain workspace access.
+Host sign-in, channel linking, request selection, review and settings SHALL remain inside `/app` as authorized states, cards or dialogs. A host with incomplete setup SHALL complete setup in the verified messaging conversation, with browser authentication and consent returning to the authorized linking or conversation state. A ready host SHALL retain workspace access. The wordmark on every signed-in host page SHALL link to `/app`. While the workspace reads the host's session, it SHALL show the workspace background with a loading status, not the sign-in layout. A return from Google consent begun at Thyme's Calendar link SHALL say that Google Calendar is connected only when the grant can use Calendar.
 
 #### Scenario: Return from calendar consent
 - **WHEN** an active host completes valid browser Calendar consent during message-led setup
 - **THEN** the linked conversation resumes the server-confirmed next action without a separate web setup page
+
+#### Scenario: Return from Thyme's Calendar link
+- **WHEN** a linked host who is not ready grants Calendar on the consent opened from Thyme's Calendar link
+- **THEN** `/app` says that Google Calendar is connected and that setup continues in the linked app, with its open action, instead of the link confirmation
+
+#### Scenario: Wordmark opens the workspace
+- **WHEN** a signed-in host selects the Find Me a Time wordmark on the Dashboard, the requests, the setup conversation, the notes page, the link step or the suspended-account page
+- **THEN** the workspace at `/app` opens
+
+#### Scenario: Workspace loading
+- **WHEN** a host opens `/app` or `/app/notes` and the server has not yet read the session
+- **THEN** the page shows the workspace background with a loading status announced to screen readers, and no sign-in layout
 
 ## ADDED Requirements
 
