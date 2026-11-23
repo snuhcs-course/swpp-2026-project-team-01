@@ -31,18 +31,18 @@ A host's agent SHALL be able to propose any setup value from the suggestions or 
 - **THEN** the call is refused as invalid input and the draft does not change
 
 ### Requirement: Chat linking started by an agent
-A host's agent with `host:write` SHALL be able to start an iMessage, WhatsApp or Telegram link for the host, and a requester's agent with `request:write` SHALL be able to start an iMessage or WhatsApp updates link for its request. Each SHALL run the web's link create command as the grant's actor and SHALL return a one-time browser link, not a binding. Only the person SHALL confirm the link, on the link page, after the code has arrived from their own phone and the sender is shown in full, as on the web cards (#118). The agent SHALL NOT be able to confirm a link, and a requester's agent SHALL NOT receive the booking link. `get_host_status` and the requester's `get_request` SHALL report the chat link's state and the sender, as the web cards show it.
+A host's agent with `host:write` SHALL be able to start an iMessage, WhatsApp or Telegram link for the host, and a requester's agent with `request:write` SHALL be able to start an iMessage or WhatsApp updates link for its request. Each SHALL run the web's link create command as the grant's actor and SHALL return a one-time browser link, not a binding. The link SHALL bind only when the code arrives from the person's own phone, as on the web cards; the link page SHALL then say it is linked and SHALL confirm nothing (`link-on-code` D1). The agent SHALL NOT be able to bind a link itself, and a requester's agent SHALL NOT receive the booking link. `get_host_status` and the requester's `get_request` SHALL report the chat link's state and the sender, as the web cards show it.
 
 #### Scenario: Host links iMessage through the agent
-- **WHEN** the host gives their agent their iPhone number, opens the returned link signed in, sends the code from that iPhone and presses **Confirm and link**
+- **WHEN** the host gives their agent their iPhone number, opens the returned link signed in, and sends the code from that iPhone
 - **THEN** the host's iMessage chat is linked, and `get_host_status` reports it as linked with the sender
 
 #### Scenario: Requester links updates through the agent
-- **WHEN** a requester's agent starts an iMessage link with the person's number and the person sends the code and presses **Confirm and link** on the returned page
+- **WHEN** a requester's agent starts an iMessage link with the person's number and the person opens the returned page and sends the code
 - **THEN** the request's updates go to that chat, `get_request` reports it as linked, and the page never showed the booking link or the request's details
 
-#### Scenario: Nothing linked before confirmation
-- **WHEN** the agent has started a link and the person has not confirmed it
+#### Scenario: Nothing linked before the code arrives
+- **WHEN** the agent has started a link and the person has not sent the code
 - **THEN** no chat is bound, and the status reports the attempt as pending
 
 #### Scenario: Link page for another host

@@ -16,6 +16,7 @@ import { Button } from "@/components/ui/button";
 import { postHostCommand, readHostRequest, readWorkspaceRequests } from "@/lib/chat/host-requests";
 import { announceRequestsChanged } from "@/lib/chat/pending-decisions";
 import { errorMessage } from "@/lib/chat/use-host-discussion";
+import { HostWordmark } from "@/app/_components/host-wordmark";
 import {
   BookingCard,
   type HostCardContext,
@@ -81,7 +82,7 @@ export function HostRequests({ onOpenDashboard, request }: { readonly onOpenDash
   return (
     <div className="flex h-dvh min-h-0 flex-col bg-background text-foreground">
       <header className="flex shrink-0 items-center justify-between gap-3 px-5 py-3 sm:px-8">
-        <h1 className="wordmark-lockup min-w-0">Find Me a Time</h1>
+        <HostWordmark className="min-w-0" />
         <div className="flex items-center"><HostSettingsDialog /><WorkspaceMenu onSelectDashboard={onOpenDashboard} onSelectRequests={openInbox} /></div>
       </header>
       {notice ? <ErrorNotice message={notice} onDismiss={() => setNotice(null)} /> : null}

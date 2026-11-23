@@ -1126,3 +1126,312 @@ function event(overrides: Partial<CalendarEvent> & { id: string; start?: Calenda
     start: time(overrides.start, "2026-11-02T01:00:00Z"),
   };
 }
+
+describe("in-person requests in the host's area (#324)", () => {
+  // The issue's first case: the host's commitments that day have no location,
+  // the meeting place is inside their usual area, and every time was held back.
+  const AREA = { key: hashed("Gwanak-gu"), text: "Gwanak-gu" };
+  const NEAR_SNU = { key: hashed("Near SNU"), text: "Near SNU" };
+  const inPerson = { location: NEAR_SNU, mode: "in_person" as const, travelMode: "transit" as const };
+  const at = (clock: string) => kst("2026-11-02", clock);
+  const only = (clock: string) => ({ windows: [{ end: new Date(at(clock).getTime() + 30 * 60_000), start: at(clock) }] });
+  const projected = (result: ReturnType<typeof evaluateFeasibility>) =>
+    requesterProjection(result.candidates, { displayTimezone: "Asia/Seoul", id: "e", state: "completed" }).candidates;
+
+  it("takes a host commitment with no location to be at the host's usual place and offers the time", () => {
+    const result = evaluateFeasibility(
+      input({
+        estimate: routes({ "Gwanak-gu -> Near SNU": 15, "Near SNU -> Gwanak-gu": 15 }),
+        host: { ...HOST, usualPlace: AREA },
+        hostBusy: [busy(at("10:00"), at("11:00")), busy(at("13:30"), at("14:30"))],
+        request: { ...inPerson, ...only("12:00") },
+      }),
+    );
+
+    expect(result.candidates[0]!.status).toBe("offered");
+    expect(result.candidates[0]!.legs.map((leg) => [leg.direction, leg.status, leg.travelMinutes, leg.usualPlace])).toEqual([
+      ["inbound", "fits", 15, true],
+      ["outbound", "fits", 15, true],
+    ]);
+    // 15 minutes plus 10 before and the 15-minute travel buffer fits the hour.
+    expect(result.candidates[0]!.basis).toContain(
+      "Travel from your previous commitment, which has no location, so from your usual area: 15 minutes by public transit plus 25 minutes of buffers fits the 60-minute gap.",
+    );
+    expect(projected(result).map((candidate) => candidate.start)).toEqual([at("12:00").toISOString()]);
+    expect(JSON.stringify(result.candidates[0]!.legs)).not.toContain("Gwanak");
+  });
+
+  it("asks Routes for the trip from the usual place", () => {
+    const queries = travelQueries(
+      input({ host: { ...HOST, usualPlace: AREA }, hostBusy: [busy(at("10:00"), at("11:00"))], request: { ...inPerson, ...only("12:00") } }),
+    );
+    expect(queries).toEqual([
+      expect.objectContaining({ departure: at("11:00"), destination: "Near SNU", mode: "transit", origin: "Gwanak-gu", originKey: AREA.key }),
+    ]);
+  });
+
+  it("needs no trip when the meeting is at the usual place itself", () => {
+    const result = evaluateFeasibility(
+      input({
+        host: { ...HOST, usualPlace: AREA },
+        hostBusy: [busy(at("11:00"), at("11:20"))],
+        request: { ...inPerson, location: AREA, ...only("12:00") },
+      }),
+    );
+
+    expect(result.candidates[0]!.status).toBe("offered");
+    expect(result.candidates[0]!.legs[0]).toMatchObject({ source: "same_place", status: "fits", travelMinutes: 0 });
+  });
+
+  it("still applies the travel buffers to a trip from the usual place", () => {
+    const result = evaluateFeasibility(
+      input({
+        estimate: routes({ "Gwanak-gu -> Near SNU": 15 }),
+        host: { ...HOST, usualPlace: AREA },
+        hostBusy: [busy(at("11:00"), at("11:45"))],
+        request: { ...inPerson, ...only("12:00") },
+      }),
+    );
+
+    // 15 minutes plus 25 minutes of buffers does not fit a 15-minute gap.
+    expect(result.candidates).toEqual([]);
+    expect(result.exclusionCounts.host_travel).toBe(1);
+  });
+
+  it.each([
+    ["only a conference link", "conference_only"],
+    ["both a place and a link", "place_and_link"],
+  ] as const)("keeps a commitment with %s unresolved even with a usual place", (_name, reason) => {
+    const result = evaluateFeasibility(
+      input({
+        host: { ...HOST, usualPlace: AREA },
+        hostBusy: [busy(at("10:00"), at("11:00"), { kind: "unknown", reason })],
+        request: { ...inPerson, ...only("12:00") },
+      }),
+    );
+
+    expect(result.candidates[0]!.status).toBe("host_unresolved");
+    expect(result.candidates[0]!.legs[0]!.unresolvedReason).toBe(reason);
+    expect(result.candidates[0]!.legs[0]!.usualPlace).toBeUndefined();
+  });
+
+  it("keys a leg to a commitment without a place, so it can take an allowance", () => {
+    const result = evaluateFeasibility(
+      input({ requesterBusy: [busy(at("13:30"), at("14:00"))], request: { ...inPerson, ...only("12:00") } }),
+    );
+    const leg = result.candidates[0]!.legs.find((entry) => entry.party === "requester")!;
+
+    expect(result.candidates[0]!.status).toBe("requester_unresolved");
+    expect(leg).toMatchObject({ destinationKey: "unknown:no_location", mode: "transit", originKey: NEAR_SNU.key, status: "unresolved" });
+  });
+
+  it("offers a time once the requester allows minutes for a trip to an event with no location", () => {
+    const allowance = {
+      candidateEnd: at("12:30"),
+      candidateStart: at("12:00"),
+      destinationKey: "unknown:no_location",
+      direction: "outbound" as const,
+      minutes: 30,
+      mode: "transit" as const,
+      originKey: NEAR_SNU.key,
+      party: "requester" as const,
+    };
+    const allowed = evaluateFeasibility(
+      input({ allowances: [allowance], requesterBusy: [busy(at("13:30"), at("14:00"))], request: { ...inPerson, ...only("12:00") } }),
+    );
+
+    expect(allowed.candidates[0]!.status).toBe("offered");
+    expect(allowed.candidates[0]!.legs[0]).toMatchObject({ source: "allowance", status: "fits", travelMinutes: 30 });
+    expect(projected(allowed)[0]!.unresolvedRequesterLeg).toBeNull();
+
+    // The allowance is void once the event gains a place.
+    const located = evaluateFeasibility(
+      input({
+        allowances: [allowance],
+        requesterBusy: [busy(at("13:30"), at("14:00"), place("Requester's school"))],
+        request: { ...inPerson, ...only("12:00") },
+      }),
+    );
+    expect(located.candidates[0]!.status).toBe("requester_unresolved");
+  });
+
+  it("lets the host allow minutes for a trip from an online meeting", () => {
+    const result = evaluateFeasibility(
+      input({
+        allowances: [
+          {
+            candidateEnd: at("12:30"),
+            candidateStart: at("12:00"),
+            destinationKey: NEAR_SNU.key,
+            direction: "inbound",
+            minutes: 20,
+            mode: "transit",
+            originKey: "unknown:conference_only",
+            party: "host",
+          },
+        ],
+        hostBusy: [busy(at("10:00"), at("11:00"), { kind: "unknown", reason: "conference_only" })],
+        request: { ...inPerson, ...only("12:00") },
+      }),
+    );
+
+    expect(result.candidates[0]!.status).toBe("offered");
+    expect(result.candidates[0]!.basis.join(" ")).toContain("the 20 minutes you allowed plus 25 minutes of buffers fits");
+  });
+});
+
+describe("a guest-host's own preferences (#60)", () => {
+  const monday = { end: kst("2026-11-02", "13:00"), start: kst("2026-11-02", "10:00") };
+  const nextMonday = { end: kst("2026-11-09", "11:00"), start: kst("2026-11-09", "10:00") };
+  const thisMonday = { end: kst("2026-11-02", "11:00"), start: kst("2026-11-02", "10:00") };
+  const preferences = (overrides: Partial<NonNullable<FeasibilityInput["requesterPreferences"]>> = {}) => ({
+    timezone: "Asia/Seoul",
+    weekCounts: {},
+    weeklyLimit: null,
+    weeklyWindows: [{ end: "13:00", start: "12:00", weekday: "monday" as const }],
+    ...overrides,
+  });
+
+  it("never removes a candidate", () => {
+    const without = evaluateFeasibility(input({ request: { windows: [monday] } }));
+    const withPreferences = evaluateFeasibility(
+      input({ request: { windows: [monday] }, requesterPreferences: preferences({ weekCounts: { "2026-11-02": 9 }, weeklyLimit: 1 }) }),
+    );
+
+    expect(timeline(withPreferences)).toEqual(timeline(without));
+  });
+
+  it("offers times inside the guest-host's weekly windows first", () => {
+    const result = evaluateFeasibility(input({ request: { windows: [monday] }, requesterPreferences: preferences() }));
+
+    expect(starts(result).slice(0, 3)).toEqual(["12:00", "12:15", "12:30"].map((clock) => kst("2026-11-02", clock).toISOString()));
+    // Without them the morning comes first.
+    expect(starts(evaluateFeasibility(input({ request: { windows: [monday] } })))[0]).toBe(kst("2026-11-02", "10:00").toISOString());
+  });
+
+  it("offers weeks below the guest-host's weekly limit first", () => {
+    const result = evaluateFeasibility(
+      input({
+        request: { windows: [thisMonday, nextMonday] },
+        requesterPreferences: preferences({ weekCounts: { "2026-11-02": 2 }, weeklyLimit: 2, weeklyWindows: [] }),
+      }),
+    );
+
+    expect(starts(result)[0]).toBe(nextMonday.start.toISOString());
+    expect(starts(result)).toContain(thisMonday.start.toISOString());
+  });
+
+  it("puts the guest-host's hours ahead of their weekly limit", () => {
+    const result = evaluateFeasibility(
+      input({
+        request: { windows: [thisMonday, { end: kst("2026-11-09", "13:00"), start: kst("2026-11-09", "10:00") }] },
+        requesterPreferences: preferences({
+          weekCounts: { "2026-11-02": 2 },
+          weeklyLimit: 2,
+          weeklyWindows: [{ end: "11:00", start: "10:00", weekday: "monday" }],
+        }),
+      }),
+    );
+
+    // Inside the hours in a week below the limit, then inside the hours in a
+    // full week, then outside the hours.
+    expect(starts(result)[0]).toBe(kst("2026-11-09", "10:00").toISOString());
+    const ordered = starts(result);
+    expect(ordered.indexOf(kst("2026-11-02", "10:00").toISOString())).toBeLessThan(ordered.indexOf(kst("2026-11-09", "12:00").toISOString()));
+  });
+
+  it("keeps the host's own weekly limit ahead of the guest-host's preferences", () => {
+    const result = evaluateFeasibility(
+      input({
+        bookedStarts: [kst("2026-11-10", "15:00").getTime()],
+        host: { ...HOST, weeklyLimit: 1 },
+        request: { windows: [thisMonday, nextMonday] },
+        requesterPreferences: preferences({ weekCounts: { "2026-11-02": 5 }, weeklyLimit: 1, weeklyWindows: [] }),
+      }),
+    );
+
+    // Next week is full for the host, so this week comes first even though it is full for the guest.
+    expect(starts(result)[0]).toBe(thisMonday.start.toISOString());
+    expect(result.candidates.at(-1)!.belowWeeklyLimit).toBe(false);
+  });
+
+  it("keeps the request's stated preferences ahead of the guest-host's standing ones", () => {
+    const morning = { end: kst("2026-11-02", "10:30"), start: kst("2026-11-02", "10:00") };
+    const result = evaluateFeasibility(
+      input({ request: { preferredWindows: [morning], windows: [monday] }, requesterPreferences: preferences() }),
+    );
+
+    expect(starts(result)[0]).toBe(kst("2026-11-02", "10:00").toISOString());
+    expect(starts(result)[1]).toBe(kst("2026-11-02", "12:00").toISOString());
+  });
+
+  it("explains the preferences to the guest only", () => {
+    const result = evaluateFeasibility(
+      input({
+        request: { windows: [monday] },
+        requesterPreferences: preferences({ weekCounts: { "2026-11-02": 1 }, weeklyLimit: 3 }),
+      }),
+    );
+    const projection = requesterProjection(result.candidates, {
+      displayTimezone: "Asia/Seoul",
+      id: "e",
+      notes: result.requesterNotes,
+      state: "completed",
+    });
+
+    expect(projection.candidates[0]!.notes).toEqual(["Inside your usual Monday hours 12:00–13:00.", "That week has 1 of your 3 weekly meetings."]);
+    expect(projection.candidates.at(-1)!.notes).toEqual([
+      "Outside your usual hours, so it comes after times inside them.",
+      "That week has 1 of your 3 weekly meetings.",
+    ]);
+    // The host's record carries none of it.
+    expect(JSON.stringify(result.candidates)).not.toMatch(/usual|weekly meetings/);
+  });
+
+  it("adds no notes and changes nothing without preferences", () => {
+    const result = evaluateFeasibility(input({ request: { windows: [monday] } }));
+    expect(result.requesterNotes.size).toBe(0);
+    const projection = requesterProjection(result.candidates, { displayTimezone: "Asia/Seoul", id: "e", notes: result.requesterNotes, state: "completed" });
+    expect(projection.candidates.every((candidate) => candidate.notes === undefined)).toBe(true);
+  });
+
+  it("names the guest-host's zone when the times are shown in another", () => {
+    const result = evaluateFeasibility(
+      input({ request: { timezone: "Asia/Tokyo", windows: [monday] }, requesterPreferences: preferences() }),
+    );
+    expect(result.requesterNotes.get(result.candidates[0]!.id)).toEqual(["Inside your usual Monday hours 12:00–13:00 in Asia/Seoul."]);
+  });
+
+  it("keeps times the stated preferences do not favour even when the guest-host's hours cover them", () => {
+    // Stated weekly windows cover the whole of two weeks' afternoons (more
+    // than the candidate cut); the guest-host's own hours cover the mornings.
+    const twoWeeks = { end: kst("2026-11-14", "00:00"), start: kst("2026-11-02", "00:00") };
+    const afternoons = (["monday", "tuesday", "wednesday", "thursday", "friday"] as const).map((weekday) => ({ end: "17:00", start: "13:00", weekday }));
+    const mornings = (["monday", "tuesday", "wednesday", "thursday", "friday"] as const).map((weekday) => ({ end: "13:00", start: "10:00", weekday }));
+    const result = evaluateFeasibility(
+      input({
+        request: { preferredWeeklyWindows: afternoons, windows: [twoWeeks] },
+        requesterPreferences: preferences({ weeklyWindows: mornings }),
+      }),
+    );
+    // Times inside the guest-host's mornings, ending by 13:00 Seoul time (04:00 UTC).
+    const morning = result.candidates.filter((candidate) => new Date(candidate.end).getUTCHours() * 60 + new Date(candidate.end).getUTCMinutes() <= 4 * 60);
+    expect(morning.length).toBeGreaterThan(0);
+    expect(morning.length).toBeLessThanOrEqual(10);
+  });
+
+  it("takes the guest-host's own event with no location to be at their usual place", () => {
+    const AREA = { key: hashed("Gwanak-gu"), text: "Gwanak-gu" };
+    const at = (clock: string) => kst("2026-11-02", clock);
+    const result = evaluateFeasibility(
+      input({
+        estimate: routes({ "Cafe Onion, Seongsu -> Gwanak-gu": 40 }),
+        requesterBusy: [busy(at("13:30"), at("14:00"))],
+        request: { location: MEETING, mode: "in_person", travelMode: "transit", windows: [{ end: at("12:30"), start: at("12:00") }] },
+        requesterPreferences: preferences({ usualPlace: AREA, weeklyWindows: [] }),
+      }),
+    );
+    expect(result.candidates[0]!.status).toBe("offered");
+    expect(result.candidates[0]!.legs[0]).toMatchObject({ party: "requester", status: "fits", travelMinutes: 40, usualPlace: true });
+  });
+});

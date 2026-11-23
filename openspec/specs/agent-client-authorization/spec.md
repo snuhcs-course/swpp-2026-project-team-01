@@ -59,3 +59,45 @@ Protocol endpoints SHALL enforce documented input/rate limits and return sanitiz
 #### Scenario: Missing signing configuration
 - **WHEN** signing material is absent or malformed
 - **THEN** token issuance is unavailable without generating an ad hoc key or substituting provider credentials
+
+### Requirement: Account requester identity
+A request created through an account connection SHALL be identified with the account itself: its host display name and the Google address it signed in with, stored as the confirmed contact, and its host timezone unless the request names another; an account without a host timezone SHALL name one. The account connection SHALL NOT accept a typed requester name or email. The account's host conflict calendars SHALL count as the requester's busy time from creation, without a calendar question, and the creation result SHALL name those calendars. When the account's Calendar grant cannot be read, those calendars SHALL still count and finding times SHALL pause until the account reconnects Calendar, never treating the requester as free. An account without conflict calendars SHALL be linked with no host calendars. Nothing about the account's settings or calendars SHALL reach the other host.
+
+#### Scenario: Account requests a meeting
+- **WHEN** an account with request scopes calls `create_request` with only a host handle, meeting details and a retry key
+- **THEN** the request carries the account's name and verified Google address as a confirmed contact and the account's host timezone, and the result names the account's conflict calendars
+
+#### Scenario: Typed identity
+- **WHEN** an account connection passes a name or email to `create_request`
+- **THEN** the input is refused and no request is created
+
+#### Scenario: Host calendars count
+- **WHEN** times are found for a request created through an account connection whose account has confirmed host settings
+- **THEN** the account's host conflict calendars count as the requester's busy time, and a failed host grant keeps them and pauses each search until Calendar is reconnected, instead of assuming free time
+
+#### Scenario: Account without settings
+- **WHEN** an account without confirmed host settings creates a request and names a timezone
+- **THEN** the request is linked to the account with no host calendars, and without a timezone it is refused as invalid input
+
+### Requirement: Requester agent agreement changes and honest decision results
+A requester grant with `request:decide` SHALL be able to reopen its request's agreement while the request awaits the host's approval, through the same command as the booking page's **Change**, returning the request to choosing a time at a new revision so the earlier agreement can no longer be approved. After reopening, the grant's detail, time-finding and choosing tools SHALL work as before agreement. While the request awaits approval those tools SHALL refuse and name the reopening tool as the next step. The results of choosing and agreeing SHALL state what was recorded, so that only a recorded agreement tells the agent the host must now approve.
+
+#### Scenario: Agent reopens a pending agreement
+- **WHEN** a requester grant with `request:decide` reopens its request while it awaits the host's approval
+- **THEN** the request returns to negotiating at a new revision, the host can no longer approve the earlier version, and the agent can change details, find times, choose and agree again
+
+#### Scenario: Agent changes details without reopening
+- **WHEN** a requester agent changes details, finds times or chooses a time while the request awaits the host's approval
+- **THEN** the request is unchanged and the refusal names the reopening tool as the next step
+
+#### Scenario: Nothing to reopen
+- **WHEN** a requester agent reopens a request that no longer awaits the host's approval
+- **THEN** nothing changes and the refusal says there is nothing to reopen, pointing a booked meeting to the booked-meeting change
+
+#### Scenario: Chosen time is not an agreement
+- **WHEN** a requester agent chooses a candidate time
+- **THEN** the result says the chosen version is not yet agreed and the host has not been asked, and names the version to agree to once the person accepts it
+
+#### Scenario: Agreement not recorded
+- **WHEN** agreeing finds the host's time no longer free
+- **THEN** the result says nothing was agreed and the host was not asked, and the request is not shown to the host as awaiting approval

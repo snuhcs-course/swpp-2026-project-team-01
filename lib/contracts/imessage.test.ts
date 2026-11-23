@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { deepLinkFor, linkMessage, displaySender, messagesPlatform, normalizeNumber, qrDeepLink } from "./imessage";
+import { deepLinkFor, IMESSAGE_OPERATIONS, linkMessage, displaySender, maskedSender, messagesPlatform, normalizeNumber, qrDeepLink } from "./imessage";
+import { REQUESTER_IMESSAGE_OPERATIONS } from "./requester-imessage";
 
 // The one-tap deep link (host-imessage-channel design 5, D4): which platforms
 // open Messages, the body separator each expects, and the sender and number
@@ -51,5 +52,26 @@ describe("displaySender and normalizeNumber", () => {
     expect(normalizeNumber("+82 10.1234.5678")).toBe("+821012345678");
     expect(normalizeNumber("555 123 4567")).toBeNull();
     expect(normalizeNumber("+0123456789")).toBeNull();
+  });
+});
+
+// A linked sender on screen (link-on-code D4): enough to recognize one's own
+// number and press Not my number, without the whole number.
+describe("maskedSender", () => {
+  it("shows a number by its last four digits", () => {
+    expect(maskedSender("+821012345678")).toBe("•••• 5678");
+    expect(maskedSender("15551234567")).toBe("•••• 4567");
+  });
+
+  it("shows an Apple ID email as the handle it is", () => {
+    expect(maskedSender("host@example.com")).toBe("host@example.com");
+  });
+});
+
+// Nothing is confirmed in the browser any more (link-on-code D1).
+describe("link operations", () => {
+  it("has no confirm command for host or guest links", () => {
+    expect(IMESSAGE_OPERATIONS.some((operation) => operation.includes("confirm"))).toBe(false);
+    expect(Object.values(REQUESTER_IMESSAGE_OPERATIONS).some((operation) => operation.includes("confirm"))).toBe(false);
   });
 });

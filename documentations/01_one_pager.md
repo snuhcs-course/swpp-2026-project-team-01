@@ -12,7 +12,7 @@ The product is two-sided. Every meeting has one **host**, who owns the calendar 
 
 ### Hosts
 
-VC investors, founders, and professors who schedule frequent external one-to-one meetings across locations and time zones. The MVP targets hosts who use an iPhone and iMessage. Hosts can start setup in web, or link iMessage or WhatsApp and finish setup there by answering two questions, hours and places, and agreeing to an image of next week's open times ([`host-onboarding-in-chat`](../openspec/changes/host-onboarding-in-chat/proposal.md#decisions), #166). They use browser handoffs for sign-in and Google consent and continue everyday scheduling in their linked private conversation. Web remains available throughout.
+VC investors, founders, and professors who schedule frequent external one-to-one meetings across locations and time zones. The MVP targets hosts who use an iPhone and iMessage; Telegram serves hosts on any device, and WhatsApp is hidden for now (#221). Hosts sign in on the web, link iMessage or Telegram and finish setup there by answering two questions, hours and places, and agreeing to an image of next week's open times ([`host-onboarding-in-chat`](../openspec/changes/host-onboarding-in-chat/proposal.md#decisions), #166). They use browser handoffs for sign-in and Google consent and continue everyday scheduling in their linked private conversation. Web remains available throughout, and everything a host can do on the web is to be possible in the host's messenger too (decided 2026-11-23, #325; partly still being built).
 
 ### Requesters
 
@@ -23,6 +23,14 @@ People who want a meeting with a host: a founder pitching an investor, a student
 People scheduling internal or group meetings.
 
 ## Problem
+
+### The problem in one scenario
+
+Draft for team review (#169). Scheduling a meeting needs its **context**: where the meeting takes place, how long the trip there takes, and the host's meetings just before and after it. A booking link sees only free and busy time.
+
+A VC investor's meeting in Yeoksam ends at 16:00. A founder opens the investor's booking link and books 16:30 at the founder's office in Hongdae, because the calendar is free and the link's fixed buffer is met. The trip there takes about an hour door to door (a team estimate to recheck with the product's map provider), 30 minutes more than the gap, so the two sides renegotiate in chat after the booking, and the slot the link offered was never workable. Find Me a Time checks the trip from the previous meeting's place, and on to the next one, before it offers a time. It offers 16:30 only online, or a later in-person time, and books only once the investor approves. The side-by-side walk-through is in the [user journeys](user_experience/01_user_journeys.md#problem-scenario-travel-between-meetings).
+
+The renegotiation after booking comes from observing how booking-link users behave, not yet from interviews; the usability tests of #172 should confirm or correct it.
 
 ### For hosts
 
@@ -43,5 +51,8 @@ Asking a busy person for time means guessing at their availability, trading seve
 - Only the host's approval of the current proposal authorizes booking.
 - Private calendar details, preferences, and host discussions stay private.
 - Chat, email, mobile, and agent clients share one request state.
+- Everything a host can do on the web must also work in the host's messenger (iMessage, Telegram).
+
+The [user stories](user_experience/02_user_stories.md) list the ten stories the product is tested against, from the [testing baseline](technical_specification/12_testing_baseline.md).
 
 The [design principles](03_design_principles.md) guide agent capability parity, suggestion-first preferences, and separate user and administrator CLIs.

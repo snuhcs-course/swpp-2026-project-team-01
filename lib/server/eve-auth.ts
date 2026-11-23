@@ -466,3 +466,67 @@ export function createEvalHostReviewAuth(
 }
 
 export const evalHostReviewAuth: AuthFn<Request> = createEvalHostReviewAuth(() => ({ db: database() }));
+
+// The header a host setup eval names its seeded host account with when it
+// creates a session; setup has no request to name.
+export const EVAL_HOST_HEADER = "x-fmat-eval-host";
+
+// Host setup evals only (evals/host-setup/), under the same limits as the
+// requester and host-review entries: FMAT_EVAL_AUDIENCE=host_setup, no Vercel
+// metadata, an `eve dev` server, and a request with no bearer and no Supabase
+// cookie. Such a request becomes the host principal of the host setup
+// discussion the eval seeded in the local database: named on create by the
+// host account ID in EVAL_HOST_HEADER, and afterwards by the session's index
+// row, which must belong to a host setup discussion. Anything else skips to
+// appAuth.
+export function createEvalHostSetupAuth(
+  load: () => Pick<AppAuthDependencies, "db">,
+  env: Readonly<Record<string, string | undefined>> = process.env,
+  // eve's synthetic local caller; tests pass their own to reach the lookups.
+  local: AuthFn<Request> = localDev(),
+): AuthFn<Request> {
+
+  return async (request) => {
+    if (env.FMAT_EVAL_AUDIENCE !== "host_setup" || deploymentEnvironment(env) !== "local") return null;
+    if (extractBearerToken(request.headers.get("authorization")) || hasSupabaseSession(request)) return null;
+    const caller = await local(request);
+    if (!caller) return null;
+
+    const path = new URL(request.url).pathname;
+    if (request.method === "GET" && /\/v1\/info\/?$/.test(path)) return caller;
+
+    const stubs = request.method === "GET" ? /\/v1\/session\/([^/]+)\/stubs\/?$/.exec(path) : null;
+    const route: Route = stubs ? { kind: "stream", sessionId: decodeURIComponent(stubs[1]!) } : routeOf(request);
+
+    const { db } = load();
+    const named = request.headers.get(EVAL_HOST_HEADER);
+    type Row = { discussion_id: string; generation: number; host_id: string };
+    const [row] =
+      route.kind === "create" && named && /^[0-9a-f-]{36}$/.test(named)
+        ? await db<Row[]>`
+            select d.id as discussion_id, 1 as generation, d.principal_id as host_id from app.discussions d
+            where d.principal_type = 'host_account' and d.audience = ${HOST_SETUP_AUDIENCE} and d.principal_id = ${named}
+          `
+        : route.kind === "send" || route.kind === "stream"
+          ? await db<Row[]>`
+              select s.discussion_id, s.generation, s.principal_id as host_id from app.agent_sessions s
+              join app.discussions d on d.id = s.discussion_id
+              where s.session_id = ${route.sessionId} and s.principal_type = 'host_account'
+                and d.principal_type = 'host_account' and d.principal_id = s.principal_id
+                and d.audience = ${HOST_SETUP_AUDIENCE}
+            `
+          : [];
+
+    if (!row) return null;
+
+    return {
+      ...sessionAuth({ id: row.host_id, type: "host_account" }, row.discussion_id, row.generation, {
+        audience: HOST_SETUP_AUDIENCE,
+        requestId: null,
+      }),
+      allowToolStubs: true,
+    };
+  };
+}
+
+export const evalHostSetupAuth: AuthFn<Request> = createEvalHostSetupAuth(() => ({ db: database() }));

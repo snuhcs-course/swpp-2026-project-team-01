@@ -1,5 +1,6 @@
 import { randomUUID } from "node:crypto";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
+import { DEFAULT_MEETING_MINUTES } from "../../lib/contracts/setup";
 import { runCommand } from "../../lib/server/commands";
 import { readSetupState } from "../../lib/server/setup";
 import { updateDraftCommand } from "../../lib/server/setup-commands";
@@ -94,7 +95,7 @@ describe("setup.update_draft", () => {
 
     expect(stale).toMatchObject({ error: { category: "stale_revision" }, ok: false });
     expect(await draftRevision(db, host.hostAccountId)).toBe(0);
-    expect(await use(host.hostAccountId, 0, "durationMinutes", 30)).toMatchObject({ ok: true, result: { revision: 1 } });
+    expect(await use(host.hostAccountId, 0, "durationMinutes", DEFAULT_MEETING_MINUTES)).toMatchObject({ ok: true, result: { revision: 1 } });
   });
 
   it("accepts a stated draft shown as \"You said\", which then counts as the host's answer", async () => {

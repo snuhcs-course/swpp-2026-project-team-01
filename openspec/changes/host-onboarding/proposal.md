@@ -27,7 +27,7 @@ The plan assigns these decisions to Phase 2. The [design](design.md) records eac
 | Handle format | 3–30 characters, lowercase letters, digits and single hyphens, starting with a letter and not ending with a hyphen |
 | Handle changes | The first assignment is free; then at most 2 changes in any rolling 30 days. Released handles are never assigned to another host |
 | Reserved handles | Route names (`app`, `auth`, `booking`, `connect`, `connections`, `api`, `eve`, `skill`, `llms`, `_next`) plus the operational, product and impersonation names listed in the [design](design.md#3-handles) |
-| Starter defaults | Monday to Friday 10:00–17:00 in the host timezone, 30-minute meetings, 10-minute buffers before and after, no weekly limit, 15-minute extra travel buffer |
+| Starter defaults | Monday to Friday 10:00–17:00 in the host timezone, 60-minute meetings (30 until [`default-meeting-60`](../archive/2026-11-23-default-meeting-60/proposal.md), #376), 10-minute buffers before and after, no weekly limit, 15-minute extra travel buffer |
 | Travel modes | **Driving**, **Public transit**, **Walking**, plus **Depends on the trip** |
 | Analysis retention | Confirmed at 24 hours, with a cleanup pass every 15 minutes in batches of 500 |
 | Administrator CLI | `npm run admin -- <command>` (`scripts/admin.ts`), named `fmat-admin`; the operator authenticates with their own Supabase personal access token and names the project, or uses `--local` against the local stack |

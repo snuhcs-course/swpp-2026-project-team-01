@@ -15,8 +15,9 @@ import { clock, isPhone, SendPanel, shownNumber, useNow, usePlatform } from "./s
 // The landing that starts from iMessage (/?flow=imessage, host-imessage-channel D15). Onboard with iMessage
 // gets a one-time link code for this browser (POST /api/imessage/start). On a phone it opens Messages with the
 // message written and the page becomes the waiting screen; on a computer the send panel opens as a popup over
-// the landing, since the code expires. Once the message arrives the page asks for Google sign-in, whose
-// callback carries the attempt to /app, where Confirm and link binds it. Nothing is linked on this page.
+// the landing, since the code expires. Once the message arrives the page asks for Google sign-in, and that
+// sign-in binds the sender to the account with nothing to confirm (link-on-code D5); nothing is linked before it.
+// Since no later step asks, WhatsApp's notice and Telegram's privacy sentence are shown here (link-on-code D1).
 // Like the landing redesign's ImessageStart, this wraps the server-rendered landing and takes the page over
 // once the start has begun.
 // /?flow=whatsapp starts the same way from WhatsApp (host-whatsapp-channel D7): the start asks for a WhatsApp
@@ -158,6 +159,10 @@ export function ImessageStart({
   }, [busy, fresh, open, pending]);
 
   const received = status?.state === "received" ? status : null;
+  const terms = (on: MessagingChannel) => {
+    const words = channelCopy(COPY[locale], on).link;
+    return on === "whatsapp" ? <p className="lede small">{words.optIn}</p> : on === "telegram" ? <p className="lede small">{words.privacyTelegram}</p> : null;
+  };
   const takeover = received ? "received" : phase === "number" ? "number" : phase === "waiting" && pending ? "waiting" : null;
 
   // The heading moves with the screen, so a screen reader hears each change.
@@ -219,6 +224,7 @@ export function ImessageStart({
               <p className="sent-to">
                 {t.send.from} <b>{received.sender}</b>
               </p>
+              {terms(received.channel)}
               <div className="start" style={{ alignItems: "stretch", width: "100%" }}>
                 <GoogleStart locale={locale} />
               </div>
@@ -292,6 +298,7 @@ export function ImessageStart({
                       {t.landing.google}
                     </a>
                   </span>
+                  {terms(pending.channel)}
                   <span className="fine" style={{ maxWidth: "64ch" }}>
                     {t.send.fine}
                   </span>

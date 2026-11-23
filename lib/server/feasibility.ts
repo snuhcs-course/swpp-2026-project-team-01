@@ -30,11 +30,16 @@ import { exclusionAnswer, noteAnswerMatcher } from "./note-answers";
 //   5. with the host's same-day trip preference, for an in-person meeting far
 //      from the preferred area, orders days already out that way first and days
 //      spent in the preferred area last (same-day-trips design 2 and 3);
+//   then, after the request's stated preferences, for a guest who is a host,
+//      orders times inside their own weekly windows first and then weeks below
+//      their own weekly limit first (#60, guest-flow-completion design 7);
 //   then, within each rank, spreads the times across days and parts of the
 //      day, so the first few offered are not one cluster
 //      (spread-offered-times design 1);
 //   6. for in-person candidates, checks both host travel legs and, with a
-//      requester calendar, both requester legs (design decision 9).
+//      requester calendar, both requester legs (design decision 9). A host
+//      commitment with no location is taken to be at the host's usual place
+//      (#324).
 // Every explanation is a sentence computed here from the candidate's basis
 // (iteration 1's F09), never model text. Event titles, attendees and locations
 // never leave this module: legs carry only the caller's keyed endpoint hashes.
@@ -289,6 +294,11 @@ export type HostRules = {
   // The preferred area, keyed like event places, when the host groups trips by
   // day; null or absent leaves the order without the trip rank.
   readonly preferredArea?: { readonly text: string; readonly key: string } | null;
+  // The host's usual place (the first named area, else the venue), keyed like
+  // event places. A host commitment with no location is taken to happen there,
+  // so its trip can be estimated (#324); null or absent leaves such a leg
+  // unresolved.
+  readonly usualPlace?: { readonly text: string; readonly key: string } | null;
 };
 
 export type RequestTerms = {
@@ -336,6 +346,21 @@ export type TravelAllowance = {
   readonly minutes: number;
 };
 
+// A guest who is a host and uses their host settings for this request (#60,
+// guest-flow-completion design 7): their weekly windows and weekly limit are
+// soft preferences that order candidates after the host's own keys and never
+// remove one. weekCounts holds the meetings already in each of their weeks,
+// keyed by the Monday that starts the week in their timezone.
+export type RequesterPreferences = {
+  readonly timezone: string;
+  readonly weeklyWindows: readonly WeeklyWindow[];
+  readonly weeklyLimit: number | null;
+  readonly weekCounts: Readonly<Record<string, number>>;
+  // The guest-host's own usual place, which their own events with no location
+  // are taken to happen at, as for the host (#324).
+  readonly usualPlace?: { readonly text: string; readonly key: string } | null;
+};
+
 export type FeasibilityInput = {
   readonly now: Date;
   readonly host: HostRules;
@@ -351,6 +376,8 @@ export type FeasibilityInput = {
   readonly allowances?: readonly TravelAllowance[];
   // Whether the booking destination can create Google Meet (design decision 11).
   readonly meetAvailable?: boolean;
+  // Null or absent without a guest-host's preferences.
+  readonly requesterPreferences?: RequesterPreferences | null;
 };
 
 export type UnresolvedReason =
@@ -376,6 +403,8 @@ export type CandidateLeg = {
   readonly travelMinutes: number | null;
   readonly source: "route" | "allowance" | "same_place" | null;
   readonly unresolvedReason: UnresolvedReason | null;
+  // Set when the commitment had no location and the host's usual place stood in for it.
+  readonly usualPlace?: true;
 };
 
 export type CandidateStatus = "offered" | "requester_unresolved" | "host_unresolved";
@@ -416,11 +445,15 @@ export type UnresolvedWindow = {
 export type FeasibilityResult = {
   readonly mode: "online" | "in_person" | null;
   readonly linkPlan: LinkPlan | null;
-  // Ordered: weeks below the weekly limit first, then the trip rank, then by start.
+  // Ordered: weeks below the weekly limit first, then the trip rank, then the
+  // requester's preferences, each rank spread across days.
   readonly candidates: readonly EvaluatedCandidate[];
   readonly exclusions: readonly Exclusion[];
   readonly exclusionCounts: Readonly<Record<ExclusionReason, number>>;
   readonly unresolvedWindows: readonly UnresolvedWindow[];
+  // Guest-only sentences about the guest-host's own preferences, by candidate
+  // ID. They go to the requester projection only, never to the host's record.
+  readonly requesterNotes: ReadonlyMap<string, readonly string[]>;
 };
 
 // ---------------------------------------------------------------------------
@@ -555,6 +588,7 @@ type LegPlan = {
   // Minutes beyond the trip itself that must fit in the gap.
   readonly extraMinutes: number;
   readonly unresolved: UnresolvedReason | null;
+  readonly usualPlace: boolean;
 };
 
 // How a candidate's day stands for a far meeting place: already out that way
@@ -578,6 +612,8 @@ type Planned = {
   readonly belowLimit: boolean;
   readonly trip: TripDay | null;
   readonly legs: readonly LegPlan[];
+  // Guest-only sentences about a guest-host's own preferences (#60).
+  readonly requesterNotes: readonly string[];
 };
 
 type Plan = {
@@ -691,13 +727,20 @@ function planLeg(
   candidate: { start: number; end: number },
   mode: TravelMode | null,
   extraMinutes: number,
+  usualPlace: HostRules["usualPlace"] = null,
 ): LegPlan {
-  const origin = direction === "inbound" ? commitment.endpoint : meeting;
-  const destination = direction === "inbound" ? meeting : commitment.endpoint;
+  // A commitment with no location at all (no place and no conference link) is
+  // taken to happen at the host's usual place when they have one (#324). A
+  // conference link still leaves the leg unresolved: the host may be anywhere.
+  const assumed =
+    commitment.endpoint.kind === "unknown" && commitment.endpoint.reason === "no_location" && usualPlace ? usualPlace : null;
+  const endpoint: Endpoint = assumed ? { key: assumed.key, kind: "place", text: assumed.text } : commitment.endpoint;
+  const origin = direction === "inbound" ? endpoint : meeting;
+  const destination = direction === "inbound" ? meeting : endpoint;
   const gap =
     direction === "inbound" ? (candidate.start - commitment.end) / MINUTE : (commitment.start - candidate.end) / MINUTE;
   const routeMode = routeModeOf(mode);
-  const unknown = commitment.endpoint.kind === "unknown" ? commitment.endpoint.reason : null;
+  const unknown = endpoint.kind === "unknown" ? endpoint.reason : null;
   const unresolved: UnresolvedReason | null =
     unknown ??
     (meeting === null
@@ -718,6 +761,76 @@ function planLeg(
     origin,
     party,
     unresolved,
+    usualPlace: assumed !== null,
+  };
+}
+
+// The instants of weekly rules in a zone over the local dates of the entries,
+// with the day before each for an overnight window's tail. A boundary that a
+// clock change makes ambiguous or skips yields no interval.
+function weeklyIntervals(rules: readonly WeeklyWindow[], timezone: string, entries: readonly { readonly start: number }[]) {
+  const intervals: { start: number; end: number; rule: WeeklyWindow }[] = [];
+  if (rules.length === 0) return intervals;
+  const dates = new Set(
+    entries.flatMap((entry) => {
+      const date = localParts(entry.start, timezone).date;
+      return [date, addDays(date, -1)];
+    }),
+  );
+  for (const date of dates) {
+    const weekday = WEEKDAYS[(new Date(`${date}T00:00:00Z`).getUTCDay() + 6) % 7]!;
+    for (const rule of rules) {
+      if (rule.weekday !== weekday) continue;
+      const starts = resolveLocalTime(date, rule.start, timezone);
+      const ends = resolveLocalTime(endsNextDay(rule) ? addDays(date, 1) : date, rule.end, timezone);
+      if (starts.length === 1 && ends.length === 1 && ends[0]! > starts[0]!) intervals.push({ end: ends[0]!, rule, start: starts[0]! });
+    }
+  }
+  return intervals;
+}
+
+// A guest-host's soft preferences (#60): the score each candidate adds (0.5
+// inside their weekly windows, 0.25 in a week below their weekly limit) and the
+// guest-only sentences that explain it. Without preferences nothing changes.
+function guestPreferences(
+  preferences: RequesterPreferences | null,
+  entries: readonly { readonly start: number; readonly end: number }[],
+  displayTimezone: string,
+) {
+  if (!preferences) return { active: false, notes: () => [], score: () => 0 };
+
+  const windows = weeklyIntervals(preferences.weeklyWindows, preferences.timezone, entries);
+  const inside = (entry: { start: number; end: number }) =>
+    windows.find((window) => entry.start >= window.start && entry.end <= window.end) ?? null;
+  const week = (entry: { start: number }) => {
+    const count = preferences.weekCounts[weekOf(entry.start, preferences.timezone)] ?? 0;
+    return { below: preferences.weeklyLimit !== null && count < preferences.weeklyLimit, count };
+  };
+
+  return {
+    active: true,
+    notes: (entry: { start: number; end: number }): string[] => {
+      const notes: string[] = [];
+      if (preferences.weeklyWindows.length > 0) {
+        const window = inside(entry);
+        notes.push(
+          window
+            ? `Inside your usual ${weekdayLabel(window.rule.weekday)} hours ${window.rule.start}–${window.rule.end}${endsNextDay(window.rule) ? " (next day)" : ""}${preferences.timezone === displayTimezone ? "" : ` in ${preferences.timezone}`}.`
+            : "Outside your usual hours, so it comes after times inside them.",
+        );
+      }
+      if (preferences.weeklyLimit !== null) {
+        const { below, count } = week(entry);
+        const meetings = (n: number) => `meeting${n === 1 ? "" : "s"}`;
+        notes.push(
+          below
+            ? `That week has ${count} of your ${preferences.weeklyLimit} weekly ${meetings(preferences.weeklyLimit)}.`
+            : `That week already has ${count} ${meetings(count)}, at or over your weekly limit of ${preferences.weeklyLimit}, so it comes after weeks below it.`,
+        );
+      }
+      return notes;
+    },
+    score: (entry: { start: number; end: number }) => 0.5 * Number(inside(entry) !== null) + 0.25 * Number(week(entry).below),
   };
 }
 
@@ -780,7 +893,7 @@ function plan(input: FeasibilityInput): Plan {
     weekCounts.set(week, (weekCounts.get(week) ?? 0) + 1);
   }
 
-  const open: Omit<Planned, "legs" | "trip" | "place" | "placeIndex">[] = [];
+  const open: Omit<Planned, "legs" | "trip" | "place" | "placeIndex" | "requesterNotes">[] = [];
 
   for (const interval of intervals) {
     if (overlaps(input.hostBusy, interval.start - before, interval.end + after)) {
@@ -830,26 +943,20 @@ function plan(input: FeasibilityInput): Plan {
   const preferred = request.preferredWindows ?? [];
   const weekly = request.preferredWeeklyWindows ?? [];
   const lessPreferred = request.lessPreferredWindows ?? [];
-  const dates = new Set(weekly.length ? paired.flatMap((entry) => {
-    const date = localParts(entry.start, request.timezone).date;
-    return [date, addDays(date, -1)];
-  }) : []);
-  const recurring: { start: number; end: number }[] = [];
-  for (const date of dates) {
-    const weekday = WEEKDAYS[(new Date(`${date}T00:00:00Z`).getUTCDay() + 6) % 7]!;
-    for (const rule of weekly) {
-      if (rule.weekday !== weekday) continue;
-      const starts = resolveLocalTime(date, rule.start, request.timezone);
-      const ends = resolveLocalTime(endsNextDay(rule) ? addDays(date, 1) : date, rule.end, request.timezone);
-      if (starts.length === 1 && ends.length === 1 && ends[0]! > starts[0]!) recurring.push({ start: starts[0]!, end: ends[0]! });
-    }
-  }
-  const score = (entry: (typeof paired)[number]) =>
+  const recurring = weeklyIntervals(weekly, request.timezone, paired);
+  // A guest-host's own weekly windows and weekly limit (#60) come after the
+  // host's keys and the request's stated preferences: inside their hours
+  // first, then weeks below their limit first. Neither removes a candidate.
+  const guest = guestPreferences(input.requesterPreferences ?? null, paired, request.timezone);
+  const stated = (entry: (typeof paired)[number]) =>
     Number(preferred.some((window) => entry.start >= window.start.getTime() && entry.end <= window.end.getTime())) +
     Number(recurring.some((window) => entry.start >= window.start && entry.end <= window.end)) -
     3 * Number(lessPreferred.some((window) => entry.start < window.end.getTime() && entry.end > window.start.getTime()));
+  const score = (entry: (typeof paired)[number]) => stated(entry) + guest.score(entry);
   // The host's weekly-limit preference, then their trip preference, outweigh
-  // all guest preference signals (score is within [-3, 2]).
+  // all guest preference signals (score is within [-3, 2.75]; the request's
+  // stated preferences move it in whole steps and the guest-host's own
+  // preferences by 0.5 and 0.25, so the stated ones come first).
   const hostWeight = (entry: (typeof paired)[number]) => 20 * Number(entry.belowLimit) + 6 * tripScore(entry);
   const weighted = (entry: (typeof paired)[number]) => hostWeight(entry) + score(entry);
   const ranked = spreadOrder(
@@ -858,11 +965,16 @@ function plan(input: FeasibilityInput): Plan {
   );
   const kept = ranked.slice(0, CANDIDATE_LIMIT);
   // Retain some non-preferred alternatives when doing so preserves host priority.
-  if (preferred.length || weekly.length || lessPreferred.length) {
-    const alternatives = ranked.filter((entry) => score(entry) <= 0 && !kept.includes(entry));
+  // With stated preferences, an alternative is a time none of them favours,
+  // whatever the guest-host's own preferences say; otherwise it is a time
+  // outside the guest-host's preferences.
+  const anyStated = preferred.length > 0 || weekly.length > 0 || lessPreferred.length > 0;
+  if (anyStated || guest.active) {
+    const retain = anyStated ? stated : score;
+    const alternatives = ranked.filter((entry) => retain(entry) <= 0 && !kept.includes(entry));
     for (const alternative of alternatives) {
-      const replace = kept.findLastIndex((entry) => hostWeight(entry) === hostWeight(alternative) && score(entry) > score(alternative));
-      if (replace < 0 || kept.filter((entry) => score(entry) <= score(alternative) && hostWeight(entry) === hostWeight(alternative)).length >= 10) continue;
+      const replace = kept.findLastIndex((entry) => hostWeight(entry) === hostWeight(alternative) && retain(entry) > retain(alternative));
+      if (replace < 0 || kept.filter((entry) => retain(entry) <= retain(alternative) && hostWeight(entry) === hostWeight(alternative)).length >= 10) continue;
       kept[replace] = alternative;
     }
     kept.sort((a, b) => weighted(b) - weighted(a));
@@ -874,7 +986,7 @@ function plan(input: FeasibilityInput): Plan {
       exclusions,
       linkPlan,
       mode,
-      planned: kept.map((entry) => ({ ...entry, legs: [] })),
+      planned: kept.map((entry) => ({ ...entry, legs: [], requesterNotes: guest.notes(entry) })),
       tripQueries: trips.queries,
       unresolvedWindows,
     };
@@ -893,11 +1005,12 @@ function plan(input: FeasibilityInput): Plan {
     };
     const hostAdjacent = adjacent(input.hostBusy, entry.start, entry.end, hostSpan);
 
+    const usual = host.usualPlace ?? null;
     if (hostAdjacent.previous) {
-      legs.push(planLeg("host", "inbound", hostAdjacent.previous, meeting, entry, host.travelMode, hostExtra.inbound + travelBuffer));
+      legs.push(planLeg("host", "inbound", hostAdjacent.previous, meeting, entry, host.travelMode, hostExtra.inbound + travelBuffer, usual));
     }
     if (hostAdjacent.next) {
-      legs.push(planLeg("host", "outbound", hostAdjacent.next, meeting, entry, host.travelMode, hostExtra.outbound + travelBuffer));
+      legs.push(planLeg("host", "outbound", hostAdjacent.next, meeting, entry, host.travelMode, hostExtra.outbound + travelBuffer, usual));
     }
 
     if (input.requesterBusy) {
@@ -908,11 +1021,12 @@ function plan(input: FeasibilityInput): Plan {
       // The requester's own trips carry no host buffer, and use public transit
       // unless the requester named a mode (guest-travel-default).
       const requesterMode = request.travelMode ?? DEFAULT_REQUESTER_TRAVEL_MODE;
-      if (own.previous) legs.push(planLeg("requester", "inbound", own.previous, meeting, entry, requesterMode, 0));
-      if (own.next) legs.push(planLeg("requester", "outbound", own.next, meeting, entry, requesterMode, 0));
+      const ownUsual = input.requesterPreferences?.usualPlace ?? null;
+      if (own.previous) legs.push(planLeg("requester", "inbound", own.previous, meeting, entry, requesterMode, 0, ownUsual));
+      if (own.next) legs.push(planLeg("requester", "outbound", own.next, meeting, entry, requesterMode, 0, ownUsual));
     }
 
-    return { ...entry, legs };
+    return { ...entry, legs, requesterNotes: guest.notes(entry) };
   });
 
   return { exclusionCounts, exclusions, linkPlan, mode, planned, tripQueries: trips.queries, unresolvedWindows };
@@ -920,6 +1034,15 @@ function plan(input: FeasibilityInput): Plan {
 
 function placeKey(endpoint: Endpoint | null) {
   return endpoint?.kind === "place" ? endpoint.key : null;
+}
+
+// The key a leg and its allowance name an endpoint by: a place's keyed hash, or
+// for an adjacent commitment without a usable place, why it has none (#324).
+// An allowance keyed this way still names both endpoints: it is void once that
+// commitment gains a place, because its key then changes.
+function legEndpointKey(endpoint: Endpoint | null) {
+  if (!endpoint) return null;
+  return endpoint.kind === "place" ? endpoint.key : `unknown:${endpoint.reason}`;
 }
 
 function legQuery(leg: LegPlan): LegQuery | null {
@@ -961,8 +1084,8 @@ export function tripQueries(input: FeasibilityInput): LegQuery[] {
 }
 
 function matchingAllowance(input: FeasibilityInput, entry: Planned, leg: LegPlan) {
-  const origin = placeKey(leg.origin);
-  const destination = placeKey(leg.destination);
+  const origin = legEndpointKey(leg.origin);
+  const destination = legEndpointKey(leg.destination);
   if (!origin || !destination || !leg.mode) return null;
 
   return (
@@ -982,12 +1105,13 @@ function matchingAllowance(input: FeasibilityInput, entry: Planned, leg: LegPlan
 function resolveLeg(input: FeasibilityInput, entry: Planned, leg: LegPlan): CandidateLeg {
   const base = {
     departure: new Date(leg.departure).toISOString(),
-    destinationKey: placeKey(leg.destination),
+    destinationKey: legEndpointKey(leg.destination),
     direction: leg.direction,
     gapMinutes: leg.gapMinutes,
     mode: leg.mode,
-    originKey: placeKey(leg.origin),
+    originKey: legEndpointKey(leg.origin),
     party: leg.party,
+    ...(leg.usualPlace ? { usualPlace: true as const } : {}),
   };
   const fit = (travelMinutes: number, source: CandidateLeg["source"]): CandidateLeg => ({
     ...base,
@@ -1004,12 +1128,12 @@ function resolveLeg(input: FeasibilityInput, entry: Planned, leg: LegPlan): Cand
     unresolvedReason: reason,
   });
 
-  // An allowance stands in for the estimate of exactly this leg; it never
-  // covers an unknown endpoint, because it names both endpoints.
+  // An allowance stands in for the estimate of exactly this leg, including one
+  // whose adjacent commitment has no usable place (#324).
   const allowance = matchingAllowance(input, entry, leg);
   if (allowance) return fit(allowance.minutes, "allowance");
   if (leg.unresolved) return unresolved(leg.unresolved);
-  if (base.originKey === base.destinationKey) return fit(0, "same_place");
+  if (placeKey(leg.origin) === placeKey(leg.destination)) return fit(0, "same_place");
 
   const outcome = input.estimate?.(legQuery(leg)!);
   if (!outcome) return unresolved("not_estimated");
@@ -1023,7 +1147,13 @@ function weekdayLabel(weekday: Weekday) {
 }
 
 function legSentence(leg: CandidateLeg, host: HostRules) {
-  const from = leg.direction === "inbound" ? "from your previous commitment" : "to your next commitment";
+  const from = leg.usualPlace
+    ? leg.direction === "inbound"
+      ? "from your previous commitment, which has no location, so from your usual area"
+      : "to your next commitment, which has no location, so to your usual area"
+    : leg.direction === "inbound"
+      ? "from your previous commitment"
+      : "to your next commitment";
 
   if (leg.party === "requester") {
     return leg.status === "fits"
@@ -1102,6 +1232,7 @@ export function candidateId(start: number, end: number, placeIndex: number | nul
 export function evaluateFeasibility(input: FeasibilityInput): FeasibilityResult {
   const planned = plan(input);
   const candidates: EvaluatedCandidate[] = [];
+  const requesterNotes = new Map<string, readonly string[]>();
   const { exclusions, exclusionCounts } = planned;
 
   for (const entry of planned.planned) {
@@ -1134,12 +1265,14 @@ export function evaluateFeasibility(input: FeasibilityInput): FeasibilityResult 
         ? "requester_unresolved"
         : "offered";
 
+    const id = candidateId(entry.start, entry.end, entry.placeIndex);
+    if (entry.requesterNotes.length > 0) requesterNotes.set(id, entry.requesterNotes);
     candidates.push({
       basis: basisFor(input, entry, planned.mode!, legs),
       belowWeeklyLimit: entry.belowLimit,
       durationMinutes: input.request.durationMinutes,
       end,
-      id: candidateId(entry.start, entry.end, entry.placeIndex),
+      id,
       legs,
       linkPlan: planned.linkPlan,
       location: planned.mode === "in_person" ? (entry.place?.text ?? null) : null,
@@ -1157,6 +1290,7 @@ export function evaluateFeasibility(input: FeasibilityInput): FeasibilityResult 
     exclusions,
     linkPlan: planned.linkPlan,
     mode: planned.mode,
+    requesterNotes,
     unresolvedWindows: planned.unresolvedWindows,
   };
 }
@@ -1244,7 +1378,13 @@ export function applyRanking(candidates: readonly EvaluatedCandidate[], ranking:
 // candidates, every rule, buffer, estimate and event detail stay out.
 export function requesterProjection(
   candidates: readonly EvaluatedCandidate[],
-  options: { readonly id: string; readonly state: EvaluationState; readonly displayTimezone: string },
+  options: {
+    readonly id: string;
+    readonly state: EvaluationState;
+    readonly displayTimezone: string;
+    // Guest-only sentences by candidate ID (FeasibilityResult.requesterNotes).
+    readonly notes?: ReadonlyMap<string, readonly string[]>;
+  },
 ): RequesterEvaluation {
   const visible = candidates.filter((candidate) => candidate.status !== "host_unresolved");
   // Each time's first pair before any time's second (guest-time-place-pairs
@@ -1279,6 +1419,7 @@ export function requesterProjection(
           candidate.status === "requester_unresolved"
             ? (candidate.legs.find((leg) => leg.party === "requester" && leg.status === "unresolved")?.direction ?? null)
             : null,
+        ...(options.notes?.get(candidate.id)?.length ? { notes: options.notes.get(candidate.id)! } : {}),
       }),
     ),
     id: options.id,

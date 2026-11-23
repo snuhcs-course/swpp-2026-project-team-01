@@ -9,7 +9,7 @@ import { NAMES_A_CONTROL, PROPOSED, readRequestProjection, requesterSession, req
 const AGREED = { message: "Agreed. The request now waits for the host's approval; nothing is booked yet.", recorded: true, state: "awaiting_host_approval" };
 
 export default defineEval({
-  tags: ["requester", "live-model"],
+  tags: ["requester", "live-model", "capability"],
   async test(t) {
     for (const channel of ["[iMessage]", "[Email]"]) {
       const stubs = requesterStubs(readRequestProjection(PROPOSED), [
