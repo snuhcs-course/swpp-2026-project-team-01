@@ -571,7 +571,7 @@ G01 W-10.2~10.3에서 연결한 메신저
 
 **코드로 확인하지 못한 것 · 차이**
 
-- 이 섹션의 코드 상태는 `main` `5915bc44`(2026-11-19) 기준입니다. 계정 MCP 연결(#266, `6255a6dd`)이 이 문서의 기준 코드 이후에 들어왔기 때문입니다.
+- 이 섹션의 코드 상태는 `main` `5915bc44`(2026-11-19) 기준입니다. 계정 MCP 연결(#266, `6255a6dd`)이 이 문서의 기준 코드 이후에 들어왔기 때문입니다. P-2와 P-3은 account-request-identity(2026-11-23)를 반영합니다.
 - 같은 사람의 웹 경로는 G01 W-1의 로그인 상태 분기입니다(Continue as {name}, Continue your request, Back to your workspace; host-as-guest-session). 이 섹션은 대화 하나 또는 연결 하나가 두 역할을 함께 갖는 메신저와 MCP를 다룹니다.
 - 한 대화란 채널마다 어시스턴트 대화가 하나라는 뜻입니다. 링크나 @handle만으로 요청이 시작되고 "전환" 명령은 필요 없습니다. 역할 간 전달은 메시지의 맥락과 가장 최근 알림을 따르고, 열린 대화 둘이 똑같이 맞을 때만 묻습니다.
 - 상대 호스트는 게스트-호스트의 설정이나 캘린더를 볼 수 없습니다. 게스트 역할의 어시스턴트도 상대 호스트의 캘린더나 규칙을 볼 수 없습니다(G01과 같음).
@@ -603,7 +603,7 @@ G01 W-10.2~10.3에서 연결한 메신저
 |---|---|---|---|---|---|
 | P-1 | 호스트 권한만으로 연결됨 | "@dodo랑 미팅 잡아줘" / findmeatime.com/dodo 붙여넣기 | AI 기대 동작: get_host(dodo) → create_request가 권한 부족으로 거절됨 → 같은 서버에서 추가 권한 승인을 요청 → 동의 페이지에 요청 권한 표시 → Allow | **성공**: 같은 서버, 두 번째 MCP 서버 없음<br>**실패**: 거부 → 요청 없음, 호스트 도구는 그대로 동작<br>**코드 지원**: 호스트 전용 토큰이 요청자 도구를 부르면 같은 리소스에서 추가 동의가 필요함(account-requester-mcp spec)<br>**확인 필요**: 공용 배포에서 실제 클라이언트(Claude, ChatGPT, Codex)로 테스트하지 않음 | agent-account-requester-tools.ts · agent-mcp.ts |
 | P-2 | 요청 권한 승인됨 | (계속) | AI 기대 동작: 계정의 이름과 확인된 Google 이메일로 create_request(hostHandle, 목적, 세부사항) → "The private link was emailed" → get_sent_request | **하면 안 됨**: 사람에게 이름이나 이메일을 물음 · 비공개 링크를 반환<br>**코드 지원**: 계정용 `create_request`는 이름과 이메일을 받지 않으며, 계정의 이름과 Google이 확인한 주소가 확인된 연락처가 됨 (account-request-identity) | account-requests.ts · agent-account-requester-tools.ts |
-| P-3 | 요청 생성됨 | find_times | AI 기대 동작: 호스트의 충돌 확인 캘린더가 게스트의 바쁜 시간으로 쓰임(M-2와 같음) | **하면 안 됨**: 비어 있다고 가정<br>**코드 지원**: 계정 연결은 Calendars 항목이 결정되고 Calendar 단계가 확정된 상태로 생성되며, create_request가 캘린더 이름을 알려줌 (account-request-identity) | account-requests.ts (linkAccountRequest) · evaluation.ts (readGuestHostSource) |
+| P-3 | 요청 생성됨 | find_times | AI 기대 동작: 호스트의 충돌 확인 캘린더가 게스트의 바쁜 시간으로 쓰임(M-2와 같음) | **하면 안 됨**: 비어 있다고 가정<br>**코드 지원**: 계정 연결은 Calendars 항목이 결정되고 Calendar 단계가 확정된 상태로 생성되며, create_request가 캘린더 이름을 알려줌 (account-request-identity) | account-requests.ts (linkAccountRequest) · requester-host-profiles.ts (readGuestHostSource, dropGuestHostCalendars) · evaluation.ts |
 | P-4 | 후보 찾음 | "목요일 3시" → "응 그걸로" | AI 기대 동작: requestId로 choose_time → 사람이 받아들인 정확한 제안에 agree_to_proposal. @dodo의 승인이 아직 필요하다고 말함 | **하면 안 됨**: @dodo 승인 전에 확정됐다고 말함<br>**코드 지원**: 보낸 요청 도구가 requestId로 요청자 도구를 재사용함 | agent-account-requester-tools.ts (sentTools) |
 | P-5 | 받은 요청과 보낸 요청이 모두 열려 있음 | "나한테 뭐 남아 있어?" | AI 기대 동작: list_requests(받은 요청)와 list_sent_requests를 나눠 보고하고, 결정이 필요한 것을 짚음 | **하면 안 됨**: 둘을 섞음<br>**코드 지원**: 연결 하나에 두 도구 모두 있음(H04 P-1.1은 이 변경 이전 기준) | agent-host-tools.ts (list_requests) · agent-account-requester-tools.ts |
 | P-6 | P-5 | "목요일 거 승인해줘" | AI 기대 동작: 받은 요청만 approve_proposal로 승인. 보낸 제안에 동의하는 것은 agree_to_proposal. 둘 다 목요일이면 물음 | **하면 안 됨**: 잘못된 역할로 승인하거나 동의<br>**AI 판단**: 역할에 따른 도구 선택 | agent-host-tools.ts · agent-account-requester-tools.ts |

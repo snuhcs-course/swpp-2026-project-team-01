@@ -16,10 +16,10 @@ const hostHandle = z.string().transform(normalizeHandle).refine(isUsableHandle, 
 // and P-3). A stated timezone overrides the host timezone for this request.
 const createInput = createRequestInput.omit({ retryKey: true, name: true, email: true }).extend({
   hostHandle,
-  timezone: createRequestInput.shape.timezone.optional().describe("Only when the person states a different IANA timezone for this meeting; the account's host timezone is used otherwise."),
+  timezone: createRequestInput.shape.timezone.optional().describe("The person's IANA timezone when they state a different one for this meeting, or when the account has no host settings yet (then it is required); the account's host timezone is used otherwise."),
 });
 
-type Created = { requestId: string; requester: { name: string; email: string }; calendars: readonly string[] };
+type Created = { requestId: string; requester: { name: string; email: string }; calendars: readonly string[]; calendarReadable: boolean };
 
 const SENT_NAMES: Readonly<Record<string, string>> = {
   get_request: "get_sent_request",
@@ -64,7 +64,7 @@ function createCommand(context: AgentToolContext): CommandDefinition<z.infer<typ
       const requestId = await createAccountRequest(tx, {
         origin: context.deps.origin, tokenKey: context.deps.tokenKey(),
       }, account, host.hostAccountId, access.sourceHash, input, command);
-      return { calendars: account.calendars, requestId, requester: { email: account.email, name: account.name } };
+      return { calendarReadable: account.calendarReadable, calendars: account.calendars, requestId, requester: { email: account.email, name: account.name } };
     },
   };
 }
@@ -117,12 +117,18 @@ export const ACCOUNT_REQUESTER_TOOLS: readonly AgentTool[] = [
       const { retryKey, ...input } = raw as z.infer<typeof createInput> & { retryKey: string };
       const result = await runAsGrant(context, createCommand(context), { resourceId: context.access.hostAccountId, retryKey, input });
       if (!result.ok) return commandError(result.error);
-      const { calendars, requestId, requester } = result.result;
+      const { calendarReadable, calendars, requestId, requester } = result.result;
+      const reconnect = `${context.deps.origin}/auth/sign-in?consent=calendar`;
+      const calendarNote = calendars.length === 0
+        ? "No host calendars count for this request."
+        : calendarReadable
+          ? `Tell the person once that their calendars named in calendars count as busy time for this request. If find_times reports requester_calendar_unavailable, ask them to reconnect Google Calendar at ${reconnect}; never assume they are free.`
+          : `Their calendars named in calendars count as busy time, but their Google Calendar must be reconnected first at ${reconnect}; ask them to, and do not search times until they have.`;
       return {
         ok: true,
         result: {
-          requestId, created: !result.replayed, requester, calendars,
-          next: `Use get_sent_request with requestId. The private link was emailed to ${requester.email}. ${calendars.length ? "Tell the person once that their calendars named in calendars count as busy time for this request." : "No host calendars count for this request."} Use find_times and choose_time, then agree only to the person's accepted exact proposal. The other host must approve.`,
+          requestId, created: !result.replayed, requester, calendars, calendarReadable,
+          next: `Use get_sent_request with requestId. The private link was emailed to ${requester.email}. ${calendarNote} Use find_times and choose_time, then agree only to the person's accepted exact proposal. The other host must approve.`,
         },
       };
     },

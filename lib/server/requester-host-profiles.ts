@@ -165,10 +165,15 @@ export async function readGuestHostSource(q: Queryable, requestId: string): Prom
 }
 
 // A failed or revoked guest-host grant clears the calendar item and reopens the
-// Calendar step (design 6): never free time.
+// Calendar step (design 6): never free time. A request the account itself sent
+// (account-requests.ts, the item decided at creation) has no Calendar card to
+// reopen, so its item stays and each search pauses until the account reconnects
+// Calendar (R01 M-2, P-3).
 export async function dropGuestHostCalendars(tx: Transaction, requestId: string) {
-  await tx`
-    update app.requester_host_profiles set items = array_remove(items, 'calendars') where request_id = ${requestId}
+  const dropped = await tx`
+    update app.requester_host_profiles set items = array_remove(items, 'calendars')
+    where request_id = ${requestId} and decided_at is distinct from created_at
   `;
+  if (dropped.count === 0) return;
   await tx`update app.requests set calendar_settled_at = null where id = ${requestId}`;
 }

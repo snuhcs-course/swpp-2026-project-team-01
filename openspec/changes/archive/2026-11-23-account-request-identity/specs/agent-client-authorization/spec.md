@@ -1,7 +1,7 @@
 ## ADDED Requirements
 
 ### Requirement: Account requester identity
-A request created through an account connection SHALL be identified with the account itself: its host display name and the Google address it signed in with, stored as the confirmed contact, and its host timezone unless the request names another. The account connection SHALL NOT accept a typed requester name or email. The account's host conflict calendars SHALL count as the requester's busy time from creation, without a calendar question, and the creation result SHALL name those calendars. An account without confirmed host settings SHALL be linked with no host calendars. Nothing about the account's settings or calendars SHALL reach the other host.
+A request created through an account connection SHALL be identified with the account itself: its host display name and the Google address it signed in with, stored as the confirmed contact, and its host timezone unless the request names another; an account without a host timezone SHALL name one. The account connection SHALL NOT accept a typed requester name or email. The account's host conflict calendars SHALL count as the requester's busy time from creation, without a calendar question, and the creation result SHALL name those calendars. When the account's Calendar grant cannot be read, those calendars SHALL still count and finding times SHALL pause until the account reconnects Calendar, never treating the requester as free. An account without conflict calendars SHALL be linked with no host calendars. Nothing about the account's settings or calendars SHALL reach the other host.
 
 #### Scenario: Account requests a meeting
 - **WHEN** an account with request scopes calls `create_request` with only a host handle, meeting details and a retry key
@@ -13,8 +13,8 @@ A request created through an account connection SHALL be identified with the acc
 
 #### Scenario: Host calendars count
 - **WHEN** times are found for a request created through an account connection whose account has confirmed host settings
-- **THEN** the account's host conflict calendars count as the requester's busy time, and a failed host grant pauses the search instead of assuming free time
+- **THEN** the account's host conflict calendars count as the requester's busy time, and a failed host grant keeps them and pauses each search until Calendar is reconnected, instead of assuming free time
 
 #### Scenario: Account without settings
-- **WHEN** an account without confirmed host settings creates a request
-- **THEN** the request is linked to the account with no host calendars
+- **WHEN** an account without confirmed host settings creates a request and names a timezone
+- **THEN** the request is linked to the account with no host calendars, and without a timezone it is refused as invalid input

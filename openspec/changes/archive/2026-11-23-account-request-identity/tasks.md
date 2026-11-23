@@ -2,7 +2,7 @@
 
 ## 1. Server
 
-- [x] 1.1 Add `readAccountRequester`, `createAccountRequest` and `linkAccountRequest` in `lib/server/account-requests.ts`: account name, Google-verified address as the confirmed contact, host timezone, the Calendars item decided and the Calendar step settled; no items without confirmed settings.
+- [x] 1.1 Add `readAccountRequester`, `createAccountRequest` and `linkAccountRequest` in `lib/server/account-requests.ts`: account name, Google-verified address as the confirmed contact, host timezone, the Calendars item decided and the Calendar step settled; no items without conflict calendars; a timezone is required without host settings. Keep an item decided at creation when the host grant fails (`dropGuestHostCalendars`).
 - [x] 1.2 Drop `name` and `email` from the account `create_request` input, make `timezone` optional, and return `requester` and `calendars`.
 
 ## 2. Documentation
@@ -12,4 +12,4 @@
 ## 3. Tests
 
 - [x] 3.1 Unit: the account `create_request` schema refuses a typed name or email and needs no timezone.
-- [x] 3.2 Integration (`tests/integration/agent-mcp-account-requester.test.ts`): identity, confirmed contact, host timezone, the decided Calendars item and the settled Calendar step; an account without settings is linked with no items. Written but not run here (the local Supabase stack is shared on this machine); the owner runs the integration suite on `main`.
+- [x] 3.2 Integration (`tests/integration/agent-mcp-account-requester.test.ts`): identity, confirmed contact, host timezone, the decided Calendars item and the settled Calendar step; an account without settings is linked with no items and must name a timezone; a failed host grant keeps an account request's item and still drops a web-decided one. Written but not run here (the local Supabase stack is shared on this machine); the owner runs the integration suite on `main`.

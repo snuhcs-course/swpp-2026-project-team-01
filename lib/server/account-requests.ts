@@ -1,5 +1,5 @@
 import type { ConfirmedSettings } from "../contracts/setup";
-import type { CommandContext } from "./commands";
+import { type CommandContext, CommandError } from "./commands";
 import type { Queryable, Transaction } from "./database";
 import { createIdentifiedAgentRequest, type CreateRequestInput } from "./agent-requests";
 import { settleCalendarStep } from "./request-start";
@@ -28,11 +28,16 @@ export type AccountRequester = {
   // The names of the host conflict calendars that count for the request; empty
   // without confirmed settings.
   readonly calendars: readonly string[];
+  // Whether the account's Google Calendar grant can be read now. When it cannot,
+  // the calendars still count: finding times pauses until the account
+  // reconnects Calendar, and never assumes free time (R01 M-2).
+  readonly calendarReadable: boolean;
 };
 
 export async function readAccountRequester(q: Queryable, hostAccountId: string): Promise<AccountRequester | null> {
-  const [row] = await q<{ email: string; display_name: string | null; settings: ConfirmedSettings | null }[]>`
-    select g.email, a.display_name, s.settings
+  const [row] = await q<{ email: string; display_name: string | null; settings: ConfirmedSettings | null; readable: boolean }[]>`
+    select g.email, a.display_name, s.settings,
+           exists (select 1 from app.provider_grants p where p.host_account_id = a.id and p.invalidated_at is null) as readable
     from app.host_accounts a
     join app.google_identities g on g.host_account_id = a.id
     left join app.host_settings s on s.host_account_id = a.id
@@ -41,6 +46,7 @@ export async function readAccountRequester(q: Queryable, hostAccountId: string):
   if (!row) return null;
   const name = row.settings?.displayName?.trim() || row.display_name?.trim() || row.email.split("@")[0]!;
   return {
+    calendarReadable: row.readable,
     calendars: (row.settings?.conflictCalendars ?? []).map((calendar) => calendar.summary),
     email: row.email,
     hostAccountId,
@@ -65,7 +71,9 @@ export async function createAccountRequest(
   input: AccountRequestInput,
   context: Pick<CommandContext<unknown>, "correlationId" | "retryKey">,
 ) {
-  const timezone = input.timezone ?? account.timezone ?? "UTC";
+  // Without host settings there is no timezone to assume: the caller asks.
+  const timezone = input.timezone ?? account.timezone;
+  if (!timezone) throw new CommandError("invalid_input");
   const requestId = await createIdentifiedAgentRequest(
     tx,
     deps,
@@ -78,14 +86,16 @@ export async function createAccountRequest(
   return requestId;
 }
 
-// The account link with the Calendars item decided, and the Calendar step
-// settled. Without confirmed settings there are no host calendars to use, and
-// the request is linked with no items.
-export async function linkAccountRequest(tx: Transaction, requestId: string, account: Pick<AccountRequester, "hostAccountId" | "timezone">) {
-  const items = account.timezone === null ? [] : ["calendars"];
+// The account link with the Calendars item decided at creation (decided_at
+// equals created_at: requester-host-profiles.ts keeps such an item when the
+// host grant fails, so finding times pauses instead of assuming free time), and
+// the Calendar step settled. Without conflict calendars there is nothing to use,
+// and the request is linked with no items.
+export async function linkAccountRequest(tx: Transaction, requestId: string, account: Pick<AccountRequester, "hostAccountId" | "calendars">) {
+  const items = account.calendars.length > 0 ? ["calendars"] : [];
   await tx`
-    insert into app.requester_host_profiles (request_id, host_account_id, items, decided_at)
-    values (${requestId}, ${account.hostAccountId}, ${items}, now())
+    insert into app.requester_host_profiles (request_id, host_account_id, items, created_at, decided_at)
+    values (${requestId}, ${account.hostAccountId}, ${items}, now(), now())
   `;
   await settleCalendarStep(tx, requestId);
 }

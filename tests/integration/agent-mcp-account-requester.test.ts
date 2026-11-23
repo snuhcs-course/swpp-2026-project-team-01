@@ -14,6 +14,7 @@ import { readCurrentEvaluation } from "../../lib/server/request-proposals";
 import { approveCommand } from "../../lib/server/bookings";
 import { asHost, bookingDeps, runBooking } from "./support/booking";
 import { createGoogleUser } from "./support/auth";
+import { dropGuestHostCalendars } from "../../lib/server/requester-host-profiles";
 
 const db = testDatabase();
 let google: FakeGoogle;
@@ -81,7 +82,7 @@ describe("account requester MCP", () => {
     `;
     expect((await client.call("create_request", { name: "Someone", email: "someone@example.test", hostHandle: target.handle, retryKey: randomUUID() })).isError).toBe(true);
     const result = await client.call("create_request", { hostHandle: target.handle, retryKey: randomUUID(), details: { purpose: "Compilers" } });
-    expect(result.structuredContent).toMatchObject({ created: true, requester: { name: "Grace Hopper", email: client.email }, calendars: ["Personal"] });
+    expect(result.structuredContent).toMatchObject({ created: true, requester: { name: "Grace Hopper", email: client.email }, calendars: ["Personal"], calendarReadable: true });
     expect(JSON.stringify(result)).not.toContain("/booking/");
     const requestId = (result.structuredContent as { requestId: string }).requestId;
     const [row] = await db<{ requester_name: string; contact_email: string; contact_confirmed_email: string | null; timezone: string; calendar_settled: boolean; items: string[]; decided: boolean }[]>`
@@ -102,6 +103,38 @@ describe("account requester MCP", () => {
       select items, decided_at is not null as decided from app.requester_host_profiles where request_id = ${requestId}
     `;
     expect(row).toEqual({ items: [], decided: true });
+  });
+
+  it("asks for a timezone when the account has no host timezone", async () => {
+    const client = await setup(); const target = await host();
+    const result = await client.call("create_request", { hostHandle: target.handle, retryKey: randomUUID() });
+    expect(result.structuredContent).toMatchObject({ error: { category: "invalid_input" } });
+  });
+
+  it("keeps the account's calendars when its host grant fails, so the search pauses", async () => {
+    const client = await setup(); const target = await host();
+    await makeHostReady(db, client.accountId);
+    await db`
+      update app.host_settings
+      set settings = settings || ${db.json({ conflictCalendars: [{ accessRole: "owner", id: "grace@example.test", summary: "Personal" }], timezone: "Asia/Seoul" })}
+      where host_account_id = ${client.accountId}
+    `;
+    const accountRequest = (await client.call("create_request", { hostHandle: target.handle, retryKey: randomUUID() })).structuredContent as { requestId: string };
+    await db.begin((tx) => dropGuestHostCalendars(tx, accountRequest.requestId));
+    const [kept] = await db<{ items: string[]; settled: boolean }[]>`
+      select p.items, r.calendar_settled_at is not null as settled
+      from app.requester_host_profiles p join app.requests r on r.id = p.request_id where p.request_id = ${accountRequest.requestId}
+    `;
+    expect(kept).toEqual({ items: ["calendars"], settled: true });
+
+    // A choice made later on the web card is dropped and reopens the Calendar step, as before.
+    await db`update app.requester_host_profiles set decided_at = now() + interval '1 minute' where request_id = ${accountRequest.requestId}`;
+    await db.begin((tx) => dropGuestHostCalendars(tx, accountRequest.requestId));
+    const [dropped] = await db<{ items: string[]; settled: boolean }[]>`
+      select p.items, r.calendar_settled_at is not null as settled
+      from app.requester_host_profiles p join app.requests r on r.id = p.request_id where p.request_id = ${accountRequest.requestId}
+    `;
+    expect(dropped).toEqual({ items: [], settled: false });
   });
 
   it("serializes concurrent exact creation retries and rejects changed arguments", async () => {
