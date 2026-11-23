@@ -6,7 +6,7 @@ import { cn } from "@/lib/utils";
 
 // The composer's words until the fixed steps hand over to Thyme (U9): the
 // composer is always there, closed until then.
-export const COMPOSER_LOCKED = "Finish the step above, then you can write to Thyme here";
+export { COMPOSER_LOCKED } from "./composer-state";
 
 // The two fixed messages the web chat opens with (U7, U8). The booking page
 // keeps them at the top of the thread, so the conversation reads on from the
