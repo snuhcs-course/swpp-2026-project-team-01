@@ -1,6 +1,6 @@
 import type { DashboardData } from "@lib/server/host-dashboard";
 import { describe, expect, it, vi } from "vitest";
-import { createDashboardCache, dateAt, periodRange, shiftPeriod } from "./host-dashboard-data";
+import { createDashboardCache, dateAt, FRESH_MS, periodRange, shiftPeriod } from "./host-dashboard-data";
 
 function answer(timeZone: string): DashboardData {
   return { events: [], googleWarning: null, timeZone } as unknown as DashboardData;
@@ -66,16 +66,33 @@ describe("dashboard cache", () => {
     expect(cache.peek(left)?.timeZone).toBe("left");
   });
 
+  it("reuses a fresh answer and asks again once it is older than FRESH_MS", async () => {
+    let clock = 0;
+    const fetchRange = vi.fn(async () => answer("UTC"));
+    const cache = createDashboardCache(fetchRange, () => clock);
+    const week = periodRange(dateAt("2026-11-25"), "week");
+
+    await cache.load(week);
+    clock = FRESH_MS - 1;
+    await cache.load(week);
+    expect(fetchRange).toHaveBeenCalledTimes(1);
+    clock = 2 * FRESH_MS;
+    await cache.load(week);
+    expect(fetchRange).toHaveBeenCalledTimes(2);
+  });
+
   it("caches no failure, keeps an earlier answer and lets the range load again", async () => {
+    let clock = 0;
     let fail = false;
     const fetchRange = vi.fn(async () => {
       if (fail) throw new Error("down");
       return answer("UTC");
     });
-    const cache = createDashboardCache(fetchRange);
+    const cache = createDashboardCache(fetchRange, () => clock);
     const week = periodRange(dateAt("2026-11-25"), "week");
 
     await cache.load(week);
+    clock = 2 * FRESH_MS;
     fail = true;
     await expect(cache.load(week)).rejects.toThrow("down");
     expect(cache.peek(week)?.timeZone).toBe("UTC");

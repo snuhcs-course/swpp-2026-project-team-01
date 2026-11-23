@@ -157,6 +157,12 @@ export function LinkStep({
     })();
   }, [ready, take]);
 
+  // The Calendar return's words belong to this visit only: drop the flag from the address, so a reload or a
+  // later visit through history does not say Calendar is connected again.
+  useEffect(() => {
+    if (calendarConnected) window.history.replaceState(window.history.state, "", "/app");
+  }, [calendarConnected]);
+
   const state = status?.state;
   useEffect(() => {
     if (shown !== "step" || state !== "pending") return;

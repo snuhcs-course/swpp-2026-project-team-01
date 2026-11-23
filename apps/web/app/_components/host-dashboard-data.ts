@@ -38,21 +38,29 @@ export const fetchDashboardRange: FetchRange = async (from, to) => {
   return (await response.json()) as DashboardData;
 };
 
-// Loaded ranges for this visit. One request per range is in flight at a time;
-// a failed load keeps any earlier answer and is not cached. The screen reads
+// Loaded ranges for this visit. One request per range is in flight at a time,
+// and an answer under FRESH_MS old is reused without asking again, so quick
+// navigation does not list Google Calendar for each step; a failed load keeps
+// any earlier answer and is not cached. The screen reads
 // the range it shows with `peek`, so an answer that arrives late, for a week the
 // host has left, fills the cache without replacing what is on screen.
-export function createDashboardCache(fetchRange: FetchRange) {
+export const FRESH_MS = 30_000;
+
+export function createDashboardCache(fetchRange: FetchRange, now: () => number = Date.now) {
   const loaded = new Map<string, DashboardData>();
+  const loadedAt = new Map<string, number>();
   const inFlight = new Map<string, Promise<DashboardData>>();
 
   function load(range: string) {
     const pending = inFlight.get(range);
     if (pending) return pending;
+    const kept = loaded.get(range);
+    if (kept && now() - (loadedAt.get(range) ?? 0) < FRESH_MS) return Promise.resolve(kept);
     const [from, to] = range.split("|");
     const request = fetchRange(from!, to!)
       .then((data) => {
         loaded.set(range, data);
+        loadedAt.set(range, now());
         return data;
       })
       .finally(() => inFlight.delete(range));

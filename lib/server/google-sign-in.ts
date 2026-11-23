@@ -245,7 +245,9 @@ export function createGoogleCallbackHandler(load: () => GoogleSignInDependencies
       else if (started) await claimStartedLink(deps.db, deps.tokenKey, account.id, started).catch(logged("imessage_start_claim_failed"));
       if (recorded === RETURN_IMESSAGE) {
         await resumeImessageOnboarding(deps.db, deps.tokenKey, account.id, code).catch(logged("imessage_resume_failed"));
-        calendarReturn = await calendarConnected(deps.db, account.id).catch(() => false);
+        // Only Thyme's Calendar link: the sign-in link in Thyme's reply records the
+        // same return but still ends in Confirm and link, which keeps its words.
+        if (!continued) calendarReturn = await calendarConnected(deps.db, account.id).catch(() => false);
       }
     }
 
