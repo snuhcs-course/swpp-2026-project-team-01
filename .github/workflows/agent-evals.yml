@@ -1,0 +1,111 @@
+# Regression evals on pull requests that change the assistant (documentation
+# 13, "Regression evals on pull requests"; issue #154). Each run calls the paid
+# model, so it never starts on its own: a maintainer adds the run-agent-evals
+# label to a pull request that touches the assistant, or dispatches the
+# workflow by hand. Adding the label again reruns it. Whether this becomes a
+# required check is the team's decision.
+#
+# Repository secret: EVAL_OPENAI_API_KEY, an OpenAI key for gpt-5.6-terra
+# (ideally a project key with its own budget). Without it the job stops
+# before installing anything.
+name: Agent evals
+
+on:
+  pull_request:
+    types: [labeled]
+    paths:
+      - agent/instructions/**
+      - agent/tools/**
+      - agent/agent.ts
+      - lib/server/*-tools.ts
+      - evals/**
+  workflow_dispatch:
+    inputs:
+      pr:
+        description: Pull request number to comment on (empty for none)
+        required: false
+
+permissions:
+  contents: read
+  pull-requests: write
+
+concurrency:
+  group: agent-evals-${{ github.event.pull_request.number || inputs.pr || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  regression:
+    if: github.event_name == 'workflow_dispatch' || github.event.label.name == 'run-agent-evals'
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    env:
+      OPENAI_API_KEY: ${{ secrets.EVAL_OPENAI_API_KEY }}
+      # One run per case (pass^1); official runs keep pass^3.
+      FMAT_EVAL_TRIALS: "1"
+      SUPABASE_AUTH_SITE_URL: http://localhost:3000
+      SUPABASE_AUTH_ADDITIONAL_REDIRECT_URLS: http://localhost:3000/auth/callback
+      # Placeholders: the evals reach only the fake Google, but Auth needs the provider configured.
+      GOOGLE_CLIENT_ID: ci-placeholder.apps.googleusercontent.com
+      GOOGLE_CLIENT_SECRET: ci-placeholder
+    steps:
+      - name: Require the model key
+        run: |
+          if [ -z "$OPENAI_API_KEY" ]; then
+            echo "::error::Add the EVAL_OPENAI_API_KEY repository secret to run the agent evals."
+            exit 1
+          fi
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - uses: supabase/setup-cli@1dedf2c611547ede7232d26866dd3c56ab903bbb # v1
+        with:
+          version: 2.119.0
+      - name: Start the local stack
+        run: supabase start -x studio,imgproxy,edge-runtime,logflare,vector,supavisor
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version: 24
+          cache: npm
+      - name: Install dependencies
+        run: npm ci
+      # eve runs one dev server per checkout, so the sets run one after the other.
+      - name: Guest defense set
+        id: guest
+        continue-on-error: true
+        run: FMAT_EVAL_AUDIENCE=requester npx eve eval requester/defense --tag regression --max-concurrency 8
+      - name: Host approval set
+        id: host
+        continue-on-error: true
+        run: FMAT_EVAL_AUDIENCE=host_review npx eve eval host-review/approval --tag regression --max-concurrency 8
+      - name: Summarize
+        id: summary
+        env:
+          EVAL_RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: |
+          set +e
+          { echo '<!-- agent-evals -->'; npx tsx scripts/agent-evals.ts summary .eve/evals/*/; } > summary.md
+          echo "failed=$?" >> "$GITHUB_OUTPUT"
+          cat summary.md >> "$GITHUB_STEP_SUMMARY"
+      - name: Post or update the eval comment
+        if: github.event.pull_request.number || inputs.pr
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+          PR: ${{ github.event.pull_request.number || inputs.pr }}
+        run: |
+          id=$(gh api "repos/$REPO/issues/$PR/comments" --paginate --jq '.[] | select(.body | startswith("<!-- agent-evals -->")) | .id' | head -n 1)
+          if [ -n "$id" ]; then
+            gh api -X PATCH "repos/$REPO/issues/comments/$id" -F body=@summary.md > /dev/null
+          else
+            gh pr comment "$PR" --repo "$REPO" --body-file summary.md
+          fi
+      - name: Keep the artifacts
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: agent-evals
+          path: .eve/evals/
+          retention-days: 14
+      - name: Fail on a failed run
+        if: steps.summary.outputs.failed != '0' || steps.guest.outcome == 'failure' || steps.host.outcome == 'failure'
+        run: |
+          echo "::error::A regression eval run failed or did not finish; see the summary."
+          exit 1

@@ -2,7 +2,7 @@
 
 Status: **draft**, pre-check run and prompt comparison done, no official run yet, pass criteria to be agreed with the TA\
 Date: 2026-11-18\
-Tracking: [#261](https://github.com/snuhcs-course/swpp-2026-project-team-01/issues/261) (guest and host review), [#152](https://github.com/snuhcs-course/swpp-2026-project-team-01/issues/152) (host setup), [#232](https://github.com/snuhcs-course/swpp-2026-project-team-01/issues/232) (Iteration 4 metrics)\
+Tracking: [#261](https://github.com/snuhcs-course/swpp-2026-project-team-01/issues/261) (guest and host review), [#152](https://github.com/snuhcs-course/swpp-2026-project-team-01/issues/152) (host setup), [#232](https://github.com/snuhcs-course/swpp-2026-project-team-01/issues/232) (Iteration 4 metrics), [#154](https://github.com/snuhcs-course/swpp-2026-project-team-01/issues/154) (regression evals on pull requests), [#155](https://github.com/snuhcs-course/swpp-2026-project-team-01/issues/155) (simulated guest journeys), [#186](https://github.com/snuhcs-course/swpp-2026-project-team-01/issues/186) (routing time)\
 Basis: [Testing baseline](https://github.com/snuhcs-course/swpp-2026-project-team-01/pull/249) (PR #249, `12_testing_baseline.md`), [Agent configuration](04_agent_configuration.md), `agent/instructions/`, `agent/tools/`, [Guest defense evaluation](10_guest_defense_evaluation.md), [Host approval evaluation](11_host_approval_evaluation.md)
 
 This document describes the Iteration 4 evaluation of the assistant on the revised user stories: a fixed set of cases built from the testing baseline, how each case is graded, the run settings, the pre-check run and where the work stands. The Iteration 3 sets attack the guest assistant and check approval in words; this set follows the stories' own paths, including users who answer out of order, change their minds or send noise. Results will be added below for each run without changing the set.
@@ -188,3 +188,66 @@ The Iteration 3 prompts fail the guest's normal paths (drafting, applying and as
 | 2026-11-23 | RV-D01 | #58: declining in Korean on Telegram with two more dates that no longer work and a reason passes both dates as `excludedDates`, stores them as whole Asia/Seoul days on the declined request, and keeps the reason out of the request ([`decline-with-unavailable-dates`](../../openspec/changes/decline-with-unavailable-dates/proposal.md)) |
 
 The four cases were added with [`host-assistant-story-fixes`](../../openspec/changes/host-assistant-story-fixes/proposal.md) and have not run yet; that change's release tasks run them with the failing cases they follow.
+
+## Regression and capability sets
+
+Every live-model eval carries one of two tags ([`evals/tags.ts`](../../evals/tags.ts)), so `eve eval --tag <tag>` selects it:
+
+| Tag | Sets | When it runs |
+|---|---|---|
+| `regression` | Guest defense ([documentation 10](10_guest_defense_evaluation.md)) and host approval ([documentation 11](11_host_approval_evaluation.md)): both passed every run on 2026-11-18 | On pull requests that change the assistant (below), and in official runs |
+| `capability` | The story sets in this document, the simulated guest journeys, and the other requester evals under `evals/requester/` | Only when someone runs them |
+
+A capability set that stays near 100% can move to `regression` by a team decision, recorded here. Every defense, approval and story eval also carries `case:<ID>`. `FMAT_EVAL_TRIALS=1` runs each case once instead of its declared count; official runs leave it unset.
+
+## Regression evals on pull requests
+
+The [Agent evals](../../.github/workflows/agent-evals.yml) workflow runs the `regression` sets on a Linux runner against a local Supabase stack, the fake Google and Routes this document's runtime starts, and the real model. It never starts on its own, because every run spends money:
+
+- **When.** A pull request that touches `agent/instructions/**`, `agent/tools/**`, `agent/agent.ts`, `lib/server/*-tools.ts` or `evals/**`, once a maintainer adds the `run-agent-evals` label (adding it again reruns), or a manual dispatch with an optional pull request number.
+- **What.** The guest defense set, then the host approval set (one `eve dev` per checkout), each case once (pass^1, `FMAT_EVAL_TRIALS=1`); official runs keep pass^3.
+- **Report.** [`scripts/agent-evals.ts`](../../scripts/agent-evals.ts) posts one comment on the pull request and updates it on a rerun: runs passed per set and category, each failed run with its failing checks and the `--tag case:<ID>` that reruns it, and the assistant's tokens from the runs' `step.completed` events (grader tokens are not counted). The artifacts are kept for 14 days. The job fails when a run fails or does not finish.
+- **Secret.** `EVAL_OPENAI_API_KEY`, an OpenAI key for `gpt-5.6-terra` (assistant and grader), added by the repository owner; a project key with its own budget limit is safest. Without it the job stops at its first step. The route is direct OpenAI, as in documentation 10 and 11, not the OpenRouter route of the story sets.
+- **Cost.** One run is 39 defense and 17 approval evals. Iteration 3's 73 defense evals used about 1.4 million input tokens (1 million cached), and the story sets cost about USD 0.02 per eval with the grader, so one CI run is estimated at about USD 1 to 1.5 and 10 to 15 minutes. Replace this estimate with the first run's measured tokens.
+- **Reading a failure.** With the same prompts, a single run can fail without a change (27 of 133 story cases were flaky on 2026-11-18), so rerun a failed case two more times with its `case:` tag before calling it a regression. Comparing against `main` on the same cases (`scripts/story-evals.ts compare`) shows a regression directly but doubles the cost; the workflow does not do it yet.
+
+Whether the workflow becomes a required check is the team's decision.
+
+## Simulated guest journeys
+
+A set that measures whether a guest gets from a first message to an agreement waiting for the host's approval ([#155](https://github.com/snuhcs-course/swpp-2026-project-team-01/issues/155)), in the style of τ-bench: a simulator model plays the guest.
+
+**Set.** [`evals/requester/journey-cases.ts`](../../evals/requester/journey-cases.ts), six personas with hidden goals (purpose, length, online or in person, and a day of next week with a start range): busy (J-01, English), vague (J-02, Korean), changes their mind (J-03 Korean, J-06 English), in person at 강남역 (J-04, Korean), and a 60-minute meeting with a question about how booking works (J-05, English). Cases are only ever appended.
+
+**Runner.** [`journey-runner.ts`](../../evals/requester/journey-runner.ts) seeds the host offer most guest story cases use (`GUEST_OFFER`) and a request that knows only its length, then alternates: the simulator writes the guest's next message, the guest assistant answers with every guest tool running for real against the local database and the fake Google Calendar. The simulator ([`simulator.ts`](../../evals/requester/simulator.ts)) sees only its persona, its goal and the replies; it never sees the assistant's instructions, tools or tool results, which a unit test checks. It ends the conversation with `[DONE]` once it has agreed or given up.
+
+**Grading.** Each run passes only when every check passes:
+
+| Check | How |
+|---|---|
+| End state | The request is `awaiting_host_approval` |
+| Agreed proposal | The latest agreed proposal starts on the goal's day inside its range, with the goal's length, mode and, in person, place |
+| Turn limit | The simulator ends within 12 guest messages |
+| Tools | Only guest booking tools are called |
+| Tone | A rubric over the whole conversation: polite and plain, the guest's language, short replies, no internal terms |
+| No false booking | A rubric: never says the meeting is booked or approved by the host |
+
+**Run settings.** As for the story sets (above): the local stack, the fake Google, the OpenRouter route, and the simulator on the grader's model (`gpt-6.1-sol`, low reasoning), so the guest does not share the assistant's habits. Each case runs three times. Command: `FMAT_EVAL_AUDIENCE=requester npx eve eval requester/journey --max-concurrency 8`. One conversation is up to 12 assistant turns and 13 simulator calls, so a full run of 18 conversations is estimated at about USD 3.
+
+**Results.** Not run yet. Results report pass^3 (cases whose three runs all passed) next to pass@1 (runs passed), with guest turns and assistant tokens per conversation; the turns and simulator tokens are in each run's log, the assistant tokens in its `step.completed` events.
+
+## Routing time and the offered slots
+
+Whether a change in route duration changes the slots a guest is shown ([#186](https://github.com/snuhcs-course/swpp-2026-project-team-01/issues/186)). This check is deterministic: no model is involved.
+
+**Inputs.** A host whose calendar holds one commitment at "Gangnam office" from 10:00 to 11:00 on a Monday (Asia/Seoul); settings with 10 minutes of buffer before and after, 15 minutes of travel buffer, transit, weekdays 10:00 to 17:00. The guest asks for 30 minutes in person at "Cafe Onion, Seongsu" between 11:00 and 12:30 that Monday, with no calendar connected. The same search runs twice; only the Routes duration from the office to the cafe changes, 20 minutes then 35.
+
+**Expected and actual guest-visible slots.** The earliest start is the commitment's end plus the trip plus 25 minutes of buffers.
+
+| Trip | Expected | Actual |
+|---|---|---|
+| 20 minutes | 11:45 and 12:00 | 11:45 and 12:00 |
+| 35 minutes | 12:00 only; 11:45 is omitted | 12:00 only |
+
+**Reproduce.** [`lib/server/routing-slots.test.ts`](../../lib/server/routing-slots.test.ts) runs the feasibility engine and the requester projection the booking page and the assistant read (`npm test`); it passed on 2026-11-23 at the commit that added it, based on `main` at `82fae0ad`. [`tests/integration/routing-slots.test.ts`](../../tests/integration/routing-slots.test.ts) repeats it through the real evaluation job, the fake Google Calendar and fake Routes on the local stack (`npm run test:integration`); it was not run with that commit and is to be run on `main`.
+
