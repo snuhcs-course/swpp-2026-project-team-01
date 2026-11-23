@@ -15,7 +15,7 @@ import { SentRequestConversation } from "./sent-request-conversation";
 import { Button } from "@/components/ui/button";
 import { postHostCommand, readHostRequest, readWorkspaceRequests } from "@/lib/chat/host-requests";
 import { announceRequestsChanged } from "@/lib/chat/pending-decisions";
-import { errorMessage } from "@/lib/chat/use-host-discussion";
+import { errorMessage } from "@/lib/chat/discussion";
 import { HostWordmark } from "@/app/_components/host-wordmark";
 import {
   BookingCard,

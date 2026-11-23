@@ -12,13 +12,13 @@ export async function openConnectedApps(page: Page) {
   return dialog;
 }
 
-// Opens /app, waits for the conversation, then the messaging card in Connected apps.
+// Opens /app, waits for the workspace, then the messaging card in Connected apps.
 export async function openMessagingCard(page: Page) {
   await page.goto("/app");
   const menu = page.getByRole("button", { name: "Open menu" });
   await expect(menu).toBeVisible({ timeout: 45_000 });
-  // The conversation has loaded, so nothing moves focus after the menu does.
-  await expect(page.getByRole("textbox", { name: "Message Thyme" })).toBeEnabled({ timeout: 45_000 });
+  // The workspace has loaded, so nothing moves focus after the menu does.
+  await expect(page.getByRole("main", { name: "Workspace" })).toBeVisible({ timeout: 45_000 });
   const dialog = await openConnectedApps(page);
   await dialog.getByRole("button", { name: /^(Connect a messaging app|Manage messaging app)$/ }).click();
   const card = dialog.locator("[data-imessage-card]");

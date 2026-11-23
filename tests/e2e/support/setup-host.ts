@@ -8,7 +8,8 @@ import { parseTokenKey } from "../../../lib/server/token-encryption";
 import { analysisJobs, runJob } from "../../integration/support/calendar-host";
 import { defaultGoogleFixture } from "../../integration/support/fake-google";
 import { runCommand } from "../../../lib/server/commands";
-import { updateDraftCommand } from "../../../lib/server/setup-commands";
+import { computeSetupProposal } from "../../../lib/server/setup";
+import { confirmSettingsCommand, updateDraftCommand } from "../../../lib/server/setup-commands";
 import { draftRevision, hostCommandDeps, prepareReviewableHost } from "../../integration/support/setup-host";
 import { E2E_TOKEN_ENCRYPTION_KEY } from "./token-key";
 
@@ -56,7 +57,7 @@ export async function runPendingAnalyses(db: Database, hostAccountId: string) {
 export async function reviewableHost(db: Database, hostAccountId: string) {
   await grantCalendar(db, hostAccountId);
   const calendars = defaultGoogleFixture().calendars;
-  await prepareReviewableHost(db, {
+  return prepareReviewableHost(db, {
     calendars,
     hostAccountId,
     primaryId: PRIMARY_CALENDAR_ID,
@@ -97,4 +98,21 @@ export async function acceptSuggestions(db: Database, hostAccountId: string, ide
     retryKey: randomUUID(),
   });
   if (!notes.ok) throw new Error(`Saving the notes failed: ${JSON.stringify(notes)}`);
+}
+
+// A host whose settings are confirmed, as the linked messenger confirms them:
+// setup happens only in the messenger (remove-host-web-chat), so the browser
+// tests start from a ready host.
+export async function confirmedHost(db: Database, hostAccountId: string, identity: { handle: string; displayName: string }, appOrigin: string) {
+  const live = await reviewableHost(db, hostAccountId);
+  await acceptSuggestions(db, hostAccountId, identity);
+  const proposal = await computeSetupProposal(db, hostAccountId);
+  if (!proposal) throw new Error("No setup proposal to confirm.");
+  const result = await runCommand(hostCommandDeps(db, hostAccountId), confirmSettingsCommand(live, appOrigin), {
+    expectedRevision: await draftRevision(db, hostAccountId),
+    input: { proposalHash: proposal.proposalHash },
+    resourceId: hostAccountId,
+    retryKey: randomUUID(),
+  });
+  if (!result.ok) throw new Error(`Confirming settings failed: ${JSON.stringify(result)}`);
 }
