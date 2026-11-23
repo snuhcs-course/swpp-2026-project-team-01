@@ -344,6 +344,7 @@ export const CHANNEL_REPLIES = {
         '"What requests do I have?"',
         '"Show me the proposal" or "book it"',
         '"Decline it" or "make it 30 minutes"',
+        '"Decline it; Dec 3 and 5 don\'t work either"',
         '"Let\'s go back to my settings"',
         `To unlink this conversation, open ${origin}/app.`,
       ].join("\n"),
@@ -429,6 +430,8 @@ export const CHANNEL_REPLIES = {
     approved: "Approved. I'm adding it to your calendar and will tell you when it's confirmed.",
     alreadyApproved: "That proposal is already approved; the booking is under way.",
     declined: "Declined. The requester will be told; nothing was booked.",
+    declinedWithDates: (count: number) =>
+      `Declined. The requester will be told; nothing was booked. If they write again, their next request leaves out ${count === 1 ? "the other date" : `the ${count} other dates`} you named, without saying why.`,
     cannotDecide: (current: string | null) =>
       current
         ? `That proposal can't be decided now; it may have changed or still need the requester's agreement. Ask me to show the current one (${current}).`
@@ -496,6 +499,7 @@ export const CHANNEL_REPLIES = {
     readyForApproval: "Ready for your approval.",
     followsDecline: (ref: string) => `It follows your decline of request ${ref}.`,
     followsExpired: (ref: string) => `It follows request ${ref}, which expired.`,
+    followsWithdrawal: (ref: string) => `It follows request ${ref}, which the guest withdrew.`,
     newRequest: (summary: string) => `New request: ${summary} Tell me if you'd like to talk about it here.`,
     booked: (name: string, when: string) => `Booked with ${name}: ${when}. It's on your calendar.`,
     bookingFailed: (ref: string, when: string, link: string) => `The booking for request ${ref} (${when}) wasn't confirmed. Check it in Find Me a Time: ${link}`,
@@ -511,6 +515,7 @@ export const CHANNEL_REPLIES = {
         "\"들어온 요청 있어?\"",
         "\"제안 보여 줘\" 또는 \"예약해 줘\"",
         "\"거절해 줘\" 또는 \"30분으로 바꿔 줘\"",
+        "\"거절해 줘, 12월 3일하고 5일도 안 돼\"",
         "\"설정 얘기로 돌아가자\"",
         `이 대화의 연결을 끊으려면 ${origin}/app 을 열어 주세요.`,
       ].join("\n"),
@@ -591,6 +596,8 @@ export const CHANNEL_REPLIES = {
     approved: "승인했어요. 캘린더에 추가하고 있고, 확정되면 알려 드릴게요.",
     alreadyApproved: "이미 승인한 제안이에요. 예약이 진행 중이에요.",
     declined: "거절했어요. 요청자에게 알려지고, 예약된 것은 없어요.",
+    declinedWithDates: (count: number) =>
+      `거절했어요. 요청자에게 알려지고, 예약된 것은 없어요. 요청자가 다시 연락하면 다음 요청에서는 말씀하신 다른 날짜 ${count}개를 이유 없이 빼고 찾아요.`,
     cannotDecide: (current: string | null) =>
       current
         ? `지금은 그 제안을 결정할 수 없어요. 바뀌었거나 아직 요청자의 동의가 필요할 수 있어요. 현재 제안(${current})을 보여 달라고 말씀해 주세요.`
@@ -658,6 +665,7 @@ export const CHANNEL_REPLIES = {
     readyForApproval: "승인을 기다리고 있어요.",
     followsDecline: (ref: string) => `거절하신 요청 ${ref}에 이어진 요청이에요.`,
     followsExpired: (ref: string) => `만료된 요청 ${ref}에 이어진 요청이에요.`,
+    followsWithdrawal: (ref: string) => `게스트가 철회한 요청 ${ref}에 이어진 요청이에요.`,
     newRequest: (summary: string) => `새 요청: ${summary} 여기서 이야기하고 싶으시면 말씀해 주세요.`,
     booked: (name: string, when: string) => `${name}님과 예약됐어요: ${when}. 캘린더에 들어가 있어요.`,
     bookingFailed: (ref: string, when: string, link: string) => `요청 ${ref}(${when})의 예약이 확정되지 않았어요. Find Me a Time에서 확인해 주세요: ${link}`,

@@ -80,6 +80,7 @@ const EN: LegalDocument = {
         "Cloudflare, which sends our transactional email from no-reply@findmeatime.com and runs our domain.",
         "AgentMail, which holds the email threads of requests made by email, and Photon, which carries a host's iMessage conversation.",
         "Telegram, for a host who links it, which carries the host's chat with our bot and keeps it on its servers. Bot chats are not end-to-end encrypted. Unlinking, sending stop or blocking the bot ends every later message.",
+        "Google Analytics, which counts visits to our web pages. It receives the page path with any booking link, code or query removed, the referring site, your browser and device type and an approximate location derived from your IP address, and it sets first-party cookies (_ga) to tell repeat visits apart. Google keeps this data for 2 months. Advertising features and Google signals are off. It does not see conversations, calendars, names or email addresses.",
       ],
       paragraphs: [
         "These providers process data for us. The assistant sees only what the person it is talking to may see, with booking links and codes removed first.",
@@ -128,7 +129,7 @@ const EN: LegalDocument = {
     },
   ],
   title: "Privacy and your data",
-  updated: "Last updated 2026-11-16",
+  updated: "Last updated 2026-11-23",
 };
 
 const KO: LegalDocument = {
@@ -192,6 +193,7 @@ const KO: LegalDocument = {
         "no-reply@findmeatime.com에서 거래 이메일을 보내고 도메인을 운영하는 Cloudflare.",
         "이메일로 시작한 요청의 스레드를 보관하는 AgentMail, 호스트의 iMessage 대화를 전달하는 Photon.",
         "Telegram을 연결한 호스트의 경우 Telegram. 호스트와 저희 봇의 대화를 전달하고 Telegram 서버에 보관합니다. 봇 대화는 종단 간 암호화되지 않습니다. 연결을 해제하거나 stop을 보내거나 봇을 차단하면 이후 메시지는 모두 멈춥니다.",
+        "웹 페이지 방문 수를 세는 Google Analytics. 예약 링크, 코드, 쿼리를 지운 페이지 경로, 유입된 사이트, 브라우저와 기기 종류, IP 주소로 추정한 대략적인 위치를 받으며, 재방문을 구분하려고 자사 쿠키(_ga)를 설정합니다. Google은 이 데이터를 2개월 동안 보관합니다. 광고 기능과 Google 신호는 꺼 두었습니다. 대화, 캘린더, 이름, 이메일 주소는 보지 않습니다.",
       ],
       paragraphs: ["다음 업체가 저희를 대신해 데이터를 처리합니다. 어시스턴트는 대화 상대가 볼 수 있는 내용만 보며, 예약 링크와 코드는 먼저 지웁니다."],
       title: "데이터를 처리하는 곳",
@@ -238,7 +240,7 @@ const KO: LegalDocument = {
     },
   ],
   title: "개인정보와 데이터",
-  updated: "최종 수정 2026-11-16",
+  updated: "최종 수정 2026-11-23",
 };
 
 export default function Page({ searchParams }: { readonly searchParams: LegalSearchParams }) {

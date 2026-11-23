@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { NO_MATCH_MESSAGE, nearestTimesMessage, noMatchMessage } from "./feasibility";
+import { CALENDAR_PRIVACY_REPLY, NO_MATCH_MESSAGE, nearestTimesMessage, noMatchMessage } from "./feasibility";
 
 describe("the no-match message", () => {
   it("keeps the window message when the request names no place", () => {
@@ -24,5 +24,22 @@ describe("the nearest-times message", () => {
     }
     expect(nearestTimesMessage("en", null)).toMatch(/nearest open times before and after/);
     expect(nearestTimesMessage("ko", "홍대")).toContain("홍대에서는");
+  });
+});
+
+describe("the calendar privacy reply (#311)", () => {
+  it("says the calendar cannot be seen, both are checked privately, and offers other days or a wider window", () => {
+    expect(CALENDAR_PRIVACY_REPLY.en).toMatch(/can't see the host's calendar/);
+    expect(CALENDAR_PRIVACY_REPLY.en).toMatch(/Both calendars are checked privately and automatically/);
+    expect(CALENDAR_PRIVACY_REPLY.en).toMatch(/other days or a wider window\?$/);
+    expect(CALENDAR_PRIVACY_REPLY.ko).toContain("볼 수 없");
+    expect(CALENDAR_PRIVACY_REPLY.ko).toContain("두 분의 캘린더는 비공개로 자동 확인");
+    expect(CALENDAR_PRIVACY_REPLY.ko).toMatch(/다른 날짜나 더 넓은 시간대.*\?$/);
+  });
+
+  it("neither limits the offer to the listed times nor gives a reason", () => {
+    for (const reply of Object.values(CALENDAR_PRIVACY_REPLY)) {
+      expect(reply).not.toMatch(/listed|shown|among|중에서|busy|travel|commitment|바쁘|이동/i);
+    }
   });
 });

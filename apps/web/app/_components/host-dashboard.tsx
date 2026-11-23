@@ -2,9 +2,10 @@
 
 import type { DashboardData, DashboardEvent } from "@lib/server/host-dashboard";
 import { ChevronLeftIcon, ChevronRightIcon, Clock3Icon, MapPinIcon } from "lucide-react";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
-import { detailNote, detailSource, sentState, sourceLabel } from "./host-dashboard-labels";
+import { blockLabel, detailNote, detailSource, meetingFacts, meetingRequestPath, sentState, sourceLabel } from "./host-dashboard-labels";
 import { HostSettingsDialog } from "./host-settings-dialog";
 import { WorkspaceMenu } from "./workspace-menu";
 import "./host-dashboard.css";
@@ -115,13 +116,28 @@ export function HostDashboard() {
               const key = dayKey(date), dayItems = eventsFor(key);
               return <div className={`hd-day-column ${key === selectedDay ? "hd-selected-day" : ""}`} key={key} onClick={() => { setSelectedDay(key); setSelectedId(null); }}>
                 {dayItems.filter((event) => event.allDay).slice(0, 2).map((event) => <button className={`hd-event hd-${event.source} hd-all-day`} key={event.id} onClick={(click) => { click.stopPropagation(); selectEvent(event); }} type="button">{event.title}</button>)}
-                {dayItems.filter((event) => !event.allDay).map((event) => { const start = minutes(event.start, zone), end = minutes(event.end, zone); if (end <= 480 || start >= 1140) return null; const top = Math.max(start, 480) - 480, height = Math.max(Math.min(end, 1140) - Math.max(start, 480), 28); return <button aria-label={`${sourceLabel(event)}: ${event.title}, ${eventTime(event, zone)}${event.source === "sent" ? `, ${sentState(event)}` : ""}`} className={`hd-event hd-${event.source}`} key={event.id} onClick={(click) => { click.stopPropagation(); selectEvent(event); }} style={{ top: top + 38, height: height - 6 }} type="button"><strong>{eventTime(event, zone)}</strong><span>{event.title}</span><small>{event.source === "sent" ? `Sent · ${sentState(event)}` : event.source === "thyme" ? "✦ Thyme meeting" : "▣ Google event"}</small></button>; })}
+                {dayItems.filter((event) => !event.allDay).map((event) => { const start = minutes(event.start, zone), end = minutes(event.end, zone); if (end <= 480 || start >= 1140) return null; const top = Math.max(start, 480) - 480, height = Math.max(Math.min(end, 1140) - Math.max(start, 480), 28); const compact = height < 45; return <button aria-label={`${sourceLabel(event)}: ${event.title}, ${eventTime(event, zone)}${event.meeting ? `, with ${event.meeting.guest.name}` : ""}${event.source === "sent" ? `, ${sentState(event)}` : ""}`} className={`hd-event hd-${event.source}${compact ? " hd-compact" : ""}`} key={event.id} onClick={(click) => { click.stopPropagation(); selectEvent(event); }} style={{ top: top + 38, height: height - 6 }} type="button"><strong>{eventTime(event, zone)}</strong><span>{compact ? blockLabel(event) : event.title}</span>{compact ? null : <small>{event.source === "sent" ? `Sent · ${sentState(event)}` : event.source === "thyme" ? `✦ ${event.meeting ? `With ${event.meeting.guest.name}` : "Thyme meeting"}` : "▣ Google event"}</small>}</button>; })}
               </div>;
             })}</div></div> :
             <div className="hd-month">{["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"].map((name) => <span className="hd-month-head" key={name}>{name}</span>)}{days.map((date) => { const key = dayKey(date), dayItems = eventsFor(key); return <div className={`hd-month-day ${date.getUTCMonth() !== anchor.getUTCMonth() ? "hd-outside" : ""} ${key === selectedDay ? "hd-selected-day" : ""}`} key={key} onClick={() => { setSelectedDay(key); setSelectedId(null); }}><strong>{date.getUTCDate()}</strong>{dayItems.slice(0, 3).map((event) => <button className={`hd-month-event hd-${event.source}`} key={event.id} onClick={(click) => { click.stopPropagation(); selectEvent(event); }} title={event.title} type="button">{event.allDay ? "" : `${eventTime(event, zone).split(" – ")[0]} `}{event.title}</button>)}{dayItems.length > 3 ? <small>+{dayItems.length - 3} more</small> : null}</div>; })}</div>}
         </section>
       </main>
-      <aside className="hd-detail" aria-label="Selected day and event details"><span className="hd-kicker">SELECTED DAY</span><h2>{new Intl.DateTimeFormat("en-US", { weekday: "long", month: "long", day: "numeric", timeZone: "UTC" }).format(dateAt(selectedDay))}</h2><p>{selectedEvents.length} {selectedEvents.length === 1 ? "event" : "events"}</p><div className="hd-agenda">{selectedEvents.map((event) => <button aria-pressed={selected?.id === event.id} className={`hd-agenda-item hd-${event.source}`} key={event.id} onClick={() => selectEvent(event)} type="button"><small>{eventTime(event, zone)} · {detailSource(event)}</small><strong>{event.title}</strong></button>)}{selectedEvents.length === 0 ? <span className="hd-empty">No events to show for this day.</span> : null}</div><div className="hd-detail-rule" /><span className="hd-detail-label">EVENT DETAILS</span>{selected ? <><span className={`hd-source hd-${selected.source}`}>{detailSource(selected)}</span><h3>{selected.title}</h3><p className="hd-detail-row"><Clock3Icon />{selected.allDay ? "All day" : eventTime(selected, zone)}</p>{selected.location ? <p className="hd-detail-row"><MapPinIcon />{selected.location}</p> : null}<p className="hd-detail-note">{detailNote(selected)}</p></> : <p className="hd-empty">Select a day or event to see details.</p>}</aside>
+      <aside className="hd-detail" aria-label="Selected day and event details"><span className="hd-kicker">SELECTED DAY</span><h2>{new Intl.DateTimeFormat("en-US", { weekday: "long", month: "long", day: "numeric", timeZone: "UTC" }).format(dateAt(selectedDay))}</h2><p>{selectedEvents.length} {selectedEvents.length === 1 ? "event" : "events"}</p><div className="hd-agenda">{selectedEvents.map((event) => <button aria-pressed={selected?.id === event.id} className={`hd-agenda-item hd-${event.source}`} key={event.id} onClick={() => selectEvent(event)} type="button"><small>{eventTime(event, zone)} · {detailSource(event)}</small><strong>{event.title}</strong></button>)}{selectedEvents.length === 0 ? <span className="hd-empty">No events to show for this day.</span> : null}</div><div className="hd-detail-rule" /><span className="hd-detail-label">EVENT DETAILS</span>{selected ? <><span className={`hd-source hd-${selected.source}`}>{detailSource(selected)}</span><h3>{selected.title}</h3><EventFacts event={selected} zone={zone} /><p className="hd-detail-note">{detailNote(selected)}</p></> : <p className="hd-empty">Select a day or event to see details.</p>}</aside>
     </div>
   </div>;
+}
+
+// A Find Me a Time meeting shows the details the host approved and a way back
+// to its request; other events show their time and any location.
+function EventFacts({ event, zone }: { readonly event: DashboardEvent; readonly zone: string }) {
+  const when = event.allDay ? "All day" : eventTime(event, zone);
+  const facts = meetingFacts(event, when);
+  const requestPath = meetingRequestPath(event);
+  if (facts.length === 0) {
+    return <><p className="hd-detail-row"><Clock3Icon />{when}</p>{event.location ? <p className="hd-detail-row"><MapPinIcon />{event.location}</p> : null}</>;
+  }
+  return <>
+    <dl className="hd-facts">{facts.map((fact) => <div key={fact.label}><dt>{fact.label}</dt><dd>{fact.href ? <a href={fact.href} rel="noreferrer" target="_blank">{fact.value}</a> : fact.value}</dd></div>)}</dl>
+    {requestPath ? <Link className="hd-open-request" href={requestPath}>Open request</Link> : null}
+  </>;
 }

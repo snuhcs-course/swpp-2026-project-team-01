@@ -30,6 +30,9 @@ import { exclusionAnswer, noteAnswerMatcher } from "./note-answers";
 //   5. with the host's same-day trip preference, for an in-person meeting far
 //      from the preferred area, orders days already out that way first and days
 //      spent in the preferred area last (same-day-trips design 2 and 3);
+//   then, within each rank, spreads the times across days and parts of the
+//      day, so the first few offered are not one cluster
+//      (spread-offered-times design 1);
 //   6. for in-person candidates, checks both host travel legs and, with a
 //      requester calendar, both requester legs (design decision 9).
 // Every explanation is a sentence computed here from the candidate's basis
@@ -53,6 +56,9 @@ export const MAX_EXCLUSIONS = 100;
 export const TRIP_FAR_MINUTES = 30;
 export const TRIP_NEAR_MINUTES = 15;
 export const TRIP_COMMITMENT_LIMIT = 16;
+// Offered times are spread across the range (spread-offered-times design 1):
+// a later time on a day already holding one comes at least this far from it.
+export const SPREAD_MINUTES = 120;
 
 export type RouteMode = RequesterTravelMode;
 
@@ -296,9 +302,6 @@ export type RequestTerms = {
   readonly places?: readonly { readonly text: string; readonly key: string }[];
   readonly linkPlan: LinkPlan | null;
   readonly windows: readonly { readonly start: Date; readonly end: Date }[];
-  // The windows are the default search range, not the requester's own: keep
-  // candidates spread across its days (guest-flow-completion U9).
-  readonly spreadDays?: boolean;
   readonly preferredWindows?: readonly { readonly start: Date; readonly end: Date }[];
   readonly lessPreferredWindows?: readonly { readonly start: Date; readonly end: Date }[];
   readonly preferredWeeklyWindows?: readonly WeeklyWindow[];
@@ -809,18 +812,8 @@ function plan(input: FeasibilityInput): Plan {
   const free = open.map((entry) => ({ ...entry, trip: trips.dayOf(entry.start) }));
 
   // Weeks below the limit first, then the trip rank; neither removes a
-  // candidate. Over the default range, each day's first start comes before any
-  // day's second among days of equal rank, so the kept candidates cover the
-  // range rather than its first day.
-  const dayRank = new Map<number, number>();
-  if (request.spreadDays) {
-    const perDay = new Map<string, number>();
-    for (const entry of free) {
-      const day = localParts(entry.start, request.timezone).date;
-      dayRank.set(entry.start, perDay.get(day) ?? 0);
-      perDay.set(day, (perDay.get(day) ?? 0) + 1);
-    }
-  }
+  // candidate. The spread below then orders each rank's times across days and
+  // parts of the day (spread-offered-times design 1).
   // An in-person request without a place pairs each free time with each of the
   // host's places (guest-time-place-pairs design 2); the cut below counts pairs.
   const pairPlaces = mode === "in_person" && !request.location && request.places?.length ? request.places : null;
@@ -831,7 +824,6 @@ function plan(input: FeasibilityInput): Plan {
     (a, b) =>
       Number(b.belowLimit) - Number(a.belowLimit) ||
       tripScore(b) - tripScore(a) ||
-      (dayRank.get(a.start) ?? 0) - (dayRank.get(b.start) ?? 0) ||
       a.start - b.start ||
       (a.placeIndex ?? 0) - (b.placeIndex ?? 0),
   );
@@ -860,7 +852,10 @@ function plan(input: FeasibilityInput): Plan {
   // all guest preference signals (score is within [-3, 2]).
   const hostWeight = (entry: (typeof paired)[number]) => 20 * Number(entry.belowLimit) + 6 * tripScore(entry);
   const weighted = (entry: (typeof paired)[number]) => hostWeight(entry) + score(entry);
-  const ranked = [...paired].sort((a, b) => weighted(b) - weighted(a));
+  const ranked = spreadOrder(
+    [...paired].sort((a, b) => weighted(b) - weighted(a)),
+    { start: (entry) => entry.start, tier: weighted, timezone: request.timezone },
+  );
   const kept = ranked.slice(0, CANDIDATE_LIMIT);
   // Retain some non-preferred alternatives when doing so preserves host priority.
   if (preferred.length || weekly.length || lessPreferred.length) {
@@ -1166,16 +1161,82 @@ export function evaluateFeasibility(input: FeasibilityInput): FeasibilityResult 
   };
 }
 
+// Spreads an ordered list across days and parts of the day without crossing a
+// tier (spread-offered-times design 1). Within each run of equal tier, in
+// rounds, a day takes its next time only when it is at least SPREAD_MINUTES
+// from that day's earlier picks, and at most one new time per day per round;
+// the list's order breaks every tie, so each day's first time comes before any
+// day's second. Times no round could place keep their order at the run's end.
+// Entries at a time already picked (one time paired with several places)
+// follow it.
+export function spreadOrder<T>(
+  entries: readonly T[],
+  options: { readonly start: (entry: T) => number; readonly tier: (entry: T) => number; readonly timezone: string },
+): T[] {
+  const days = new Map<number, string>();
+  const dayOf = (start: number) => {
+    let day = days.get(start);
+    if (day === undefined) {
+      day = localParts(start, options.timezone).date;
+      days.set(start, day);
+    }
+    return day;
+  };
+  const gap = SPREAD_MINUTES * MINUTE;
+  const spread: T[] = [];
+
+  for (let from = 0; from < entries.length; ) {
+    const tier = options.tier(entries[from]!);
+    let to = from;
+    while (to < entries.length && options.tier(entries[to]!) === tier) to += 1;
+
+    const picked = new Map<string, number[]>();
+    let remaining = entries.slice(from, to);
+    while (remaining.length > 0) {
+      const round = new Set<string>();
+      const later: T[] = [];
+      for (const entry of remaining) {
+        const start = options.start(entry);
+        const day = dayOf(start);
+        const starts = picked.get(day) ?? [];
+        if (starts.includes(start)) {
+          spread.push(entry);
+        } else if (!round.has(day) && starts.every((other) => Math.abs(other - start) >= gap)) {
+          spread.push(entry);
+          round.add(day);
+          picked.set(day, [...starts, start]);
+        } else {
+          later.push(entry);
+        }
+      }
+      if (round.size === 0) {
+        spread.push(...later);
+        break;
+      }
+      remaining = later;
+    }
+    from = to;
+  }
+
+  return spread;
+}
+
 // Reorders candidates by a validated ranking: the ranked IDs first in the
-// ranking's order, then every other candidate in its deterministic place.
-export function applyRanking(candidates: readonly EvaluatedCandidate[], ranking: readonly string[] | null) {
+// ranking's order, then every other candidate in its deterministic place. With
+// a timezone, the ranked ones are spread across days and parts of the day in
+// that zone, the ranking breaking ties (spread-offered-times design 2), so a
+// ranking that favours sooner dates cannot put one day's cluster first.
+export function applyRanking(candidates: readonly EvaluatedCandidate[], ranking: readonly string[] | null, timezone?: string) {
   if (!ranking) return [...candidates];
 
   const position = new Map(ranking.map((id, index) => [id, index]));
   const ranked = candidates.filter((candidate) => position.has(candidate.id));
   ranked.sort((a, b) => position.get(a.id)! - position.get(b.id)!);
+  const first = timezone
+    ? spreadOrder(ranked, { start: (candidate) => Date.parse(candidate.start), tier: () => 0, timezone })
+    : ranked;
 
-  return [...ranked, ...candidates.filter((candidate) => !position.has(candidate.id))];
+  return [...first, ...candidates.filter((candidate) => !position.has(candidate.id))];
 }
 
 // What the requester audience may see: instants, display times, duration, mode

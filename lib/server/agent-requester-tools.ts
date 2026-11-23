@@ -27,12 +27,12 @@ import { localPatchSchema, updateDetailsCommand } from "./request-reviews";
 import { readRequesterView } from "./requester-routes";
 import { isValidTimeZone } from "../contracts/timezone";
 
-// The requester's MCP tools (agent-access design 4 and 8). A bootstrap grant
-// sees get_host and create_request; once bound, the grant reaches only its one
-// request, in the requester projection without the conversation, the thread or
-// any link. Commands are the booking page's own, as the request's requester.
-// With request:decide the agent may agree to the current proposal and withdraw
-// (D10); the host still approves. After closure only get_request remains, with
+// The requester's MCP tools (agent-access design 4 and 8). An unbound bootstrap
+// grant lists them all but runs only get_host and create_request; once bound,
+// the grant reaches only its one request, in the requester projection without
+// the conversation, the thread or any link. Commands are the booking page's
+// own, as the request's requester. With request:decide the agent may agree to
+// the current proposal and withdraw (D10); the host still approves. After closure only get_request remains, with
 // the closed status and the receipt (D11).
 
 export const FIND_TIMES_WAIT_MS = 15_000;

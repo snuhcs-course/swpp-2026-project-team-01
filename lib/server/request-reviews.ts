@@ -21,7 +21,7 @@ import type { Transaction } from "./database";
 import { invalidateExceptions } from "./request-exceptions";
 import { type LocalWindow, localWindowSchema, resolveLocalWindow, type WindowProblem } from "./local-windows";
 import { type LockedRequest, lockOpenRequest } from "./request-guard";
-import { requestExpiresAt } from "./request-lifecycle";
+import { readyForTimes, requestExpiresAt } from "./request-lifecycle";
 import type { TokenKey } from "./token-encryption";
 
 // Requester reviews and details (design decision 12; meeting-requests: declared
@@ -433,6 +433,10 @@ export function draftReviewCommand(
 const reviewInput = z.object({ reviewId: z.uuid() }).strict();
 
 export type ReviewDecision = { readonly revision: number; readonly state: RequestState };
+// **Apply these details** also says whether times can be found now, decided
+// from the request as written, so the web finds them without its own copy of
+// the rule (#241).
+export type AppliedReview = ReviewDecision & { readonly findTimes: boolean };
 
 async function lockPendingReview(tx: Transaction, requestId: string, reviewId: string) {
   const [review] = await tx<
@@ -453,7 +457,7 @@ async function lockPendingReview(tx: Transaction, requestId: string, reviewId: s
 // that revision, with no clarification left, whose windows still start in the
 // future and fit the duration once the lock is held. A rejection preserves the
 // pending review and the request; an exact retry returns the saved decision.
-export function applyReviewCommand(options: ContactOptions): CommandDefinition<z.infer<typeof reviewInput>, ReviewDecision> {
+export function applyReviewCommand(options: ContactOptions): CommandDefinition<z.infer<typeof reviewInput>, AppliedReview> {
   return {
     input: reviewInput,
     operation: APPLY_REVIEW_OPERATION,
@@ -476,7 +480,7 @@ export function applyReviewCommand(options: ContactOptions): CommandDefinition<z
 
       const decision = await writeDetails(tx, request, review.patch, options);
       await tx`update app.request_reviews set state = 'applied', resolved_at = now() where id = ${review.id}`;
-      return decision;
+      return { ...decision, findTimes: readyForTimes(decision.state, applyPatch(request.details, review.patch)) };
     },
   };
 }

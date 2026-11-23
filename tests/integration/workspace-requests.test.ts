@@ -7,12 +7,14 @@ import { closeRequest } from "../../lib/server/request-lifecycle";
 import { recordHostSessionMatch } from "../../lib/server/requester-host-profiles";
 import { listWorkspaceRequests } from "../../lib/server/workspace-requests";
 import { localAuthConfig, signInHost } from "./support/auth";
-import { agreedRequest } from "./support/booking";
+import { approveCommand } from "../../lib/server/bookings";
+import { agreedRequest, asHost, bookingDeps, bookingOf, runBooking } from "./support/booking";
 import { fakeGoogleConfig } from "./support/calendar-host";
 import { testDatabase } from "./support/database";
 import { type FakeGoogle, startFakeGoogle } from "./support/fake-google";
 import { call, guestDependencies, readyHost, startedDraft } from "./support/guests";
 import { createTestRequest, testTokenKey } from "./support/requests";
+import { calendarKey, revisionOf } from "./support/scheduling";
 
 const db = testDatabase();
 let google: FakeGoogle;
@@ -119,5 +121,61 @@ describe("signed-in account requests", () => {
       expect.objectContaining({ id: `sent:${request.requestId}`, source: "sent", start: request.start, state: "awaiting_host_approval" }),
     ]));
     expect(data.events.filter((event) => event.id === `sent:${request.requestId}`)).toHaveLength(1);
+  });
+
+  // host-dashboard-booking-details: the Dashboard joins each confirmed booking
+  // to its proposal and request for the details the host approved.
+  async function bookedDashboardEvent(request: Awaited<ReturnType<typeof agreedRequest>>) {
+    const approved = await asHost(db, request.hostAccountId, request.requestId, approveCommand, { version: 1 }, {
+      expectedRevision: await revisionOf(db, request.requestId),
+    });
+    if (!approved.ok) throw new Error(`approve failed: ${approved.error.category}`);
+    const bookingId = approved.result.bookingId;
+    expect(await runBooking(db, bookingDeps(db, google), bookingId)).toBe("completed");
+    const data = await readHostDashboard(
+      db,
+      { config: fakeGoogleConfig(google), db, tokenKeys: [calendarKey] },
+      request.hostAccountId,
+      { end: new Date(Date.parse(request.end) + 86_400_000), start: new Date(Date.parse(request.start) - 86_400_000) },
+    );
+    const events = data.events.filter((event) => event.id === `thyme:${bookingId}`);
+    expect(events).toHaveLength(1);
+    return { booking: await bookingOf(db, bookingId), event: events[0]! };
+  }
+
+  it("shows a booked online meeting with its length, Meet link, confirmed guest, purpose and request", async () => {
+    const request = await agreedRequest(db, google, { confirmed: true });
+    const { booking, event } = await bookedDashboardEvent(request);
+
+    expect(event).toMatchObject({ source: "thyme", start: request.start, end: request.end });
+    expect(booking.evidence?.joinUrl).toMatch(/^https:\/\/meet\.google\.com\//);
+    expect(event.meeting).toEqual({
+      durationMinutes: 30,
+      guest: { email: request.contactEmail, emailConfirmed: true, name: "Grace Hopper" },
+      joinUrl: booking.evidence?.joinUrl,
+      mode: "online",
+      purpose: "Talk about compilers",
+      requestId: request.requestId,
+    });
+  });
+
+  it("shows a booked in-person meeting at its place, without a join link or a confirmed address", async () => {
+    const venue = `AA Cafe ${randomUUID().slice(0, 8)}`;
+    const request = await agreedRequest(db, google, {
+      details: { location: null, mode: "in_person", travelMode: "transit" },
+      settings: { location: { areas: [`Seolleung Station ${randomUUID().slice(0, 8)}`], kind: "places", venue } },
+    });
+    const { event } = await bookedDashboardEvent(request);
+    const [created] = google.createdEvents(request.calendarId);
+
+    expect(event.location).toBe(created!.location);
+    expect(event.meeting).toEqual({
+      durationMinutes: 30,
+      guest: { email: request.contactEmail, emailConfirmed: false, name: "Grace Hopper" },
+      joinUrl: null,
+      mode: "in_person",
+      purpose: "Talk about compilers",
+      requestId: request.requestId,
+    });
   });
 });

@@ -77,6 +77,9 @@ function input(
 }
 
 const starts = (result: ReturnType<typeof evaluateFeasibility>) => result.candidates.map((candidate) => candidate.start);
+// The offered times in time order, for tests about which times pass rather
+// than the order they are offered in.
+const timeline = (result: ReturnType<typeof evaluateFeasibility>) => [...starts(result)].sort();
 
 function routes(minutes: Record<string, number | "none" | "failed">) {
   return (query: { origin: string; destination: string }): RouteOutcome => {
@@ -178,7 +181,7 @@ describe("deterministic intervals", () => {
     );
 
     // 10:30 would end at 11:00, 10 minutes short of the buffer; 11:30 starts inside it.
-    expect(starts(result)).toEqual(
+    expect(timeline(result)).toEqual(
       ["10:00", "10:15", "11:45", "12:00", "12:15", "12:30"].map((clock) => kst("2026-11-02", clock).toISOString()),
     );
     expect(result.exclusionCounts.host_busy).toBe(5);
@@ -311,7 +314,7 @@ describe("overnight windows and clock changes", () => {
 
     // 23:00 EDT to 03:00 EST is five hours, so 17 one-hour starts on the 15-minute grid.
     expect(result.candidates).toHaveLength(17);
-    expect(result.candidates.at(-1)!.end).toBe("2026-11-01T08:00:00.000Z");
+    expect(result.candidates.map((candidate) => candidate.end).sort().at(-1)).toBe("2026-11-01T08:00:00.000Z");
   });
 
   it("yields nothing for a window whose end is ambiguous or does not exist", () => {
@@ -484,26 +487,78 @@ describe("weekly limit", () => {
   });
 });
 
-describe("the default search range", () => {
-  // guest-flow-completion U9: without the requester's windows the evaluation
-  // searches two weeks; each day's first start comes before any day's second.
+describe("spread across the range", () => {
+  // spread-offered-times design 1: within each rank, each day's first time
+  // comes before any day's second, and a day's later time is at least
+  // SPREAD_MINUTES from its earlier ones, so the first few offered times are
+  // never one cluster.
   const twoWeeks = { end: new Date(NOW.getTime() + 14 * 86_400_000), start: NOW };
 
-  it("keeps candidates across the range's days, earliest day first, when spreading", () => {
-    const spread = evaluateFeasibility(input({ request: { spreadDays: true, windows: [twoWeeks] } }));
+  it("keeps candidates across the default range's days, earliest day first", () => {
+    const spread = evaluateFeasibility(input({ request: { windows: [twoWeeks] } }));
     const days = spread.candidates.slice(0, 10).map((candidate) => candidate.start.slice(0, 10));
 
     // Ten weekdays from Friday 30 October (Seoul): 30 Oct, 2 to 6 Nov, 9 to 12 Nov.
     expect(new Set(days).size).toBe(10);
     expect(spread.candidates[0]!.start).toBe(kst("2026-10-30", "10:00").toISOString());
     expect(spread.candidates[1]!.start).toBe(kst("2026-11-02", "10:00").toISOString());
-    // The second start of the first day follows every day's first.
-    expect(spread.candidates[10]!.start).toBe(kst("2026-10-30", "10:15").toISOString());
+    // The first day's second time follows every day's first, two hours on.
+    expect(spread.candidates[10]!.start).toBe(kst("2026-10-30", "12:00").toISOString());
   });
 
-  it("keeps the soonest-first order over the requester's own windows", () => {
-    const own = evaluateFeasibility(input({ request: { windows: [twoWeeks] } }));
-    expect(starts(own).slice(0, 2)).toEqual([kst("2026-10-30", "10:00").toISOString(), kst("2026-10-30", "10:15").toISOString()]);
+  it("offers a week's first three times on three days, not 15 minutes apart (#242)", () => {
+    // Any weekday next week; Monday is free only from 12:45.
+    const week = { end: kst("2026-11-07", "00:00"), start: kst("2026-11-02", "00:00") };
+    const result = evaluateFeasibility(
+      input({ hostBusy: [busy(kst("2026-11-02", "10:00"), kst("2026-11-02", "12:25"))], request: { windows: [week] } }),
+    );
+    const projection = requesterProjection(result.candidates, { displayTimezone: "Asia/Seoul", id: "e1", state: "completed" });
+
+    expect(projection.candidates.slice(0, 3).map((candidate) => candidate.start)).toEqual([
+      kst("2026-11-02", "12:45").toISOString(),
+      kst("2026-11-03", "10:00").toISOString(),
+      kst("2026-11-04", "10:00").toISOString(),
+    ]);
+    // Every time still passes; only the order changed.
+    expect(result.candidates).toHaveLength(new Set(starts(result)).size);
+    expect(starts(result)).toContain(kst("2026-11-02", "13:00").toISOString());
+  });
+
+  it("spreads one day's times across the day before offering the rest in time order", () => {
+    const day = { end: kst("2026-11-02", "17:00"), start: kst("2026-11-02", "10:00") };
+    const result = evaluateFeasibility(input({ request: { windows: [day] } }));
+
+    expect(starts(result).slice(0, 6)).toEqual(
+      ["10:00", "12:00", "14:00", "16:00", "10:15", "10:30"].map((clock) => kst("2026-11-02", clock).toISOString()),
+    );
+  });
+
+  it("never lifts a time over a week the host prefers", () => {
+    const thisWeek = { end: kst("2026-11-07", "00:00"), start: kst("2026-11-02", "00:00") };
+    const nextWeek = { end: kst("2026-11-14", "00:00"), start: kst("2026-11-09", "00:00") };
+    const result = evaluateFeasibility(
+      input({ bookedStarts: [kst("2026-11-03", "15:00").getTime()], host: { ...HOST, weeklyLimit: 1 }, request: { windows: [thisWeek, nextWeek] } }),
+    );
+    const below = result.candidates.filter((candidate) => candidate.belowWeeklyLimit).length;
+
+    expect(result.candidates.slice(0, below).every((candidate) => candidate.belowWeeklyLimit)).toBe(true);
+    expect(result.candidates.slice(0, 3).map((candidate) => candidate.start.slice(0, 10))).toEqual(["2026-11-09", "2026-11-10", "2026-11-11"]);
+  });
+
+  it("keeps a time's place pairs together", () => {
+    const day = { end: kst("2026-11-02", "17:00"), start: kst("2026-11-02", "10:00") };
+    const result = evaluateFeasibility(
+      input({
+        request: { location: null, mode: "in_person", places: [MEETING, { key: hashed("Seolleung Station"), text: "Seolleung Station" }], windows: [day] },
+      }),
+    );
+
+    expect(result.candidates.slice(0, 4).map((candidate) => [candidate.start, candidate.location])).toEqual([
+      [kst("2026-11-02", "10:00").toISOString(), MEETING.text],
+      [kst("2026-11-02", "10:00").toISOString(), "Seolleung Station"],
+      [kst("2026-11-02", "12:00").toISOString(), MEETING.text],
+      [kst("2026-11-02", "12:00").toISOString(), "Seolleung Station"],
+    ]);
   });
 });
 
@@ -1035,6 +1090,19 @@ describe("ranking order", () => {
 
     expect(ordered).toEqual([ids[3], ids[1], ids[0], ids[2], ...ids.slice(4)]);
     expect(applyRanking(result.candidates, null).map((candidate) => candidate.id)).toEqual(ids);
+  });
+
+  it("spreads a ranking that puts one day's times first (#242)", () => {
+    const week = { end: kst("2026-11-07", "00:00"), start: kst("2026-11-02", "00:00") };
+    const result = evaluateFeasibility(input({ request: { windows: [week] } }));
+    const at = (date: string, clock: string) => result.candidates.find((candidate) => candidate.start === kst(date, clock).toISOString())!.id;
+    // A model favouring sooner dates: three Monday times, then Tuesday.
+    const ranking = [at("2026-11-02", "10:00"), at("2026-11-02", "10:15"), at("2026-11-02", "10:30"), at("2026-11-03", "10:00")];
+    const ordered = applyRanking(result.candidates, ranking, "Asia/Seoul").map((candidate) => candidate.id);
+
+    expect(ordered.slice(0, 4)).toEqual([ranking[0], ranking[3], ranking[1], ranking[2]]);
+    // Without a zone the ranking's order stands.
+    expect(applyRanking(result.candidates, ranking).slice(0, 4).map((candidate) => candidate.id)).toEqual(ranking);
   });
 });
 

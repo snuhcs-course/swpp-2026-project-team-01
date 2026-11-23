@@ -58,6 +58,17 @@ export type BookingReceipt = {
   readonly calendarUrl: string | null;
 };
 
+// An online meeting's join link: the one Google returned (Meet), else the
+// requester's own link. An in-person meeting has none.
+export function bookingJoinUrl(
+  details: { readonly mode: "online" | "in_person"; readonly linkPlan?: LinkPlan | null },
+  evidence: { readonly joinUrl?: unknown } | null,
+): string | null {
+  if (details.mode !== "online") return null;
+  if (typeof evidence?.joinUrl === "string" && evidence.joinUrl) return evidence.joinUrl;
+  return details.linkPlan?.kind === "requester_link" ? details.linkPlan.url : null;
+}
+
 // The authored status lines both audiences share.
 export const BOOKING_STATUS_TEXT: Readonly<Record<BookingState, { readonly en: string; readonly ko: string }>> = {
   cancelled: { en: "This booking was cancelled.", ko: "이 예약은 취소되었습니다." },
