@@ -7,7 +7,7 @@ import setupTools from "../../agent/tools/setup";
 import { STARTER_DEFAULTS } from "../contracts/setup";
 import { buildFieldViews } from "./setup";
 import type { SetupStateView } from "./setup";
-import { draftSettingsToolInput, isHostSetupSession, modelProjection, type SessionPrincipal } from "./setup-tools";
+import { authorizeSetupTool, changeSettingsToolInput, draftSettingsToolInput, isHostSetupSession, modelProjection, type SessionPrincipal } from "./setup-tools";
 
 function principal(attributes: Record<string, string>, principalType = "user"): SessionPrincipal {
   return { attributes, principalId: "4f1c7a52-2b8e-4a36-9b1d-0e6a7d1f2c33", principalType };
@@ -245,11 +245,22 @@ describe("saved settings from a request's conversation", () => {
     const tools = (await requestTools.events["session.started"]!({}, resolveContext(hostReview))) as Record<string, { inputSchema: unknown; description: string }>;
 
     expect(tools.read_settings).toBeDefined();
-    expect(tools.change_settings?.inputSchema).toBe(draftSettingsToolInput);
+    expect(tools.change_settings?.inputSchema).toBe(changeSettingsToolInput);
+    expect(changeSettingsToolInput.shape.expectedRevision.description).toMatch(/read_settings/);
+    expect(tools.change_settings?.description).toMatch(/never on the requester's name or purpose/);
     expect(tools.change_settings?.description).toMatch(/preferred meeting location/);
     expect(tools.change_settings?.description).toMatch(/propose_shared_changes/);
     // A host setup session keeps draft_settings and gets nothing from the request tools.
     expect(await requestTools.events["session.started"]!({}, resolveContext(hostSetup))).toBeNull();
+  });
+
+  it("keeps every other setup tool's fence to the setup discussion", async () => {
+    const q = (() => {
+      throw new Error("the fence must refuse before reading");
+    }) as unknown as Parameters<typeof authorizeSetupTool>[0];
+
+    await expect(authorizeSetupTool(q, hostReview, "session-1")).rejects.toThrow("Setup is not available in this conversation.");
+    await expect(authorizeSetupTool(q, hostReview, "session-1", { lock: true })).rejects.toThrow("Setup is not available in this conversation.");
   });
 
   it("tells the linked-conversation assistant to save a place change with change_settings", async () => {
@@ -257,6 +268,7 @@ describe("saved settings from a request's conversation", () => {
     const content = (instructions as { content: string }).content;
 
     expect(content).toContain("call read_settings and then change_settings");
-    expect(content).toContain('Say it is saved only when savedChange is\n    "saved"');
+    expect(content).toMatch(/Say it is saved only when savedChange is\s+"saved"/);
+    expect(content).toMatch(/never the requester's name or\s+purpose/);
   });
 });
