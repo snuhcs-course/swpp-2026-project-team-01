@@ -1,0 +1,40 @@
+{
+  "branch": "feat/host-as-guest-calendars-in-words",
+  "user": "dodo41142727@gmail.com",
+  "sessions": {
+    "claude:5cd841ae-d193-42c6-97a3-d365f4df77a4": {
+      "agent": "claude-code",
+      "client": "claude-desktop",
+      "agent_ms": 0,
+      "models": {
+        "claude-opus-5-5": {
+          "input": 152,
+          "cache_read": 15303457,
+          "cache_write_5m": 0,
+          "cache_write_1h": 196244,
+          "output": 42267,
+          "reasoning": 0
+        }
+      },
+      "first": "2026-11-23T19:35:34.459Z",
+      "last": "2026-11-23T19:47:29.591Z"
+    },
+    "claude:5cd841ae-d193-42c6-97a3-d365f4df77a4/agent-aa0e8aedde6116002": {
+      "agent": "claude-code",
+      "client": "claude-desktop",
+      "agent_ms": 0,
+      "models": {
+        "claude-sonnet-5-5": {
+          "input": 12,
+          "cache_read": 516140,
+          "cache_write_5m": 65985,
+          "cache_write_1h": 0,
+          "output": 3889,
+          "reasoning": 0
+        }
+      },
+      "first": "2026-11-23T19:46:37.171Z",
+      "last": "2026-11-23T19:47:03.767Z"
+    }
+  }
+}

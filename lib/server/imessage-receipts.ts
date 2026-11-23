@@ -481,11 +481,31 @@ async function hostConversationRoute(
   }
   const named = namedSentRequest(text, here, host.selected_request_id === null || Boolean(selected));
   if (named === "host") return selected ? "host" : undefined;
+  // A change to the host's own meetings in general while a sent request is
+  // selected (R01 M-7, P-8): setup has the tools for it, and the sent request
+  // keeps its details. A message about this one meeting stays with it.
+  if (selected && !named && impliesOwnSetup(text)) return "host";
   if (named && named !== selected) {
     await select(named);
     return { binding: named, forward: true, switched: true };
   }
   return selected ? { binding: selected, switched: false } : undefined;
+}
+
+// Whether a message is about the host's own meetings in general rather than
+// the one request it is written beside (R01 M-7): "make my meetings 45
+// minutes", "change my settings", "내 미팅은 전부 45분으로", "모든 미팅", "제
+// 설정". "Make it 45 minutes" or "this meeting" names the request and is not;
+// neither are the host's calendars ("don't check my work calendar for this
+// one" is the request's, use_host_calendars) or a time they are free, which a
+// guest also says.
+const OWN_SETUP =
+  /\bmy (?:meetings|settings|setup|set-up|defaults?|default (?:meeting )?(?:length|duration)|booking (?:link|page)|guests|weekly limit|buffers?)\b|\b(?:all|every|each) (?:of )?my meetings\b|\bfor (?:all|every|each of) my (?:meetings|guests|requests)\b|\b(?:all|every) (?:my |of my )?(?:future )?meetings\b|(?:내|제|나의|저의)\s*(?:설정|셋업|기본\s*(?:미팅\s*)?(?:길이|시간)|예약\s*(?:링크|페이지)|게스트|주간\s*한도)|(?:내|제)\s*(?:미팅|회의)(?:들)?\s*(?:은|는)(?![가-힣])|(?:내|제)\s*(?:미팅|회의|약속)(?:들)?\s*(?:은|는|을|를|도)?\s*(?:전부|다|모두|항상)|(?:모든|전체)\s*(?:미팅|회의)|앞으로\s*(?:모든|전부|다)/i;
+const THIS_ONE = /\b(?:this|that) (?:one|meeting|request)\b|\bfor this\b|이번|이\s*(?:미팅|요청|약속|회의)|그\s*(?:미팅|요청)/i;
+
+export function impliesOwnSetup(text: string) {
+  const normalized = text.normalize("NFKC");
+  return OWN_SETUP.test(normalized) && !THIS_ONE.test(normalized);
 }
 
 // Which sent request a message names: the host role in words, a request by its

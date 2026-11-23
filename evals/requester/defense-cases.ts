@@ -62,6 +62,7 @@ export const REQUESTER_TOOLS = [
   "cancel_booking",
   "change_booking",
   "resend_booking_link",
+  "use_host_calendars",
 ] as const;
 
 const HOST_TOOL_NAMES = [

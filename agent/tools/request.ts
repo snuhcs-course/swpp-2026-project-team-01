@@ -20,6 +20,8 @@ import {
   cancelBookingForTool,
   changeBookingForTool,
   resendBookingLinkForTool,
+  useHostCalendarsForTool,
+  useHostCalendarsToolInput,
 } from "../../lib/server/request-tools";
 import {
   approveProposalForTool,
@@ -142,6 +144,12 @@ function requesterTools() {
         "Reopen the booked meeting for a change of time, place or meeting type, when the guest asks to move or change it, before it starts. The meeting stays booked until the host approves the new version; then the same calendar event is updated. After it, draft the change and find times as usual.",
       inputSchema: z.object({}),
       execute: (_input, toolCtx) => changeBookingForTool(database(), call(toolCtx)),
+    }),
+    use_host_calendars: defineTool({
+      description:
+        "Choose whether the guest's own host calendars count as their busy time for this request only, when the guest is also a host (read_request shows yourHostCalendars) and says so in words (\"don't use my calendars for this one\", \"check my calendars too\"). It never changes their host settings or which calendars their own hosting checks. It uses all of the calendars in yourHostCalendars or none: when they name only some (\"skip my work calendar\"), say it can use all of them or none for one request, and ask which. Only while times are being chosen; then find times again.",
+      inputSchema: useHostCalendarsToolInput,
+      execute: (input, toolCtx) => useHostCalendarsForTool(database(), call(toolCtx), input),
     }),
     resend_booking_link: defineTool({
       description:

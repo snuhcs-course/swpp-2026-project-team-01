@@ -25,6 +25,7 @@ import { withdrawRequestCommand } from "./request-lifecycle";
 import { agreeCommand, allowTripCommand, changeAgreementCommand, chooseCandidateCommand, evaluateCommand } from "./request-proposals";
 import { localPatchSchema, updateDetailsCommand } from "./request-reviews";
 import { readRequesterView } from "./requester-routes";
+import { hostCalendarsCommand, type HostCalendarsOutcome, hostCalendarsMessage } from "./requester-host-profiles";
 import { isValidTimeZone } from "../contracts/timezone";
 
 // The requester's MCP tools (agent-access design 4 and 8). An unbound bootstrap
@@ -391,3 +392,17 @@ export const REQUESTER_TOOLS: readonly AgentTool[] = [
     title: "Check booking status",
   }),
 ];
+
+// Only on the account connection, whose requester is a host (R01 M-2.1, #334):
+// whether the account's host calendars count for one sent request. A per-host
+// connection's requester has no host account to draw on.
+export const HOST_CALENDARS_TOOL: AgentTool = requestCommandTool({
+  description:
+    "Choose whether the account's own host conflict calendars count as the person's busy time for this sent request only, when they say so (\"don't check my calendars for this one\", \"check my calendars too\"). It never changes their host settings or which calendars their own hosting checks. It uses all of those calendars or none: when they name only some (\"skip my work calendar\"), say it can use all of them or none for one request, and ask which. Only while times are being chosen; then find_times again.",
+  name: "use_host_calendars",
+  command: () => loose(hostCalendarsCommand),
+  commandInput: hostCalendarsCommand.input,
+  next: (result) => hostCalendarsMessage(result as HostCalendarsOutcome, "find_times"),
+  scope: "request:write",
+  title: "Use host calendars for this request",
+});
