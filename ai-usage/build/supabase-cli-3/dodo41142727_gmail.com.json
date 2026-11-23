@@ -1,0 +1,40 @@
+{
+  "branch": "build/supabase-cli-3",
+  "user": "dodo41142727@gmail.com",
+  "sessions": {
+    "claude:13cdd889-eaad-4c86-9ee2-9dc945739fd5": {
+      "agent": "claude-code",
+      "client": "claude-desktop",
+      "agent_ms": 0,
+      "models": {
+        "claude-opus-5-5": {
+          "input": 70,
+          "cache_read": 4864572,
+          "cache_write_5m": 0,
+          "cache_write_1h": 117401,
+          "output": 14456,
+          "reasoning": 0
+        }
+      },
+      "first": "2026-11-23T07:26:41.657Z",
+      "last": "2026-11-23T07:36:21.985Z"
+    },
+    "claude:13cdd889-eaad-4c86-9ee2-9dc945739fd5/agent-a10527aeaf5788c9c": {
+      "agent": "claude-code",
+      "client": "claude-desktop",
+      "agent_ms": 0,
+      "models": {
+        "claude-sonnet-5-5": {
+          "input": 6,
+          "cache_read": 212976,
+          "cache_write_5m": 57940,
+          "cache_write_1h": 0,
+          "output": 897,
+          "reasoning": 0
+        }
+      },
+      "first": "2026-11-23T07:31:39.912Z",
+      "last": "2026-11-23T07:31:48.698Z"
+    }
+  }
+}

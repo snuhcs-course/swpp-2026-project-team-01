@@ -34,7 +34,7 @@ npm test             # Vitest unit tests
 
 Assume the GitHub CLI (`gh`), Vercel CLI (`vercel`), and Supabase CLI (`supabase`) are installed and available on `PATH`.
 
-Use Supabase CLI **2.119.0** for this repository and confirm it with `supabase --version`. Coordinate CLI upgrades across the team and recheck the schema workflow when upgrading.
+Use Supabase CLI **3.2.0** for this repository and confirm it with `supabase --version`. Coordinate CLI upgrades across the team and recheck the schema workflow when upgrading.
 
 Use OpenSpec CLI **1.14.0** with the core profile and Codex integration. Install it with `brew install openspec` (macOS) or `npm install -g @fission-ai/openspec@1.14.0` (Node.js 20.19.0+), then verify with `openspec --version`. Initialize a fresh checkout with `openspec init --tools codex --profile core`. After a coordinated CLI upgrade, run `openspec update` in this repository and review the generated skill changes.
 

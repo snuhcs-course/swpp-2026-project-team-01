@@ -16,7 +16,7 @@
 
 ## Supabase 프로젝트
 
-Supabase 프로젝트 **`anelszynxtvxoxqvzgqt`**(**FindMeATime**, 리전 **`us-east-2`**)를 팀의 공유 프로젝트로 사용합니다. 사용 방식은 [환경과 협업](#environments-and-collaboration)을 참고하십시오. Supabase CLI 2.119.0으로 `supabase link --project-ref anelszynxtvxoxqvzgqt`를 실행해 각 클론을 연결하며, 연결 메타데이터는 Git에서 제외됩니다. 애플리케이션과 공급자 자격 증명은 이 프로젝트에 대해 검증되지 않았습니다.
+Supabase 프로젝트 **`anelszynxtvxoxqvzgqt`**(**FindMeATime**, 리전 **`us-east-2`**)를 팀의 공유 프로젝트로 사용합니다. 사용 방식은 [환경과 협업](#environments-and-collaboration)을 참고하십시오. Supabase CLI 3.2.0으로 `supabase link --project-ref anelszynxtvxoxqvzgqt`를 실행해 각 클론을 연결하며, 연결 메타데이터는 Git에서 제외됩니다. 애플리케이션과 공급자 자격 증명은 이 프로젝트에 대해 검증되지 않았습니다.
 
 **`mriseqztcwmezvtawnbo`**(**FindMeATime2**, `us-west-1`, PostgreSQL 17.11)는 같은 조직에 존재하며 향후 릴리스 프로젝트로 예약되어 있습니다. 현재는 관련 없는 내용이 들어 있어 사용하기 전에 비워야 하며, 개발용으로 연결하지 않습니다. 샌드박스가 아닙니다. Phase 1은 이 프로젝트를 예약된 채로 건드리지 않았으며, 마이그레이션, 설정 푸시, 배포 모두 하지 않았습니다. 2026-10-23의 읽기 전용 점검([`operations-and-release` 설계 12](../../openspec/changes/operations-and-release/design.md#12-environments))에서 1차 반복의 프로토타입이 아직 남아 있는 것을 확인했습니다. 테이블 103개와 라이브 행 84개가 있는 `fmat` 스키마, `20261011125843`까지의 마이그레이션 기록 143건, Auth 사용자 2명, Vault 비밀 5개, 매분 또는 10분마다 실행되는 `pg_cron` 작업 17개입니다. CLI의 쿼리가 임시 `cli_login_postgres` 역할을 만들었습니다. 프로젝트를 비우는 일은 사용자에게 맡깁니다.
 
