@@ -142,6 +142,8 @@ MVP는 Supabase Auth를 통한 Google 전용 호스트 로그인을 요구합니
 
 연락처 인증, 비공개 복구, 예약 확정 메시지에는 발신자 `no-reply@findmeatime.com`으로 Cloudflare를 사용합니다. 승인된 통제 수신자를 사용해 발신자/도메인 소유권, API 권한, 전달 결과, 공급자 재시도 한도를 검증합니다. API 수락과 받은편지함 전달은 별개입니다.
 
+Cloudflare가 발송을 거부하거나 서버 오류로 응답하면 `app.email_deliveries.evidence`는 `reason`, `httpStatus`와 함께 Cloudflare가 밝힌 각 오류의 코드와 메시지(최대 5개, 주소는 가림)를 `providerErrors`로 보관합니다. 원인을 찾을 때는 읽기 전용 쿼리로 이를 읽습니다. 예를 들어 Cloudflare는 HTTP 400에 대해 `10001`(`invalid_request_schema`)과 `10202`(`email.invalid`)를 문서화합니다. 예약 확정 메일의 한국어 호스트 이름처럼 출력 가능한 ASCII 밖의 From 표시 이름은 RFC 2047 인코딩 단어(encoded-word)로 보냅니다. Cloudflare가 이런 이름을 그대로 담은 확정 메일을 모두 거부했기 때문입니다([`email-refusal-details`](../../openspec/changes/email-refusal-details/proposal.md), #415).
+
 [이메일 전달 계약](../../openspec/specs/email-delivery/spec.md#requirement-separate-transactional-sending-from-conversations)이 요구하는 대로, 로그인과 무관한 해당 Supabase Auth 알림에는 Cloudflare 커스텀 SMTP를 사용합니다. 호스팅 Auth 인수 전에 선택된 프로젝트의 호스팅 SMTP 설정, 발신자/도메인, 해당 알림 라우팅을 검증하며, 현재 설정과 전달은 검증되지 않았습니다. 해당하는 프로덕션 Auth 알림은 대체 발신자 없이 Cloudflare SMTP를 통해 `no-reply@findmeatime.com`을 사용해야 합니다. 해당하는 경우 통제된 알림 증거를 기록하며, SMTP 설정만으로는 받은편지함 전달이 증명되지 않습니다. 이는 Google 전용 로그인을 유지하며, 이메일/비밀번호, 이메일 OTP, 매직 링크 로그인을 활성화하거나 비밀번호 재설정 로그인 여정을 추가하지 않습니다.
 
 ### 운영자의 호스트 제어
