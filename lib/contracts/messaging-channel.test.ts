@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+  appLinkTarget,
   askChannels,
   channelName,
   deviceKind,
@@ -57,6 +58,18 @@ describe("whatsAppLinkFor", () => {
 
   it("shows the number with a plus", () => {
     expect(displayWhatsAppNumber("15550001111")).toBe("+15550001111");
+  });
+});
+
+describe("appLinkTarget", () => {
+  it("opens Telegram's start link in a new tab on a computer, so the page that shows Confirm and link stays (#369)", () => {
+    expect(appLinkTarget("telegram", false)).toEqual({ rel: "noopener noreferrer", target: "_blank" });
+  });
+
+  it("keeps the same tab on a phone and for WhatsApp and Messages", () => {
+    expect(appLinkTarget("telegram", true)).toEqual({});
+    expect(appLinkTarget("whatsapp", false)).toEqual({});
+    expect(appLinkTarget("imessage", false)).toEqual({});
   });
 });
 
