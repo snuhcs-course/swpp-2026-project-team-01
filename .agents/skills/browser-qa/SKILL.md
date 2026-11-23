@@ -155,7 +155,7 @@ Walk them in this order. For each row, compare what you see with the `Then` colu
 
 1. W-1: the landing names the host; Continue with web and Start with agent.
 2. W-2, W-3.1: Continue with web → the two fixed messages and the identity card → Continue without Google → an empty or invalid email shows "Enter your name and a valid email address."; then `Grace Hopper` and a fresh `qa-guest-<n>@example.test` → `/booking/<id>`. The control page's Emails for that address show the booking-link email.
-3. W-4, W-5: the Calendar step (Skipped), then the fixed question with the host's meeting length and modes.
+3. W-4, W-5: the Calendar step ("Not connected · You’ll tell Thyme your times"), then the fixed question with the host's meeting length and modes.
 4. W-6, W-7: type a purpose such as "Talk about compilers, online."; with the stand-in Thyme answers "Hello from Thyme." (the AI rows are not covered). Record the draft on the control page with the booking page URL, reload the booking page, check "Apply these details?" and press Apply these details; "Checking both calendars…" and then, within about 15 seconds, W-8: "I found some available times…" with candidate times, Find other times and Edit details.
 5. W-9, W-10: Choose this time → "Agree to this time?" → Agree to this proposal → "Request sent successfully", then the waiting card "Waiting for … to approve".
 

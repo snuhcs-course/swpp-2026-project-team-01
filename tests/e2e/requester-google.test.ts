@@ -138,10 +138,10 @@ for (const viewport of [
     await press(page, /^Close details$/);
     const [identified] = await db<{ id: string; state: string; requester_name: string; contact_email: string }[]>`select id, state, requester_name, contact_email from app.requests where host_account_id = ${host.hostAccountId}`;
     expect(identified).toEqual({ id: draft!.id, state: "gathering", requester_name: "Grace Hopper", contact_email: email });
-    await expect(page.locator('[data-guest-card="calendar"]').getByText("Skipped")).toBeVisible();
+    await expect(page.locator('[data-guest-card="calendar"]').getByText("Not connected · You’ll tell Thyme your times")).toBeVisible();
     await page.reload();
     await expect(page.locator('[data-guest-card="identity"]').getByText("Continued with Google")).toBeVisible();
-    await expect(page.locator('[data-guest-card="calendar"]').getByText("Skipped")).toBeVisible();
+    await expect(page.locator('[data-guest-card="calendar"]').getByText("Not connected · You’ll tell Thyme your times")).toBeVisible();
 
     // U13: the fixed question opens the composer; the assistant's drafted review
     // (recorded as its tool would, the model being the local stand-in) is
