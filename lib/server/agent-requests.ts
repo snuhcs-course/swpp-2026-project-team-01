@@ -100,7 +100,9 @@ export async function createIdentifiedAgentRequest(
   deps: { readonly origin: string; readonly tokenKey: TokenKey },
   hostAccountId: string,
   sourceHash: string,
-  input: Omit<CreateRequestInput, "retryKey">,
+  // accountVerifiedEmail: the address is the account's Google-verified one
+  // (account-requests.ts), stored as the confirmed contact.
+  input: Omit<CreateRequestInput, "retryKey"> & { readonly accountVerifiedEmail?: boolean },
   context: Pick<CommandContext<unknown>, "correlationId" | "retryKey">,
 ) {
   const language = input.language ?? "en";
@@ -114,7 +116,7 @@ export async function createIdentifiedAgentRequest(
   const identified = await identifyDraft(
     tx,
     await lockOpenRequest(tx, requestId),
-    { email: input.email, language, name: input.name, timezone: input.timezone },
+    { accountVerifiedEmail: input.accountVerifiedEmail, email: input.email, language, name: input.name, timezone: input.timezone },
     { origin: deps.origin, tokenKey: deps.tokenKey },
   );
 
