@@ -90,7 +90,10 @@
       "typescript": "$typescript"
     },
     "eve": {
-      "undici": "8.13.1"
+      "undici": "8.13.1",
+      "@ai-sdk/provider-utils": {
+        "undici": "^7.29.0"
+      }
     }
   }
 }
