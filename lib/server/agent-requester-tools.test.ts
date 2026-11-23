@@ -1,5 +1,5 @@
 import { afterAll, beforeEach, describe, expect, it, vi } from "vitest";
-import { ACCOUNT_REQUESTER_TOOLS } from "./agent-account-requester-tools";
+import { ACCOUNT_REQUESTER_TOOLS, sentText } from "./agent-account-requester-tools";
 import { AGREED_NEXT, CHANGE_AGREEMENT_NEXT, REQUESTER_TOOLS } from "./agent-requester-tools";
 import { runAsGrant, type AgentToolContext } from "./agent-tools";
 import { createDatabase } from "./database";
@@ -44,8 +44,17 @@ describe("change_agreement", () => {
     expect(result).toMatchObject({ ok: false, category: "stale_revision", nextAction: expect.stringContaining("nothing to reopen") });
   });
 
-  it("is offered on the account connection by requestId too", () => {
-    expect(ACCOUNT_REQUESTER_TOOLS.map((candidate) => candidate.name)).toContain("change_agreement");
+  it("is offered on the account connection by requestId too, naming the sent booking tools", () => {
+    const sent = ACCOUNT_REQUESTER_TOOLS.find((candidate) => candidate.name === "change_agreement")!;
+    expect(sent.description).toContain("change_sent_booking");
+    expect(sent.description).not.toMatch(/\bchange_booking\b/);
+  });
+
+  it("names the sent booking tools in the account connection's refusals", async () => {
+    refuse("stale_revision");
+    const refusal = await tool("change_agreement").run(context, { retryKey: "change-0003" });
+    expect(!refusal.ok && sentText(refusal.nextAction)).toContain("changed with change_sent_booking");
+    expect(sentText("get_request, check_booking and cancel_booking")).toBe("get_sent_request, check_sent_booking and cancel_sent_booking");
   });
 });
 
@@ -60,6 +69,22 @@ describe("changes while the agreement waits for the host", () => {
       expect(result).toMatchObject({ ok: false, category: "invalid_input", nextAction: expect.stringContaining("call change_agreement first") });
     });
   }
+
+  it("keeps the command's refusal when the request cannot be read", async () => {
+    refuse("invalid_input");
+    vi.mocked(readRequesterView).mockRejectedValueOnce(new Error("down"));
+    const result = await tool("find_times").run(context, { retryKey: "retry-0003" });
+    expect(result).toMatchObject({ ok: false, category: "invalid_input", nextAction: expect.not.stringContaining("change_agreement") });
+  });
+
+  it("reads the request only for an unexplained invalid_input", async () => {
+    vi.mocked(runAsGrant).mockResolvedValueOnce({ ok: false, error: { category: "invalid_input", correlationId: "id", message: "refused", reason: "start_passed" } } as never);
+    const passed = await tool("choose_time").run(context, { retryKey: "retry-0004", input: { evaluationId: "e", candidateId: "c" } });
+    expect(passed).toMatchObject({ ok: false, nextAction: "That time has already started. Find times again." });
+    refuse("stale_revision");
+    await tool("update_request_details").run(context, { retryKey: "retry-0005" });
+    expect(readRequesterView).not.toHaveBeenCalled();
+  });
 
   it("keeps the generic refusal when the request is not waiting", async () => {
     refuse("invalid_input");
@@ -89,6 +114,12 @@ describe("choose and agree outcomes", () => {
     const result = await tool("agree_to_proposal").run(context, { retryKey: "agree-0001", input: { version: 2 } });
     expect(result).toMatchObject({ ok: true, result: { next: expect.stringMatching(/^Nothing was agreed/) } });
     expect(result).not.toMatchObject({ result: { next: AGREED_NEXT } });
+  });
+
+  it("agree_to_proposal says to find times again when no new search started", async () => {
+    succeed({ evaluationId: null, outcome: "time_unavailable", version: 2 });
+    const result = await tool("agree_to_proposal").run(context, { retryKey: "agree-0003", input: { version: 2 } });
+    expect(result).toMatchObject({ ok: true, result: { next: expect.stringContaining("call find_times again") } });
   });
 
   it("agree_to_proposal tells the host must approve only after an agreement", async () => {

@@ -73,6 +73,16 @@ async function projection(context: AgentToolContext, requestId: string) {
   return view ? { ...agentRequesterProjection(view, requestId), updates: chatStatus(await readRequesterImessageStatus(context.deps.db, options.tokenKeys, requestId, options.lineNumber, options.whatsappNumber, options.telegramUsername)) } : null;
 }
 
+// Whether the request now awaits the host's approval; a failed read keeps the
+// command's own refusal.
+async function awaitingApproval(context: AgentToolContext, requestId: string) {
+  try {
+    return (await readRequesterView(context.deps.db, requestId))?.request.state === "awaiting_host_approval";
+  } catch {
+    return false;
+  }
+}
+
 // A command of any input, as a tool holds it; the tool's own schema checked the input.
 function loose<Input, Result>(command: CommandDefinition<Input, Result>) {
   return command as unknown as CommandDefinition<unknown, unknown>;
@@ -131,7 +141,7 @@ function requestCommandTool(spec: {
       });
       if (!outcome.ok) {
         const refusal = commandError(outcome.error);
-        if (spec.whileAwaitingApproval && !refusal.ok && outcome.error.category === "invalid_input" && !outcome.error.reason && (await readRequesterView(context.deps.db, requestId))?.request.state === "awaiting_host_approval") {
+        if (spec.whileAwaitingApproval && !refusal.ok && outcome.error.category === "invalid_input" && !outcome.error.reason && (await awaitingApproval(context, requestId))) {
           return { ...refusal, message: "The request waits for the host's approval, so it cannot change now.", nextAction: spec.whileAwaitingApproval };
         }
         if (spec.staleNextAction && !refusal.ok && outcome.error.category === "stale_revision" && !outcome.error.reason) return { ...refusal, nextAction: spec.staleNextAction };
@@ -171,7 +181,10 @@ export function agreeNext(result: unknown) {
   const agreed = outcomeOf(result);
   if (agreed?.outcome === "agreed") return AGREED_NEXT;
   if (agreed?.outcome === "time_unavailable") {
-    return "Nothing was agreed: this time is no longer free on the host's calendar, and the host was not asked. Tell the person so, read get_request for the new times once they are found, and offer them. Do not say it is agreed or waiting for the host.";
+    const search = (agreed as { evaluationId?: unknown }).evaluationId
+      ? "read get_request for the new times once they are found, and offer them"
+      : "no new search could start now, so call find_times again in a little while and offer the times it finds";
+    return `Nothing was agreed: this time is no longer free on the host's calendar, and the host was not asked. Tell the person so; ${search}. Do not say it is agreed or waiting for the host.`;
   }
   return undefined;
 }
