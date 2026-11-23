@@ -24,7 +24,7 @@
 | [제공자 설정](technical_specification/03_provider_setup.md) | 기록된 환경 방향과 향후 검증 전제 조건 |
 | [에이전트 구성](technical_specification/04_agent_configuration.md) | eve 에이전트가 디스크에 정의되는 방식: 지침, 도구, 스킬, 연결, 채널, 메모리, 모델 |
 | [CLI 방향](technical_specification/05_cli.md) | 분리된 사용자/관리자 클라이언트. 관리자 CLI는 구현되었고 사용자 CLI는 대기 중 |
-| [구현 계획](technical_specification/06_implementation_plan.md) | 범위가 정해진 OpenSpec 변경의 제안 순서, 결정 기한, 단계별 인수 증거 |
+| [구현 계획](technical_specification/06_implementation_plan.md) | 범위가 정해진 OpenSpec 변경의 제안 순서, 결정 기한, 단계별 인수 증거, 제안된 다음 이터레이션 계획 |
 | [인수 기록](technical_specification/07_acceptance_record.md) | 각 단계가 만든 증거와 그 명령, 날짜, 리비전, 환경, 그리고 알려진 공백 |
 | [결정 기록](technical_specification/08_decision_log.md) | 단계별 모든 결정 지점과 그 대안, 기록된 곳과 바꾸는 방법, 그리고 사용자에게 막혀 있는 단계 |
 | [게스트 방어 평가](technical_specification/10_guest_defense_evaluation.md) | 게스트 어시스턴트에 대한 고정 공격 세트, 채점, 사전 선언된 통과 기준, 실행 설정, 결과 |
