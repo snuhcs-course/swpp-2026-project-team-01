@@ -1,6 +1,6 @@
 import { listSentRequests } from "./host-sent-requests";
 import { z } from "zod";
-import { readHostSchedule, type ReadScheduleInput, readScheduleToolInput } from "./host-schedule";
+import { readHostSchedule, readHostScheduleImage, type ReadScheduleInput, readScheduleToolInput, type ScheduleImageInput, scheduleImageToolInput } from "./host-schedule";
 import { readCalendarRoles, saveCalendarRolesCommand, recordDestinationAccess } from "./calendar-roles";
 import { channelOfTurn, linkedMessagingTurn } from "./channel-selection";
 import { CommandError, runCommand } from "./commands";
@@ -51,6 +51,43 @@ export async function listHostRequestsForSetupTool(deps: SetupDependencies, call
 export async function readScheduleForSetupTool(deps: SetupDependencies, call: SetupToolCall, input: ReadScheduleInput = {}) {
   const actor = await authorizeSetupTool(deps.db, call.auth, call.sessionId);
   return readHostSchedule(deps.db, deps.calendar, actor.id, readScheduleToolInput.parse(input));
+}
+
+// The host's schedule as one picture in the linked chat (messenger-schedule-image
+// design 4): only for a message from that chat, so the picture goes where the
+// host asked. It reads the schedule as read_schedule does and queues one
+// schedule_image row for this call; the turn's reply says the schedule in words,
+// so it stands alone if the picture cannot be drawn. It never touches the
+// settings preview: that is an image row with its review hash.
+export const SCHEDULE_IMAGE_NOTE =
+  "The service sends the picture by itself, before or around your reply. Say in one line that the picture is on its way, then sum up the period in words from schedule, as for read_schedule, so the reply stands alone. Never describe anything the entries do not list.";
+
+export async function sendScheduleImageForTool(deps: SetupDependencies, call: SetupToolCall, input: ScheduleImageInput = {}) {
+  const actor = await authorizeSetupTool(deps.db, call.auth, call.sessionId);
+  const turn = await linkedMessagingTurn(deps.db, call.sessionId, actor.id);
+  const binding = await activeBindingOfHost(deps.db, actor.id);
+  if (!turn || binding?.channel !== turn.channel) {
+    return { queued: false as const, problem: "The schedule image goes only to the host's linked iMessage, WhatsApp or Telegram, for a message from there. Answer from read_schedule in words." };
+  }
+  const { image, schedule } = await readHostScheduleImage(deps.db, deps.calendar, actor.id, scheduleImageToolInput.parse(input));
+  const outcome = await runCommand({ authenticate: async () => actor, db: deps.db }, {
+    operation: "setup.send_schedule_image",
+    input: z.object({ from: z.string(), through: z.string() }).strict(),
+    async run(tx) {
+      await authorizeSetupTool(tx, call.auth, call.sessionId, { lock: true });
+      if ((await linkedMessagingTurn(tx, call.sessionId, actor.id))?.inputId !== turn.inputId) throw new CommandError("forbidden");
+      const active = await activeBindingOfHost(tx, actor.id);
+      if (active?.id !== binding.id) throw new CommandError("stale_revision");
+      await recordOutbound(tx, {
+        kind: "schedule_image", schedule: image, inputId: turn.inputId,
+        dedupeKey: `schedule-image:${binding.id}:${call.callId}`, hostAccountId: actor.id, bindingId: binding.id,
+        recipient: bindingRecipient(deps.calendar.tokenKeys, binding), recipientHash: binding.sender_hash, tokenKey: deps.calendar.tokenKeys[0]!,
+      });
+      return { queued: true as const };
+    },
+  }, { input: { from: image.from, through: image.through }, resourceId: actor.id, retryKey: `tool:${call.callId}` });
+  if (!outcome.ok) return { queued: false as const, problem: "The conversation changed; nothing was sent. Answer from read_schedule in words." };
+  return { queued: true as const, note: SCHEDULE_IMAGE_NOTE, schedule };
 }
 
 export const confirmSettingsToolInput = z

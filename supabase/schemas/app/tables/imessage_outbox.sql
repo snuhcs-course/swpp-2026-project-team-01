@@ -24,13 +24,16 @@
 -- (its dedupe key names the row it edits, its sealed text the message ID), and a
 -- callback_answer row answers a button tap (its sealed text the callback ID and
 -- answer). Neither is a message of its own.
+-- A schedule_image row (messenger-schedule-image design 1) is the host's
+-- schedule for up to a week as a picture, sealed as JSON in text_ciphertext. It
+-- has no review_hash: only an image row is a settings preview.
 CREATE TABLE "app"."imessage_outbox" (
   "id" uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   "channel" text NOT NULL DEFAULT 'imessage' CHECK ("channel" IN ('imessage', 'whatsapp', 'telegram')),
   "kind" text NOT NULL CHECK (
     "kind" IN (
       'link_received', 'link_refused', 'linked', 'fallback_code', 'unlinked_sender', 'text_only',
-      'command', 'turn', 'notice', 'image', 'contact_card', 'signal', 'template', 'edit_markup', 'callback_answer'
+      'command', 'turn', 'notice', 'image', 'schedule_image', 'contact_card', 'signal', 'template', 'edit_markup', 'callback_answer'
     )
   ),
   "review_hash" text CHECK ("review_hash" ~ '^[0-9a-f]{64}$'),

@@ -2,8 +2,9 @@ import { channelReplies } from "./channel-texts";
 import { deploymentEnvironment } from "./deployment";
 import type { ParsedCommand } from "./imessage-commands";
 import { gateTransport, type MessagingTransport } from "./messaging";
-import type { PhotonSendRequest, PhotonSendResult, PhotonTransport, WhatsAppButtons } from "./photon";
+import { type PhotonSendRequest, type PhotonSendResult, type PhotonTransport, type WhatsAppButtons, scheduleAttachment, schedulePng } from "./photon";
 import type { InboundMessage } from "./photon-receiver";
+import { renderScheduleImagePng } from "./schedule-image";
 import { renderSlotPreviewPng } from "./slot-preview-image";
 
 // The Telegram Bot API, called directly (host-telegram-channel design 1 to 3,
@@ -452,7 +453,8 @@ export const THANKS_REACTION = "👍";
 // with sendPhoto as the timetable PNG with its one-line caption, in plain text
 // too; when the image cannot be rendered the summary alone is sent and the send
 // is uncertain, as on iMessage and WhatsApp, since the host never saw the
-// timetable. A signal is setMessageReaction
+// timetable. The schedule image is one sendPhoto with no caption; one that
+// cannot be drawn sends nothing. A signal is setMessageReaction
 // on the host's message and sendChatAction typing. An edit removes a sent
 // message's buttons, and a callback answer stops a tapped button's spinner.
 // Anything else is not a Telegram message. The recipient address is the chat ID.
@@ -462,6 +464,7 @@ export function telegramTransport(
   client: TelegramClient,
   wait: (ms: number) => Promise<unknown> = sleep,
   render: typeof renderSlotPreviewPng = renderSlotPreviewPng,
+  renderSchedule: typeof renderScheduleImagePng = renderScheduleImagePng,
 ): PhotonTransport {
   return {
     endpoint: client.endpoint,
@@ -488,6 +491,13 @@ export function telegramTransport(
       if (content.kind === "callback_answer") {
         const params = { callback_query_id: content.callbackId, ...(content.answer ? { text: content.answer } : {}) };
         return fromTelegram(await client.send({ method: "answerCallbackQuery", params }), chatId, null);
+      }
+      if (content.kind === "schedule_image") {
+        const png = await schedulePng(content.schedule, renderSchedule);
+        if (!png) return { category: "render_failed", status: "rejected" };
+        const { mimeType, name } = scheduleAttachment(content.schedule);
+        const sent = await client.send({ file: { data: png, field: "photo", mimeType, name }, method: "sendPhoto", params: { chat_id: chatId } });
+        return sent.status === "accepted" ? fromTelegram(sent, chatId, messageIdOf(sent.result)) : fromTelegram(sent, chatId, null);
       }
       if (content.kind === "image") {
         const { preview, language, summary = channelReplies(language).onboarding.slotSummary(preview) } = content;

@@ -19,7 +19,7 @@ import { clockText, dayShort, durationText, MEETING_MODE_TEXTS, TRAVEL_MODE_TEXT
 // read through `new URL(…, import.meta.url)`, which Next's file tracing follows
 // into the job worker's function.
 
-const INK = {
+export const INK = {
   canvas: "#F6F7F9",
   surface: "#FFFFFF",
   ink: "#1E2430",
@@ -29,17 +29,17 @@ const INK = {
   panelMe: "#DCE3F1",
 } as const;
 
-const WIDTH = 1080;
-const HEIGHT = 1350;
+export const WIDTH = 1080;
+export const HEIGHT = 1350;
 const GRID_HEIGHT = 560;
-const SANS = "Geist, Noto Sans KR";
-const SERIF = "Instrument Serif";
+export const SANS = "Geist, Noto Sans KR";
+export const SERIF = "Instrument Serif";
 
 // The code points the bundled fonts cover (Noto Sans KR's pyftsubset --unicodes list).
 const OUTSIDE_FONT =
   /[^ -~ -ÿ‐-‧‰-›←-↓−　-〿ㄱ-ㆎ가-힣！-～]/gu;
 
-function coveredText(text: string) {
+export function coveredText(text: string) {
   return text.replace(OUTSIDE_FONT, "").replace(/\s+/g, " ").trim();
 }
 
@@ -73,7 +73,7 @@ function loadFonts() {
   return fonts;
 }
 
-function box(style: CSSProperties, ...children: ReactNode[]) {
+export function box(style: CSSProperties, ...children: ReactNode[]) {
   return createElement("div", { style: { display: "flex", ...style } }, ...children);
 }
 
@@ -89,7 +89,7 @@ function span(range: LocalRange) {
   return { start, end: end > start ? end : end + 1440 };
 }
 
-function clockAt(minute: number) {
+export function clockAt(minute: number) {
   const day = ((minute % 1440) + 1440) % 1440;
   return clockText(`${String(Math.floor(day / 60)).padStart(2, "0")}:${String(day % 60).padStart(2, "0")}`, "en");
 }
@@ -202,6 +202,11 @@ export async function renderSlotPreviewPng(preview: SlotPreview): Promise<Buffer
       box({}, `Times in ${zone}`),
     ),
   );
+  return pngOf(image);
+}
+
+// The PNG of a composed image, at the shared size with the bundled fonts.
+export async function pngOf(image: ReturnType<typeof box>): Promise<Buffer> {
   // Loaded on use: the agent service imports this module through the outbox but
   // cannot load next/og, and only the job worker renders.
   const { ImageResponse } = await import("next/og");

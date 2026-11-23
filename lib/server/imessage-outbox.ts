@@ -114,6 +114,7 @@ export function templateDailyLimit(env: Readonly<Record<string, string | undefin
 
 export type OutboxKind =
   | "image"
+  | "schedule_image"
   | "link_received"
   | "link_refused"
   | "linked"
@@ -132,6 +133,7 @@ export type OutboxKind =
 export type OutboxState = "waiting" | "queued" | "dispatching" | "accepted" | "failed" | "uncertain" | "suppressed";
 
 type SlotImage = Omit<Extract<PhotonContent, { kind: "image" }>, "kind">;
+type ScheduleImageContent = Extract<PhotonContent, { kind: "schedule_image" }>["schedule"];
 
 export type RecordOutbound = {
   // The platform; by default the binding's or the link attempt's, else iMessage.
@@ -167,8 +169,10 @@ export type RecordOutbound = {
   // own, so a message that must follow another waits (the card after linking).
   readonly delaySeconds?: number;
 } & (
-  | { readonly kind: "image"; readonly image: SlotImage; readonly reviewHash: string }
-  | { readonly kind: Exclude<OutboxKind, "image">; readonly image?: never; readonly reviewHash?: never }
+  | { readonly kind: "image"; readonly image: SlotImage; readonly reviewHash: string; readonly schedule?: never }
+  // The host's schedule picture (messenger-schedule-image design 1): never a settings review.
+  | { readonly kind: "schedule_image"; readonly schedule: ScheduleImageContent; readonly image?: never; readonly reviewHash?: never }
+  | { readonly kind: Exclude<OutboxKind, "image" | "schedule_image">; readonly image?: never; readonly reviewHash?: never; readonly schedule?: never }
 );
 
 export function outboxSealContext(outboxId: string) {
@@ -189,7 +193,8 @@ export async function recordOutbound(tx: Transaction, message: RecordOutbound): 
   const turn = message.kind === "turn";
   const channel = message.channel ?? (await ownerChannel(tx, message));
   const buttons = channel === "whatsapp" && BUTTON_KINDS.has(message.kind) && message.buttons?.items.length ? message.buttons : null;
-  const payload = message.kind === "image" ? JSON.stringify(message.image) : message.text;
+  const payload =
+    message.kind === "image" ? JSON.stringify(message.image) : message.kind === "schedule_image" ? JSON.stringify(message.schedule) : message.text;
   const text =
     suppressed || payload === undefined ? null : sealToken(message.tokenKey, buttons ? sealedWithButtons(payload, buttons) : payload, context);
   // Telegram keeps its keyboard on the row (design 7, D9), where button retirement finds it.
@@ -858,7 +863,7 @@ const SILENT_NOTICES = ["notice:booking_confirmed:", "notice:booking_pending:"];
 // suppressed and a template queued), so buttons need only the switch; a template
 // never carries them. A Telegram row carries its keyboard from the row itself.
 // The slot preview is an image on every channel; each transport sends the
-// timetable and its summary.
+// timetable and its summary. The schedule image is a picture alone.
 export function contentOf(
   row: Pick<OutboxRow, "kind" | "template_name" | "channel" | "buttons" | "dedupe_key">,
   text: string | null,
@@ -868,6 +873,7 @@ export function contentOf(
     const image = JSON.parse(text!) as SlotImage;
     return { kind: "image", ...image };
   }
+  if (row.kind === "schedule_image") return { kind: "schedule_image", schedule: JSON.parse(text!) as ScheduleImageContent };
   if (row.kind === "edit_markup") return { kind: "edit_markup", messageId: text ?? "" };
   if (row.kind === "callback_answer") {
     const answer = JSON.parse(text ?? "{}") as Partial<CallbackAnswer>;

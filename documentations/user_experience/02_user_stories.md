@@ -46,7 +46,7 @@ As a host, I want to see my current schedule, the requests I received and sent, 
 - The `/app` dashboard calendar shows Google Calendar events, meetings booked through Find Me a Time and requests the host sent to others.
 - Decided to build (#330): received requests awaiting a decision on the dashboard calendar; answers to questions about the host's schedule (Google Calendar and booked meetings) in iMessage, Telegram and MCP; a schedule image in the messenger.
 - Decided not to build (#330): a weekly report.
-- Baseline: [H04](../technical_specification/12_testing_baseline.md#h04-host-schedule-and-meeting-status). Schedule questions and the schedule image are **not supported** until built; the weekly-report row M-6 is to be removed.
+- Baseline: [H04](../technical_specification/12_testing_baseline.md#h04-host-schedule-and-meeting-status). Received requests on the dashboard, schedule questions in the messenger and MCP, and the schedule image in the messenger are built; the weekly report is not.
 
 ## Guest
 

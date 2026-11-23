@@ -231,7 +231,7 @@ host:read · host:write · host:decide
 
 - 대시보드 캘린더에는 Google Calendar 일정, Find Me a Time으로 확정된 미팅, 호스트가 다른 사람에게 보낸 요청, 그리고 호스트의 결정을 기다리는 받은 요청이 제안된 시간에 나옵니다([`host-schedule-views`](../../openspec/changes/archive/2026-11-23-host-schedule-views/proposal.md), #330).
 - 주간 보기는 08:00~19:00만 그립니다. 그 밖의 시간 일정은 주간 칸에 안 보이고, 날짜를 눌러 오른쪽 상세에서만 보입니다. 종일 일정은 칸마다 2개까지만 보입니다.
-- 메신저(read_schedule)와 MCP(get_schedule)는 호스트의 일정을 기간 단위로 읽어 줍니다: 확정된 미팅, Google Calendar의 다른 일정, 결정할 요청, 보낸 요청이 각각 라벨과 함께 나옵니다. 메신저의 일정표 이미지는 아직 구현 필요 항목입니다(M-5). 주간 보고는 범위 밖입니다(#330의 소유자 결정, 2026-11-23).
+- 메신저(read_schedule)와 MCP(get_schedule)는 호스트의 일정을 기간 단위로 읽어 줍니다: 확정된 미팅, Google Calendar의 다른 일정, 결정할 요청, 보낸 요청이 각각 라벨과 함께 나옵니다. 연결된 메신저에서는 send_schedule_image가 같은 항목을 최대 일주일치 그림 한 장으로도 보냅니다(M-5, [`messenger-schedule-image`](../../openspec/changes/messenger-schedule-image/proposal.md)). 주간 보고는 범위 밖입니다(#330의 소유자 결정, 2026-11-23).
 
 ### Web · 대시보드
 
@@ -258,7 +258,7 @@ host:read · host:write · host:decide
 | ↳ M-2.2 | 벗어난 입력. 셋업 완료 | "내 캘린더에 다른 일정은 뭐 있어?" | AI 기대 동작: M-4와 같음: read_schedule로 캘린더 일정을 서비스 예약과 구분해서 답함 | **코드 지원**: read_schedule이 calendar_event를 booked_meeting과 구분해 표시<br>**하면 안 됨**: 일정을 지어내기 | agent/tools/setup.ts (read_schedule) · host-schedule.ts |
 | M-3 | 셋업 완료 | "박도현 미팅 확정됐어?" | AI 기대 동작: 해당 요청으로 전환하거나 목록에서 상태를 읽고, 확정된 경우에만 확정이라고 답함 | **분기**: 같은 이름이 여러 개 → 목적·참조로 구분해서 물음<br>**코드 지원**: 코드 지원 | list_host_requests · read_booking_status |
 | M-4 | 셋업 완료 | "내일 일정 뭐 있어?" (Google Calendar 전체) | AI 기대 동작: read_schedule(내일부터, days 1) → 내일 일정을 시간순으로, 확정된 미팅·다른 캘린더 일정·아직 확정되지 않은 요청을 구분해서 답함 | **코드 지원**: 대시보드처럼 호스트가 고른 Google Calendar(충돌 캘린더와 예약 대상)를 읽음; 확정된 미팅은 한 번만 나열<br>**분기**: Google Calendar를 읽지 못함 → 그렇게 말하고, Find Me a Time 미팅과 요청만 나열<br>**하면 안 됨**: 일정을 지어내기 · 호스트가 고르지 않은 캘린더 읽기 | agent/tools/setup.ts (read_schedule) · host-schedule.ts · host-dashboard.ts |
-| M-5 | 셋업 완료 | "이번 주 일정표 이미지로 보여줘" | AI 기대 동작: 이번 주 일정과 확정 미팅을 담은 일정표 이미지 한 장을 보냄 (다음 주 슬롯 이미지 코드 재사용) | **코드 미지원**: 구현 필요(#330 후속): 지금 이미지는 셋업 미리보기(다음 주 열린 시간)뿐. 일정표 이미지에는 자체 outbox 메시지 종류가 필요함. 모든 `image` 행이 최신 설정 미리보기(confirm_settings, 온보딩 메모 단계)로 읽히기 때문이며, 그동안 read_schedule이 글로 답함<br>**하면 안 됨**: 이미지를 보냈다고 말하기 | slot-preview-image.ts · imessage-outbox.ts |
+| M-5 | 셋업 완료 | "이번 주 일정표 이미지로 보여줘" | AI 기대 동작: send_schedule_image(이번 주 월요일부터) → 이번 주 그림 한 장을 대화에 보냄: 확정된 미팅, Google Calendar의 다른 일정, 결정할 요청(주황 점선, 확정 아님), 보낸 요청을 종류별 색으로, 종일 일정은 시간표 위에 → 답장은 그림이 가는 중이라고 말하고 그 주를 글로 요약함 | **코드 지원**: 자체 outbox 종류(schedule_image)에 검토 해시가 없어 confirm_settings와 온보딩 메모 단계는 여전히 슬롯 미리보기만 읽음; 그림에는 자체 텍스트가 없고 모든 대화에서 영어임<br>**분기**: Google Calendar를 읽지 못함 → 그림이 그렇게 알리고 Find Me a Time 미팅과 요청만 보여줌<br>**분기**: 그림을 그릴 수 없음 → 그림은 보내지 않음; 답장은 그 주를 글로 알려줌<br>**분기**: 연결된 대화 밖에서 요청함 → 아무것도 보내지 않음; read_schedule로 글로 답함<br>**하면 안 됨**: 큐에 넣었다는 결과가 없는데 이미지를 보냈다고 말하기 · 이를 위해 preview_next_week 쓰기 | agent/tools/setup.ts (send_schedule_image) · setup-channel-tools.ts (sendScheduleImageForTool) · schedule-image.ts · imessage-outbox.ts |
 
 ### MCP · 현황 조회
 
