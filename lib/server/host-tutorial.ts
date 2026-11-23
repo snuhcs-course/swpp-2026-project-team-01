@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { TUTORIAL_FEEDBACK, tutorialAction, tutorialFinishResult } from "../contracts/host-tutorial";
+import { TUTORIAL_FEEDBACK, TUTORIAL_TEXT, tutorialAction, tutorialFinishResult } from "../contracts/host-tutorial";
 import { DEFAULT_MEETING_MINUTES } from "../contracts/setup";
 import { isValidTimeZone } from "../contracts/timezone";
 import type { ChannelLanguage } from "./channel-language";
@@ -8,18 +8,7 @@ import { assertRevision, type CommandDefinition, CommandError } from "./commands
 import type { Queryable } from "./database";
 import { enqueueButtonRetirement, enqueueHostNotice } from "./imessage-notices";
 
-export const TUTORIAL_TEXT = {
-  en: {
-    offer: "Would you like to try a sample request?",
-    sample: "Sample request",
-    guide: "You can approve or decline this request. Ask me for more details or if you want to change anything.",
-  },
-  ko: {
-    offer: "그럼 튜토리얼 해보실래요?",
-    sample: "샘플 요청",
-    guide: "위 요청에 대해서 승인하거나, 거절하실 수 있어요. 자세한 정보를 원하시거나 조정이 필요하시면 저에게 말해주세요.",
-  },
-} as const;
+export { TUTORIAL_TEXT };
 
 export function tutorialCompletionText(language: ChannelLanguage, result: unknown) {
   const feedback = TUTORIAL_FEEDBACK[language];
