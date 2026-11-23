@@ -1,9 +1,9 @@
 import type { DiscussionEvent } from "@lib/contracts/discussion-events";
 
-// Browser access to the host's discussions: setup, or with `request` the host's
-// private review of one request (host-review-and-booking design 2). The browser
-// talks only to the web service's /api/chat routes; it never sees a runtime
-// session ID or calls /eve/v1 itself.
+// Browser access to the host's setup discussion. A request is discussed only in
+// the host's linked messenger (remove-host-web-chat), so the browser names no
+// request. It talks only to the web service's /api/chat routes; it never sees a
+// runtime session ID or calls /eve/v1 itself.
 
 export type DiscussionStatus = {
   readonly generation: number | null;
@@ -33,19 +33,13 @@ async function readJson<T>(response: Response): Promise<T> {
   return body as T;
 }
 
-function scoped(path: string, request: string | null | undefined, query: Record<string, string> = {}) {
-  const params = new URLSearchParams({ ...query, ...(request ? { request } : {}) });
-  const search = params.toString();
-  return search ? `${path}?${search}` : path;
+export async function readDiscussionStatus(signal?: AbortSignal) {
+  return readJson<DiscussionStatus>(await fetch("/api/chat/state", { cache: "no-store", signal }));
 }
 
-export async function readDiscussionStatus(signal?: AbortSignal, request?: string | null) {
-  return readJson<DiscussionStatus>(await fetch(scoped("/api/chat/state", request), { cache: "no-store", signal }));
-}
-
-export async function postMessage(clientInputId: string, message: string, request?: string | null) {
+export async function postMessage(clientInputId: string, message: string) {
   const response = await fetch("/api/chat/messages", {
-    body: JSON.stringify({ clientInputId, message, ...(request ? { request } : {}) }),
+    body: JSON.stringify({ clientInputId, message }),
     headers: { "content-type": "application/json" },
     method: "POST",
   });
@@ -57,9 +51,9 @@ export async function postMessage(clientInputId: string, message: string, reques
   }>(response);
 }
 
-export async function postRecovery(observedGeneration: number, request?: string | null) {
+export async function postRecovery(observedGeneration: number) {
   const response = await fetch("/api/chat/recover", {
-    body: JSON.stringify({ observedGeneration, ...(request ? { request } : {}) }),
+    body: JSON.stringify({ observedGeneration }),
     headers: { "content-type": "application/json" },
     method: "POST",
   });
@@ -77,12 +71,10 @@ export async function postRecovery(observedGeneration: number, request?: string 
 // ends at the current turn's boundary.
 export async function* readDiscussionEvents(
   cursor: number,
-  options: { readonly follow: boolean; readonly signal?: AbortSignal; readonly request?: string | null },
+  options: { readonly follow: boolean; readonly signal?: AbortSignal },
 ): AsyncGenerator<DiscussionEvent> {
-  const response = await fetch(
-    scoped("/api/chat/events", options.request, { cursor: String(cursor), ...(options.follow ? { follow: "1" } : {}) }),
-    { cache: "no-store", signal: options.signal },
-  );
+  const params = new URLSearchParams({ cursor: String(cursor), ...(options.follow ? { follow: "1" } : {}) });
+  const response = await fetch(`/api/chat/events?${params}`, { cache: "no-store", signal: options.signal });
 
   yield* ndjsonLines<DiscussionEvent>(response);
 }

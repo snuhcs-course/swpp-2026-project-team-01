@@ -19,7 +19,8 @@ import { Input } from "@/components/ui/input";
 // **Dismiss suggestions**; the private rule and travel review; and the booking
 // status with its receipt and **Check booking status**. Each posts one command
 // with the expected revision and keeps its retry key until the service answers.
-// A message in the private discussion records none of these decisions.
+// The web has no chat about a request (remove-host-web-chat); the host's linked
+// messenger reaches the same decisions through its host-review tools.
 
 export type HostRun = (operation: HostRequestOperation, input: unknown, expectedRevision?: number | null) => Promise<
   { readonly ok: true } | { readonly ok: false; readonly error: CommandFailure }

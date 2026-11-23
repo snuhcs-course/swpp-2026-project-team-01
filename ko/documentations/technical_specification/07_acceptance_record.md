@@ -253,7 +253,7 @@
 | AC-07 | `bookings.test.ts` "stops at revalidation when a busy event appeared"와 "dispatches only one of two competing bookings for the same host" |
 | AC-08 | `bookings.test.ts` "reconciles a lost response by reading the event, never inserting twice"와 "inserts the same frozen payload again when the first insert never arrived" |
 | AC-09 | `bookings.test.ts` "fails definitively on a refused write and lets the host retry", "records revoked Calendar access"; `tests/integration/booking-emails.test.ts` "keeps the booking confirmed when a copy bounces, and sends nothing twice" |
-| AC-10 웹 전용 | `tests/integration/host-review.test.ts`: 비공개 논의의 "Approve it and book it."은 아무것도 기록하지 않으며 세션에는 호스트 검토 도구만 나열됨; 요청자 쪽은 3단계의 것 |
+| AC-10 웹 전용 | `tests/integration/host-review.test.ts`: 비공개 논의에는 호스트 검토 도구만 나열됨; 요청자 쪽은 3단계의 것. 2026-11-23(#326)부터 이 테스트는 메신저처럼 논의를 열며, 웹 경로는 요청 범위를 거절하므로 웹에 입력한 "Approve it and book it."은 어떤 논의에도 닿지 않음 |
 | AC-13 | `bookings.test.ts` "lets the requester withdraw a reserved booking", "refuses withdrawal and decline once dispatch may have begun", "declines with the requester's status email"(늦은 승인은 `request_closed`로 답함), "cancels a reserved booking whose request expired" |
 | 확인 일관성 | `booking-emails.test.ts` "sends each party a copy with the host's name, Reply-To the other party and the matching calendar part"; 두 언어와 캘린더 파트에 대한 `lib/server/booking-emails.test.ts` |
 

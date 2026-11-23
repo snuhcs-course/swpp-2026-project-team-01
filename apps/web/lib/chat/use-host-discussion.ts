@@ -13,11 +13,10 @@ import {
   readDiscussionStatus,
 } from "./discussion";
 
-// One host discussion in the browser: setup (request null) or the host's private
-// review of one request. History and live output come from the discussion's
-// application routes, so a reload, a reconnect or a recovered runtime continues
-// from the same discussion cursor. Shared by the setup workspace and the
-// request view in /app (host-review-and-booking design 2).
+// The host's setup discussion in the browser. History and live output come from
+// the discussion's application routes, so a reload, a reconnect or a recovered
+// runtime continues from the same discussion cursor. A request is discussed only
+// in the host's linked messenger, never on the web (remove-host-web-chat).
 
 export type Phase = "loading" | "ready" | "sending" | "streaming" | "recovering";
 
@@ -83,7 +82,7 @@ export function errorMessage(error: unknown) {
   return "Something went wrong. Try again.";
 }
 
-export function useHostDiscussion({ onSettled, request = null }: { readonly onSettled?: () => void; readonly request?: string | null }) {
+export function useHostDiscussion({ onSettled }: { readonly onSettled?: () => void } = {}) {
   const [events, setEvents] = useState<DiscussionEvent[]>([]);
   const eventsRef = useRef<DiscussionEvent[]>([]);
   const [status, setStatus] = useState<DiscussionStatus | null>(null);
@@ -104,11 +103,11 @@ export function useHostDiscussion({ onSettled, request = null }: { readonly onSe
 
   const refreshStatus = useCallback(async () => {
     try {
-      setStatus(await readDiscussionStatus(undefined, request));
+      setStatus(await readDiscussionStatus());
     } catch (cause) {
       setError(errorMessage(cause));
     }
-  }, [request]);
+  }, []);
 
   // Follows the current turn from the discussion cursor until it settles, and
   // resolves to the number of events it received. A queued message starts its
@@ -127,7 +126,6 @@ export function useHostDiscussion({ onSettled, request = null }: { readonly onSe
 
         for await (const event of readDiscussionEvents(eventsRef.current.length, {
           follow: true,
-          request,
           signal: controller.signal,
         })) {
           append(event);
@@ -139,7 +137,7 @@ export function useHostDiscussion({ onSettled, request = null }: { readonly onSe
           }
         }
 
-        const next = await readDiscussionStatus(controller.signal, request);
+        const next = await readDiscussionStatus(controller.signal);
         setStatus(next);
         if (received === 0 || next.state !== "active" || next.pendingInputs === 0) break;
       }
@@ -158,7 +156,7 @@ export function useHostDiscussion({ onSettled, request = null }: { readonly onSe
     }
 
     return total;
-  }, [append, refreshStatus, request]);
+  }, [append, refreshStatus]);
 
   useEffect(() => {
     const controller = new AbortController();
@@ -168,9 +166,9 @@ export function useHostDiscussion({ onSettled, request = null }: { readonly onSe
 
     void (async () => {
       try {
-        setStatus(await readDiscussionStatus(controller.signal, request));
+        setStatus(await readDiscussionStatus(controller.signal));
         const history: DiscussionEvent[] = [];
-        for await (const event of readDiscussionEvents(0, { follow: false, request, signal: controller.signal })) {
+        for await (const event of readDiscussionEvents(0, { follow: false, signal: controller.signal })) {
           history.push(event);
         }
         eventsRef.current = history;
@@ -189,7 +187,7 @@ export function useHostDiscussion({ onSettled, request = null }: { readonly onSe
       controller.abort();
       abortRef.current?.abort();
     };
-  }, [follow, request]);
+  }, [follow]);
 
   const send = useCallback(
     async (text: string) => {
@@ -206,7 +204,7 @@ export function useHostDiscussion({ onSettled, request = null }: { readonly onSe
       const following = status?.state === "active" && status.generation !== null ? follow() : null;
 
       try {
-        const outcome = await postMessage(retry.id, text, request);
+        const outcome = await postMessage(retry.id, text);
         retryRef.current = null;
 
         if (outcome.status === "sent" || outcome.status === "queued") {
@@ -228,7 +226,7 @@ export function useHostDiscussion({ onSettled, request = null }: { readonly onSe
         setPhase("ready");
       }
     },
-    [follow, refreshStatus, request, status],
+    [follow, refreshStatus, status],
   );
 
   const recover = useCallback(async () => {
@@ -238,7 +236,7 @@ export function useHostDiscussion({ onSettled, request = null }: { readonly onSe
     setPhase("recovering");
 
     try {
-      const outcome = await postRecovery(status.generation, request);
+      const outcome = await postRecovery(status.generation);
 
       if (outcome.status === "unavailable") {
         setError("Thyme can't be restarted right now. Your messages are kept; try again shortly.");
@@ -256,7 +254,7 @@ export function useHostDiscussion({ onSettled, request = null }: { readonly onSe
     }
 
     setPhase("ready");
-  }, [follow, refreshStatus, request, status?.generation]);
+  }, [follow, refreshStatus, status?.generation]);
 
   const projected = useMemo(() => project(events), [events]);
   const turnFailed = useMemo(() => lastTurnFailed(events), [events]);

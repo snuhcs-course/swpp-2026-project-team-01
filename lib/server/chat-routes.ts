@@ -71,18 +71,22 @@ export function chatError(error: unknown) {
   throw error;
 }
 
-const messageBody = z.object({ clientInputId: z.uuid(), message: z.string(), request: z.uuid().optional() });
+// These routes serve only the host's setup discussion. A request is discussed in
+// the host's linked messenger, never on the web (remove-host-web-chat), so a
+// route that names a request is refused rather than answered from setup.
+const messageBody = z.object({ clientInputId: z.uuid(), message: z.string() });
 
-// The host's request discussion a route names with `request`, or null for setup
-// (host-review-and-booking design 2). A malformed value is refused.
-function requestScope(url: URL): { readonly ok: true; readonly requestId: string | null } | { readonly ok: false } {
-  const value = url.searchParams.get("request");
-  if (value === null) return { ok: true, requestId: null };
-  return z.uuid().safeParse(value).success ? { ok: true, requestId: value } : { ok: false };
+export const REQUEST_SCOPE_REFUSAL = {
+  code: "request_scope_unsupported",
+  error: "Requests are discussed in your linked messenger, not on the web.",
+} as const;
+
+function namesRequest(body: unknown) {
+  return typeof body === "object" && body !== null && "request" in body;
 }
 
-function badScope() {
-  return json({ code: "request_unavailable", error: "This request is not available." }, 404);
+function requestScopeRefused() {
+  return json(REQUEST_SCOPE_REFUSAL, 400);
 }
 
 // POST /api/chat/messages
@@ -99,15 +103,18 @@ export function createMessageHandler(load: () => ChatRouteDependencies = chatDep
       return json({ code: "authentication_required", error: "Sign in to continue." }, 401);
     }
 
-    const body = messageBody.safeParse(await request.json().catch(() => null));
+    const raw = await request.json().catch(() => null);
+
+    if (namesRequest(raw)) return requestScopeRefused();
+
+    const body = messageBody.safeParse(raw);
 
     if (!body.success) {
       return json({ code: "invalid_message", error: "Send a message with its client input ID." }, 400);
     }
 
     try {
-      const { request: requestId, ...input } = body.data;
-      const outcome = await acceptHostMessage(deps, userId, input, requestId ?? null);
+      const outcome = await acceptHostMessage(deps, userId, body.data);
       return json(outcome, outcome.status === "recovery_required" ? 409 : 202);
     } catch (error) {
       return chatError(error);
@@ -127,11 +134,10 @@ export function createStateHandler(load: () => ChatRouteDependencies = chatDepen
 
     if (!userId) return unauthenticated();
 
-    const scope = requestScope(new URL(request.url));
-    if (!scope.ok) return badScope();
+    if (new URL(request.url).searchParams.has("request")) return requestScopeRefused();
 
     try {
-      return json(await conversationStatus(deps.db, userId, scope.requestId));
+      return json(await conversationStatus(deps.db, userId));
     } catch (error) {
       return chatError(error);
     }
@@ -150,9 +156,8 @@ export function createEventsHandler(load: () => ChatRouteDependencies = chatDepe
 
     const url = new URL(request.url);
     const cursor = Number(url.searchParams.get("cursor") ?? "0");
-    const scope = requestScope(url);
 
-    if (!scope.ok) return badScope();
+    if (url.searchParams.has("request")) return requestScopeRefused();
 
     if (!Number.isInteger(cursor) || cursor < 0) {
       return json({ code: "invalid_cursor", error: "The cursor is not valid." }, 400);
@@ -161,7 +166,6 @@ export function createEventsHandler(load: () => ChatRouteDependencies = chatDepe
     const events = discussionEvents(deps, userId, request.headers.get("cookie") ?? "", cursor, {
       follow: url.searchParams.get("follow") === "1",
       idleMs: deps.followIdleMs,
-      requestId: scope.requestId,
       signal: request.signal,
     });
     let first: IteratorResult<unknown>;
@@ -221,7 +225,7 @@ export function ndjsonResponse(
   });
 }
 
-const recoverBody = z.object({ observedGeneration: z.number().int().positive(), request: z.uuid().optional() });
+const recoverBody = z.object({ observedGeneration: z.number().int().positive() });
 
 // POST /api/chat/recover: explicit terminal recovery of the observed generation.
 export function createRecoverHandler(load: () => ChatRouteDependencies = chatDependenciesFromEnvironment) {
@@ -235,16 +239,18 @@ export function createRecoverHandler(load: () => ChatRouteDependencies = chatDep
 
     if (!userId) return unauthenticated();
 
-    const body = recoverBody.safeParse(await request.json().catch(() => null));
+    const raw = await request.json().catch(() => null);
+
+    if (namesRequest(raw)) return requestScopeRefused();
+
+    const body = recoverBody.safeParse(raw);
 
     if (!body.success) {
       return json({ code: "invalid_request", error: "Name the generation to recover." }, 400);
     }
 
     try {
-      const outcome = await recoverDiscussion(deps, userId, request.headers.get("cookie") ?? "", body.data.observedGeneration, {
-        requestId: body.data.request ?? null,
-      });
+      const outcome = await recoverDiscussion(deps, userId, request.headers.get("cookie") ?? "", body.data.observedGeneration);
       const status = { not_failed: 409, recovered: 200, stale: 409, unavailable: 503 }[outcome.status];
       return json(outcome, status);
     } catch (error) {

@@ -168,7 +168,7 @@ findmeatime.com/?flow=imessage (Telegram은 ?flow=telegram)
 - 호스트에게 가는 서비스 메시지(캡션·요약·알림)는 호스트가 마지막으로 쓴 메시지의 언어를 따릅니다(channel-language.ts:26). 한국어로 답한 뒤에는 한국어로 나갑니다. 표의 문구는 영어판입니다.
 - 새 요청이 들어온 순간의 메신저 알림은 더 이상 보내지 않습니다(#122, 코드 주석 "No longer queued"). 호스트의 첫 메시지는 게스트가 시간에 동의한 뒤의 "Ready for your approval." 요약입니다.
 - 호스트가 게스트에게 자유 질문을 보내는 도구가 없습니다. 호스트가 바꿀 수 있는 것은 공유 세부(시간·길이·방식·장소·링크) 제안뿐입니다.
-- 호스트 웹에서는 요청을 승인·거절하고 자세한 내용을 보는 것만 합니다. 그 밖의 것(세부 변경, 주간 한도 예외, 이동 시간 입력, 질문)은 모두 메신저에서 합니다. 지금 코드에는 호스트 웹 채팅(Private messages), Request changes 카드, 규칙 카드가 남아 있어 해당 행을 코드와 다름으로 표시했습니다. 메신저에는 아직 allow_host_trip과 waive_weekly_limit이 없습니다(M-8.1, M-8.3).
+- 결정(2026-11-23, [#326](https://github.com/snuhcs-course/swpp-2026-project-team-01/issues/326)): 호스트 웹에는 Thyme과의 채팅이 없습니다. 요청에 대한 질문은 메신저에서 합니다. 웹은 Approve, Decline, Request changes, 규칙 카드(주간 한도 예외, 이동 시간 입력), Cancel / Change meeting(M01 W-H1)을 유지하며, [`remove-host-web-chat` 변경](../../openspec/changes/archive/2026-11-23-remove-host-web-chat/proposal.md)으로 `/api/chat` 경로가 요청을 거절합니다. 호스트가 웹에서 할 수 있는 일은 메신저에서도 할 수 있어야 합니다: 메신저에는 아직 allow_host_trip과 waive_weekly_limit이 없습니다(M-8.1, M-8.3; #327).
 
 ### Web · 요청 검토
 
@@ -177,13 +177,13 @@ findmeatime.com/?flow=imessage (Telegram은 ?flow=telegram)
 | Step | 전제 (Given) | 사용자 동작 (When) | 화면 · 메시지 (Then) | 분기 · 판정 · 코드 상태 | 근거 코드 |
 |---|---|---|---|---|---|
 | W-1 | 셋업 완료, 요청이 있음 | Open menu → Requests (결정이 필요한 요청이 있는 동안 메뉴 버튼과 Requests에 빨간 개수 표시) | "Every meeting request you sent or received, in one place." 필터(Filter requests)와 목록. 각 요청에 상태: Needs your decision · Waiting for your approval · Choosing a time · Gathering details · Booking in progress · Declined · Withdrawn · Cancelled | **분기**: 요청 없음 → "No requests in this view yet."<br>**실패**: 요청을 열 수 없음 → "That request is not available." | _components/host/host-requests.tsx |
-| W-2 | 요청 목록 | 요청 하나 열기 | 결정 카드: 게스트가 동의했으면 "Approve this meeting?", 아니면 "Waiting for the requester" + "The requester has not agreed to this version yet."<br><br>When · Length · Mode · Place 또는 Meeting link · With {이름 <이메일>} (확인 안 된 주소면 "(address not confirmed)") · Purpose<br><br>승인·거절과 세부만 있음. 그 아래 한 줄: "To change anything or ask about this request, message Thyme in {messenger}." | **하면 안 됨**: 게스트와의 대화 내용이 보이기<br>**하면 안 됨**: 아무 버튼도 미리 선택된 상태<br>**하면 안 됨**: 호스트 웹에 대화창, 수정 폼, 규칙 카드<br>**코드와 다름**: 카드 아래에 "Your rules for this request"와 Private messages(호스트 웹 채팅)가 있음 | host-request-cards.tsx (DecisionCard) · host-requests.tsx:383 |
+| W-2 | 요청 목록 | 요청 하나 열기 | 결정 카드: 게스트가 동의했으면 "Approve this meeting?", 아니면 "Waiting for the requester" + "The requester has not agreed to this version yet."<br><br>When · Length · Mode · Place 또는 Meeting link · With {이름 <이메일>} (확인 안 된 주소면 "(address not confirmed)") · Purpose<br><br>세부와 함께 Approve, Request changes, Decline. 주간 한도 보류나 해결되지 않은 이동이 있는 동안에는 그 자리에 규칙 카드가 보임(W-6) | **하면 안 됨**: 게스트와의 대화 내용이 보이기<br>**하면 안 됨**: 아무 버튼도 미리 선택된 상태<br>**하면 안 됨**: 호스트 웹에 대화창이나 Private messages(#326)<br>**성공**: 요청에 대한 질문은 메신저로 감(M-6) | host-request-cards.tsx (ProposalReviewCard) · host-requests.tsx (OpenCard) |
 | W-3 | 게스트가 현재 버전에 동의함 | Approve this proposal | request.approve(version) → 예약 카드 "Booking in progress" → Google Calendar에 이벤트가 생기면 "Booked" | **성공**: 현재 버전 하나만 승인, 캘린더 이벤트 1건<br>**실패**: 다른 곳에서 먼저 바뀜 → "This request changed since you last saw it. Check it and try again."<br>**실패**: 새 버전이 대체함 → "A newer proposal replaced this one. The current one is shown."<br>**실패**: 승인 직전 시간이 막힘 → "The time no longer fits your calendar, so nothing was booked. The requester can choose another time."<br>**실패**: 캘린더 확인 불가 → "Your calendar could not be checked just before booking, so nothing was booked. Retry when ready."<br>**실패**: Google이 거부 → "Google Calendar refused the event. Check your booking calendar, then retry."<br>**하면 안 됨**: 게스트가 동의하지 않은 버전에서 승인 버튼이 눌림 (비활성) | host-request-cards.tsx (DecisionCard, BookingCard) |
 | ↳ W-3.1 | 벗어난 입력. 승인 후 응답이 늦음 | Check booking status | 이미 생긴 이벤트를 찾으면 Booked로 표시, 두 번째 이벤트는 만들지 않음 | **성공**: 이벤트 1건 유지<br>**분기**: 지연 중 → 메신저에 "The booking for request {ref} ({시간}) is taking longer than usual to confirm. …" | host-request-cards.tsx · booking.check |
 | ↳ W-3.2 | 벗어난 입력. 같은 요청을 웹과 메신저에서 거의 동시에 승인 | 두 곳에서 승인 | 승인 1건만 기록, 캘린더 이벤트 1건 | **성공**: 중복 예약 없음<br>**하면 안 됨**: 이벤트 2건 | commands.ts (retryKey, expectedRevision) |
 | W-4 | 결정 카드 | Decline → "Decline this request? {이름} is told by email, and the request closes." → Decline request | 요청이 닫히고 게스트에게 이메일 | **분기**: Keep it → 아무것도 안 바뀜<br>**분기**: 더 이상 안 되는 다른 날짜를 최대 14개 추가 → 게스트의 다음 요청은 그 날들에 아무 시간도 제안하지 않고 이유도 밝히지 않음 ([#58](../../../openspec/changes/decline-with-unavailable-dates/proposal.md))<br>**성공**: 닫힌 뒤 늦은 답장으로 예약되지 않음 | host-request-cards.tsx (Confirm decline) |
-| ↳ W-5 | 벗어난 입력. 결정 카드 | 시간·장소·길이를 바꿀 방법을 찾음 | 웹에는 수정 기능이 없음. 카드 아래 한 줄이 메신저로 안내하고, 변경은 메신저에서 함(M-4, M-5) | **하면 안 됨**: 웹에서 세부 변경<br>**코드와 다름**: 웹에 Request changes 카드("What should change?")와 Share revised details가 있음 | host-request-cards.tsx (RequestChangesCard, SuggestionCard) |
-| W-6 | 가능한 시간이 모두 주간 한도가 찬 주에 있음, 또는 이동 시간을 호스트가 정해야 함 | 요청 열기 | 요청이 상태를 말로 보여줌("Every time falls in a week at your limit of {N}." / "A trip needs your estimate.")과 함께 메신저로 안내하고, 결정은 메신저에서 함(M-8~M-8.3) | **하면 안 됨**: 웹에서 한도 예외나 이동 시간 설정<br>**코드와 다름**: 웹 규칙 카드에 Allow this request beyond my weekly limit과 이동 시간 입력이 있음 | host-request-cards.tsx (RuleReviewCard) |
+| ↳ W-5 | 벗어난 입력. 결정 카드 | Request changes | 제안 편집기가 열림; 호스트가 시간·장소·길이를 작성한 뒤 Share revised details 또는 Dismiss suggestions. 메신저에서는 같은 일을 말로 함(M-4, M-5) | **하면 안 됨**: Share revised details 전에 게스트에게 닿기<br>**성공**: 공유됨 → 시간 재확인 → 게스트의 동의를 받을 새 버전 | host-request-cards.tsx (SuggestionEditor, SuggestionCard) |
+| W-6 | 가능한 시간이 모두 주간 한도가 찬 주에 있음, 또는 이동 시간을 호스트가 정해야 함 | 요청 열기 | 규칙 카드("Every time falls in a full week" / "Some trips need your estimate")가 보류 이유를 설명하고 Allow this request beyond my weekly limit을 제공하며, 추정이 필요한 이동마다 이동 시간 입력란을 제공함 | **성공**: 예외나 추정을 하면 이 요청에 한해 시간을 다시 찾음<br>**하면 안 됨**: 이 카드에서 주간 한도 자체를 바꾸기<br>**코드 미지원**: 메신저는 아직 한도 예외나 추정을 할 수 없음(M-8.1, M-8.3; #327) | host-request-cards.tsx (RuleTravelCard) |
 
 ### Message · 알림과 자연어 결정
 
@@ -458,7 +458,7 @@ G01 W-10.2~10.3에서 연결한 메신저
 - 취소·변경은 미팅 시작 전까지만 됩니다. 변경 협상에는 요청 기본 기간(7일)이 주어지지만 미팅 시작 시각을 넘지 않습니다(booking-cancellation.ts).
 - 변경 중에도 확정 예약은 그대로이고, 철회·거절·만료되면 원래대로 남습니다. 승인되면 같은 캘린더 이벤트를 수정합니다.
 - 게스트 웹에는 취소·변경 버튼이 없습니다. 예약 페이지 대화로만 할 수 있습니다.
-- 호스트 웹은 확정된 미팅의 세부만 보여줍니다. 취소와 변경은 메신저(M-1, M-2)나 에이전트(P-1, P-2)에서 합니다.
+- 호스트 웹은 예약 카드에서 Cancel meeting과 Change meeting을 유지합니다(#326). 호스트는 메신저(M-1, M-2)나 에이전트(P-1, P-2)에서도 같은 일을 할 수 있습니다.
 
 ### Web · 호스트
 
@@ -466,7 +466,7 @@ G01 W-10.2~10.3에서 연결한 메신저
 
 | Step | 전제 (Given) | 사용자 동작 (When) | 화면 · 메시지 (Then) | 분기 · 판정 · 코드 상태 | 근거 코드 |
 |---|---|---|---|---|---|
-| W-H1 | 예약 확정, 미팅 시작 전 | 요청 열기 | 미팅 세부(When · Length · Mode · Place 또는 Meeting link · With)와 한 줄: "To cancel or move it, message Thyme in {messenger}." | **하면 안 됨**: 호스트 웹에 취소·변경 버튼<br>**코드와 다름**: 예약 카드에 Cancel meeting과 Change meeting이 있음 | host/host-request-cards.tsx (BookingCard) |
+| W-H1 | 예약 확정, 미팅 시작 전 | 요청 열기 | 미팅 세부(When · Length · Mode · Place 또는 Meeting link · With)와 함께 Cancel meeting, Change meeting | **성공**: Cancel meeting → 확인 → 게스트에게 알리고 일정이 삭제됨<br>**성공**: Change meeting → 게스트가 새 버전에 동의하고 호스트가 승인할 때까지 미팅은 예약된 상태로 유지됨<br>**하면 안 됨**: 호스트 웹에 대화창(#326) | host/host-request-cards.tsx (BookingCard) |
 
 ### Web · 게스트
 

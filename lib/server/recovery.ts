@@ -52,10 +52,9 @@ export type ConversationStatus = {
 export async function conversationStatus(
   db: Database,
   authUserId: string,
-  requestId: string | null = null,
 ): Promise<ConversationStatus> {
   const hostAccountId = await eligibleHost(db, authUserId);
-  const discussionId = await findHostDiscussion(db, hostAccountId, requestId);
+  const discussionId = await findHostDiscussion(db, hostAccountId);
   const latest = discussionId ? await latestSession(db, discussionId) : null;
 
   if (!discussionId || !latest) {
@@ -137,18 +136,17 @@ async function redeliveryFilter(db: Database, discussionId: string) {
   };
 }
 
-// Events of the host's discussion (setup, or its review of `requestId`) from
-// `cursor`. With `follow`, the current generation is followed to the end of its
-// current turn.
+// Events of the host's setup discussion from `cursor`. With `follow`, the
+// current generation is followed to the end of its current turn.
 export async function* discussionEvents(
   deps: Pick<ConversationDependencies, "db" | "runtime">,
   authUserId: string,
   cookie: string,
   cursor: number,
-  options: { readonly follow: boolean; readonly signal?: AbortSignal; readonly idleMs?: number; readonly requestId?: string | null },
+  options: { readonly follow: boolean; readonly signal?: AbortSignal; readonly idleMs?: number },
 ): AsyncGenerator<DiscussionEvent> {
   const hostAccountId = await eligibleHost(deps.db, authUserId);
-  const discussionId = await findHostDiscussion(deps.db, hostAccountId, options.requestId ?? null);
+  const discussionId = await findHostDiscussion(deps.db, hostAccountId);
 
   if (!discussionId) return;
 
@@ -332,11 +330,10 @@ export async function recoverDiscussion(
   authUserId: string,
   cookie: string,
   observedGeneration: number,
-  options: { readonly inspectTimeoutMs?: number; readonly requestId?: string | null } = {},
+  options: { readonly inspectTimeoutMs?: number } = {},
 ): Promise<RecoveryOutcome> {
   const hostAccountId = await eligibleHost(deps.db, authUserId);
-  const requestId = options.requestId ?? null;
-  const discussionId = await findHostDiscussion(deps.db, hostAccountId, requestId);
+  const discussionId = await findHostDiscussion(deps.db, hostAccountId);
   const observed = discussionId ? await latestSession(deps.db, discussionId) : null;
   const early = settled(observed, observedGeneration);
 
@@ -384,7 +381,7 @@ export async function recoverDiscussion(
   // One transition wins: authority, the discussion and its current generation are
   // rechecked under their locks after the asynchronous reads above.
   const transition = await withEligibleHost(deps.db, authUserId, async (tx, lockedHostId): Promise<Settled> => {
-    await lockHostDiscussion(tx, lockedHostId, requestId);
+    await lockHostDiscussion(tx, lockedHostId);
     const latest = await latestSession(tx, discussionId!);
     const decided = settled(latest, observedGeneration);
 

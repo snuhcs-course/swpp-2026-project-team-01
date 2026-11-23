@@ -1,7 +1,7 @@
 import { randomUUID } from "node:crypto";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { type ChatRouteDependencies, createEventsHandler, createMessageHandler, createStateHandler } from "../../lib/server/chat-routes";
-import { eveRuntime } from "../../lib/server/conversations";
+import { acceptHostMessage, eveRuntime, HostRequestNotFoundError } from "../../lib/server/conversations";
 import {
   authorizeHostReviewTool,
   HostReviewToolDeniedError,
@@ -17,9 +17,10 @@ import { createTestRequest } from "./support/requests";
 
 // The host's private review discussion of one request (task 3.1 and 3.2; design
 // 2 and 12) against a real `eve dev` agent whose model is a local Responses API
-// stand-in: the message route's `request` scope, one discussion per host and
-// request, the host-review tool set and no other, the fence, and the setup
-// discussion left as it was.
+// stand-in: one discussion per host and request, opened as a linked messenger
+// opens it, the host-review tool set and no other, the fence, and the setup
+// discussion left as it was. The web chat routes name no request
+// (remove-host-web-chat), so a browser cannot open or read this discussion.
 
 const isApplicationTool = (name: string) => !name.includes("__");
 const HOST_REVIEW_TOOLS = ["approve_proposal", "cancel_booking", "change_booking", "decline_request", "dismiss_changes", "evaluate_candidates", "finish_sample_tutorial", "list_host_requests", "propose_shared_changes", "read_booking_status", "read_request", "share_changes", "switch_conversation"];
@@ -42,6 +43,7 @@ afterAll(async () => {
   await db.end();
 });
 
+// The host's setup discussion, through the web route.
 function message(cookie: string, text: string, request?: string) {
   return createMessageHandler(() => deps)(
     new Request("http://localhost:3000/api/chat/messages", {
@@ -50,6 +52,11 @@ function message(cookie: string, text: string, request?: string) {
       method: "POST",
     }),
   );
+}
+
+// A request discussion, as a linked messenger's receipt delivers a host message.
+function review(userId: string, text: string, requestId: string) {
+  return acceptHostMessage(deps, userId, { clientInputId: randomUUID(), message: text }, requestId);
 }
 
 async function discussionOf(hostAccountId: string, requestId: string | null) {
@@ -87,21 +94,16 @@ describe("the host review discussion", () => {
     const host = await signInHost(db);
     const request = await createTestRequest(db, { hostAccountId: host.hostAccountId });
 
-    const sent = await message(host.cookie, "Approve it and book it.", request.requestId);
-    expect(sent.status).toBe(202);
+    await review(host.userId, "What does this request say?", request.requestId);
 
-    const review = await discussionOf(host.hostAccountId, request.requestId);
-    expect(review).toMatchObject({ audience: "host_review" });
-    await settled(review!.id);
+    const discussion = await discussionOf(host.hostAccountId, request.requestId);
+    expect(discussion).toMatchObject({ audience: "host_review" });
+    await settled(discussion!.id);
 
-    expect(toolNames(review!.session_id!)).toEqual(HOST_REVIEW_TOOLS);
-    // "approve it" typed on the web is only text: approve_proposal refuses a web
-    // message (D23), so nothing is approved or booked.
-    const [approvals] = await db<{ count: number }[]>`select count(*)::int as count from app.approvals where request_id = ${request.requestId}`;
-    expect(approvals!.count).toBe(0);
+    expect(toolNames(discussion!.session_id!)).toEqual(HOST_REVIEW_TOOLS);
 
     // A second message goes to the same discussion.
-    await message(host.cookie, "What times work?", request.requestId);
+    await review(host.userId, "What times work?", request.requestId);
     const [count] = await db<{ count: number }[]>`
       select count(*)::int as count from app.discussions where principal_id = ${host.hostAccountId} and audience = 'host_review'
     `;
@@ -116,41 +118,46 @@ describe("the host review discussion", () => {
     expect(toolNames(setupDiscussion!.session_id!)).not.toContain("read_request");
   });
 
-  it("answers another host's request, a draft and a malformed scope like an unknown one", async () => {
+  it("answers another host's request, a draft and an unknown one alike, and opens none from the web", async () => {
     const [host, other] = await Promise.all([signInHost(db), signInHost(db)]);
+    const own = await createTestRequest(db, { hostAccountId: host.hostAccountId });
     const foreign = await createTestRequest(db, { hostAccountId: other.hostAccountId });
     const draft = await createTestRequest(db, { hostAccountId: host.hostAccountId });
     await db`update app.requests set state = 'draft', requester_name = null, contact_email = null where id = ${draft.requestId}`;
 
     for (const id of [foreign.requestId, draft.requestId, randomUUID()]) {
-      const response = await message(host.cookie, "Hi", id);
-      expect(response.status).toBe(404);
-      expect(await response.json()).toMatchObject({ code: "request_unavailable" });
+      await expect(review(host.userId, "Hi", id)).rejects.toBeInstanceOf(HostRequestNotFoundError);
     }
 
+    // The web routes refuse a request scope, even for the host's own request.
+    const sent = await message(host.cookie, "Approve it and book it.", own.requestId);
+    expect(sent.status).toBe(400);
+    expect(await sent.json()).toMatchObject({ code: "request_scope_unsupported" });
     const state = await createStateHandler(() => deps)(
-      new Request("http://localhost:3000/api/chat/state?request=not-a-uuid", { headers: { cookie: host.cookie } }),
+      new Request(`http://localhost:3000/api/chat/state?request=${own.requestId}`, { headers: { cookie: host.cookie } }),
     );
-    expect(state.status).toBe(404);
+    expect(state.status).toBe(400);
     const events = await createEventsHandler(() => deps)(
-      new Request(`http://localhost:3000/api/chat/events?request=${foreign.requestId}`, { headers: { cookie: host.cookie } }),
+      new Request(`http://localhost:3000/api/chat/events?request=${own.requestId}`, { headers: { cookie: host.cookie } }),
     );
-    expect(events.status).toBe(404);
-    expect(await discussionOf(host.hostAccountId, foreign.requestId)).toBeNull();
+    expect(events.status).toBe(400);
+    for (const id of [own.requestId, foreign.requestId]) expect(await discussionOf(host.hostAccountId, id)).toBeNull();
+    // Nothing reached the setup discussion either.
+    expect(await discussionOf(host.hostAccountId, null)).toBeNull();
   });
 
   it("fences the tools to the session's own request and live generation", async () => {
     const host = await signInHost(db);
     const request = await createTestRequest(db, { hostAccountId: host.hostAccountId });
-    await message(host.cookie, "Hello", request.requestId);
-    const review = await discussionOf(host.hostAccountId, request.requestId);
-    await settled(review!.id);
+    await review(host.userId, "Hello", request.requestId);
+    const discussion = await discussionOf(host.hostAccountId, request.requestId);
+    await settled(discussion!.id);
     const auth = {
-      attributes: { audience: "host_review", discussionId: review!.id, generation: "1", requestId: request.requestId },
+      attributes: { audience: "host_review", discussionId: discussion!.id, generation: "1", requestId: request.requestId },
       principalId: host.hostAccountId,
       principalType: "user",
     };
-    const call = { auth, callId: randomUUID(), sessionId: review!.session_id! };
+    const call = { auth, callId: randomUUID(), sessionId: discussion!.session_id! };
 
     await expect(authorizeHostReviewTool(db, call)).resolves.toMatchObject({ requestId: request.requestId });
 
@@ -175,7 +182,7 @@ describe("the host review discussion", () => {
     `;
     expect(suggestion).toEqual({ source: "assistant", state: "pending" });
 
-    await db`update app.agent_sessions set state = 'retired' where session_id = ${review!.session_id}`;
+    await db`update app.agent_sessions set state = 'retired' where session_id = ${discussion!.session_id}`;
     await expect(authorizeHostReviewTool(db, call)).rejects.toBeInstanceOf(HostReviewToolDeniedError);
   });
 });
