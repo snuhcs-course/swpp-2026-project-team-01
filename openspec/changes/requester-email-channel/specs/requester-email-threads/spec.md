@@ -34,7 +34,7 @@ A link code SHALL bind a thread only when it arrives in the first message of a n
 - **THEN** the thread is bound, the code is consumed, the thread receives a fixed confirmation and the model never sees the message
 
 ### Requirement: Replies in the same thread
-Each forwarded message SHALL receive one reply in its thread after the turn that served it ends, containing that turn's final assistant text, or a fixed fallback when the turn produced none. Replies SHALL carry no booking link, linking code or host-private value.
+Each forwarded message SHALL receive one reply in its thread after the turn that served it ends, containing that turn's final assistant text without any leading channel marker such as `[Email]` (#410), or a fixed fallback when the turn produced none. Replies SHALL carry no booking link, linking code or host-private value.
 
 #### Scenario: Turn ends
 - **WHEN** the assistant finishes the turn for a forwarded message

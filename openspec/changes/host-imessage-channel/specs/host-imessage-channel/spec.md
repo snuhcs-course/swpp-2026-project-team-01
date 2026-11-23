@@ -16,19 +16,19 @@ The iMessage receiver SHALL accept a delivery only from the configured Photon we
 - **THEN** it is refused and the stored receipt is unchanged
 
 ### Requirement: Linking by a host-sent code
-An authenticated active host SHALL be able to create a one-time link code that the service shows with its iMessage line number and the exact message to send. **Connect iMessage** SHALL create the code and then open the Messages app addressed to the line with that message in the input where the platform supports it (`sms:<number>&body=<text>` on iOS and iPadOS, `sms:<number>?body=<text>` on Android); elsewhere it SHALL show the number, the code, a copy action and a QR code that opens the same deep link on a phone. Opening Messages SHALL NOT change linking state. A message carrying a pending, unexpired code from a direct conversation SHALL only record the sender for confirmation and receive a reply in that conversation; the sender SHALL be bound to the host only after the host confirms the sender in the authenticated browser within the confirmation window. A linking message SHALL never reach the model or the transcript.
+An authenticated active host SHALL be able to create a one-time link code that the service shows with its iMessage line number and the exact message to send. **Connect iMessage** SHALL create the code and then open the Messages app addressed to the line with that message in the input where the platform supports it (`sms:<number>&body=<text>` on iOS and iPadOS, `sms:<number>?body=<text>` on Android); elsewhere it SHALL show the number, the code, a copy action and a QR code that opens the same deep link on a phone. Opening Messages SHALL NOT change linking state. A message carrying a pending, unexpired code from a direct conversation SHALL bind its sender to the host as soon as it arrives and receive the linked reply in that conversation, with no confirmation in the browser; the page that showed the code SHALL show **Linked** with the sender's last four digits or Apple ID and **Not my number — unlink** (`link-on-code` D1, D2). A code SHALL be single-use. A linking message SHALL never reach the model or the transcript.
 
 #### Scenario: Link by code
-- **WHEN** the host taps **Connect iMessage**, sends the prefilled message and confirms the sender
-- **THEN** that sender is bound to the host and the line's first message to the host is a reply in the conversation the host started
+- **WHEN** the host taps **Connect iMessage** and sends the prefilled message
+- **THEN** that sender is bound to the host, the line's first message to the host is a reply in the conversation the host started, and the page moves to **Linked** by itself
 
 #### Scenario: Desktop without Messages
 - **WHEN** the host taps **Connect iMessage** on a desktop browser
 - **THEN** no navigation happens and the card shows the number, the code, **Copy** and a QR code of the deep link
 
-#### Scenario: Code arrives but is not confirmed
-- **WHEN** the code's message arrives and the host never confirms in the browser
-- **THEN** no binding exists and the sender has no host authority
+#### Scenario: Wrong number unlinked
+- **WHEN** the page shows a sender that is not the host's and the host presses **Not my number — unlink**
+- **THEN** the binding ends, the sender has no host authority, and the host can make a new code
 
 #### Scenario: Wrong, expired or replayed code
 - **WHEN** a code that is unknown, expired, already used or sent from a group conversation arrives
@@ -42,18 +42,18 @@ An authenticated active host SHALL be able to create a one-time link code that t
 Right after Google sign-in, before the conversation, `/app` SHALL show the link step to an active host with an open link attempt, or with no binding who is not ready and has not chosen to set up in web chat in that browser. The step SHALL open with a link code already made, show the message, the line and how long the code works, open Messages from a tap on a phone, and on a computer show a QR code of the deep link, **Copy**, and on a Mac **Open Messages**. A code that ran out SHALL be replaced only when the host asks. Choosing **Set up here in web chat** SHALL open the conversation and be remembered in that browser.
 
 #### Scenario: Link right after sign-in
-- **WHEN** a new host signs in, sends the shown message from their iMessage and confirms the sender
-- **THEN** the sender is bound and the host continues to the conversation
+- **WHEN** a new host signs in and sends the shown message from their iMessage
+- **THEN** the sender is bound, the step shows **Linked**, and setup continues in iMessage or the conversation
 
 #### Scenario: Skip to the web chat
 - **WHEN** the host chooses **Set up here in web chat**
 - **THEN** the conversation opens, nothing is bound, and the step does not open again in that browser
 
 ### Requirement: iMessage start before sign-in
-The landing's iMessage start SHALL create a link attempt owned only by the browser that started it, through an HttpOnly cookie whose secret the service stores only as a keyed hash; starts SHALL be bounded per source address and across the service. The attempt SHALL record an arriving sender like any attempt and SHALL bind nothing. Google sign-in in the same browser SHALL give the attempt to the signed-in active host, and the binding SHALL follow only that host's confirmation of the sender in `/app`. Thyme's reply to the arriving code SHALL carry a sign-in link bound to the attempt and the sender, usable in any browser only while the attempt awaits confirmation; Google sign-in from it SHALL give the attempt to that host unless another host holds it, and SHALL NOT bind anything by itself.
+The landing's iMessage start SHALL create a link attempt owned only by the browser that started it, through an HttpOnly cookie whose secret the service stores only as a keyed hash; starts SHALL be bounded per source address and across the service. The attempt SHALL record an arriving sender and SHALL bind nothing before sign-in, since it has no host. Google sign-in in the same browser SHALL give the attempt to the signed-in active host and bind the recorded sender to that host with no further step. Thyme's reply to the arriving code SHALL carry a sign-in link bound to the attempt and the sender, usable in any browser only while the attempt awaits sign-in; Google sign-in from it SHALL give the attempt to that host and bind the sender unless another host holds it. A start whose code has not arrived yet SHALL become the host's pending attempt and bind on arrival (`link-on-code` D5).
 
-#### Scenario: Start, sign in, confirm
-- **WHEN** a visitor starts from iMessage, sends the message, signs in with Google and confirms the sender
+#### Scenario: Start, then sign in
+- **WHEN** a visitor starts from iMessage, sends the message and signs in with Google
 - **THEN** the sender is bound to that host
 
 #### Scenario: Another browser
@@ -61,7 +61,7 @@ The landing's iMessage start SHALL create a link attempt owned only by the brows
 - **THEN** it sees and claims nothing of the first browser's attempt
 
 #### Scenario: Sign in from Thyme's reply
-- **WHEN** the sender opens the sign-in link from Thyme's reply, signs in with Google and confirms the sender
+- **WHEN** the sender opens the sign-in link from Thyme's reply and signs in with Google
 - **THEN** the sender is bound to that host, and the link no longer works
 - **AND** a tampered, expired, cancelled or used link, or one another host holds, claims nothing and leads back to the iMessage start
 
@@ -151,14 +151,18 @@ In the linked iMessage or WhatsApp conversation, the assistant SHALL be able to 
 - **THEN** nothing is switched and the assistant asks which one, naming each
 
 ### Requirement: Shared discussions and replies
-A linked host's free text SHALL become an accepted input of the discussion the host selected (setup by default, or the private review discussion of a selected request), marked as coming from iMessage, under the same redaction, admission, session index and model limits as web input; a retried receipt SHALL resolve to the same input. When that input's turn ends, the assistant's final text SHALL be sent to the linked conversation, and a turn that fails or yields no text SHALL send a fixed fallback pointing to the web.
+A linked host's free text SHALL become an accepted input of the discussion the host selected (setup by default, or the private review discussion of a selected request), marked as coming from iMessage, under the same redaction, admission, session index and model limits as web input; a retried receipt SHALL resolve to the same input. When that input's turn ends, the assistant's final text SHALL be sent to the linked conversation without any leading channel marker such as `[iMessage]`, which the send path SHALL drop whatever the model wrote (#410), and a turn that fails or yields no text SHALL send a fixed fallback pointing to the web.
 
 #### Scenario: Private question
 - **WHEN** the linked host selects a request and asks a question in text
 - **THEN** the question appears in that request's private discussion in `/app` and the assistant's answer arrives in iMessage
 
+#### Scenario: Reply copies the marker
+- **WHEN** the assistant's final text for a linked host's message starts with `[iMessage] ` or `[Telegram] `, once or more
+- **THEN** the message sent to the linked conversation starts after the markers
+
 ### Requirement: Summaries and outcomes
-A host with an active binding SHALL receive in the linked conversation one summary per event when a proposal awaits approval (with the exact approve and decline commands for its reference) and when a booking is confirmed, not confirmed or still pending. A request's arrival SHALL NOT be announced: the guest is offered times first, and the awaiting-approval summary, the host's first message about the request, SHALL name the requester, the purpose and any earlier request it follows. Each summary SHALL be recorded in the transaction of the change it reports and frozen from that event's own records; a summary for a proposal version that is no longer the latest SHALL NOT be sent.
+A host with an active binding SHALL receive in the linked conversation one summary per event when a proposal awaits approval (with the exact approve and decline commands for its reference) and when a booking is confirmed or not confirmed. A booking still pending SHALL NOT be announced to the host: its confirmation or failure follows once the write resolves (#173). A request's arrival SHALL NOT be announced: the guest is offered times first, and the awaiting-approval summary, the host's first message about the request, SHALL name the requester, the purpose and any earlier request it follows. Each summary SHALL be recorded in the transaction of the change it reports and frozen from that event's own records; a summary for a proposal version that is no longer the latest SHALL NOT be sent.
 
 #### Scenario: Guest starts a request
 - **WHEN** a guest of a host with an active binding starts or revises a request
@@ -167,6 +171,10 @@ A host with an active binding SHALL receive in the linked conversation one summa
 #### Scenario: Proposal awaits approval
 - **WHEN** the requester agrees to a proposal of a host with an active binding
 - **THEN** one summary with the time, mode, place and the exact `approve` and `decline` commands is queued for the linked conversation
+
+#### Scenario: Booking still pending
+- **WHEN** a linked host's booking is still unconfirmed 15 minutes after dispatch
+- **THEN** the guest is told it is still in progress and nothing is sent to the host's linked conversation; the host's next summary is the booking's confirmation or failure once the write resolves
 
 ### Requirement: Truthful outbound delivery
 Every outbound iMessage SHALL be a frozen record dispatched by a job behind the messaging-environment gate. A send whose result is lost SHALL be recorded uncertain and never repeated automatically; a refusal before sending MAY be retried within a bound. A delivery result SHALL NOT change request, proposal or booking state, and a delivery retry SHALL NOT create a booking. The latest failed or uncertain delivery SHALL be visible in the web workspace, where the host can continue.
@@ -179,22 +187,22 @@ Every outbound iMessage SHALL be a frozen record dispatched by a job behind the 
 A linked host SHALL be able to enter the shared setup discussion with `setup` and answer setup questions in plain text that update the same draft as the web workspace. Sign-in, Google consent and protected fields SHALL stay browser steps; Thyme SHALL send a link for connecting Google Calendar that returns the host to the conversation. Linking SHALL send a welcome by where the host stands: a ready host is told what Thyme can do, a host without a usable Calendar gets the Calendar link, and any other host gets the first setup question. Settings SHALL be saved only by the exact `confirm <ref>` command naming the current settings review, under the same checks as the web confirmation.
 
 #### Scenario: Welcome into setup
-- **WHEN** a host who is not ready confirms the received sender, after either entry
+- **WHEN** a host who is not ready links a sender, after either entry
 - **THEN** the welcome asks for Calendar or the first setup question, and a plain reply joins the shared setup discussion without `setup`
 
 #### Scenario: Back from Google
 - **WHEN** a linked host signs in with Google from Thyme's Calendar link
-- **THEN** one message is queued to the linked conversation even if the sign-in is replayed, it does not claim Calendar was granted, and the browser returns to `/app`
+- **THEN** one message is queued to the linked conversation even if the sign-in is replayed, it does not claim Calendar was granted, and the browser returns to `/app`, which says Google Calendar is connected when the grant can use it
 
 #### Scenario: Stale settings review
 - **WHEN** the host sends `confirm <ref>` after the draft changed
 - **THEN** nothing is saved and the reply names the current review's reference
 
 ### Requirement: Optional contact card
-After **Confirm and link** on iMessage, the service SHALL queue one native contact-card share in the linked conversation after the welcome, and the host SHALL be able to request another. The web SHALL show queued, accepted, failed or uncertain status, SHALL NOT report the card as delivered or saved, and SHALL offer no resend while uncertain. Saving the card SHALL grant nothing.
+After an iMessage sender is linked, the service SHALL queue one native contact-card share in the linked conversation after the welcome, and the host SHALL be able to request another. The web SHALL show queued, accepted, failed or uncertain status, SHALL NOT report the card as delivered or saved, and SHALL offer no resend while uncertain. Saving the card SHALL grant nothing.
 
 #### Scenario: Card after linking
-- **WHEN** the host taps **Confirm and link** for an iMessage conversation
+- **WHEN** a host's iMessage conversation is linked
 - **THEN** one contact-card share is queued to arrive after the welcome
 
 #### Scenario: Contact card accepted

@@ -1,4 +1,5 @@
 import { meetsInPerson, type SetupFieldName } from "@lib/contracts/setup";
+import { SETUP_STEP_NAMES } from "@lib/contracts/setup-progress";
 import { FIELD_LABELS } from "./format";
 import type { SetupState } from "@/lib/setup/client";
 
@@ -119,12 +120,13 @@ export const STEP_LABELS: Readonly<Record<StepId, string>> = {
   duration: "Meeting length",
   identity: "Booking page",
   limit: FIELD_LABELS.weeklyLimit,
-  location: FIELD_LABELS.location,
+  location: SETUP_STEP_NAMES.en.place,
   mode: FIELD_LABELS.meetingMode,
   notes: FIELD_LABELS.noteExclusions,
   timezone: FIELD_LABELS.timezone,
   transport: FIELD_LABELS.travelMode,
   travelBuffer: FIELD_LABELS.travelBufferMinutes,
   trips: FIELD_LABELS.groupTrips,
-  windows: FIELD_LABELS.weeklyWindows,
+  // The chat setup's step names where a step is the same (issue #368).
+  windows: SETUP_STEP_NAMES.en.hours,
 };

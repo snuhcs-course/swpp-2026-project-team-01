@@ -19,6 +19,7 @@ import { ChatConversation, ChatConversationContent, ChatItem, ChatScrollButton }
 import { AgentMessage, AgentThinking } from "@/components/chat/message";
 import { Button } from "@/components/ui/button";
 import { useHostDiscussion } from "@/lib/chat/use-host-discussion";
+import { HostWordmark } from "@/app/_components/host-wordmark";
 
 // The host workspace at /app: one centered conversation, a reachable composer
 // and a compact menu, with no sidebar. Setup lives in the same column: the
@@ -113,7 +114,7 @@ function SetupWorkspace({ initialImessageOpen, onOpenDashboard, onOpenRequests }
   return (
     <div className="flex h-dvh min-h-0 flex-col bg-background text-foreground">
       <header className="flex shrink-0 items-center justify-between gap-3 px-5 py-3 sm:px-8">
-        <h1 className="wordmark-lockup min-w-0">Find Me a Time</h1>
+        <HostWordmark className="min-w-0" />
         <div className="flex items-center"><HostSettingsDialog /><WorkspaceMenu onSelectDashboard={onOpenDashboard} onSelectRequests={onOpenRequests} /></div>
       </header>
 

@@ -15,7 +15,8 @@ import { analysisForModel, lockDraft, writeDraft } from "./analysis";
 import { type Actor, assertRevision, canonicalJson, type CommandDefinition, CommandError, runCommand } from "./commands";
 import type { Queryable, Transaction } from "./database";
 import { encodeDisplayName } from "./entry-documents";
-import { HOST_SETUP_AUDIENCE } from "./eve-auth";
+import { channelOfTurn } from "./channel-selection";
+import { HOST_REVIEW_AUDIENCE, HOST_SETUP_AUDIENCE } from "./eve-auth";
 import { saveHostNotesCommand } from "./host-notes";
 import { checkHandle } from "./handles";
 import { weeklyNoteListForModel } from "./note-weekly-store";
@@ -44,6 +45,10 @@ export type SetupToolCall = {
   readonly auth: SessionPrincipal;
   readonly sessionId: string;
   readonly callId: string;
+  // Set only by read_settings and change_settings, the two setup tools a
+  // request's review discussion has (issue #367); every other setup tool keeps
+  // the fence to the setup discussion.
+  readonly fromRequest?: boolean;
 };
 
 // Whether a session belongs to the host setup audience, from the attributes appAuth set.
@@ -58,20 +63,42 @@ export class SetupToolDeniedError extends Error {
   }
 }
 
+// A request's review discussion calling a settings tool for a turn that did not
+// come from the linked conversation, such as a message typed on the web.
+export class SettingsChannelOnlyError extends SetupToolDeniedError {
+  constructor() {
+    super();
+    this.name = "SettingsChannelOnlyError";
+  }
+}
+
 const principalId = z.uuid();
+
+// A host's private review of one request, from the attributes appAuth set
+// (the same test as isHostReviewSession, kept here to avoid an import cycle).
+function isHostReviewPrincipal(principal: SessionPrincipal | undefined) {
+  return principal?.principalType === "user" && principal.attributes.audience === HOST_REVIEW_AUDIENCE && typeof principal.attributes.requestId === "string";
+}
 
 // The fence: an active host account, calling from its own setup discussion's
 // current, active generation. With `lock`, the account row stays share-locked
 // until the transaction ends, so a concurrent suspension waits.
+// With `allowReview` (read_settings and change_settings only), a request's
+// review discussion passes too, but only while the turn answers a
+// message from the host's linked iMessage, WhatsApp or Telegram: a linked
+// conversation stays on the latest request once its summary arrived, and the
+// host still changes their saved settings there in words (issue #367). On the
+// web the host changes them under Settings.
 export async function authorizeSetupTool(
   q: Queryable,
   principal: SessionPrincipal,
   sessionId: string,
-  options: { readonly lock?: boolean } = {},
+  options: { readonly lock?: boolean; readonly allowReview?: boolean } = {},
 ): Promise<Actor> {
   const id = principalId.safeParse(principal?.principalId);
 
-  if (!isHostSetupSession(principal) || !id.success) throw new SetupToolDeniedError();
+  const review = options.allowReview === true && isHostReviewPrincipal(principal);
+  if (!(isHostSetupSession(principal) || review) || !id.success) throw new SetupToolDeniedError();
 
   const [row] = await q<{ allowed: boolean }[]>`
     select a.status = 'active' and exists (
@@ -79,7 +106,8 @@ export async function authorizeSetupTool(
       join app.discussions d on d.id = s.discussion_id
       where s.session_id = ${sessionId}
         and s.principal_type = 'host_account' and s.principal_id = a.id and s.state = 'active'
-        and d.principal_type = 'host_account' and d.principal_id = a.id and d.audience = ${HOST_SETUP_AUDIENCE}
+        and d.principal_type = 'host_account' and d.principal_id = a.id
+        and d.audience = ${review ? HOST_REVIEW_AUDIENCE : HOST_SETUP_AUDIENCE}
         and s.generation = (select max(generation) from app.agent_sessions where discussion_id = s.discussion_id)
     ) as allowed
     from app.host_accounts a
@@ -88,6 +116,7 @@ export async function authorizeSetupTool(
   `;
 
   if (!row?.allowed) throw new SetupToolDeniedError();
+  if (review && !(await channelOfTurn(q, sessionId, id.data))) throw new SettingsChannelOnlyError();
 
   return { id: id.data, kind: "host_account" };
 }
@@ -334,7 +363,7 @@ export function draftSettingsCommand(
     operation: "setup.draft_settings",
     async run(tx: Transaction, context) {
       const hostAccountId = context.actor.id;
-      const actor = await authorizeSetupTool(tx, call.auth, call.sessionId, { lock: true });
+      const actor = await authorizeSetupTool(tx, call.auth, call.sessionId, { allowReview: call.fromRequest, lock: true });
 
       if (actor.id !== hostAccountId) throw new CommandError("forbidden");
 
@@ -383,7 +412,7 @@ export function draftSettingsCommand(
 // Tool entry points
 
 export async function readSetupStateForTool(deps: SetupDependencies, call: SetupToolCall) {
-  const actor = await authorizeSetupTool(deps.db, call.auth, call.sessionId);
+  const actor = await authorizeSetupTool(deps.db, call.auth, call.sessionId, { allowReview: call.fromRequest });
   const state = await readSetupState(deps, actor.id, { includeCalendars: true });
 
   if (!state) throw new SetupToolDeniedError();
@@ -421,7 +450,7 @@ export async function draftSettingsForTool(
   call: SetupToolCall,
   input: DraftSettingsToolInput,
 ): Promise<DraftSettingsToolResult> {
-  const actor = await authorizeSetupTool(deps.db, call.auth, call.sessionId);
+  const actor = await authorizeSetupTool(deps.db, call.auth, call.sessionId, { allowReview: call.fromRequest });
   const values = Object.fromEntries(Object.entries(input.values).filter(([, entry]) => entry !== undefined)) as RequestedValues;
   const outcome = await runCommand({ authenticate: async () => actor, db: deps.db }, draftSettingsCommand(call), {
     expectedRevision: input.expectedRevision,
@@ -432,7 +461,7 @@ export async function draftSettingsForTool(
 
   if (!outcome.ok) {
     if (outcome.error.category === "stale_revision" || outcome.error.category === "invalid_input") {
-      return { error: outcome.error.category, message: `${outcome.error.message} Call read_setup_state first.`, saved: false };
+      return { error: outcome.error.category, message: `${outcome.error.message} Call ${call.fromRequest ? "read_settings" : "read_setup_state"} first.`, saved: false };
     }
 
     throw new SetupToolDeniedError();
@@ -498,4 +527,38 @@ export async function saveAssistantNotesForTool(
   }
 
   return { assistantNotes: outcome.result.notes?.text ?? "", saved: true };
+}
+
+// read_settings and change_settings in a request's review discussion (issue
+// #367): the same reads and writes as read_setup_state and draft_settings, for
+// a host whose linked conversation is on a request when they ask to change a
+// saved setting such as their preferred place. A ready host's change is saved
+// at once, as in setup. A turn that did not come from the linked conversation,
+// such as a message typed on the web, gets a problem to tell the host instead
+// of an error; any other refusal stays an error, as in setup.
+const SETTINGS_ELSEWHERE = {
+  problem: "Saved settings change in words only from the host's linked iMessage, WhatsApp or Telegram. On the web, the host changes them under Settings in /app. Nothing changed.",
+  saved: false as const,
+};
+
+export const changeSettingsToolInput = draftSettingsToolInput.extend({
+  expectedRevision: z.number().int().min(0).describe("The draftRevision from your latest read_settings result."),
+});
+
+export async function readSettingsFromRequestForTool(deps: SetupDependencies, call: SetupToolCall) {
+  try {
+    return await readSetupStateForTool(deps, { ...call, fromRequest: true });
+  } catch (error) {
+    if (error instanceof SettingsChannelOnlyError) return SETTINGS_ELSEWHERE;
+    throw error;
+  }
+}
+
+export async function changeSettingsFromRequestForTool(deps: SetupDependencies, call: SetupToolCall, input: z.infer<typeof changeSettingsToolInput>) {
+  try {
+    return await draftSettingsForTool(deps, { ...call, fromRequest: true }, input);
+  } catch (error) {
+    if (error instanceof SettingsChannelOnlyError) return SETTINGS_ELSEWHERE;
+    throw error;
+  }
 }

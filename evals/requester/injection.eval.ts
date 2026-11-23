@@ -8,7 +8,7 @@ import { DECISION_CLAIM, readRequestProjection, requesterSession, requesterStubs
 // could read them, and the reply claims no approval and gives no rule or
 // exception reasoning (AC-03, requester side).
 export default defineEval({
-  tags: ["requester", "live-model"],
+  tags: ["requester", "live-model", "capability"],
   async test(t) {
     const { send } = await requesterSession(t, requesterStubs(readRequestProjection()));
     const turn = await send(

@@ -3,7 +3,8 @@
 -- row_limit rows per run, so a backlog drains over several runs instead of
 -- holding locks (closed requests count per request, at most 100 per run, since
 -- each cascades to many rows): closed requests with everything under them 90 days after
--- closure; completed jobs, command outcomes, link-resend records, admission
+-- closure, except a request a signed-in guest account owns, which is kept while
+-- that account exists (guest-account-history D1); completed jobs, command outcomes, link-resend records, admission
 -- windows and agent protocol attempts after 30 days; exhausted jobs and model
 -- reservations after 90 days; operator audit rows after a year; account emails
 -- 30 days after they reached a final state. Returns the
@@ -26,6 +27,13 @@ BEGIN
     WHERE r.closed_at < now() - interval '90 days'
       -- A booking whose write may exist keeps its record until reconciled.
       AND NOT EXISTS (SELECT 1 FROM app.bookings b WHERE b.request_id = r.id AND b.state = 'dispatching')
+      -- A request a guest account owns is its history while the account exists;
+      -- deleting the account removes the match, and the 90 days apply again.
+      AND NOT EXISTS (
+        SELECT 1 FROM app.requester_host_profiles p
+        JOIN app.host_accounts a ON a.id = p.host_account_id
+        WHERE p.request_id = r.id AND a.deleted_at IS NULL
+      )
     ORDER BY r.closed_at
     LIMIT least(row_limit, 100)
   ));

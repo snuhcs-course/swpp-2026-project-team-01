@@ -73,7 +73,7 @@ Rejected: four `whatsapp_*` tables. They would copy the cleanup function, the ro
 
 ### 5. One channel per host
 
-A host has at most one active binding (D5). `imessage.link.confirm` already ends the host's earlier binding in the same transaction. That now also covers a binding of the other channel. Its undispatched host-private outbox rows are suppressed, and the selected request moves to the new binding. The card shows "This replaces your iMessage link" (or the reverse) above **Confirm and link** when the host has an active binding on the other channel.
+A host has at most one active binding (D5). `imessage.link.confirm` already ends the host's earlier binding in the same transaction. That now also covers a binding of the other channel. Its undispatched host-private outbox rows are suppressed, and the selected request moves to the new binding. The card shows "This replaces your iMessage link" (or the reverse) above **Confirm and link** when the host has an active binding on the other channel. Superseded by [`link-on-code`](../link-on-code/proposal.md) D1: the code now binds on arrival.
 
 Rejected: both channels at once. Every summary would go out twice, a decision could arrive from two conversations about one proposal version, and the window rules would apply to only one of them. A host with an iPhone and WhatsApp can choose either.
 
@@ -105,7 +105,7 @@ At dispatch, after the messaging gate and before marking the row `dispatching`, 
 |---|---|
 | Turn reply, command reply, link or unlinked-sender reply | `suppressed`, category `window_closed`. These answer an inbound message, so this happens only after a long admission deferral or an outage |
 | New request, awaiting approval, booking confirmed, booking not confirmed | `suppressed` with `window_closed`, and a template row for the event is queued under section 8's limits |
-| Booking still pending, welcome, back from Google | `suppressed` with `window_closed`, with no template |
+| Booking still pending (no longer queued for the host since #173), welcome, back from Google | `suppressed` with `window_closed`, with no template |
 
 A free-form send that Meta still refuses with 131047 ends `failed` (the transport outcome `rejected`) with category `window_closed` and follows the same table. Every suppressed or rejected row appears in `/app` the way a failed iMessage delivery does: "Not sent on WhatsApp: you have not written for a day."
 
@@ -132,7 +132,7 @@ Limits:
 
 A template Meta has not approved, or one paused for quality, is refused with a 132xxx error and ends `failed` (outcome `rejected`) with category `template_unavailable`. The `/app` notice then works as for a closed window.
 
-Opt-in (D12): the card, before **Confirm and link**, says "Thyme will message you on WhatsApp about your requests. If you have not written for a day, it sends a short notice instead." The host's own message and confirmation are the opt-in Meta's policy asks for. `stop` (and `unlink`) as an exact command ends the binding the way **Unlink** does and replies once, "Unlinked. You won't get WhatsApp messages from Find Me a Time." `stop` is added to the command list for both channels, so the two keep one parser.
+Opt-in (D12): the card, before **Confirm and link**, says "Thyme will message you on WhatsApp about your requests. If you have not written for a day, it sends a short notice instead." The host's own message and confirmation are the opt-in Meta's policy asks for. `stop` (and `unlink`) as an exact command ends the binding the way **Unlink** does and replies once, "Unlinked. You won't get WhatsApp messages from Find Me a Time." `stop` is added to the command list for both channels, so the two keep one parser. Superseded by [`link-on-code`](../link-on-code/proposal.md) D1: the code now binds on arrival, so the host's own message is the opt-in and the sentence is shown with the code.
 
 Template registration happens in Meta's WhatsApp Manager for the business portfolio that owns the number. It needs a person with access to that portfolio, which is an operator step blocked on the user. Korean templates are an open question for the team.
 

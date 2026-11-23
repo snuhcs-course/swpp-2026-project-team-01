@@ -1,6 +1,7 @@
 import type { SetupFieldName } from "@lib/contracts/setup";
 import { describe, expect, it } from "vitest";
-import { firstOpenStep, setupSteps, stepAccepted, stepForField, stepIndex } from "./steps";
+import { SETUP_STEP_NAMES } from "@lib/contracts/setup-progress";
+import { firstOpenStep, setupSteps, STEP_LABELS, stepAccepted, stepForField, stepIndex } from "./steps";
 
 // The steps' order and where the open card lands: the first step the host has
 // not accepted, skipping what was skipped, then the review.
@@ -113,5 +114,14 @@ describe("setup steps", () => {
     expect(stepForField("bufferAfterMinutes")).toBe("duration");
     expect(stepForField("handle")).toBe("identity");
     expect(stepForField("travelBufferMinutes")).toBe("travelBuffer");
+  });
+});
+
+// The web names its steps as the chat setup does where they are the same step
+// (issue #368), so both surfaces read alike.
+describe("step names", () => {
+  it("uses the chat setup's names for meeting hours and where the host meets", () => {
+    expect(STEP_LABELS.windows).toBe(SETUP_STEP_NAMES.en.hours);
+    expect(STEP_LABELS.location).toBe(SETUP_STEP_NAMES.en.place);
   });
 });

@@ -3,6 +3,7 @@
 import { CheckIcon, CircleCheckIcon, CopyIcon, ShareIcon } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
+import { TUTORIAL_TEXT } from "@lib/contracts/host-tutorial";
 import { runSetupCommand } from "@/lib/setup/client";
 import { Button } from "@/components/ui/button";
 import { cardHeadingId } from "./card";
@@ -101,7 +102,7 @@ export function ShareLinksCard() {
       </div>
       {state.tutorialOffered ? (
         <div className="mt-2 flex basis-full flex-wrap items-center gap-2 border-t pt-2">
-          <p className="mr-auto">Would you like to try a sample request?</p>
+          <p className="mr-auto">{TUTORIAL_TEXT.en.offer}</p>
           <Button disabled={tutorialBusy} onClick={() => void chooseTutorial(true)} size="sm" type="button">Try it</Button>
           <Button disabled={tutorialBusy} onClick={() => void chooseTutorial(false)} size="sm" type="button" variant="ghost">Skip</Button>
           {tutorialError ? <p className="basis-full text-destructive" role="alert">{tutorialError}</p> : null}

@@ -17,7 +17,8 @@ import { E2E_TOKEN_ENCRYPTION_KEY } from "./support/token-key";
 // against the real web and agent services, the local stack and the Photon stand-in. The channel follows the
 // device: Android gets WhatsApp (with Use Telegram instead since host-telegram-channel D7), an iPhone gets iMessage with Use WhatsApp instead, and another computer
 // first asks which app the host uses. The host's WhatsApp message is driven through the real receiver and the
-// receipt job as a WhatsApp Business event; Confirm and link, after the opt-in sentence, binds it.
+// receipt job as a WhatsApp Business event; it links on arrival (link-on-code D1), so the opt-in sentence sits
+// beside the code.
 
 const tokenKey = parseTokenKey(E2E_TOKEN_ENCRYPTION_KEY);
 const LINE = "+15550001111";
@@ -91,7 +92,7 @@ async function openCard(page: Page) {
 test.describe("on Android", () => {
   test.use({ userAgent: AGENTS.android, viewport: { height: 915, width: 412 } });
 
-  test("the host chooses WhatsApp, sends its proof and confirms the sender", async ({ baseURL, context, db, page }) => {
+  test("the host chooses WhatsApp, sends its proof and the step shows the link", async ({ baseURL, context, db, page }) => {
     const host = await signedInHost(db, context, baseURL!, { imessageStep: true });
     await page.goto("/app");
 
@@ -108,16 +109,14 @@ test.describe("on Android", () => {
     // Android never switches to iMessage; Telegram is the other choice (host-telegram-channel D7).
     await expect(page.getByRole("button", { name: "Use iMessage instead" })).toHaveCount(0);
     await expect(page.getByRole("button", { name: "Use Telegram instead" })).toBeVisible();
-
-    const sender = newWhatsAppSender();
-    await hostSendsOnWhatsApp(db, sender, message);
-    await expect(page.getByRole("heading", { name: "Is this you?" })).toBeVisible({ timeout: 10_000 });
-    await expect(page.getByText(`+${sender}`)).toBeVisible();
     await expect(page.getByText(OPT_IN)).toBeVisible();
     expect(await activeChannel(db, host.hostAccountId)).toHaveLength(0);
 
-    await page.getByRole("button", { name: "Confirm and link" }).click();
-    await expect(page.getByRole("heading", { name: "Your WhatsApp is connected." })).toBeVisible();
+    const sender = newWhatsAppSender();
+    await hostSendsOnWhatsApp(db, sender, message);
+    await expect(page.getByRole("heading", { name: "Your WhatsApp is connected." })).toBeVisible({ timeout: 10_000 });
+    await expect(page.getByText(`•••• ${sender.slice(-4)}`)).toBeVisible();
+    await expect(page.getByRole("button", { name: "Confirm and link" })).toHaveCount(0);
     expect(await activeChannel(db, host.hostAccountId)).toEqual([{ channel: "whatsapp" }]);
 
     await expect(page.getByRole("link", { name: "Open WhatsApp" })).toHaveAttribute("href", `https://wa.me/${WHATSAPP}`);

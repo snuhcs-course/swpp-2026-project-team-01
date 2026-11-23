@@ -8,7 +8,6 @@ import { requestRef } from "../../lib/server/imessage-commands";
 import { GUEST_TEXTS } from "../../lib/server/imessage-receipts";
 import { imessageHash } from "../../lib/server/photon-receiver";
 import {
-  confirmRequesterImessageLinkCommand,
   createRequesterImessageLinkCommand,
   readRequesterImessageStatus,
 } from "../../lib/server/requester-imessage-links";
@@ -41,7 +40,7 @@ const im = imessageHarness(db, () => photon, {
 const email = emailHarness(db, () => agentmail);
 const options = { lineNumber: TEST_LINE, registrar: im.registrar, tokenKey: testTokenKey, tokenKeys: [testTokenKey] };
 const commands: Readonly<Record<string, CommandDefinition<unknown, unknown>>> = Object.fromEntries(
-  [createRequesterImessageLinkCommand(options), confirmRequesterImessageLinkCommand(options)].map((command) => [
+  [createRequesterImessageLinkCommand(options)].map((command) => [
     command.operation,
     command as unknown as CommandDefinition<unknown, unknown>,
   ]),
@@ -91,10 +90,9 @@ async function closedGuestRequest(sender: string, state: "declined" | "expired" 
   expect((await asGuest(request.requestId, REQUESTER_IMESSAGE_OPERATIONS.create, { number: "+15557654321" })).ok).toBe(true);
   const pending = await readRequesterImessageStatus(db, [testTokenKey], request.requestId, TEST_LINE);
   if (pending.state !== "pending") throw new Error("Expected a pending code.");
-  await im.deliver({ sender, text: pending.message });
-  const received = await readRequesterImessageStatus(db, [testTokenKey], request.requestId, TEST_LINE);
-  if (received.state !== "received") throw new Error("Expected a received code.");
-  expect((await asGuest(request.requestId, REQUESTER_IMESSAGE_OPERATIONS.confirm, { linkId: received.linkId })).ok).toBe(true);
+  // The code links on arrival (link-on-code D1).
+  expect((await im.deliver({ sender, text: pending.message })).outcome).toBe("link_received");
+  expect(await readRequesterImessageStatus(db, [testTokenKey], request.requestId, TEST_LINE)).toMatchObject({ state: "linked" });
   await db`update app.requests set state = ${state}, closed_at = now() where id = ${request.requestId}`;
   return { ...request, host };
 }

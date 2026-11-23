@@ -1,11 +1,11 @@
 ## ADDED Requirements
 
 ### Requirement: Guest Telegram linking
-Where Telegram is configured, the booking page's waiting card SHALL offer **Get updates in Telegram**. It SHALL ask for no number, SHALL create a request-owned one-time link code with the same validity, limits and replacement as a guest iMessage code, and SHALL open the bot's start link carrying the code, or on a computer show that link as a QR code with **Open Telegram**. Only the code arriving from a private Telegram chat SHALL complete the attempt, and nothing SHALL be bound before **Confirm and link**. A request SHALL have at most one active guest binding across iMessage, WhatsApp and Telegram.
+Where Telegram is configured, the booking page's waiting card SHALL offer **Get updates in Telegram**. It SHALL ask for no number, SHALL create a request-owned one-time link code with the same validity, limits and replacement as a guest iMessage code, and SHALL open the bot's start link carrying the code, or on a computer show that link as a QR code with **Open Telegram**. Only the code arriving from a private Telegram chat SHALL complete the attempt, and it SHALL bind the sender to the request as soon as it arrives, with no **Is this your Telegram?** confirmation (`link-on-code` D1). The card that shows the start link SHALL say, before the guest taps Start, that Telegram keeps bot chats on its servers. A request SHALL have at most one active guest binding across iMessage, WhatsApp and Telegram.
 
 #### Scenario: Link Telegram from the booking page
-- **WHEN** the guest presses **Get updates in Telegram**, taps Start in the bot and presses **Confirm and link**
-- **THEN** the request has one active Telegram guest binding, the card names the guest's Telegram name, and the welcome goes out on Telegram
+- **WHEN** the guest presses **Get updates in Telegram** and taps Start in the bot
+- **THEN** the request has one active Telegram guest binding, the card names the guest's Telegram name with **Unlink Telegram**, and the welcome goes out on Telegram
 
 #### Scenario: No number for Telegram
 - **WHEN** the guest presses **Get updates in Telegram**
@@ -24,7 +24,7 @@ Where Telegram is configured, the booking page's waiting card SHALL offer **Get 
 - **THEN** the binding ends, unsent guest messages are suppressed, and later messages from that sender reach no discussion of the request
 
 ### Requirement: Guest Telegram link through the agent
-The requester agent's `start_updates_link` SHALL accept the Telegram channel without a number and return a connect link whose page shows the bot's start link and, after the code arrives, **Confirm and link**.
+The requester agent's `start_updates_link` SHALL accept the Telegram channel without a number and return a connect link whose page shows the bot's start link and, after the code arrives, that the Telegram account is linked.
 
 #### Scenario: Agent starts a Telegram link
 - **WHEN** the requester agent calls `start_updates_link` with the Telegram channel

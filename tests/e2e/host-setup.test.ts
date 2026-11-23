@@ -1,5 +1,6 @@
 import { randomUUID } from "node:crypto";
 import type { Page } from "@playwright/test";
+import { TUTORIAL_TEXT } from "../../lib/contracts/host-tutorial";
 import { runCommand } from "../../lib/server/commands";
 import { updateDraftCommand } from "../../lib/server/setup-commands";
 import { draftRevision, hostCommandDeps } from "../integration/support/setup-host";
@@ -305,7 +306,7 @@ for (const [button, confirmation] of [
     await expectOnlyCard(page, "You're ready.");
     await page.reload();
     const links = card(page, "You're ready.");
-    await expect(links.getByText("Would you like to try a sample request?")).toBeVisible();
+    await expect(links.getByText(TUTORIAL_TEXT.en.offer)).toBeVisible();
     await links.getByRole("button", { name: "Try it" }).click();
 
     await expect(page.getByRole("heading", { name: "Requests" })).toBeVisible();

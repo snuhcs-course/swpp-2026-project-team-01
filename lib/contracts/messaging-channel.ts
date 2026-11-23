@@ -66,6 +66,15 @@ export function telegramLinkFor(username: string, code: string) {
   return `${telegramChatLinkFor(bot)}?start=${code}`;
 }
 
+// Where a computer opens an app link (issue #369). Telegram's start link is a
+// web page (telegram.me's launch page with START BOT), so in the same tab it
+// replaced the Find Me a Time page that waits for the Start and then shows
+// Confirm and link; it opens in a new tab instead. WhatsApp and Messages keep
+// the same tab. A phone hands every app link to the app, so it keeps the tab.
+export function appLinkTarget(channel: MessagingChannel, phone: boolean): { readonly target?: "_blank"; readonly rel?: string } {
+  return channel === "telegram" && !phone ? { rel: "noopener noreferrer", target: "_blank" } : {};
+}
+
 // The bot's chat with no code, for a host already linked. Every Telegram link
 // uses telegram.me, Telegram's own alias of t.me with the same paths and
 // ?start=: some networks' DNS (the SNU campus Wi-Fi among them) send t.me
@@ -138,7 +147,21 @@ export const IMESSAGE_PREFIX = "[iMessage] ";
 export const WHATSAPP_PREFIX = "[WhatsApp] ";
 // A linked Telegram chat (host-telegram-channel D12).
 export const TELEGRAM_PREFIX = "[Telegram] ";
+// A requester's email in their thread (requester-email-channel).
+export const EMAIL_PREFIX = "[Email] ";
 
 export function cameFromMessagingChannel(message: string) {
   return message.startsWith(IMESSAGE_PREFIX) || message.startsWith(WHATSAPP_PREFIX) || message.startsWith(TELEGRAM_PREFIX);
+}
+
+// The markers belong to forwarded input only. The model sometimes copies one to
+// the start of its reply (#410), so every outgoing channel reply drops any
+// leading marker, repeated or bolded ones included, whatever the model wrote.
+const MARKER_NAMES = [IMESSAGE_PREFIX, WHATSAPP_PREFIX, TELEGRAM_PREFIX, EMAIL_PREFIX].map((prefix) => prefix.trim().slice(1, -1));
+const LEADING_MARKER = new RegExp(`^\\s*(?:\\*\\*)?\\[(?:${MARKER_NAMES.join("|")})\\](?:\\*\\*)?[ \\t]*:?\\s*`, "i");
+
+export function stripChannelMarkers(text: string) {
+  let rest = text;
+  while (LEADING_MARKER.test(rest)) rest = rest.replace(LEADING_MARKER, "");
+  return rest;
 }
