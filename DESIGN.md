@@ -175,7 +175,7 @@ Do not add hairline lists, glossy highlights, glass effects, simulated paper, or
 | Primary action | Ink-blue pill, white 15px/600 label, 44px in the app and 52px on landing and handoff screens, darker hover and press |
 | Secondary action | `soft-surface` pill, ink 15px/600 label, no border; hover tints toward ink blue |
 | Google sign-in | Google's dark spec as a pill, 52px, the coloured G 12px before the label; full width on phones |
-| Text link | Ink blue with a 1px underline at a 4px offset; a muted variant for low-priority exits such as "Set up here in web chat" |
+| Text link | Ink blue with a 1px underline at a 4px offset; a muted variant for low-priority exits such as "Go to your workspace" |
 | Input | White, slate boundary, 10px radius, persistent label, 16px+ text, inline help that turns into the error |
 | Composer | White, slate boundary, 16px radius, 44px round ink-blue send button with a disabled state |
 | Thyme's message | White bubble on paper (`panel-bubble` on the ink-blue page), 22px with the bottom-left tail, "Thyme" above |
@@ -211,7 +211,7 @@ The other screens at 1440px (landing, sign-in, link step, request review, settin
 
 ## Voice and motion
 
-Use direct, warm copy: "Send Thyme one message," "Set up here in web chat," or "Your calendar is connected." Show Thyme as the assistant identity and Find Me a Time as the product identity. Describe pending, proposed, approved and booked states accurately; only report success once the service confirms it.
+Use direct, warm copy: "Send Thyme one message," "Go to your workspace," or "Your calendar is connected." Show Thyme as the assistant identity and Find Me a Time as the product identity. Describe pending, proposed, approved and booked states accurately; only report success once the service confirms it.
 
 Use 150ms colour transitions on controls. On a phone the landing's cards scatter with scroll position, not on a timer. On the ink-blue page bubbles pop in over 320ms after a typing mark and captions fade in over 400ms; cards rise 4px over 160ms; the received code slides in over 320ms and the status mark draws once. The live conversation holds still while hovered, focused or off screen. Under `prefers-reduced-motion` every thread shows whole, transitions and animations stop, and the phone landing shows the card heap and then the headline, nothing pinned or scattered.
 

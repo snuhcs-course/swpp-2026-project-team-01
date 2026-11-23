@@ -1,9 +1,9 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { ChatRouteDependencies } from "./chat-routes";
 
-// The /api/chat routes serve only the host's setup discussion: a route that
-// names a request is refused before anything is read or sent, and is never
-// answered from setup (remove-host-web-chat).
+// The host chat adapter (unmounted since remove-host-web-chat) serves only the
+// host's setup discussion: a call that names a request is refused before
+// anything is read or sent, and is never answered from setup.
 
 const calls = vi.hoisted(() => ({
   acceptHostMessage: vi.fn(async () => ({ inputId: "input", status: "sent" as const })),
@@ -85,6 +85,23 @@ describe("the host chat routes", () => {
     const response = await createRecoverHandler(deps)(post("/api/chat/recover", { observedGeneration: 1, request: requestId }));
 
     expect(response.status).toBe(400);
+    expect(await response.json()).toEqual(REQUEST_SCOPE_REFUSAL);
     expect(calls.recoverDiscussion).not.toHaveBeenCalled();
+  });
+
+  it("refuses an empty request scope on a read", async () => {
+    const response = await createStateHandler(deps)(new Request(`${origin}/api/chat/state?request=`));
+
+    expect(response.status).toBe(400);
+    expect(calls.conversationStatus).not.toHaveBeenCalled();
+  });
+
+  it("answers a null or array body as an invalid message, not as a request scope", async () => {
+    for (const body of [null, [requestId]]) {
+      const response = await createMessageHandler(deps)(post("/api/chat/messages", body));
+      expect(response.status).toBe(400);
+      expect(await response.json()).toMatchObject({ code: "invalid_message" });
+    }
+    expect(calls.acceptHostMessage).not.toHaveBeenCalled();
   });
 });
