@@ -10,7 +10,7 @@
 
 ## 릴리스 요약
 
-2026-10-23에 [`operations-and-release`](../../openspec/changes/operations-and-release/proposal.md) 변경(레인 D)이 아래 각 단계 절을 바탕으로 정리했습니다. **로컬**은 픽스처 또는 로컬 스택 증거로 로직을 증명하며, **프로덕션**은 배포된 연동에 대한 점검을 뜻하고, **보류**는 [PRD](../02_product_requirements.md#9-end-to-end-release-acceptance-scenarios)가 여전히 요구하는 항목입니다. 보류 항목이 하나라도 있는 시나리오는 종료된 것이 아니며, 해결되지 않은 명명된 클라이언트, 기기, 받은편지함 사례는 릴리스 차단 요인이므로 **릴리스는 아직 수용할 수 없습니다**. 무관용 지표(인가되지 않은 예약, 중복 이벤트, 비공개 정보 노출)는 지금까지 실행한 테스트 묶음에서 실패한 사례가 없습니다.
+2026-10-23에 [`operations-and-release`](../../openspec/changes/archive/2026-11-24-operations-and-release/proposal.md) 변경(레인 D)이 아래 각 단계 절을 바탕으로 정리했습니다. **로컬**은 픽스처 또는 로컬 스택 증거로 로직을 증명하며, **프로덕션**은 배포된 연동에 대한 점검을 뜻하고, **보류**는 [PRD](../02_product_requirements.md#9-end-to-end-release-acceptance-scenarios)가 여전히 요구하는 항목입니다. 보류 항목이 하나라도 있는 시나리오는 종료된 것이 아니며, 해결되지 않은 명명된 클라이언트, 기기, 받은편지함 사례는 릴리스 차단 요인이므로 **릴리스는 아직 수용할 수 없습니다**. 무관용 지표(인가되지 않은 예약, 중복 이벤트, 비공개 정보 노출)는 지금까지 실행한 테스트 묶음에서 실패한 사례가 없습니다.
 
 | ID | 로컬 | 프로덕션 | 보류 |
 |---|---|---|---|
@@ -50,7 +50,7 @@
 
 ## 1단계 — `application-foundation`
 
-변경: [`application-foundation`](../../openspec/changes/application-foundation/tasks.md). 증거 목록: [1단계](06_implementation_plan.md#phase-1--application-foundation).
+변경: [`application-foundation`](../../openspec/changes/archive/2026-11-24-application-foundation/tasks.md). 증거 목록: [1단계](06_implementation_plan.md#phase-1--application-foundation).
 
 ### 환경
 
@@ -129,7 +129,7 @@
 
 ## 2단계 — `host-onboarding`
 
-변경: [`host-onboarding`](../../openspec/changes/host-onboarding/tasks.md). 증거 목록: [2단계](06_implementation_plan.md#phase-2--host-onboarding). 환경은 1단계와 같으며, 브라우저 및 통합 테스트 묶음은 토큰 엔드포인트와 Calendar API를 위한 로컬 Google 대역(`tests/e2e/support/fake-google-server.ts`, `tests/integration/support/fake-google.ts`)도 실행합니다.
+변경: [`host-onboarding`](../../openspec/changes/archive/2026-11-24-host-onboarding/tasks.md). 증거 목록: [2단계](06_implementation_plan.md#phase-2--host-onboarding). 환경은 1단계와 같으며, 브라우저 및 통합 테스트 묶음은 토큰 엔드포인트와 Calendar API를 위한 로컬 Google 대역(`tests/e2e/support/fake-google-server.ts`, `tests/integration/support/fake-google.ts`)도 실행합니다.
 
 ### 테스트 묶음 실행
 
@@ -185,7 +185,7 @@
 | 갱신된 Calendar 동의 | 두 오리진의 `GET /auth/sign-in?consent=calendar` | 해당 오리진의 콜백, `prompt=consent`, `include_granted_scopes=true`, 오프라인 접근, PKCE S256과 함께 Supabase Auth로 303 |
 | 설정 API | 인증되지 않은 `GET /api/setup/state`; 교차 사이트 `POST /api/setup/commands` | 401; 403 |
 
-수동 푸시는 [설계](../../openspec/changes/host-onboarding/design.md#migration-plan)에 기록된 예외입니다. 배포 워크플로의 시크릿이 아직 설정되지 않았으므로 사용자가 2026-10-20에 다시 승인했습니다.
+수동 푸시는 [설계](../../openspec/changes/archive/2026-11-24-host-onboarding/design.md#migration-plan)에 기록된 예외입니다. 배포 워크플로의 시크릿이 아직 설정되지 않았으므로 사용자가 2026-10-20에 다시 승인했습니다.
 
 ### 알려진 공백
 
@@ -228,7 +228,7 @@
 
 ## 4단계 — `host-review-and-booking`
 
-변경: [`host-review-and-booking`](../../openspec/changes/host-review-and-booking/tasks.md). 증거 목록: [4단계](06_implementation_plan.md#phase-4--host-review-and-booking). 환경은 1단계와 같으며, 로컬 Google 대역은 `events.insert`와 `events.get`(고정 이벤트 ID, 중복 시 `409`, 생성 전후의 응답 유실)으로 확장되고 로컬 Cloudflare 대역은 `reply_to`와 첨부 파일을 기록합니다. 프로덕션에서 실행된 것은 아래의 릴리스 절차뿐입니다.
+변경: [`host-review-and-booking`](../../openspec/changes/archive/2026-11-24-host-review-and-booking/tasks.md). 증거 목록: [4단계](06_implementation_plan.md#phase-4--host-review-and-booking). 환경은 1단계와 같으며, 로컬 Google 대역은 `events.insert`와 `events.get`(고정 이벤트 ID, 중복 시 `409`, 생성 전후의 응답 유실)으로 확장되고 로컬 Cloudflare 대역은 `reply_to`와 첨부 파일을 기록합니다. 프로덕션에서 실행된 것은 아래의 릴리스 절차뿐입니다.
 
 ### 테스트 묶음 실행
 
@@ -296,7 +296,7 @@
 
 ## 5단계 — `agent-access`
 
-변경: [`agent-access`](../../openspec/changes/agent-access/tasks.md). 증거 목록: [5단계](06_implementation_plan.md#phase-5--agent-access). 환경은 1단계와 같습니다. 일반 `fetch`로 만든 스크립트된 MCP 클라이언트와 CLI `fmat`이 에이전트를 대신하며, 명명된 클라이언트는 실행되지 않았고 여기의 어느 것도 프로덕션에서 실행되지 않았습니다. 클라이언트별 결과는 [개인 에이전트 클라이언트](09_agent_clients.md)에 속합니다.
+변경: [`agent-access`](../../openspec/changes/archive/2026-11-24-agent-access/tasks.md). 증거 목록: [5단계](06_implementation_plan.md#phase-5--agent-access). 환경은 1단계와 같습니다. 일반 `fetch`로 만든 스크립트된 MCP 클라이언트와 CLI `fmat`이 에이전트를 대신하며, 명명된 클라이언트는 실행되지 않았고 여기의 어느 것도 프로덕션에서 실행되지 않았습니다. 클라이언트별 결과는 [개인 에이전트 클라이언트](09_agent_clients.md)에 속합니다.
 
 ### 테스트 묶음 실행
 
@@ -331,7 +331,7 @@
 
 ## 6단계 — `host-imessage-channel`
 
-변경: [`host-imessage-channel`](../../openspec/changes/host-imessage-channel/tasks.md). 증거 목록: [6단계](06_implementation_plan.md#phase-6--host-imessage-channel). 환경은 기본 로컬 스택을 쓰는 1단계와 같고, 여기에 전송을 기록하고 전송을 거부하거나 응답을 버릴 수 있는 루프백 Photon 스탠드인(`tests/integration/support/fake-photon.ts`, 브라우저 테스트용은 `tests/e2e/support/fake-photon-server.ts`)이 더해졌습니다. 수신 메시지는 Photon의 문서화된 방식(`tests/integration/support/photon.ts`)으로 서명했습니다. Photon 회선은 존재하지 않고, 등록된 웹훅도 없으며, Photon, 실제 휴대폰, 프로덕션을 상대로 실행된 것은 없습니다. 이후 추가된 연결 화면(PR #39, D15–D19)은 로컬 수신기를 통해 사용자의 iPhone과 Mac에서 `fmat-spike` 회선으로 한 번 확인했으며, 프로덕션을 상대로 실행된 것은 없습니다.
+변경: [`host-imessage-channel`](../../openspec/changes/archive/2026-11-24-host-imessage-channel/tasks.md). 증거 목록: [6단계](06_implementation_plan.md#phase-6--host-imessage-channel). 환경은 기본 로컬 스택을 쓰는 1단계와 같고, 여기에 전송을 기록하고 전송을 거부하거나 응답을 버릴 수 있는 루프백 Photon 스탠드인(`tests/integration/support/fake-photon.ts`, 브라우저 테스트용은 `tests/e2e/support/fake-photon-server.ts`)이 더해졌습니다. 수신 메시지는 Photon의 문서화된 방식(`tests/integration/support/photon.ts`)으로 서명했습니다. Photon 회선은 존재하지 않고, 등록된 웹훅도 없으며, Photon, 실제 휴대폰, 프로덕션을 상대로 실행된 것은 없습니다. 이후 추가된 연결 화면(PR #39, D15–D19)은 로컬 수신기를 통해 사용자의 iPhone과 Mac에서 `fmat-spike` 회선으로 한 번 확인했으며, 프로덕션을 상대로 실행된 것은 없습니다.
 
 ### 테스트 묶음 실행
 
@@ -356,7 +356,7 @@
 
 | 항목 | 증거 |
 |---|---|
-| 스파이크와 어댑터(D1, D2) | [설계 1](../../openspec/changes/host-imessage-channel/design.md#1-the-transport-spike-and-the-adapter)이 비교를 기록하며, `lib/server/photon-receiver.test.ts`가 서명 방식, 발신자 식별자 형식, 페이로드를 다룹니다 |
+| 스파이크와 어댑터(D1, D2) | [설계 1](../../openspec/changes/archive/2026-11-24-host-imessage-channel/design.md#1-the-transport-spike-and-the-adapter)이 비교를 기록하며, `lib/server/photon-receiver.test.ts`가 서명 방식, 발신자 식별자 형식, 페이로드를 다룹니다 |
 | 내구성 있는 서명 영수증 | `tests/integration/imessage-receiver.test.ts`: `200` 이전에 봉인된 영수증 하나와 작업 하나; 동시 전달과 반복 전달은 하나로 귀결; 페이로드가 바뀌면 `409`로 응답; 오래되었거나, 서명이 잘못되었거나, 다른 웹훅이거나, 구성되지 않았거나, 너무 큰 전달은 아무것도 저장하지 않음. `tests/integration/eve-surface.test.ts`는 빌드된 에이전트 서비스에서 서명되지 않은 라우트를 거부함 |
 | 연결(D3, D5) | `tests/integration/imessage-links.test.ts`: **Confirm and link** 이후에만 바인딩; 알 수 없거나 만료되었거나 재사용되었거나 그룹에서 온 코드는 아무것도 바인딩하지 않음; 하루 한 번의 거절; 하나의 호스트에만 바인딩되는 발신자; 확인 창; 시간당 코드 5개와 정확한 재시도 |
 | 원탭 딥링크(D4) | `lib/contracts/imessage.test.ts`(플랫폼, `&body=`와 `?body=`, QR 코드의 링크); 390px 및 1280px의 `tests/e2e/imessage-link.test.ts`(데스크톱은 번호, 메시지, **Copy**, QR 코드를 보여 주고 아무것도 열지 않음)와 iPhone 사용자 에이전트(카드의 **Open Messages**가 정확한 iOS 링크를 담음) |
@@ -385,7 +385,7 @@
 
 ## 7단계 — `requester-email-channel`
 
-변경: [`requester-email-channel`](../../openspec/changes/requester-email-channel/tasks.md). 증거 목록: [7단계](06_implementation_plan.md#phase-7--requester-email-channel). 환경은 1단계와 같으나, 병렬로 진행된 5단계 세션의 스택을 초기화하지 않도록 로컬 스택은 별도의 것(`project_id` `fmat-phase7`, 포트 553xx)이었고([결정 기록](08_decision_log.md#phase-7--requester-email-channel)), 로컬 AgentMail 스탠드인(`tests/integration/support/fake-agentmail.ts`)이 메시지 API를 제공하고 답장을 기록하며 `Idempotency-Key`를 따랐습니다. 받은편지함은 존재하지 않으며 AgentMail이나 프로덕션을 상대로 실행된 것은 없습니다.
+변경: [`requester-email-channel`](../../openspec/changes/archive/2026-11-24-requester-email-channel/tasks.md). 증거 목록: [7단계](06_implementation_plan.md#phase-7--requester-email-channel). 환경은 1단계와 같으나, 병렬로 진행된 5단계 세션의 스택을 초기화하지 않도록 로컬 스택은 별도의 것(`project_id` `fmat-phase7`, 포트 553xx)이었고([결정 기록](08_decision_log.md#phase-7--requester-email-channel)), 로컬 AgentMail 스탠드인(`tests/integration/support/fake-agentmail.ts`)이 메시지 API를 제공하고 답장을 기록하며 `Idempotency-Key`를 따랐습니다. 받은편지함은 존재하지 않으며 AgentMail이나 프로덕션을 상대로 실행된 것은 없습니다.
 
 ### 테스트 묶음 실행
 
@@ -423,7 +423,7 @@
 
 ## 8단계 — `operations-and-release`
 
-변경: [`operations-and-release`](../../openspec/changes/operations-and-release/tasks.md). 증거 목록: [8단계](06_implementation_plan.md#phase-8--operations-and-release). 환경은 1단계와 같으며, 이 브랜치는 기본 로컬 스택에서 자체 마이그레이션 체인으로 초기화한 뒤 실행되었습니다.
+변경: [`operations-and-release`](../../openspec/changes/archive/2026-11-24-operations-and-release/tasks.md). 증거 목록: [8단계](06_implementation_plan.md#phase-8--operations-and-release). 환경은 1단계와 같으며, 이 브랜치는 기본 로컬 스택에서 자체 마이그레이션 체인으로 초기화한 뒤 실행되었습니다.
 
 ### 테스트 묶음 실행
 
@@ -476,7 +476,7 @@
 
 ## 9단계 — `host-whatsapp-channel`
 
-변경: [`host-whatsapp-channel`](../../openspec/changes/host-whatsapp-channel/tasks.md). 증거 목록: [9단계](06_implementation_plan.md#phase-9--host-whatsapp-channel). 환경은 6단계와 같이 기본 로컬 스택과 루프백 Photon 스탠드인(`tests/integration/support/fake-photon.ts`)이며, 이 스탠드인은 이제 `/whatsapp/messages`에서 WhatsApp에 응답하고, 닫힌 창에 대한 자유 텍스트를 거부하며(131047), 모든 템플릿을 거부할 수도 있습니다.
+변경: [`host-whatsapp-channel`](../../openspec/changes/archive/2026-11-24-host-whatsapp-channel/tasks.md). 증거 목록: [9단계](06_implementation_plan.md#phase-9--host-whatsapp-channel). 환경은 6단계와 같이 기본 로컬 스택과 루프백 Photon 스탠드인(`tests/integration/support/fake-photon.ts`)이며, 이 스탠드인은 이제 `/whatsapp/messages`에서 WhatsApp에 응답하고, 닫힌 창에 대한 자유 텍스트를 거부하며(131047), 모든 템플릿을 거부할 수도 있습니다.
 
 ### 테스트 묶음 실행
 
@@ -522,7 +522,7 @@
 
 ## 10단계 — `host-telegram-channel`
 
-변경: [`host-telegram-channel`](../../openspec/changes/host-telegram-channel/tasks.md). 증거 목록: [10단계](06_implementation_plan.md#phase-10--host-telegram-channel). 레인 A부터 C까지는 각자의 풀 리퀘스트(#113, #127, #130, #134)에서 로컬로 검증되었으며, 이 절은 릴리스와 합류를 기록합니다.
+변경: [`host-telegram-channel`](../../openspec/changes/archive/2026-11-24-host-telegram-channel/tasks.md). 증거 목록: [10단계](06_implementation_plan.md#phase-10--host-telegram-channel). 레인 A부터 C까지는 각자의 풀 리퀘스트(#113, #127, #130, #134)에서 로컬로 검증되었으며, 이 절은 릴리스와 합류를 기록합니다.
 
 ### 테스트 묶음 실행
 

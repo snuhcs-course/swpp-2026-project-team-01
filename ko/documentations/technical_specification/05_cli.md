@@ -6,7 +6,7 @@
 
 날짜: 2026-10-19
 
-사용자 CLI는 `fmat`이며, [`agent-access` 변경](../../openspec/changes/agent-access/design.md#9-user-cli)에서 결정했고 아래 [사용자 CLI](#user-cli)에 설명합니다. 관리자 CLI는 그 뒤에 설명합니다.
+사용자 CLI는 `fmat`이며, [`agent-access` 변경](../../openspec/changes/archive/2026-11-24-agent-access/design.md#9-user-cli)에서 결정했고 아래 [사용자 CLI](#user-cli)에 설명합니다. 관리자 CLI는 그 뒤에 설명합니다.
 
 ## 권한 분리
 
@@ -25,7 +25,7 @@ CLI와 MCP는 별도의 일정 상태 없이 동일한 도메인 의미 체계�
 
 ## 사용자 CLI
 
-[`agent-access` 제안](../../openspec/changes/agent-access/proposal.md#decisions)(D4, D14)에서 2026-10-22에 결정했습니다. 패키지는 `cli/`의 `@findmeatime/cli`이고 명령은 `fmat`이며, Node.js 20 이상이 필요하고 의존성이 없습니다. npm 배포는 사용자가 결정할 때까지 보류하며, 그때까지는 체크아웃에서 `npm run fmat -- <command>`로 실행합니다. MCP 엔드포인트의 클라이언트이므로 모든 명령이 웹과 동일한 도메인 연산에 도달하고 일정 상태를 보관하지 않습니다.
+[`agent-access` 제안](../../openspec/changes/archive/2026-11-24-agent-access/proposal.md#decisions)(D4, D14)에서 2026-10-22에 결정했습니다. 패키지는 `cli/`의 `@findmeatime/cli`이고 명령은 `fmat`이며, Node.js 20 이상이 필요하고 의존성이 없습니다. npm 배포는 사용자가 결정할 때까지 보류하며, 그때까지는 체크아웃에서 `npm run fmat -- <command>`로 실행합니다. MCP 엔드포인트의 클라이언트이므로 모든 명령이 웹과 동일한 도메인 연산에 도달하고 일정 상태를 보관하지 않습니다.
 
 | 명령 | 효과 |
 |---|---|
@@ -43,7 +43,7 @@ CLI와 MCP는 별도의 일정 상태 없이 동일한 도메인 의미 체계�
 
 ## 관리자 CLI
 
-2026-10-19에 [`host-onboarding` 설계](../../openspec/changes/host-onboarding/design.md#14-administrator-cli)에서 결정했습니다. CLI는 `scripts/admin.ts`이며 이름은 `fmat-admin`이고, 체크아웃에서 `npm run admin -- <command>`로 실행합니다. 패키지로 배포하지 않습니다.
+2026-10-19에 [`host-onboarding` 설계](../../openspec/changes/archive/2026-11-24-host-onboarding/design.md#14-administrator-cli)에서 결정했습니다. CLI는 `scripts/admin.ts`이며 이름은 `fmat-admin`이고, 체크아웃에서 `npm run admin -- <command>`로 실행합니다. 패키지로 배포하지 않습니다.
 
 | 명령 | 효과 |
 |---|---|

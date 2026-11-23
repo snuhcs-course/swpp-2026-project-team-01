@@ -65,7 +65,7 @@
 
 [CLI 방향](technical_specification/05_cli.md)은 사용자 및 관리자 화면을 정의합니다. 관리자 CLI(`fmat-admin`)는 호스트 계정을 조회하고, 정지하고, 복원합니다. 사용자 CLI 명령은 아직 없습니다.
 
-사용자 CLI의 실행 파일 이름, 패키징/배포, 전체 명령 목록은 아직 명세해야 하는 구현상의 결정입니다. 관리자 CLI의 이름, 패키징, 운영자 인증은 [`host-onboarding` 설계](../openspec/changes/host-onboarding/design.md#14-administrator-cli)에서 결정되었습니다. 이 문서는 명령을 만들어 내거나 검증되지 않은 지원을 주장하지 않고, 두 개의 CLI라는 방향만 확립합니다.
+사용자 CLI의 실행 파일 이름, 패키징/배포, 전체 명령 목록은 아직 명세해야 하는 구현상의 결정입니다. 관리자 CLI의 이름, 패키징, 운영자 인증은 [`host-onboarding` 설계](../openspec/changes/archive/2026-11-24-host-onboarding/design.md#14-administrator-cli)에서 결정되었습니다. 이 문서는 명령을 만들어 내거나 검증되지 않은 지원을 주장하지 않고, 두 개의 CLI라는 방향만 확립합니다.
 
 ## 4. 한 번에 하나만 생각하게 한다
 

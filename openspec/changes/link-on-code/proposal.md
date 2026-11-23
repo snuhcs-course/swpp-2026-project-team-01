@@ -4,7 +4,7 @@ Tracking issues: #412 (host links) and #383 (a guest's Telegram link)
 
 ## Why
 
-To link iMessage, WhatsApp or Telegram, a person sends a one-time code from the messenger and then has to go back to the browser and press **Confirm and link** on **Is this you?** (host links, [`host-imessage-channel`](../host-imessage-channel/proposal.md) D3 and D15, [`host-telegram-channel`](../host-telegram-channel/proposal.md) D6) or **Is this your Telegram?** (guest links, [`guest-flow-completion`](../guest-flow-completion/proposal.md) design 1, [`guest-telegram-link`](../guest-telegram-link/proposal.md) D3). The trip back to the browser after texting is the step the owner wants gone. On a computer it also made the Telegram start link replace the page that held the confirmation (#369). In team QA on 2026-11-23 the guest's second tap felt unnecessary (#383).
+To link iMessage, WhatsApp or Telegram, a person sends a one-time code from the messenger and then has to go back to the browser and press **Confirm and link** on **Is this you?** (host links, [`host-imessage-channel`](../archive/2026-11-24-host-imessage-channel/proposal.md) D3 and D15, [`host-telegram-channel`](../archive/2026-11-24-host-telegram-channel/proposal.md) D6) or **Is this your Telegram?** (guest links, [`guest-flow-completion`](../guest-flow-completion/proposal.md) design 1, [`guest-telegram-link`](../archive/2026-11-24-guest-telegram-link/proposal.md) D3). The trip back to the browser after texting is the step the owner wants gone. On a computer it also made the Telegram start link replace the page that held the confirmation (#369). In team QA on 2026-11-23 the guest's second tap felt unnecessary (#383).
 
 The repository owner decided on 2026-11-23 (#412): a messenger links as soon as the person sends a valid code, for hosts and guests alike.
 
@@ -36,7 +36,7 @@ None.
 
 ### Modified Capabilities
 
-- `host-imessage-channel` (unarchived, in [`host-imessage-channel`](../host-imessage-channel/proposal.md)): a host's code links on arrival; the link step, the iMessage start and the card show **Linked** with **Not my number — unlink**. The same applies to WhatsApp and Telegram through `host-whatsapp-channel` and `host-telegram-channel`, whose deltas this change updates in place.
+- `host-imessage-channel` (unarchived, in [`host-imessage-channel`](../archive/2026-11-24-host-imessage-channel/proposal.md)): a host's code links on arrival; the link step, the iMessage start and the card show **Linked** with **Not my number — unlink**. The same applies to WhatsApp and Telegram through `host-whatsapp-channel` and `host-telegram-channel`, whose deltas this change updates in place.
 - `requester-imessage-channel` (unarchived, in [`guest-flow-completion`](../guest-flow-completion/proposal.md)): a guest's code links on arrival on every channel; `guest-whatsapp-channel` and `guest-telegram-channel` deltas are updated in place.
 
 The capabilities above exist only in unarchived changes, so this change adds its requirement as ADDED and edits those changes' deltas so they do not contradict it. It is archived after them.

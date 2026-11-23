@@ -150,6 +150,14 @@ function recordedReturn(request: Request) {
 // and a fresh refresh token comes back; any other value is ignored. `?calendar=0`
 // asks for identity only (D18's landing Calendar box, removed on 2026-11-04);
 // setup's Connect Google Calendar card asks for Calendar later.
+// A sign-in that links an iMessage conversation (this browser's iMessage start
+// cookie, the continuation cookie from Thyme's sign-in link, or `return=imessage`)
+// also asks Google to show the consent screen (imessage-onboarding-calendar-consent
+// D1, #407). Google returns a refresh token only when it shows that screen, so an
+// account that authorized this client before would otherwise sign in with no
+// lasting Calendar access, and the welcome in iMessage would ask for Calendar again.
+// Who signs in is unknown until the callback, so it cannot be limited to hosts
+// without a usable grant.
 export function createGoogleSignInHandler(load: () => GoogleSignInDependencies = dependenciesFromEnvironment) {
   return async (request: Request) => {
     const deps = load();
@@ -158,8 +166,9 @@ export function createGoogleSignInHandler(load: () => GoogleSignInDependencies =
     if (!origin) return unknownHost();
 
     const params = new URL(request.url).searchParams;
-    const renewConsent = params.get("consent") === "calendar";
-    const identityOnly = !renewConsent && params.get("calendar") === "0";
+    const identityOnly = params.get("consent") !== "calendar" && params.get("calendar") === "0";
+    const imessageOnboarding = startSecretOf(request) !== null || continuationOf(request) !== null || params.get("return") === RETURN_IMESSAGE;
+    const renewConsent = params.get("consent") === "calendar" || (!identityOnly && imessageOnboarding);
     const transaction = params.get("return") === "consent" ? params.get("transaction") : null;
     const consentReturn = transaction && (await isLiveHostTransaction(deps.db, transaction)) ? transaction : null;
     const auth = createRequestAuthClient(request, deps.auth);

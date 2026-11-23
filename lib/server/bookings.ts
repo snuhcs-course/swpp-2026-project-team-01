@@ -777,19 +777,30 @@ async function reconcile(calendar: HostCalendar, booking: JobBooking): Promise<W
   return insertOnce(calendar, booking, booking.payload);
 }
 
+// The events.patch body for a change, from its frozen insert payload: the
+// event's ID and attendees are left as they are. A Meet the event already has
+// stays when the change is still a Meet meeting, and one is created when it has
+// none; a change that no longer uses Meet (in person, or the guest's own link)
+// removes the conference with conferenceData: null, and a change without a
+// location clears the old one, since a patch leaves out-of-body fields alone.
+export function changePatchBody(payload: Record<string, unknown>, eventHasMeet: boolean): Record<string, unknown> {
+  const { id: _id, attendees: _attendees, conferenceData, ...rest } = payload as Record<string, unknown> & { conferenceData?: unknown };
+  const body: Record<string, unknown> = { ...rest, location: rest.location ?? null };
+  if (!conferenceData) return { ...body, conferenceData: null };
+  return eventHasMeet ? body : { ...body, conferenceData };
+}
+
 // A change patches the standing event with the frozen payload, again on every
-// attempt: the same body twice is harmless. The event's ID, attendees and an
-// existing conference are left as they are.
+// attempt: the same body twice is harmless.
 async function patchChange(calendar: HostCalendar, booking: JobBooking, payload: Record<string, unknown> | null): Promise<Written> {
   if (!payload) return { kind: "unknown" };
-  const { id: _id, attendees: _attendees, conferenceData, ...rest } = payload as Record<string, unknown> & { conferenceData?: unknown };
-  let body: Record<string, unknown> = rest;
-  if (conferenceData) {
+  let eventHasMeet = false;
+  if (payload.conferenceData) {
     const read = await calendar.getEvent(booking.calendar_id, booking.event_id);
     if (read.outcome === "uncertain") return { kind: "unknown" };
-    // Keep a Meet the event already has; create one only when it has none.
-    if (!(read.outcome === "found" && read.event.joinUrl)) body = { ...rest, conferenceData };
+    eventHasMeet = read.outcome === "found" && Boolean(read.event.joinUrl);
   }
+  const body = changePatchBody(payload, eventHasMeet);
   const patched = await calendar.patchEvent(booking.calendar_id, booking.event_id, body);
   if (patched.outcome === "patched") return patched.event.status === "cancelled" ? { failure: "event_removed", kind: "rejected" } : { event: patched.event, kind: "confirmed" };
   if (patched.outcome === "absent") return { failure: "event_removed", kind: "rejected" };
@@ -835,15 +846,13 @@ async function confirm(tx: Transaction, deps: BookingDependencies, booking: JobB
   await closeRequest(tx, booking.request_id, "booked", { fromBooking: true });
   await enqueueHostNotice(tx, booking.request_id, { bookingId: booking.id, kind: "booking_confirmed" });
   const [proposal] = await tx<{ details: LatestProposal["details"] }[]>`select details from app.proposals where id = ${booking.proposal_id}`;
-  const linkPlan = proposal?.details.linkPlan ?? null;
-
   await enqueueConfirmations(tx, deps.notices, booking.request_id, {
     bookingId: booking.id,
     changed: booking.replaces_booking_id !== null,
     confirmedAt: confirmed[0]!.confirmed_at.toISOString(),
     end: booking.end_at.toISOString(),
     iCalUID: event.iCalUID,
-    joinUrl: proposal?.details.mode === "online" ? (event.joinUrl ?? (linkPlan?.kind === "requester_link" ? linkPlan.url : null)) : null,
+    joinUrl: proposal ? bookingJoinUrl(proposal.details, event) : null,
     location: proposal?.details.mode === "in_person" ? (proposal.details.location ?? null) : null,
     mode: proposal?.details.mode ?? "online",
     organizerEmail: event.organizerEmail,

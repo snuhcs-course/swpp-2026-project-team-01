@@ -55,6 +55,7 @@ import {
   storedPatch,
   storedReview,
 } from "./request-reviews";
+import { hostCalendarsCommand, hostCalendarsMessage, readHostCalendarsView } from "./requester-host-profiles";
 import type { SessionPrincipal } from "./setup-tools";
 
 // The requester conversation's tools (design decision 12), behind the agent's
@@ -328,6 +329,7 @@ export async function readRequestForTool(db: Database, call: RequestToolCall) {
   const now = new Date();
   const booking = row.state === "booked" || changing ? await minimizedBooking(db, id, timezone, now) : null;
   const phase = booking?.phase ?? null;
+  const hostCalendars = await readHostCalendarsView(db, id);
 
   return {
     // A fixed reply for a question about either calendar (#311): an
@@ -355,6 +357,9 @@ export async function readRequestForTool(db: Database, call: RequestToolCall) {
       preferredWeeklyWindows: details.preferredWeeklyWindows ?? [],
     },
     host: { displayName: encodeDisplayName(row.display_name ?? "Your host"), notes: guestNotesView(row.assistant_notes), offer: hostOffer(row.offer) },
+    // The guest's own host calendars when the guest is a host (R01 M-2.1):
+    // use_host_calendars changes whether they count for this request.
+    ...(hostCalendars ? { yourHostCalendars: hostCalendars } : {}),
     missing: missingFields(details, hostListsPlaces(row.offer)),
     next: nextSteps(row.state, phase, changing),
     pendingReview: review ? minimizedReview(storedReview(review, language), timezone) : null,
@@ -830,6 +835,22 @@ export async function changeAgreementForTool(db: Database, call: RequestToolCall
       : refused(outcome.error.category);
   }
   return { message: "Reopened: details and times can change again, and a new time needs a new agreement.", recorded: true, state: outcome.result.state };
+}
+
+// Whether the guest's host calendars count for this request only, said in
+// words (R01 M-2.1, #334). The host's own calendar roles never change.
+export const useHostCalendarsToolInput = hostCalendarsCommand.input;
+
+export async function useHostCalendarsForTool(
+  db: Database,
+  call: RequestToolCall,
+  input: { readonly use: boolean },
+): Promise<{ readonly recorded: boolean; readonly calendars?: readonly string[]; readonly message: string }> {
+  const { outcome } = await decide(db, call, hostCalendarsCommand, { use: input.use });
+  if (!outcome.ok) return refused(outcome.error.category);
+  const result = outcome.result;
+  const recorded = result.outcome === "used" || result.outcome === "not_used";
+  return { message: hostCalendarsMessage(result, "evaluate_candidates"), recorded, ...("calendars" in result ? { calendars: result.calendars } : {}) };
 }
 
 export async function withdrawRequestForTool(db: Database, call: RequestToolCall): Promise<DecisionResult> {

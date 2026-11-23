@@ -39,7 +39,7 @@ No OpenSpec change is needed. These are maintenance fixes and decisions that unb
 - [x] Fix the broken link in `DESIGN.md` to `documentations/03_design_principles.md`. The link checker skips root files other than README, so this was missed. Done when the link resolves.
 - [x] Extend `scripts/check-documentation.mjs` to root Markdown files (`DESIGN.md`, `AGENTS.md`) so the same class of error cannot recur. Done when `npm run check:docs` covers them. The checker now reads every root Markdown file except symlinks, so `CLAUDE.md` is not counted twice.
 - [x] Resolve the iteration-1 iMessage artifacts. `openspec validate --all --strict` fails on the placeholder Purpose of `imessage-agent`, which breaks the Check workflow. The `host-imessage-assistant` change designs a service-sent welcome over Drizzle tables and `apps/web/src` paths that do not exist here, and the PRD now selects a host-sent link code instead. Done when a decision is recorded (retire both and re-specify iMessage in Phase 6, or rewrite the spec Purpose now) and `npm run check` passes. Decided 2026-10-19: both retired, as recorded in the [OpenSpec status](../../openspec/README.md); Phase 6 writes the replacement.
-- [x] Record the runtime foundation decisions needed to start: eve version pin and reviewed template revision, model identifier and context window, persistence and worker placement, dependency pins. Done when they are listed in the Phase 1 proposal. Recorded in the [`application-foundation` design](../../openspec/changes/application-foundation/design.md): template `8c55ea7c132f`, `eve` 0.80.1 with `ai` 7.0.143, direct OpenAI `gpt-5.6-terra` with a 32,000-token compaction window, Postgres jobs with a `pg_net` and `pg_cron` woken worker, and region `cle1`.
+- [x] Record the runtime foundation decisions needed to start: eve version pin and reviewed template revision, model identifier and context window, persistence and worker placement, dependency pins. Done when they are listed in the Phase 1 proposal. Recorded in the [`application-foundation` design](../../openspec/changes/archive/2026-11-24-application-foundation/design.md): template `8c55ea7c132f`, `eve` 0.80.1 with `ai` 7.0.143, direct OpenAI `gpt-5.6-terra` with a 32,000-token compaction window, Postgres jobs with a `pg_net` and `pg_cron` woken worker, and region `cle1`.
 - [x] Set up each teammate: hooks (`git config core.hooksPath .githooks`), Supabase CLI 2.119.0, OpenSpec 1.14.0, a personal Supabase project, and the Google OAuth client with local and sandbox callbacks. Done when each teammate can run the Phase 1 checkout locally. Confirmed by the team on 2026-10-19 for the hooks, CLI versions, personal Supabase projects and OAuth clients. Running the checkout itself is first possible once the Phase 1 skeleton lands, and task 1.7 of the foundation change verifies it.
 - [x] Prune stale worktrees and branches. Twelve Codex worktrees and two under `.claude/worktrees` attract misattributed usage. Done when every remaining worktree is either active or holds work not saved elsewhere. On 2026-10-19, five clean worktrees idle since before 2026-10-10 and four local branches already merged into `origin/main` were removed. Kept: worktrees with uncommitted work or an unreferenced commit, worktrees with files changed within two days of pruning (three Codex worktrees, last changed 2026-10-17 to 2026-10-19), and every branch with unmerged or unpushed work.
 
@@ -86,7 +86,7 @@ Scope. Prerequisite for every lane: the skeleton below, done by one person in th
 
 Specs: [chat-workspaces](../../openspec/specs/chat-workspaces/spec.md) (Google-only login, single host workspace, conversation-first entry), [host-admission](../../openspec/specs/host-admission/spec.md) (open sign-up, eligibility guard), [conversation-access](../../openspec/specs/conversation-access/spec.md), [model-execution](../../openspec/specs/model-execution/spec.md), [application-commands](../../openspec/specs/application-commands/spec.md), [durable-jobs](../../openspec/specs/durable-jobs/spec.md), [messaging-environments](../../openspec/specs/messaging-environments/spec.md).
 
-Decisions: the template revision, eve version, dependency pins, model, data access, durable placement and region were recorded in Phase 0 in the [foundation change](../../openspec/changes/application-foundation/proposal.md). This phase confirms the durable placement with its failure tests and tunes compaction thresholds. Whether `evaluate_candidates` is an eve workflow tool or an application job moves to Phase 3, where it is first used.
+Decisions: the template revision, eve version, dependency pins, model, data access, durable placement and region were recorded in Phase 0 in the [foundation change](../../openspec/changes/archive/2026-11-24-application-foundation/proposal.md). This phase confirms the durable placement with its failure tests and tunes compaction thresholds. Whether `evaluate_candidates` is an eve workflow tool or an application job moves to Phase 3, where it is first used.
 
 Evidence: two-host isolation, unauthorized raw runtime routes, cancelled and replayed sign-in, reconnect versus terminal recovery, model limit exhaustion, preview messaging denial; `supabase db reset --local` rebuilds the chain; the production deployment serves `/app` on the release origin. AC-26 first half (sign-in creates exactly one account; repeat creates none).
 
@@ -183,10 +183,10 @@ Scope. Prerequisite: Phase 3 joined for a real awaiting-approval request; Lanes 
 
 **Proposal (serial, first)**
 
-- [x] Proposal for [`host-review-and-booking`](../../openspec/changes/host-review-and-booking/proposal.md) with the decisions to settle and the coverage table.
-- [x] [Design](../../openspec/changes/host-review-and-booking/design.md).
-- [x] Delta specs under [`specs/`](../../openspec/changes/host-review-and-booking/specs/).
-- [x] [Tasks](../../openspec/changes/host-review-and-booking/tasks.md).
+- [x] Proposal for [`host-review-and-booking`](../../openspec/changes/archive/2026-11-24-host-review-and-booking/proposal.md) with the decisions to settle and the coverage table.
+- [x] [Design](../../openspec/changes/archive/2026-11-24-host-review-and-booking/design.md).
+- [x] Delta specs under [`specs/`](../../openspec/changes/archive/2026-11-24-host-review-and-booking/specs).
+- [x] [Tasks](../../openspec/changes/archive/2026-11-24-host-review-and-booking/tasks.md).
 - [x] Owning-document updates and Korean mirrors.
 - [ ] Teammate review.
 
@@ -227,10 +227,10 @@ Scope. Prerequisite: Phase 3 for requester operations and Phase 4 for host decis
 
 **Proposal (serial, first)**
 
-- [x] Proposal for [`agent-access`](../../openspec/changes/agent-access/proposal.md) with the decisions to settle and the coverage table.
-- [x] [Design](../../openspec/changes/agent-access/design.md).
-- [x] Delta specs under [`specs/`](../../openspec/changes/agent-access/specs/), including the one-future-request grant.
-- [x] [Tasks](../../openspec/changes/agent-access/tasks.md).
+- [x] Proposal for [`agent-access`](../../openspec/changes/archive/2026-11-24-agent-access/proposal.md) with the decisions to settle and the coverage table.
+- [x] [Design](../../openspec/changes/archive/2026-11-24-agent-access/design.md).
+- [x] Delta specs under [`specs/`](../../openspec/changes/archive/2026-11-24-agent-access/specs), including the one-future-request grant.
+- [x] [Tasks](../../openspec/changes/archive/2026-11-24-agent-access/tasks.md).
 - [x] Owning-document updates and Korean mirrors.
 - [ ] Teammate review.
 
@@ -268,10 +268,10 @@ Scope. Prerequisite: Phase 2 for setup over iMessage and Phase 4 for decisions. 
 
 **Proposal (serial, first)**
 
-- [x] Proposal for [`host-imessage-channel`](../../openspec/changes/host-imessage-channel/proposal.md), replacing the retired iteration-1 `imessage-agent` spec and `host-imessage-assistant` change, with the decisions to settle and the coverage table.
-- [x] [Design](../../openspec/changes/host-imessage-channel/design.md).
-- [x] Delta spec under [`specs/`](../../openspec/changes/host-imessage-channel/specs/), the new `host-imessage-channel` capability.
-- [x] [Tasks](../../openspec/changes/host-imessage-channel/tasks.md).
+- [x] Proposal for [`host-imessage-channel`](../../openspec/changes/archive/2026-11-24-host-imessage-channel/proposal.md), replacing the retired iteration-1 `imessage-agent` spec and `host-imessage-assistant` change, with the decisions to settle and the coverage table.
+- [x] [Design](../../openspec/changes/archive/2026-11-24-host-imessage-channel/design.md).
+- [x] Delta spec under [`specs/`](../../openspec/changes/archive/2026-11-24-host-imessage-channel/specs), the new `host-imessage-channel` capability.
+- [x] [Tasks](../../openspec/changes/archive/2026-11-24-host-imessage-channel/tasks.md).
 - [x] Owning-document updates and Korean mirrors, including the one-tap deep link the user decided on 2026-10-23.
 - [ ] Teammate review.
 
@@ -310,10 +310,10 @@ Scope. Prerequisite: Phase 3 for request binding and Phase 4 for notifications. 
 
 **Proposal (serial, first)**
 
-- [x] Proposal for [`requester-email-channel`](../../openspec/changes/requester-email-channel/proposal.md) with the decisions to settle and the coverage table.
-- [x] [Design](../../openspec/changes/requester-email-channel/design.md).
-- [x] Delta specs under [`specs/`](../../openspec/changes/requester-email-channel/specs/).
-- [x] [Tasks](../../openspec/changes/requester-email-channel/tasks.md).
+- [x] Proposal for [`requester-email-channel`](../../openspec/changes/archive/2026-11-24-requester-email-channel/proposal.md) with the decisions to settle and the coverage table.
+- [x] [Design](../../openspec/changes/archive/2026-11-24-requester-email-channel/design.md).
+- [x] Delta specs under [`specs/`](../../openspec/changes/archive/2026-11-24-requester-email-channel/specs).
+- [x] [Tasks](../../openspec/changes/archive/2026-11-24-requester-email-channel/tasks.md).
 - [x] Owning-document updates and Korean mirrors.
 - [ ] Teammate review.
 
@@ -346,10 +346,10 @@ Scope. Prerequisite: Phase 4 for diagnostics to have something to inspect; the r
 
 **Proposal (serial, first)**
 
-- [x] Proposal for [`operations-and-release`](../../openspec/changes/operations-and-release/proposal.md) with the decisions to settle and the coverage table.
-- [x] [Design](../../openspec/changes/operations-and-release/design.md).
-- [x] Delta specs under [`specs/`](../../openspec/changes/operations-and-release/specs/).
-- [x] [Tasks](../../openspec/changes/operations-and-release/tasks.md).
+- [x] Proposal for [`operations-and-release`](../../openspec/changes/archive/2026-11-24-operations-and-release/proposal.md) with the decisions to settle and the coverage table.
+- [x] [Design](../../openspec/changes/archive/2026-11-24-operations-and-release/design.md).
+- [x] Delta specs under [`specs/`](../../openspec/changes/archive/2026-11-24-operations-and-release/specs).
+- [x] [Tasks](../../openspec/changes/archive/2026-11-24-operations-and-release/tasks.md).
 - [x] Owning-document updates and Korean mirrors.
 - [ ] Teammate review.
 
@@ -381,7 +381,7 @@ Scope. Prerequisite: Phase 4 for diagnostics to have something to inspect; the r
 
 Specs: [operational-diagnostics](../../openspec/specs/operational-diagnostics/spec.md), [email-delivery](../../openspec/specs/email-delivery/spec.md) (Auth notifications), [messaging-environments](../../openspec/specs/messaging-environments/spec.md).
 
-Decisions settled here: measurement window and numerical targets from PRD section 2; support and recovery ownership; performance targets. Decided on 2026-10-23 with retention, deletion, disclosures and the environment split as D1–D14 of the [`operations-and-release` proposal](../../openspec/changes/operations-and-release/proposal.md#decisions).
+Decisions settled here: measurement window and numerical targets from PRD section 2; support and recovery ownership; performance targets. Decided on 2026-10-23 with retention, deletion, disclosures and the environment split as D1–D14 of the [`operations-and-release` proposal](../../openspec/changes/archive/2026-11-24-operations-and-release/proposal.md#decisions).
 
 Evidence: a complete acceptance record with no pending required client or provider case, and the release checklist in [provider setup](03_provider_setup.md#environment-and-activation-checklist) satisfied.
 
@@ -393,10 +393,10 @@ Scope. Prerequisite: Phase 6, whose receiver, tables, commands, outbox and cards
 
 **Proposal (serial, first)**
 
-- [x] Proposal for [`host-whatsapp-channel`](../../openspec/changes/host-whatsapp-channel/proposal.md) with decisions D1–D13 and the coverage table.
-- [x] [Design](../../openspec/changes/host-whatsapp-channel/design.md).
-- [x] Delta spec under [`specs/`](../../openspec/changes/host-whatsapp-channel/specs/), the new `host-whatsapp-channel` capability.
-- [x] [Tasks](../../openspec/changes/host-whatsapp-channel/tasks.md).
+- [x] Proposal for [`host-whatsapp-channel`](../../openspec/changes/archive/2026-11-24-host-whatsapp-channel/proposal.md) with decisions D1–D13 and the coverage table.
+- [x] [Design](../../openspec/changes/archive/2026-11-24-host-whatsapp-channel/design.md).
+- [x] Delta spec under [`specs/`](../../openspec/changes/archive/2026-11-24-host-whatsapp-channel/specs), the new `host-whatsapp-channel` capability.
+- [x] [Tasks](../../openspec/changes/archive/2026-11-24-host-whatsapp-channel/tasks.md).
 - [x] PRD update (audience decision, non-goals, FR-37 to FR-39, AC-29 to AC-31), provider setup and Korean mirrors.
 - [ ] Teammate review, including the open questions on template wording, languages and coalescing.
 
@@ -430,7 +430,7 @@ Scope. Prerequisite: Phase 6, whose receiver, tables, commands, outbox and cards
 
 Specs: [chat-workspaces](../../openspec/specs/chat-workspaces/spec.md), [messaging-environments](../../openspec/specs/messaging-environments/spec.md), [durable-jobs](../../openspec/specs/durable-jobs/spec.md), plus the new `host-whatsapp-channel` delta and, until it is archived, `host-imessage-channel`.
 
-Decisions settled here: platform routing and the WhatsApp sender format; records shared with iMessage through a `channel` column; one channel per host; the device rule; the window margin; template names, parameters and limits. Proposed as D1–D13 of the [`host-whatsapp-channel` proposal](../../openspec/changes/host-whatsapp-channel/proposal.md#decisions) on 2026-11-02, awaiting teammate review; the template text is final only once Meta approves it.
+Decisions settled here: platform routing and the WhatsApp sender format; records shared with iMessage through a `channel` column; one channel per host; the device rule; the window margin; template names, parameters and limits. Proposed as D1–D13 of the [`host-whatsapp-channel` proposal](../../openspec/changes/archive/2026-11-24-host-whatsapp-channel/proposal.md#decisions) on 2026-11-02, awaiting teammate review; the template text is final only once Meta approves it.
 
 Evidence: AC-29, AC-30, AC-31 on a controlled Android phone against the production deployment, including a template outside the window, replay after restart and simulated delivery failure; recorded device, WhatsApp and browser versions.
 
@@ -442,10 +442,10 @@ Scope. Prerequisites: Phases 6 and 9, whose receipts, tables with their `channel
 
 **Proposal (serial, first)**
 
-- [x] Proposal for [`host-telegram-channel`](../../openspec/changes/host-telegram-channel/proposal.md) with decisions D1–D13 and the coverage table.
-- [x] [Design](../../openspec/changes/host-telegram-channel/design.md).
-- [x] Delta spec under [`specs/`](../../openspec/changes/host-telegram-channel/specs/), the new `host-telegram-channel` capability.
-- [x] [Tasks](../../openspec/changes/host-telegram-channel/tasks.md).
+- [x] Proposal for [`host-telegram-channel`](../../openspec/changes/archive/2026-11-24-host-telegram-channel/proposal.md) with decisions D1–D13 and the coverage table.
+- [x] [Design](../../openspec/changes/archive/2026-11-24-host-telegram-channel/design.md).
+- [x] Delta spec under [`specs/`](../../openspec/changes/archive/2026-11-24-host-telegram-channel/specs), the new `host-telegram-channel` capability.
+- [x] [Tasks](../../openspec/changes/archive/2026-11-24-host-telegram-channel/tasks.md).
 - [x] PRD update (Telegram decision, scope, FR-40 to FR-42, AC-32 to AC-34), provider setup and Korean mirrors.
 - [ ] Teammate review, including the open questions on iPhone hosts and the buttons.
 
@@ -470,7 +470,7 @@ Scope. Prerequisites: Phases 6 and 9, whose receipts, tables with their `channel
 
 Specs: [chat-workspaces](../../openspec/specs/chat-workspaces/spec.md), [messaging-environments](../../openspec/specs/messaging-environments/spec.md), [durable-jobs](../../openspec/specs/durable-jobs/spec.md), plus the new `host-telegram-channel` delta and, until they are archived, `host-imessage-channel` and `host-whatsapp-channel`.
 
-Decisions settled here: the direct Bot API transport and its webhook secret; the Telegram sender identity; the start link; the device rule across three channels; the decision buttons and their retirement. Proposed as D1–D13 of the [`host-telegram-channel` proposal](../../openspec/changes/host-telegram-channel/proposal.md#decisions) on 2026-11-04, awaiting teammate review.
+Decisions settled here: the direct Bot API transport and its webhook secret; the Telegram sender identity; the start link; the device rule across three channels; the decision buttons and their retirement. Proposed as D1–D13 of the [`host-telegram-channel` proposal](../../openspec/changes/archive/2026-11-24-host-telegram-channel/proposal.md#decisions) on 2026-11-04, awaiting teammate review.
 
 Evidence: AC-32, AC-33, AC-34 on a controlled Android phone and an iPhone against the production deployment, including a button approval, a stale tap, replay after restart, a rate limit and a blocked bot; recorded device, Telegram and browser versions.
 

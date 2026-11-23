@@ -8,6 +8,7 @@ import {
   RETURN_COOKIE,
 } from "../../lib/server/google-sign-in";
 import { createGrantedScopesFetcher } from "../../lib/server/google-token-info";
+import { CONTINUATION_COOKIE } from "../../lib/server/imessage-continuation";
 import { START_COOKIE, startImessageLink } from "../../lib/server/imessage-start";
 import { parseTokenKey } from "../../lib/server/token-encryption";
 import {
@@ -278,8 +279,8 @@ describe("Google sign-in on more than one origin", () => {
 });
 
 describe("renewed Calendar consent", () => {
-  async function googleUrl(path: string) {
-    const response = await signIn(new Request(`${origin}${path}`));
+  async function googleUrl(path: string, cookie?: string) {
+    const response = await signIn(new Request(`${origin}${path}`, cookie ? { headers: { cookie } } : {}));
     const authorize = await fetch(response.headers.get("location")!, { redirect: "manual" });
     return new URL(authorize.headers.get("location")!);
   }
@@ -302,6 +303,24 @@ describe("renewed Calendar consent", () => {
     for (const path of ["/auth/sign-in?calendar=1", "/auth/sign-in?calendar=0&consent=calendar"]) {
       expect((await googleUrl(path)).searchParams.get("scope")!.split(" ")).toEqual(expect.arrayContaining([...GOOGLE_CALENDAR_SCOPES]));
     }
+  });
+
+  // #407: Google returns a refresh token only with the consent screen, so the
+  // sign-in that links an iMessage conversation always asks for it.
+  it("asks Google to show consent on a sign-in that links an iMessage conversation", async () => {
+    const cases: [string, string | undefined][] = [
+      ["/auth/sign-in", `${START_COOKIE}=${"a".repeat(43)}`],
+      ["/auth/sign-in?return=imessage", `${CONTINUATION_COOKIE}=token`],
+      ["/auth/sign-in?return=imessage", undefined],
+    ];
+    for (const [path, cookie] of cases) {
+      const google = await googleUrl(path, cookie);
+      expect(google.searchParams.get("prompt")).toBe("consent");
+      expect(google.searchParams.get("include_granted_scopes")).toBe("true");
+      expect(google.searchParams.get("scope")!.split(" ")).toEqual(expect.arrayContaining([...GOOGLE_CALENDAR_SCOPES]));
+    }
+    // An identity-only sign-in asks for no Calendar consent.
+    expect((await googleUrl("/auth/sign-in?calendar=0", `${START_COOKIE}=${"a".repeat(43)}`)).searchParams.get("prompt")).toBeNull();
   });
 
   it("ignores any other consent value", async () => {

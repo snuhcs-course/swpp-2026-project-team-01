@@ -1,0 +1,241 @@
+# host-imessage-channel Specification
+
+## Purpose
+Let a host link their iMessage to Find Me a Time and handle setup, request review and decisions there, with signed and ordered receipts, exact commands before any model turn, and delivery outcomes reported truthfully.
+
+## Requirements
+
+### Requirement: Durable signed receipt
+The iMessage receiver SHALL accept a delivery only from the configured Photon webhook, after verifying its signature over the raw body with a timestamp no more than five minutes from the server's time, before parsing the payload. A received direct or group message SHALL be stored as one receipt with one processing job in a single transaction before the delivery is acknowledged. The receipt SHALL hold provider locators, keyed hashes of the sender and conversation, the payload's SHA-256, and the message text and reply locators only sealed and only until the receipt is processed. A repeated delivery with the same message identity and payload SHALL be acknowledged without new work; the same identity with a different payload SHALL be refused and change nothing.
+
+#### Scenario: Restart after acknowledgment
+- **WHEN** the service restarts right after acknowledging a verified message
+- **THEN** the stored receipt's job processes the message once
+
+#### Scenario: Stale or foreign delivery
+- **WHEN** a delivery carries a signature older than five minutes or names another webhook
+- **THEN** it is refused with no receipt or job
+
+#### Scenario: Changed payload under the same message
+- **WHEN** a second delivery reuses a stored message identity with different content
+- **THEN** it is refused and the stored receipt is unchanged
+
+### Requirement: Linking by a host-sent code
+An authenticated active host SHALL be able to create a one-time link code that the service shows with its iMessage line number and the exact message to send. **Connect iMessage** SHALL create the code and then open the Messages app addressed to the line with that message in the input where the platform supports it (`sms:<number>&body=<text>` on iOS and iPadOS, `sms:<number>?body=<text>` on Android); elsewhere it SHALL show the number, the code, a copy action and a QR code that opens the same deep link on a phone. Opening Messages SHALL NOT change linking state. A message carrying a pending, unexpired code from a direct conversation SHALL bind its sender to the host as soon as it arrives and receive the linked reply in that conversation, with no confirmation in the browser; the page that showed the code SHALL show **Linked** with the sender's last four digits or Apple ID and **Not my number — unlink** (`link-on-code` D1, D2). A code SHALL be single-use. A linking message SHALL never reach the model or the transcript.
+
+#### Scenario: Link by code
+- **WHEN** the host taps **Connect iMessage** and sends the prefilled message
+- **THEN** that sender is bound to the host, the line's first message to the host is a reply in the conversation the host started, and the page moves to **Linked** by itself
+
+#### Scenario: Desktop without Messages
+- **WHEN** the host taps **Connect iMessage** on a desktop browser
+- **THEN** no navigation happens and the card shows the number, the code, **Copy** and a QR code of the deep link
+
+#### Scenario: Wrong number unlinked
+- **WHEN** the page shows a sender that is not the host's and the host presses **Not my number — unlink**
+- **THEN** the binding ends, the sender has no host authority, and the host can make a new code
+
+#### Scenario: Wrong, expired or replayed code
+- **WHEN** a code that is unknown, expired, already used or sent from a group conversation arrives
+- **THEN** nothing is bound, a pending attempt it names is voided, and the sender receives at most a fixed reply
+
+#### Scenario: Sender bound to another host
+- **WHEN** a sender already bound to one host sends another host's code
+- **THEN** the attempt is voided and the existing binding is unchanged
+
+### Requirement: Link step after sign-in
+Right after Google sign-in, before the conversation, `/app` SHALL show the link step to an active host with an open link attempt, or with no binding who is not ready and has not chosen to set up in web chat in that browser. The step SHALL open with a link code already made, show the message, the line and how long the code works, open Messages from a tap on a phone, and on a computer show a QR code of the deep link, **Copy**, and on a Mac **Open Messages**. A code that ran out SHALL be replaced only when the host asks. Choosing **Set up here in web chat** SHALL open the conversation and be remembered in that browser.
+
+#### Scenario: Link right after sign-in
+- **WHEN** a new host signs in and sends the shown message from their iMessage
+- **THEN** the sender is bound, the step shows **Linked**, and setup continues in iMessage or the conversation
+
+#### Scenario: Skip to the web chat
+- **WHEN** the host chooses **Set up here in web chat**
+- **THEN** the conversation opens, nothing is bound, and the step does not open again in that browser
+
+### Requirement: iMessage start before sign-in
+The landing's iMessage start SHALL create a link attempt owned only by the browser that started it, through an HttpOnly cookie whose secret the service stores only as a keyed hash; starts SHALL be bounded per source address and across the service. The attempt SHALL record an arriving sender and SHALL bind nothing before sign-in, since it has no host. Google sign-in in the same browser SHALL give the attempt to the signed-in active host and bind the recorded sender to that host with no further step. Thyme's reply to the arriving code SHALL carry a sign-in link bound to the attempt and the sender, usable in any browser only while the attempt awaits sign-in; Google sign-in from it SHALL give the attempt to that host and bind the sender unless another host holds it. A start whose code has not arrived yet SHALL become the host's pending attempt and bind on arrival (`link-on-code` D5).
+
+#### Scenario: Start, then sign in
+- **WHEN** a visitor starts from iMessage, sends the message and signs in with Google
+- **THEN** the sender is bound to that host
+
+#### Scenario: Another browser
+- **WHEN** a different browser reads the iMessage start or signs in without the reply's sign-in link
+- **THEN** it sees and claims nothing of the first browser's attempt
+
+#### Scenario: Sign in from Thyme's reply
+- **WHEN** the sender opens the sign-in link from Thyme's reply and signs in with Google
+- **THEN** the sender is bound to that host, and the link no longer works
+- **AND** a tampered, expired, cancelled or used link, or one another host holds, claims nothing and leads back to the iMessage start
+
+### Requirement: Fallback code
+The browser SHALL NOT offer the fallback while the line cannot open a conversation with a number that has not written first (D16); an attempt the service already holds SHALL stay usable. When offered, it SHALL be a six-digit code sent by the line to a number the host enters, typed back into a protected field in the same browser together with **Confirm and link**. The browser SHALL never receive a sent code. Codes SHALL expire, resends SHALL be spaced and limited per attempt, per host and per line, and repeated wrong entries SHALL void the code. Each fallback send SHALL be counted as a new outbound conversation.
+
+#### Scenario: Fallback within limits
+- **WHEN** the host requests a code, receives it and types it before it expires
+- **THEN** the number is bound to the host after **Confirm and link**
+
+#### Scenario: Too many wrong entries
+- **WHEN** the host enters a wrong code five times
+- **THEN** the code is void and a new code must be requested within the limits
+
+### Requirement: One binding per host and sender
+A host SHALL have at most one active iMessage binding and a sender SHALL be bound to at most one host. Linking a new sender SHALL end the host's earlier binding. **Unlink** SHALL end the binding immediately without contacting the provider, suppress undispatched host-private messages for it, and leave the sender with no host authority.
+
+#### Scenario: Unlink during a provider outage
+- **WHEN** the host unlinks while Photon is unreachable
+- **THEN** the binding ends at once and later messages from that sender expose nothing private and act on nothing
+
+### Requirement: No session for unlinked or group senders
+Only a direct message from the sender of an active binding whose host may host SHALL reach a discussion or a command. A direct message from any other sender SHALL receive at most one fixed reply per sender per day that points to the authenticated web workspace and reveals no host state. Group conversations, outbound echoes, reactions and messages from any platform other than iMessage SHALL receive nothing.
+
+#### Scenario: Unlinked sender asks for details
+- **WHEN** an unlinked sender asks for a host's requests
+- **THEN** no session is created, no private data is returned and at most one fixed reply is sent that day
+
+#### Scenario: Group conversation
+- **WHEN** a linked host's sender writes in a group conversation that includes the line
+- **THEN** nothing is processed and nothing is sent
+
+#### Scenario: Message from another platform
+- **WHEN** a message arrives through another platform enabled on the same Photon project, such as WhatsApp Business, even from a linked host's number
+- **THEN** it is acknowledged, nothing is stored or processed and nothing is sent
+
+### Requirement: Ordered receipts under backpressure
+Receipts from one conversation SHALL be processed in arrival order. A receipt refused by an admission budget SHALL stay unprocessed and retry no earlier than one minute later, and no later receipt in that conversation SHALL overtake it. A retried receipt whose binding ended or whose host was suspended meanwhile SHALL reach the unlinked outcome without model work.
+
+#### Scenario: Admission limit reached
+- **WHEN** a linked host's message exceeds the host's admission budget
+- **THEN** it creates no runtime input now, is retried later, and the host's next message waits behind it
+
+### Requirement: Exact commands before any model turn
+A linked host's whole-message commands SHALL be parsed and executed by the application before any model turn: listing and selecting requests, entering setup, reviewing, showing suggested changes, sharing or dismissing a suggestion, approving or declining a proposal, and confirming settings. They SHALL keep working for reply buttons and for hosts who type them, but no reply SHALL ask the host to type one. Decisions SHALL name the exact current reference and run through the application command pipeline as the linked host with a retry identity derived from the receipt. A stale or unknown reference SHALL change nothing and return the current reference or a web link. Free text SHALL decide only through the assistant, as the requirements on approval and on host decisions in the host's own words allow.
+
+#### Scenario: Approve the current proposal
+- **WHEN** the linked host sends `approve <ref>` naming the latest agreed proposal version
+- **THEN** that version is approved once and the booking proceeds as from the web
+
+#### Scenario: Reply to an outdated proposal
+- **WHEN** the host sends `approve <ref>` naming a version that a newer proposal superseded
+- **THEN** nothing is approved and the reply names the current reference
+
+#### Scenario: Conditional yes
+- **WHEN** the host replies "yes, but can we do 11?" to a summary
+- **THEN** the text goes to the assistant as discussion and no decision is recorded
+
+#### Scenario: Replay after restart during a web action
+- **WHEN** the same approval receipt is processed again after a restart while the host also acts on the web
+- **THEN** at most one approval and one booking exist and both channels show the same decision
+
+### Requirement: Approval in the host's own words
+In a host's review of one request, the assistant SHALL be able to approve the current agreed proposal when the host clearly approves it in their own words in the linked iMessage or WhatsApp conversation, through the same application command as the web button and with the exact current version. It SHALL NOT approve for a message typed on the web, for a version that is no longer current, for a closed request, or when the reply asks for a change, adds a condition or asks a question. The awaiting-approval summary SHALL select its request so the host's next plain reply reaches it, and SHALL say the host may approve in their own words.
+
+#### Scenario: Clear approval from iMessage
+- **WHEN** a linked host replies "Looks good, book it" after the awaiting-approval summary
+- **THEN** the current version is approved once and the booking proceeds as from the web
+
+#### Scenario: Same words on the web
+- **WHEN** the host types "Looks good, book it" in the request's discussion in `/app`
+- **THEN** nothing is approved and the host is pointed to **Approve this proposal**
+
+#### Scenario: Outdated version
+- **WHEN** the assistant tries to approve a version that a newer proposal superseded
+- **THEN** nothing is approved and the assistant names the current version
+
+### Requirement: Switching the conversation in words
+In the linked iMessage or WhatsApp conversation, the assistant SHALL be able to switch the conversation to a request the host names by reference or requester name, or back to setup, so the host's next plain message reaches that discussion, as `request <ref>` and `setup` do. A name that matches several requests or none SHALL switch nothing, and the assistant SHALL ask which request the host means. A message typed on the web SHALL switch nothing.
+
+#### Scenario: Host names a request
+- **WHEN** a linked host writes "let's talk about 박도현's request" and exactly one of their requests has that requester
+- **THEN** the conversation switches to that request and the host's next message reaches its discussion
+
+#### Scenario: Ambiguous name
+- **WHEN** the host names a requester who matches two requests
+- **THEN** nothing is switched and the assistant asks which one, naming each
+
+### Requirement: Shared discussions and replies
+A linked host's free text SHALL become an accepted input of the discussion the host selected (setup by default, or the private review discussion of a selected request), marked as coming from iMessage, under the same redaction, admission, session index and model limits as web input; a retried receipt SHALL resolve to the same input. When that input's turn ends, the assistant's final text SHALL be sent to the linked conversation without any leading channel marker such as `[iMessage]`, which the send path SHALL drop whatever the model wrote (#410), and a turn that fails or yields no text SHALL send a fixed fallback pointing to the web.
+
+#### Scenario: Private question
+- **WHEN** the linked host selects a request and asks a question in text
+- **THEN** the question appears in that request's private discussion in `/app` and the assistant's answer arrives in iMessage
+
+#### Scenario: Reply copies the marker
+- **WHEN** the assistant's final text for a linked host's message starts with `[iMessage] ` or `[Telegram] `, once or more
+- **THEN** the message sent to the linked conversation starts after the markers
+
+### Requirement: Summaries and outcomes
+A host with an active binding SHALL receive in the linked conversation one summary per event when a proposal awaits approval (saying the host may approve or decline in their own words, with decision buttons where the channel has them) and when a booking is confirmed or not confirmed. A booking still pending SHALL NOT be announced to the host: its confirmation or failure follows once the write resolves (#173). A request's arrival SHALL NOT be announced: the guest is offered times first, and the awaiting-approval summary, the host's first message about the request, SHALL name the requester, the purpose and any earlier request it follows. Each summary SHALL be recorded in the transaction of the change it reports and frozen from that event's own records; a summary for a proposal version that is no longer the latest SHALL NOT be sent.
+
+#### Scenario: Guest starts a request
+- **WHEN** a guest of a host with an active binding starts or revises a request
+- **THEN** nothing is sent to the linked conversation until the guest agrees to a time
+
+#### Scenario: Proposal awaits approval
+- **WHEN** the requester agrees to a proposal of a host with an active binding
+- **THEN** one summary with the time, mode and place, saying the host may approve or decline in their own words and naming no command, is queued for the linked conversation
+
+#### Scenario: Booking still pending
+- **WHEN** a linked host's booking is still unconfirmed 15 minutes after dispatch
+- **THEN** the guest is told it is still in progress and nothing is sent to the host's linked conversation; the host's next summary is the booking's confirmation or failure once the write resolves
+
+### Requirement: Truthful outbound delivery
+Every outbound iMessage SHALL be a frozen record dispatched by a job behind the messaging-environment gate. A send whose result is lost SHALL be recorded uncertain and never repeated automatically; a refusal before sending MAY be retried within a bound. A delivery result SHALL NOT change request, proposal or booking state, and a delivery retry SHALL NOT create a booking. The latest failed or uncertain delivery SHALL be visible in the web workspace, where the host can continue.
+
+#### Scenario: Simulated delivery failure
+- **WHEN** a summary's send is refused or its result is lost
+- **THEN** `/app` shows the failed or uncertain message and the request's state is unchanged
+
+### Requirement: Setup over iMessage
+A linked host SHALL be able to enter the shared setup discussion with `setup` and answer setup questions in plain text that update the same draft as the web workspace. Sign-in, Google consent and protected fields SHALL stay browser steps; Thyme SHALL send a link for connecting Google Calendar that returns the host to the conversation. Linking SHALL send a welcome by where the host stands: a ready host is told what Thyme can do, a host without a usable Calendar gets the Calendar link, and any other host gets the first setup question. Settings SHALL be saved only by the exact `confirm <ref>` command naming the current settings review, under the same checks as the web confirmation.
+
+#### Scenario: Welcome into setup
+- **WHEN** a host who is not ready links a sender, after either entry
+- **THEN** the welcome asks for Calendar or the first setup question, and a plain reply joins the shared setup discussion without `setup`
+
+#### Scenario: Back from Google
+- **WHEN** a linked host signs in with Google from Thyme's Calendar link
+- **THEN** one message is queued to the linked conversation even if the sign-in is replayed, it does not claim Calendar was granted, and the browser returns to `/app`, which says Google Calendar is connected when the grant can use it
+
+#### Scenario: Stale settings review
+- **WHEN** the host sends `confirm <ref>` after the draft changed
+- **THEN** nothing is saved and the reply names the current review's reference
+
+### Requirement: Optional contact card
+After an iMessage sender is linked, the service SHALL queue one native contact-card share in the linked conversation after the welcome, and the host SHALL be able to request another. The web SHALL show queued, accepted, failed or uncertain status, SHALL NOT report the card as delivered or saved, and SHALL offer no resend while uncertain. Saving the card SHALL grant nothing.
+
+#### Scenario: Card after linking
+- **WHEN** a host's iMessage conversation is linked
+- **THEN** one contact-card share is queued to arrive after the welcome
+
+#### Scenario: Contact card accepted
+- **WHEN** the provider accepts the contact-card share
+- **THEN** the card says to check iMessage and choose whether to save it
+
+### Requirement: Read marks, typing and a tapback for thanks
+For a linked host's text message on iMessage, the service SHALL mark the conversation read, and SHALL show typing while a reply that waits for a turn is prepared, as a best-effort signal that is never retried, never reported as a delivery, and that changes neither conversation routing nor delivery status. A message that is only thanks SHALL get a tapback instead of a reply and SHALL NOT start a turn; any other message, including "ok", "yes" and 👍, SHALL reach the conversation.
+
+#### Scenario: Host writes a question
+- **WHEN** a linked host sends a text message on iMessage that starts a turn
+- **THEN** the conversation is marked read and shows typing while Thyme prepares the reply
+
+#### Scenario: Host sends a command
+- **WHEN** a linked host sends an exact command whose reply is immediate
+- **THEN** the conversation is marked read, with no typing bubble
+
+#### Scenario: Host says thanks
+- **WHEN** a linked host sends only "thanks"
+- **THEN** the message gets a tapback, and no turn starts and no text reply is sent
+
+#### Scenario: Signal fails
+- **WHEN** Photon refuses or loses the read mark or typing signal
+- **THEN** the signal is final without retry, and the host's reply is sent as usual
+
+### Requirement: iMessage record retention
+Receipt text SHALL be cleared when its receipt is processed and receipts deleted 30 days after receipt. Outbound text SHALL be cleared when its message reaches a final state. Link attempts and ended bindings SHALL be deleted 30 days after they end.
+
+#### Scenario: Cleanup
+- **WHEN** the cleanup runs
+- **THEN** receipts, outbound rows, link attempts and ended bindings past their period are deleted and active bindings remain

@@ -41,7 +41,7 @@ OpenSpec 변경은 필요하지 않습니다. 1단계를 막고 있는 유지보
 - [x] `DESIGN.md`에서 `documentations/03_design_principles.md`로 가는 깨진 링크를 수정합니다. 링크 검사기가 README 외의 루트 파일을 건너뛰어서 놓쳤습니다. 링크가 해석되면 완료입니다.
 - [x] 같은 종류의 오류가 재발하지 않도록 `scripts/check-documentation.mjs`를 루트 Markdown 파일(`DESIGN.md`, `AGENTS.md`)까지 확장합니다. `npm run check:docs`가 이를 포함하면 완료입니다. 이제 검사기는 심볼릭 링크를 제외한 모든 루트 Markdown 파일을 읽으므로 `CLAUDE.md`가 두 번 집계되지 않습니다.
 - [x] 1차 이터레이션의 iMessage 산출물을 정리합니다. `openspec validate --all --strict`가 `imessage-agent`의 자리표시자 Purpose에서 실패하여 Check 워크플로가 깨집니다. `host-imessage-assistant` 변경은 여기에 존재하지 않는 Drizzle 테이블과 `apps/web/src` 경로 위에 서비스가 보내는 환영 메시지를 설계하고 있으나, PRD는 이제 호스트가 보내는 연결 코드를 선택합니다. 결정이 기록되고(둘 다 폐기하고 6단계에서 iMessage를 다시 명세하거나, 지금 명세의 Purpose를 다시 작성) `npm run check`가 통과하면 완료입니다. 2026-10-19에 결정됨: 둘 다 폐기하며, [OpenSpec 상태](../../openspec/README.md)에 기록되어 있습니다. 6단계에서 대체본을 작성합니다.
-- [x] 시작에 필요한 런타임 기반 결정을 기록합니다: eve 버전 고정과 검토한 템플릿 리비전, 모델 식별자와 컨텍스트 윈도우, 영속성과 워커 배치, 의존성 고정. 1단계 제안서에 나열되면 완료입니다. [`application-foundation` 설계](../../openspec/changes/application-foundation/design.md)에 기록됨: 템플릿 `8c55ea7c132f`, `eve` 0.80.1과 `ai` 7.0.143, 32,000토큰 압축 윈도우를 쓰는 직접 OpenAI `gpt-5.6-terra`, `pg_net`과 `pg_cron`이 깨우는 워커를 쓰는 Postgres 작업, 리전 `cle1`.
+- [x] 시작에 필요한 런타임 기반 결정을 기록합니다: eve 버전 고정과 검토한 템플릿 리비전, 모델 식별자와 컨텍스트 윈도우, 영속성과 워커 배치, 의존성 고정. 1단계 제안서에 나열되면 완료입니다. [`application-foundation` 설계](../../openspec/changes/archive/2026-11-24-application-foundation/design.md)에 기록됨: 템플릿 `8c55ea7c132f`, `eve` 0.80.1과 `ai` 7.0.143, 32,000토큰 압축 윈도우를 쓰는 직접 OpenAI `gpt-5.6-terra`, `pg_net`과 `pg_cron`이 깨우는 워커를 쓰는 Postgres 작업, 리전 `cle1`.
 - [x] 각 팀원의 환경을 설정합니다: 훅(`git config core.hooksPath .githooks`), Supabase CLI 2.119.0, OpenSpec 1.14.0, 개인 Supabase 프로젝트, 로컬 및 샌드박스 콜백이 있는 Google OAuth 클라이언트. 각 팀원이 1단계 체크아웃을 로컬에서 실행할 수 있으면 완료입니다. 훅, CLI 버전, 개인 Supabase 프로젝트, OAuth 클라이언트에 대해서는 2026-10-19에 팀이 확인함. 체크아웃 실행 자체는 1단계 뼈대가 반영된 뒤에야 가능하며, 기반 변경의 작업 1.7이 이를 검증합니다.
 - [x] 오래된 워크트리와 브랜치를 정리합니다. 열두 개의 Codex 워크트리와 `.claude/worktrees` 아래 두 개가 잘못 귀속된 사용량을 유발합니다. 남아 있는 모든 워크트리가 활성 상태이거나 다른 곳에 저장되지 않은 작업을 담고 있으면 완료입니다. 2026-10-19에 2026-10-10 이전부터 유휴 상태인 깨끗한 워크트리 다섯 개와 이미 `origin/main`에 병합된 로컬 브랜치 네 개를 제거함. 유지한 것: 커밋되지 않은 작업이나 참조되지 않는 커밋이 있는 워크트리, 정리 시점 기준 이틀 이내에 파일이 변경된 워크트리(Codex 워크트리 세 개, 마지막 변경 2026-10-17~2026-10-19), 병합되지 않았거나 푸시되지 않은 작업이 있는 모든 브랜치.
 
@@ -88,7 +88,7 @@ OpenSpec 변경은 필요하지 않습니다. 1단계를 막고 있는 유지보
 
 명세: [chat-workspaces](../../openspec/specs/chat-workspaces/spec.md)(Google 전용 로그인, 단일 호스트 워크스페이스, 대화 우선 진입), [host-admission](../../openspec/specs/host-admission/spec.md)(개방형 가입, 자격 가드), [conversation-access](../../openspec/specs/conversation-access/spec.md), [model-execution](../../openspec/specs/model-execution/spec.md), [application-commands](../../openspec/specs/application-commands/spec.md), [durable-jobs](../../openspec/specs/durable-jobs/spec.md), [messaging-environments](../../openspec/specs/messaging-environments/spec.md).
 
-결정: 템플릿 리비전, eve 버전, 의존성 고정, 모델, 데이터 접근, 내구성 있는 배치, 리전은 0단계에서 [기반 변경](../../openspec/changes/application-foundation/proposal.md)에 기록되었습니다. 이 단계는 내구성 있는 배치를 장애 테스트로 확인하고 압축 임계값을 조정합니다. `evaluate_candidates`가 eve 워크플로 도구인지 애플리케이션 작업인지는 처음 사용되는 3단계로 넘어갑니다.
+결정: 템플릿 리비전, eve 버전, 의존성 고정, 모델, 데이터 접근, 내구성 있는 배치, 리전은 0단계에서 [기반 변경](../../openspec/changes/archive/2026-11-24-application-foundation/proposal.md)에 기록되었습니다. 이 단계는 내구성 있는 배치를 장애 테스트로 확인하고 압축 임계값을 조정합니다. `evaluate_candidates`가 eve 워크플로 도구인지 애플리케이션 작업인지는 처음 사용되는 3단계로 넘어갑니다.
 
 증거: 두 호스트 간 격리, 인가되지 않은 원본 런타임 라우트, 취소되었거나 재생된 로그인, 재연결 대비 종료 상태 복구, 모델 한도 소진, 프리뷰 메시징 거부; `supabase db reset --local`이 체인을 다시 구축함; 프로덕션 배포가 릴리스 오리진에서 `/app`을 제공함. AC-26 전반부(로그인은 정확히 하나의 계정을 만들고, 반복해도 추가로 만들지 않음).
 
@@ -185,10 +185,10 @@ OpenSpec 변경은 필요하지 않습니다. 1단계를 막고 있는 유지보
 
 **제안서 (직렬, 가장 먼저)**
 
-- [x] 결정할 사항과 범위 표를 담은 [`host-review-and-booking`](../../openspec/changes/host-review-and-booking/proposal.md) 제안서.
-- [x] [설계](../../openspec/changes/host-review-and-booking/design.md).
-- [x] [`specs/`](../../openspec/changes/host-review-and-booking/specs/) 아래의 델타 명세.
-- [x] [작업 목록](../../openspec/changes/host-review-and-booking/tasks.md).
+- [x] 결정할 사항과 범위 표를 담은 [`host-review-and-booking`](../../openspec/changes/archive/2026-11-24-host-review-and-booking/proposal.md) 제안서.
+- [x] [설계](../../openspec/changes/archive/2026-11-24-host-review-and-booking/design.md).
+- [x] [`specs/`](../../openspec/changes/archive/2026-11-24-host-review-and-booking/specs/) 아래의 델타 명세.
+- [x] [작업 목록](../../openspec/changes/archive/2026-11-24-host-review-and-booking/tasks.md).
 - [x] 소유 문서 갱신과 한국어 미러.
 - [ ] 팀원 검토.
 
@@ -229,10 +229,10 @@ OpenSpec 변경은 필요하지 않습니다. 1단계를 막고 있는 유지보
 
 **제안서 (직렬, 가장 먼저)**
 
-- [x] 결정할 사항과 범위 표를 담은 [`agent-access`](../../openspec/changes/agent-access/proposal.md) 제안서.
-- [x] [설계](../../openspec/changes/agent-access/design.md).
-- [x] 한 건의 미래 요청 허가를 포함한 [`specs/`](../../openspec/changes/agent-access/specs/) 아래의 델타 명세.
-- [x] [작업 목록](../../openspec/changes/agent-access/tasks.md).
+- [x] 결정할 사항과 범위 표를 담은 [`agent-access`](../../openspec/changes/archive/2026-11-24-agent-access/proposal.md) 제안서.
+- [x] [설계](../../openspec/changes/archive/2026-11-24-agent-access/design.md).
+- [x] 한 건의 미래 요청 허가를 포함한 [`specs/`](../../openspec/changes/archive/2026-11-24-agent-access/specs/) 아래의 델타 명세.
+- [x] [작업 목록](../../openspec/changes/archive/2026-11-24-agent-access/tasks.md).
 - [x] 소유 문서 갱신과 한국어 미러.
 - [ ] 팀원 검토.
 
@@ -270,10 +270,10 @@ OpenSpec 변경은 필요하지 않습니다. 1단계를 막고 있는 유지보
 
 **제안서(직렬, 먼저)**
 
-- [x] [`host-imessage-channel`](../../openspec/changes/host-imessage-channel/proposal.md)의 제안서: 폐기된 1차 이터레이션의 `imessage-agent` 명세와 `host-imessage-assistant` 변경을 대체하며, 정해야 할 결정과 커버리지 표를 담습니다.
-- [x] [설계](../../openspec/changes/host-imessage-channel/design.md).
-- [x] [`specs/`](../../openspec/changes/host-imessage-channel/specs/) 아래의 델타 명세, 새로운 `host-imessage-channel` 기능.
-- [x] [작업](../../openspec/changes/host-imessage-channel/tasks.md).
+- [x] [`host-imessage-channel`](../../openspec/changes/archive/2026-11-24-host-imessage-channel/proposal.md)의 제안서: 폐기된 1차 이터레이션의 `imessage-agent` 명세와 `host-imessage-assistant` 변경을 대체하며, 정해야 할 결정과 커버리지 표를 담습니다.
+- [x] [설계](../../openspec/changes/archive/2026-11-24-host-imessage-channel/design.md).
+- [x] [`specs/`](../../openspec/changes/archive/2026-11-24-host-imessage-channel/specs/) 아래의 델타 명세, 새로운 `host-imessage-channel` 기능.
+- [x] [작업](../../openspec/changes/archive/2026-11-24-host-imessage-channel/tasks.md).
 - [x] 소유 문서 갱신과 한국어 미러, 2026-10-23에 사용자가 결정한 원탭 딥링크 포함.
 - [ ] 팀원 검토.
 
@@ -312,10 +312,10 @@ OpenSpec 변경은 필요하지 않습니다. 1단계를 막고 있는 유지보
 
 **제안서 (직렬, 가장 먼저)**
 
-- [x] 결정할 사항과 범위 표를 담은 [`requester-email-channel`](../../openspec/changes/requester-email-channel/proposal.md) 제안서.
-- [x] [설계](../../openspec/changes/requester-email-channel/design.md).
-- [x] [`specs/`](../../openspec/changes/requester-email-channel/specs/) 아래의 델타 명세.
-- [x] [작업 목록](../../openspec/changes/requester-email-channel/tasks.md).
+- [x] 결정할 사항과 범위 표를 담은 [`requester-email-channel`](../../openspec/changes/archive/2026-11-24-requester-email-channel/proposal.md) 제안서.
+- [x] [설계](../../openspec/changes/archive/2026-11-24-requester-email-channel/design.md).
+- [x] [`specs/`](../../openspec/changes/archive/2026-11-24-requester-email-channel/specs/) 아래의 델타 명세.
+- [x] [작업 목록](../../openspec/changes/archive/2026-11-24-requester-email-channel/tasks.md).
 - [x] 소유 문서 갱신과 한국어 미러.
 - [ ] 팀원 검토.
 
@@ -348,10 +348,10 @@ OpenSpec 변경은 필요하지 않습니다. 1단계를 막고 있는 유지보
 
 **제안서 (직렬, 가장 먼저)**
 
-- [x] 결정할 사항과 범위 표를 담은 [`operations-and-release`](../../openspec/changes/operations-and-release/proposal.md) 제안서.
-- [x] [설계](../../openspec/changes/operations-and-release/design.md).
-- [x] [`specs/`](../../openspec/changes/operations-and-release/specs/) 아래의 델타 명세.
-- [x] [작업 목록](../../openspec/changes/operations-and-release/tasks.md).
+- [x] 결정할 사항과 범위 표를 담은 [`operations-and-release`](../../openspec/changes/archive/2026-11-24-operations-and-release/proposal.md) 제안서.
+- [x] [설계](../../openspec/changes/archive/2026-11-24-operations-and-release/design.md).
+- [x] [`specs/`](../../openspec/changes/archive/2026-11-24-operations-and-release/specs/) 아래의 델타 명세.
+- [x] [작업 목록](../../openspec/changes/archive/2026-11-24-operations-and-release/tasks.md).
 - [x] 소유 문서 갱신과 한국어 미러.
 - [ ] 팀원 검토.
 
@@ -383,7 +383,7 @@ OpenSpec 변경은 필요하지 않습니다. 1단계를 막고 있는 유지보
 
 명세: [operational-diagnostics](../../openspec/specs/operational-diagnostics/spec.md), [email-delivery](../../openspec/specs/email-delivery/spec.md)(Auth 알림), [messaging-environments](../../openspec/specs/messaging-environments/spec.md).
 
-여기서 확정할 결정: PRD 2절의 측정 기간과 수치 목표; 지원 및 복구 담당; 성능 목표. 보존, 삭제, 고지, 환경 분리와 함께 2026-10-23에 [`operations-and-release` 제안서](../../openspec/changes/operations-and-release/proposal.md#decisions)의 D1–D14로 결정했습니다.
+여기서 확정할 결정: PRD 2절의 측정 기간과 수치 목표; 지원 및 복구 담당; 성능 목표. 보존, 삭제, 고지, 환경 분리와 함께 2026-10-23에 [`operations-and-release` 제안서](../../openspec/changes/archive/2026-11-24-operations-and-release/proposal.md#decisions)의 D1–D14로 결정했습니다.
 
 증거: 보류 중인 필수 클라이언트나 제공자 사례가 없는 완전한 인수 기록, 그리고 충족된 [제공자 설정](03_provider_setup.md#environment-and-activation-checklist)의 릴리스 체크리스트.
 
@@ -395,10 +395,10 @@ OpenSpec 변경은 필요하지 않습니다. 1단계를 막고 있는 유지보
 
 **제안서(직렬, 먼저)**
 
-- [x] D1–D13과 커버리지 표를 담은 [`host-whatsapp-channel`](../../openspec/changes/host-whatsapp-channel/proposal.md)의 제안서.
-- [x] [설계](../../openspec/changes/host-whatsapp-channel/design.md).
-- [x] [`specs/`](../../openspec/changes/host-whatsapp-channel/specs/) 아래의 델타 명세, 새로운 `host-whatsapp-channel` 기능.
-- [x] [작업](../../openspec/changes/host-whatsapp-channel/tasks.md).
+- [x] D1–D13과 커버리지 표를 담은 [`host-whatsapp-channel`](../../openspec/changes/archive/2026-11-24-host-whatsapp-channel/proposal.md)의 제안서.
+- [x] [설계](../../openspec/changes/archive/2026-11-24-host-whatsapp-channel/design.md).
+- [x] [`specs/`](../../openspec/changes/archive/2026-11-24-host-whatsapp-channel/specs/) 아래의 델타 명세, 새로운 `host-whatsapp-channel` 기능.
+- [x] [작업](../../openspec/changes/archive/2026-11-24-host-whatsapp-channel/tasks.md).
 - [x] PRD 갱신(대상 사용자 결정, 비목표, FR-37부터 FR-39까지, AC-29부터 AC-31까지), 제공자 설정, 한국어 미러.
 - [ ] 템플릿 문구, 언어, 병합에 관한 미해결 질문을 포함한 팀원 검토.
 
@@ -432,7 +432,7 @@ OpenSpec 변경은 필요하지 않습니다. 1단계를 막고 있는 유지보
 
 명세: [chat-workspaces](../../openspec/specs/chat-workspaces/spec.md), [messaging-environments](../../openspec/specs/messaging-environments/spec.md), [durable-jobs](../../openspec/specs/durable-jobs/spec.md), 그리고 새로운 `host-whatsapp-channel` 델타, 아카이브되기 전까지는 `host-imessage-channel`.
 
-여기서 확정할 결정: 플랫폼 라우팅과 WhatsApp 발신자 형식; `channel` 열을 통해 iMessage와 공유하는 기록; 호스트당 하나의 채널; 기기 규칙; 창 여유; 템플릿 이름, 매개변수, 한도. 2026-11-02에 [`host-whatsapp-channel` 제안서](../../openspec/changes/host-whatsapp-channel/proposal.md#decisions)의 D1–D13으로 제안되었으며 팀원 검토를 기다립니다. 템플릿 문구는 Meta가 승인해야 비로소 확정됩니다.
+여기서 확정할 결정: 플랫폼 라우팅과 WhatsApp 발신자 형식; `channel` 열을 통해 iMessage와 공유하는 기록; 호스트당 하나의 채널; 기기 규칙; 창 여유; 템플릿 이름, 매개변수, 한도. 2026-11-02에 [`host-whatsapp-channel` 제안서](../../openspec/changes/archive/2026-11-24-host-whatsapp-channel/proposal.md#decisions)의 D1–D13으로 제안되었으며 팀원 검토를 기다립니다. 템플릿 문구는 Meta가 승인해야 비로소 확정됩니다.
 
 증거: 프로덕션 배포를 대상으로 통제된 Android 폰에서 수행한 AC-29, AC-30, AC-31. 창 밖의 템플릿, 재시작 후 재생, 모의 전달 실패를 포함하며, 기기, WhatsApp, 브라우저 버전을 기록합니다.
 
@@ -444,10 +444,10 @@ OpenSpec 변경은 필요하지 않습니다. 1단계를 막고 있는 유지보
 
 **제안서(직렬, 먼저)**
 
-- [x] D1–D13과 커버리지 표를 담은 [`host-telegram-channel`](../../openspec/changes/host-telegram-channel/proposal.md)의 제안서.
-- [x] [설계](../../openspec/changes/host-telegram-channel/design.md).
-- [x] [`specs/`](../../openspec/changes/host-telegram-channel/specs/) 아래의 델타 명세, 새로운 `host-telegram-channel` 기능.
-- [x] [작업](../../openspec/changes/host-telegram-channel/tasks.md).
+- [x] D1–D13과 커버리지 표를 담은 [`host-telegram-channel`](../../openspec/changes/archive/2026-11-24-host-telegram-channel/proposal.md)의 제안서.
+- [x] [설계](../../openspec/changes/archive/2026-11-24-host-telegram-channel/design.md).
+- [x] [`specs/`](../../openspec/changes/archive/2026-11-24-host-telegram-channel/specs/) 아래의 델타 명세, 새로운 `host-telegram-channel` 기능.
+- [x] [작업](../../openspec/changes/archive/2026-11-24-host-telegram-channel/tasks.md).
 - [x] PRD 갱신(Telegram 결정, 범위, FR-40부터 FR-42까지, AC-32부터 AC-34까지), 제공자 설정, 한국어 미러.
 - [ ] iPhone 호스트와 버튼에 관한 미해결 질문을 포함한 팀원 검토.
 
@@ -472,7 +472,7 @@ OpenSpec 변경은 필요하지 않습니다. 1단계를 막고 있는 유지보
 
 명세: [chat-workspaces](../../openspec/specs/chat-workspaces/spec.md), [messaging-environments](../../openspec/specs/messaging-environments/spec.md), [durable-jobs](../../openspec/specs/durable-jobs/spec.md), 그리고 새로운 `host-telegram-channel` 델타, 아카이브되기 전까지는 `host-imessage-channel`과 `host-whatsapp-channel`.
 
-여기서 확정할 결정: 직접 Bot API 전송과 웹훅 시크릿; Telegram 발신자 신원; 시작 링크; 세 채널에 걸친 기기 규칙; 결정 버튼과 그 회수. 2026-11-04에 [`host-telegram-channel` 제안서](../../openspec/changes/host-telegram-channel/proposal.md#decisions)의 D1–D13으로 제안되었으며 팀원 검토를 기다립니다.
+여기서 확정할 결정: 직접 Bot API 전송과 웹훅 시크릿; Telegram 발신자 신원; 시작 링크; 세 채널에 걸친 기기 규칙; 결정 버튼과 그 회수. 2026-11-04에 [`host-telegram-channel` 제안서](../../openspec/changes/archive/2026-11-24-host-telegram-channel/proposal.md#decisions)의 D1–D13으로 제안되었으며 팀원 검토를 기다립니다.
 
 증거: 프로덕션 배포를 대상으로 통제된 Android 폰과 iPhone에서 수행한 AC-32, AC-33, AC-34. 버튼 승인, 오래된 탭, 재시작 후 재생, 속도 제한, 차단된 봇을 포함하며, 기기, Telegram, 브라우저 버전을 기록합니다.
 

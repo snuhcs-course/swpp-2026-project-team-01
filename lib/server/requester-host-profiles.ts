@@ -72,6 +72,25 @@ export async function readHostProfileView(q: Queryable, requestId: string): Prom
   return { decided: profile.decided_at !== null, items: profile.items, messenger: await messengerState(q, requestId, profile.host_account_id), offered: HOST_PROFILE_ITEMS };
 }
 
+// The guest-host's own host calendars for the requester projection (R01 M-2,
+// M-2.1): their names and whether they count for this request. Null for a
+// guest who is not a host with confirmed settings. The names are the
+// requester's own; nothing here reaches the request's host.
+export async function readHostCalendarsView(q: Queryable, requestId: string) {
+  const [row] = await q<{ items: HostProfileItem[]; decided: boolean; settings: ConfirmedSettings }[]>`
+    select p.items, p.decided_at is not null as decided, s.settings
+    from app.requester_host_profiles p
+    join app.host_accounts a on a.id = p.host_account_id and a.status = 'active'
+    join app.host_settings s on s.host_account_id = p.host_account_id
+    where p.request_id = ${requestId}
+  `;
+  if (!row) return null;
+  return {
+    calendars: row.settings.conflictCalendars.map((calendar) => calendar.summary),
+    counted: row.decided && row.items.includes("calendars"),
+  };
+}
+
 // Whether the guest-host has a linked host conversation, and whether this
 // request is bound to it (#61).
 async function messengerState(q: Queryable, requestId: string, hostAccountId: string) {
@@ -159,6 +178,112 @@ export function decideHostProfileCommand(
     },
   };
 }
+
+// Whether the guest-host's host calendars count for this one request, decided
+// in words from the conversation or the account connection (R01 M-2.1, #334).
+// Only the request's Calendars item changes: the host's own calendar roles
+// and settings never do. The item names every host conflict calendar or none;
+// leaving out only some of them for one request has nowhere to be recorded
+// (requester_host_profiles.items holds the item, not a calendar list), so it is
+// not offered. While the web card is undecided, the card decides. The decision
+// time is kept, so a request the account sent (decided_at = created_at) keeps
+// its no-card handling of a failed grant (dropGuestHostCalendars). A change
+// moves the request to a new revision, so earlier times and a proposal found
+// with the other choice are no longer current; the assistant finds times again.
+export const HOST_CALENDARS_STATES = ["gathering", "negotiating"] as const;
+
+export type HostCalendarsOutcome =
+  | { readonly outcome: "used" | "not_used" | "unchanged"; readonly use: boolean; readonly calendars: readonly string[] }
+  // No host account is linked to this request, its host settings name no
+  // conflict calendar to use, or the web card is still open.
+  | { readonly outcome: "not_linked" | "no_host_calendars" | "card_open" }
+  // After agreement the request waits for the host or is booked: change_agreement
+  // or change_booking reopens it first.
+  | { readonly outcome: "not_now"; readonly state: string };
+
+// What the assistant tells the person, by outcome; `find` names the tool that
+// finds times again on its surface.
+export function hostCalendarsMessage(result: HostCalendarsOutcome, find: string) {
+  switch (result.outcome) {
+    case "used":
+    case "unchanged": {
+      const names = result.calendars.join(", ");
+      if (!result.use) return `Their host calendars do not count for this request; their host settings are unchanged. Call ${find} for times without them.`;
+      return result.outcome === "used"
+        ? `Their host calendars (${names}) now count as busy time for this request only; their host settings are unchanged. Call ${find} again, since earlier times did not count them.`
+        : `Their host calendars (${names}) already count for this request. Nothing changed.`;
+    }
+    case "not_used":
+      return `Their host calendars no longer count for this request only; their host calendar settings are unchanged. Call ${find} again, since earlier times counted them.`;
+    case "not_linked":
+      return "This request is not linked to a host account, so there are no host calendars to use or leave out.";
+    case "no_host_calendars":
+      return "Their host settings name no calendar to check for conflicts, so there is nothing to use.";
+    case "card_open":
+      return "The Use your host settings for this request card is still open on the page: the person chooses Calendars there. Nothing changed.";
+    case "not_now":
+      return `The calendars cannot change now (status ${result.state}): they matter only while times are being chosen. Reopen first only if the person wants another time.`;
+  }
+}
+
+const hostCalendarsInput = z
+  .object({
+    use: z.boolean().describe("true: the person's host conflict calendars count as their busy time for this request; false: none of them count."),
+  })
+  .strict();
+
+export const hostCalendarsCommand: CommandDefinition<z.infer<typeof hostCalendarsInput>, HostCalendarsOutcome> = {
+  input: hostCalendarsInput,
+  operation: "request.host_profile.calendars",
+  async run(tx, context) {
+    if (context.actor.kind !== "requester_request" || context.actor.id !== context.resourceId) throw new CommandError("forbidden");
+    const request = await lockOpenRequest(tx, context.actor.id);
+    assertIdentified(request);
+    const profile = await profileOf(tx, request.id, true);
+    if (!profile) return { outcome: "not_linked" };
+    if (!(HOST_CALENDARS_STATES as readonly string[]).includes(request.state)) return { outcome: "not_now", state: request.state };
+
+    const [row] = await tx<{ settings: ConfirmedSettings }[]>`
+      select settings from app.host_settings where host_account_id = ${profile.host_account_id}
+    `;
+    const calendars = (row?.settings.conflictCalendars ?? []).map((calendar) => calendar.summary);
+    const use = context.input.use;
+    if (use && calendars.length === 0) return { outcome: "no_host_calendars" };
+
+    // While the card is still open, the card decides: one sentence about
+    // calendars must not answer its other choices too.
+    if (profile.decided_at === null) return { outcome: "card_open" };
+    const using = profile.items.includes("calendars");
+    if (using === use) return { calendars, outcome: "unchanged", use };
+
+    const items = HOST_PROFILE_ITEMS.filter((item) => (item === "calendars" ? use : profile.items.includes(item)));
+    await tx`update app.requester_host_profiles set items = ${items} where request_id = ${request.id}`;
+    // As the card does, when no calendar was connected for the request: using
+    // the calendars settles the Calendar step, and taking them back reopens it
+    // on the web. A request the account sent has no Calendar card, so its step
+    // stays settled and times are found without busy time from the account.
+    const [grant] = await tx<{ id: string }[]>`
+      select id from app.requester_grants where request_id = ${request.id} and kind = 'calendar' and revoked_at is null
+    `;
+    const [linked] = await tx<{ account: boolean }[]>`
+      select decided_at = created_at as account from app.requester_host_profiles where request_id = ${request.id}
+    `;
+    if (use && !grant) {
+      await tx`update app.requests set calendar_settled_at = coalesce(calendar_settled_at, now()) where id = ${request.id}`;
+    } else if (!use && !grant && !linked?.account) {
+      await tx`update app.requests set calendar_settled_at = null where id = ${request.id}`;
+    }
+    // Times and a proposal found with the earlier choice are no longer
+    // current, as after a details change: a new revision, and a request
+    // choosing among them returns to gathering.
+    await tx`
+      update app.requests
+      set state = case when state = 'negotiating' then 'gathering' else state end, revision = revision + 1, updated_at = now()
+      where id = ${request.id}
+    `;
+    return { calendars, outcome: use ? "used" : "not_used", use };
+  },
+};
 
 // Basic details as a pending review (D7: nothing changes without the guest):
 // the host timezone and, when it names one way, the host's travel mode.

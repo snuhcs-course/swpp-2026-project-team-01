@@ -54,6 +54,40 @@ export function senderHeader(address: string, name: string = SENDER_NAME) {
   return `${display} <${address}>`;
 }
 
+// The From header as sent. A display name outside printable ASCII (a host
+// named in Korean, say) goes out as RFC 2047 encoded-words: Cloudflare refused
+// every booking confirmation whose From carried the raw UTF-8 name with HTTP
+// 400 (#415), while ASCII names were accepted. Each word holds at most 45 bytes
+// of whole characters, so it stays within the 75-character limit.
+export function encodedSenderHeader(header: string) {
+  const match = /^(.*\S)\s*<([^<>\s]+)>$/.exec(header.trim());
+  if (!match) return header;
+
+  const name = match[1]!;
+  const address = match[2]!;
+  if (/^[\x20-\x7e]*$/.test(name)) {
+    // An ASCII name with RFC 5322 specials ("Park, Dohyeon") is a quoted string,
+    // so a parser cannot read it as two addresses.
+    return /[()<>[\]:;@\\,."]/.test(name) && !/^".*"$/.test(name)
+      ? `"${name.replace(/[\\"]/g, "\\$&")}" <${address}>`
+      : header;
+  }
+
+  const words: string[] = [];
+  let current = "";
+  for (const char of name) {
+    if (current && Buffer.byteLength(current + char, "utf8") > 45) {
+      words.push(current);
+      current = char;
+    } else {
+      current += char;
+    }
+  }
+  if (current) words.push(current);
+
+  return `${words.map((word) => `=?UTF-8?B?${Buffer.from(word, "utf8").toString("base64")}?=`).join(" ")} <${address}>`;
+}
+
 // A frozen, non-secret attachment, such as the calendar part.
 export type EmailAttachment = {
   readonly filename: string;
@@ -86,15 +120,27 @@ export type SendOutcome =
       readonly reason: "bounced" | "refused";
       readonly httpStatus: number;
       readonly bounced: readonly string[];
+      // Cloudflare's own answer to a refusal, kept so an operator can find the
+      // cause; absent when the response named no error.
+      readonly providerErrors?: readonly ProviderError[];
     }
   | {
       readonly status: "uncertain";
       readonly reason: "timeout" | "lost_response" | "server_error" | "missing_evidence";
       readonly httpStatus: number | null;
+      readonly providerErrors?: readonly ProviderError[];
     };
+
+// One entry of Cloudflare's errors array: its code and message only, with any
+// email address in the message masked, so evidence never holds a recipient.
+export type ProviderError = { readonly code: number | string | null; readonly message: string | null };
+
+const PROVIDER_ERROR_LIMIT = 5;
+const PROVIDER_MESSAGE_LIMIT = 200;
 
 type SendResponse = {
   readonly success?: boolean;
+  readonly errors?: unknown;
   readonly result?: {
     readonly delivered?: unknown;
     readonly queued?: unknown;
@@ -112,17 +158,52 @@ function normalized(list: readonly string[]) {
   return new Set(list.map((address) => address.trim().toLowerCase()));
 }
 
+// Cut by code points, so no half surrogate pair reaches the jsonb evidence.
+function bounded(value: string, limit: number) {
+  return Array.from(value).slice(0, limit).join("");
+}
+
+// The code and message of each error a response names, bounded and with email
+// addresses masked; nothing else from the body is kept.
+export function providerErrorsOf(body: unknown): readonly ProviderError[] {
+  if (!body || typeof body !== "object") return [];
+  const errors = (body as SendResponse).errors;
+  if (!Array.isArray(errors)) return [];
+
+  return errors.slice(0, PROVIDER_ERROR_LIMIT).flatMap((entry): ProviderError[] => {
+    if (!entry || typeof entry !== "object") return [];
+    const { code, message } = entry as { code?: unknown; message?: unknown };
+    const kept: ProviderError = {
+      code: typeof code === "number" && Number.isFinite(code) ? code : typeof code === "string" ? bounded(code, 64) : null,
+      message:
+        typeof message === "string"
+          ? bounded(message.replace(/[^\s<>"'(),;:]+@[^\s<>"'(),;:]+/g, "[address]"), PROVIDER_MESSAGE_LIMIT)
+          : null,
+    };
+    return kept.code === null && kept.message === null ? [] : [kept];
+  });
+}
+
+function withProviderErrors<T extends SendOutcome>(outcome: T, body: unknown): T {
+  const providerErrors = providerErrorsOf(body);
+  return providerErrors.length > 0 ? { ...outcome, providerErrors } : outcome;
+}
+
 // Classifies an HTTP response from the send endpoint.
 export function classifySendResponse(status: number, body: SendResponse | null, recipients: readonly string[]): SendOutcome {
-  if (status >= 500) return { httpStatus: status, reason: "server_error", status: "uncertain" };
+  if (status >= 500) return withProviderErrors({ httpStatus: status, reason: "server_error", status: "uncertain" }, body);
 
   // A refusal (bad request, authentication, rate limit) sent nothing.
-  if (status < 200 || status >= 300) return { bounced: [], httpStatus: status, reason: "refused", status: "rejected" };
+  if (status < 200 || status >= 300) {
+    return withProviderErrors({ bounced: [], httpStatus: status, reason: "refused", status: "rejected" }, body);
+  }
 
   // A success status whose body cannot be read may still have been accepted.
   if (!body || typeof body !== "object") return { httpStatus: status, reason: "lost_response", status: "uncertain" };
 
-  if (body.success === false) return { bounced: [], httpStatus: status, reason: "refused", status: "rejected" };
+  if (body.success === false) {
+    return withProviderErrors({ bounced: [], httpStatus: status, reason: "refused", status: "rejected" }, body);
+  }
 
   const delivered = addresses(body.result?.delivered);
   const queued = addresses(body.result?.queued);
@@ -163,7 +244,7 @@ export function cloudflareEmailTransport(
           `${config.baseUrl}/client/v4/accounts/${encodeURIComponent(config.accountId)}/email/sending/send`,
           {
             body: JSON.stringify({
-              from: message.from,
+              from: encodedSenderHeader(message.from),
               headers: { [DISPATCH_ID_HEADER]: message.dispatchId },
               html: message.html,
               subject: message.subject,

@@ -9,7 +9,7 @@ A linked host SHALL be able to finish setup in the linked conversation without o
 
 #### Scenario: Back from Google
 - **WHEN** a linked host signs in with Google from Thyme's Calendar link
-- **THEN** one message is queued to the linked conversation even if the sign-in is replayed, it does not claim Calendar was granted, and the browser returns to `/app`
+- **THEN** one message is queued to the linked conversation even if the sign-in is replayed, it does not claim Calendar was granted, and the browser returns to `/app`, which says Google Calendar is connected when the grant can use it
 
 #### Scenario: Two questions
 - **WHEN** the host answers the hours question and then "역삼역 근처, 대면이고 지하철로 다녀요"

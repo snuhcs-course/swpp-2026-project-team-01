@@ -179,6 +179,6 @@ PRD references: FR-01 to FR-04, FR-18, FR-26, FR-31, FR-33, FR-35; AC-09, AC-17,
 
 ## Open decisions
 
-Settled on 2026-10-19 in the [`host-onboarding` design](../../openspec/changes/host-onboarding/design.md): handle assignment rules, the reserved list and the numeric sign-up and handle-change limits; starter default values for windows, duration and buffers; supported travel modes; a 24-hour retention period for analysis evidence.
+Settled on 2026-10-19 in the [`host-onboarding` design](../../openspec/changes/archive/2026-11-24-host-onboarding/design.md): handle assignment rules, the reserved list and the numeric sign-up and handle-change limits; starter default values for windows, duration and buffers; supported travel modes; a 24-hour retention period for analysis evidence.
 
-Specified on 2026-10-23 in the [`host-imessage-channel` change](../../openspec/changes/host-imessage-channel/proposal.md#decisions): the host-sent link code with the one-tap deep link, the service-sent code fallback and setup over iMessage. Still open: their device acceptance on a controlled iPhone (Phase 6); CLI login for terminal-based agents (Phase 5).
+Specified on 2026-10-23 in the [`host-imessage-channel` change](../../openspec/changes/archive/2026-11-24-host-imessage-channel/proposal.md#decisions): the host-sent link code with the one-tap deep link, the service-sent code fallback and setup over iMessage. Still open: their device acceptance on a controlled iPhone (Phase 6); CLI login for terminal-based agents (Phase 5).

@@ -135,3 +135,33 @@ describe("the weekly note list (calendar-note-review design 10 and 11)", () => {
     expect(noteReadBack([{ number: 1, title: "Mom" }, { number: 3, title: "Due" }], "en")).toBe(`Free 1 "Mom" and 3 "Due"?`);
   });
 });
+
+// Fixed replies the testing baseline quotes on rows marked supported
+// (module test map).
+describe("fixed replies in the testing baseline", () => {
+  it("points an approval of a superseded version to the current one (H03 M-2.3)", () => {
+    expect(CHANNEL_REPLIES.en.notCurrent("K7Q2MX-2")).toBe("That proposal is no longer current; the current one is K7Q2MX-2. Ask me to show it.");
+  });
+
+  // The guest branch of imessage-receipts always sends the plain textOnly reply,
+  // even on Telegram; only the copy is pinned here.
+  it("says that only text messages reach Thyme (G03 M-6)", () => {
+    expect(CHANNEL_REPLIES.en.textOnly).toBe("I can read text messages only.");
+    expect(CHANNEL_REPLIES.en.textOnlyTelegram).toBe("I can read text messages only. Photos, stickers and voice messages don't reach Thyme.");
+  });
+
+  it("names an unknown or removed request reference (H03 M-6)", () => {
+    expect(CHANNEL_REPLIES.en.unknownRef("https://findmeatime.com")).toBe("I don't recognize that reference. Ask me which requests you have, or open https://findmeatime.com/app.");
+    expect(CHANNEL_REPLIES.en.requestGoneHere).toBe("That request isn't available any more. Ask me which requests you have.");
+  });
+
+  it("says nothing changed for each weekly-list answer it cannot act on (H02 M-10)", () => {
+    const url = "https://findmeatime.com/app/notes";
+    const notes = CHANNEL_REPLIES.en.notes;
+
+    expect(notes.outsideList([5], 3)).toBe("5 is not on the list, so nothing changed. Choose from 1 to 3.");
+    expect(notes.staleList(url)).toMatch(/^That list is no longer the current one, so nothing changed\./);
+    expect(notes.changed([2], url)).toBe(`2 changed after the list was sent, so nothing changed. Check it here: ${url}`);
+    expect(notes.calendarUnavailable(url)).toMatch(/^I couldn't read Google Calendar just now, so nothing changed\./);
+  });
+});

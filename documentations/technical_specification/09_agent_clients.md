@@ -2,7 +2,7 @@
 
 Status: connection paths written; no named client has been run yet\
 Date: 2026-11-20\
-Companions: [`agent-access` design](../../openspec/changes/agent-access/design.md#11-per-client-acceptance), [CLI direction](05_cli.md), [acceptance record](07_acceptance_record.md)
+Companions: [`agent-access` design](../../openspec/changes/archive/2026-11-24-agent-access/design.md#11-per-client-acceptance), [CLI direction](05_cli.md), [acceptance record](07_acceptance_record.md)
 
 This document records, for each named client of PRD FR-24, how it finds the Find Me a Time instructions, how it connects, and the result of its last run in each role. It is the per-client acceptance plan of AC-14, AC-15 and AC-19 to AC-25. A row says "not yet run" until a team member runs it and records the evidence in the acceptance record; nothing here claims that a client works before then.
 
@@ -33,13 +33,13 @@ Connections survive the client's own refresh behaviour. A refresh may omit `reso
 
 Use `get_host({hostHandle})` before `create_request({hostHandle, timezone?, details?, language?, retryKey})`. The account is the requester: the request uses the account's host display name and the Google address it signed in with, stored as the confirmed contact, and the host timezone unless `timezone` names another (an account without host settings must pass `timezone`); the agent never asks for a name or email. The account's host conflict calendars count as the requester's busy time by default (the host-profile Calendars item, decided at creation), so no calendar question is asked; the result returns `requester`, `calendars` (their names) for the agent to mention once, and `calendarReadable`. When the account's Google Calendar grant cannot be read, the calendars still count and finding times fails with `requester_calendar_unavailable` until the account reconnects Calendar at `/auth/sign-in?consent=calendar`; the person is never treated as free. An account without conflict calendars is linked with no calendars. Each new meeting uses a fresh retry key; an exact retry returns the same request, and changed arguments conflict. The private continuation link is emailed and never returned to the agent. Self-booking is refused.
 
-`list_sent_requests({limit?, offset?})` lists verified account-linked requests with live access. `get_sent_request({requestId})` reads one. Requester actions use `{requestId, arguments: {retryKey, expectedRevision?, input?}}`; the nested arguments retain the anonymous tool's schema. Sent booking actions are `check_sent_booking`, `cancel_sent_booking` and `change_sent_booking`. Existing received-request tools (`get_request`, `cancel_booking`, `change_booking`, `check_booking`) retain their host meaning. Consent gives the client no calendar access: the service reads the account's conflict calendars for busy time inside the evaluation, and nothing about them reaches the other host.
+`list_sent_requests({limit?, offset?})` lists verified account-linked requests with live access. `get_sent_request({requestId})` reads one. Requester actions use `{requestId, arguments: {retryKey, expectedRevision?, input?}}`; the nested arguments retain the anonymous tool's schema. Sent booking actions are `check_sent_booking`, `cancel_sent_booking` and `change_sent_booking`. Existing received-request tools (`get_request`, `cancel_booking`, `change_booking`, `check_booking`) retain their host meaning. `use_host_calendars({requestId, arguments: {retryKey, input: {use}}})` sets whether the account's host conflict calendars count for that sent request only (all or none), while times are chosen; it never changes the host settings or calendar roles, and is not offered on a per-host connection ([`host-as-guest-calendars-in-words`](../../openspec/changes/host-as-guest-calendars-in-words/proposal.md)). Consent gives the client no calendar access: the service reads the account's conflict calendars for busy time inside the evaluation, and nothing about them reaches the other host.
 
 The service checks the verified account/request association and live private-link boundary on every sent-request call. Matching contact emails never establishes ownership. Read, write and decision scopes stay separate; exact-proposal requester agreement and the other host's approval remain required. Account-free per-host endpoints retain the one-future-request model. The local integration suite is `tests/integration/agent-mcp-account-requester.test.ts`; named-client production acceptance remains pending.
 
 ## Test environment
 
-Decided in the [`agent-access` proposal](../../openspec/changes/agent-access/proposal.md#decisions) (D16):
+Decided in the [`agent-access` proposal](../../openspec/changes/archive/2026-11-24-agent-access/proposal.md#decisions) (D16):
 
 - **Where:** production, `https://findmeatime.com`, after the `agent-access` change is deployed with its migration and `AGENT_TOKEN_SIGNING_KEY`.
 - **Who:** a team host account that has finished setup, and a team-controlled requester inbox. Each client runs under a team member's own account at its current public version.
@@ -66,6 +66,6 @@ An unresolved client is a release blocker, as the [implementation plan](06_imple
 
 - The agent finds the instructions from the plain URL; if it cannot, the run repeats with the explicit `/SKILL.md` form and records that.
 - Connecting shows the consent page with the client's name and redirect host; **Deny** leaves nothing connected.
-- Host role: the agent reads setup and requests, cannot see another host's request, and approves or declines only when the host tells it to in their own words, passing those words; asked to approve with a condition, it asks the host instead ([`agent-decisions-in-words`](../../openspec/changes/agent-decisions-in-words/proposal.md)).
+- Host role: the agent reads setup and requests, cannot see another host's request, and approves or declines only when the host tells it to in their own words, passing those words; asked to approve with a condition, it asks the host instead ([`agent-decisions-in-words`](../../openspec/changes/archive/2026-11-24-agent-decisions-in-words/proposal.md)).
 - Requester role: the agent creates one request with the person's own details, asks for anything missing, chooses within what the person allowed, agrees only to a time they accept, and reports the meeting as booked only after the host approves and the service shows it booked.
 - Revoking the connection under **Connected agents** stops the agent at its next call.

@@ -4,7 +4,7 @@ Tracking issue: #334 (testing baseline R01 P-2 and P-3; owner decision of 2026-1
 
 ## Why
 
-An account connected to `/mcp` with request scopes can request a meeting with another host ([account-requester-mcp](../../account-requester-mcp/proposal.md)), but `create_request` still takes `name` and `email` "using only their stated identity", so the agent must ask the person who they are, and the request is linked with no host-profile items, so the account's own host calendars do not count as busy time. The [testing baseline](../../../../documentations/technical_specification/12_testing_baseline.md#r01-one-account-as-host-and-guest) R01 and the repository owner's decision on #334 say the account is the requester: its name, Google address and calendars are used without asking.
+An account connected to `/mcp` with request scopes can request a meeting with another host ([account-requester-mcp](../2026-11-24-account-requester-mcp/proposal.md)), but `create_request` still takes `name` and `email` "using only their stated identity", so the agent must ask the person who they are, and the request is linked with no host-profile items, so the account's own host calendars do not count as busy time. The [testing baseline](../../../../documentations/technical_specification/12_testing_baseline.md#r01-one-account-as-host-and-guest) R01 and the repository owner's decision on #334 say the account is the requester: its name, Google address and calendars are used without asking.
 
 ## What Changes
 

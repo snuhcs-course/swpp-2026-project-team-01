@@ -4,11 +4,11 @@ Tracking issues: [#48](https://github.com/snuhcs-course/swpp-2026-project-team-0
 
 ## Why
 
-Anyone who signs in with Google gets an account ([host-admission](../../../specs/host-admission/spec.md)), and an account that books with another host is a guest account: its requests are matched to it by a verified Google subject or the signed-in session ([host-as-guest-session](../2026-11-23-host-as-guest-session/), [request-dashboard](../../request-dashboard/)). Three things did not fit that account yet:
+Anyone who signs in with Google gets an account ([host-admission](../../../specs/host-admission/spec.md)), and an account that books with another host is a guest account: its requests are matched to it by a verified Google subject or the signed-in session ([host-as-guest-session](../2026-11-23-host-as-guest-session/), [request-dashboard](../2026-11-24-request-dashboard)). Three things did not fit that account yet:
 
-- A closed request is deleted 90 days after it closed ([operations-and-release D9](../../operations-and-release/design.md#8-retention)), so an account's history disappeared on the same schedule as an anonymous guest's.
+- A closed request is deleted 90 days after it closed ([operations-and-release D9](../2026-11-24-operations-and-release/design.md#8-retention)), so an account's history disappeared on the same schedule as an anonymous guest's.
 - The Requests list linked a sent request only while its private link lasted, and the request page shows nothing but a status once a request closes, so a closed request's conversation could not be opened at all.
-- Deleting an account ([self-service-account-deletion](../../self-service-account-deletion/), or `delete-host`) removed the account's matches to the requests it sent but left those requests open and their booked meetings standing with other hosts. A guest account with no handle could not be named to the operator command either.
+- Deleting an account ([self-service-account-deletion](../2026-11-24-self-service-account-deletion), or `delete-host`) removed the account's matches to the requests it sent but left those requests open and their booked meetings standing with other hosts. A guest account with no handle could not be named to the operator command either.
 
 ## What Changes
 
@@ -31,7 +31,7 @@ Anyone who signs in with Google gets an account ([host-admission](../../../specs
 
 ### Modified Capabilities
 
-None in `openspec/specs/`. Retention and operator deletion are still pending deltas of [operations-and-release](../../operations-and-release/specs/data-stewardship/spec.md), the sent list is a pending delta of [request-dashboard](../../request-dashboard/specs/chat-workspaces/spec.md), and Settings deletion one of [self-service-account-deletion](../../self-service-account-deletion/specs/host-account-deletion/spec.md). This change adds its rules beside them, and changes request-dashboard's sent-card scenario to open only an open request's page.
+None in `openspec/specs/`. Retention and operator deletion are still pending deltas of [operations-and-release](../2026-11-24-operations-and-release/specs/data-stewardship/spec.md), the sent list is a pending delta of [request-dashboard](../2026-11-24-request-dashboard/specs/chat-workspaces/spec.md), and Settings deletion one of [self-service-account-deletion](../2026-11-24-self-service-account-deletion/specs/host-account-deletion/spec.md). This change adds its rules beside them, and changes request-dashboard's sent-card scenario to open only an open request's page.
 
 ## Impact
 

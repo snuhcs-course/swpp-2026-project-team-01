@@ -4,7 +4,7 @@ Tracking issue: #148 (folds in #137 and #138)
 
 ## Why
 
-In the linked iMessage, WhatsApp and Telegram conversations, only approving a proposal ([`host-imessage-channel`](../host-imessage-channel/proposal.md) D23, #88) and switching requests (D26, #125) work in the host's own words. Declining, sharing or dismissing suggested changes and confirming settings still need an exact typed command (`decline <ref>`, `share <ref>`, `confirm <ref>`) or a web button, and the fixed replies tell the host which command to type. Those replies and the pickers are English even in a conversation held in Korean (#137), a host who is also a guest is stopped by an English picker that drops their message (#137), and the setup conversation cannot list the host's own requests (#138). The user decided on 2026-11-04 that natural language should work for everything, everywhere.
+In the linked iMessage, WhatsApp and Telegram conversations, only approving a proposal ([`host-imessage-channel`](../archive/2026-11-24-host-imessage-channel/proposal.md) D23, #88) and switching requests (D26, #125) work in the host's own words. Declining, sharing or dismissing suggested changes and confirming settings still need an exact typed command (`decline <ref>`, `share <ref>`, `confirm <ref>`) or a web button, and the fixed replies tell the host which command to type. Those replies and the pickers are English even in a conversation held in Korean (#137), a host who is also a guest is stopped by an English picker that drops their message (#137), and the setup conversation cannot list the host's own requests (#138). The user decided on 2026-11-04 that natural language should work for everything, everywhere.
 
 ## What Changes
 

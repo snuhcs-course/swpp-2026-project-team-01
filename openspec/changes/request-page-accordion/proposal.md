@@ -4,7 +4,7 @@ Tracking issue: #299
 
 ## Why
 
-The signed-in Requests list currently sends a received request to `/app?request=…`, a separate host-private chat with a decision card. The host wants to inspect meeting details and take the existing decisions directly from the request list. The proposed interaction changes the conversation-first host request behavior in [chat-workspaces](../../specs/chat-workspaces/spec.md) and the [host-review-and-booking change](../host-review-and-booking/proposal.md).
+The signed-in Requests list currently sends a received request to `/app?request=…`, a separate host-private chat with a decision card. The host wants to inspect meeting details and take the existing decisions directly from the request list. The proposed interaction changes the conversation-first host request behavior in [chat-workspaces](../../specs/chat-workspaces/spec.md) and the [host-review-and-booking change](../archive/2026-11-24-host-review-and-booking/proposal.md).
 
 ## What Changes
 

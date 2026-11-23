@@ -2,7 +2,7 @@
 
 ## Context
 
-A host links iMessage or WhatsApp from the landing (`/?flow=imessage`, `/?flow=whatsapp`): number, code, Thyme's sign-in link, Google sign-in, **Confirm and link** ([`host-imessage-channel`](../host-imessage-channel/proposal.md) D15, D19; [`imessage-number-registration`](../imessage-number-registration/proposal.md)). Google sign-in already requests the Calendar scopes with identity (`lib/server/google-sign-in.ts`), so most hosts have a usable grant when the link is confirmed. The welcome then asks for Calendar or the first setup question (`LINK_TEXTS`, `lib/server/imessage-links.ts`). Superseded by [`link-on-code`](../link-on-code/proposal.md) D5: the sign-in now binds the recorded sender, with no **Confirm and link**.
+A host links iMessage or WhatsApp from the landing (`/?flow=imessage`, `/?flow=whatsapp`): number, code, Thyme's sign-in link, Google sign-in, **Confirm and link** ([`host-imessage-channel`](../archive/2026-11-24-host-imessage-channel/proposal.md) D15, D19; [`imessage-number-registration`](../archive/2026-11-24-imessage-number-registration/proposal.md)). Google sign-in already requests the Calendar scopes with identity (`lib/server/google-sign-in.ts`), so most hosts have a usable grant when the link is confirmed. The welcome then asks for Calendar or the first setup question (`LINK_TEXTS`, `lib/server/imessage-links.ts`). Superseded by [`link-on-code`](../link-on-code/proposal.md) D5: the sign-in now binds the recorded sender, with no **Confirm and link**.
 
 Two steps block finishing in the chat: calendar roles (only `setup.save_calendar_roles` from the web saves them) and the host-answer fields (meeting mode, location, travel mode), which `missingFields` counts only when `accepted` (`lib/server/setup.ts`), set only by the web's `setup.update_draft`.
 
@@ -54,7 +54,7 @@ Saving: `confirm_settings` keeps its reference check and drops the rule that Thy
 
 ## 6. Sending an image
 
-The outbox's `image` content holds the preview data and its summary. The transport renders and sends the bare PNG, then sends the summary as one text message. iMessage and WhatsApp use Spectrum's `attachment` and send the text separately (`@spectrum-ts` 12.14.0). The loopback stand-in accepts the preview as JSON. Telegram uses `sendPhoto` and `sendMessage` ([`host-telegram-channel` design 9](../host-telegram-channel/design.md#9-transport-and-outbox)). If the photo is accepted but the text does not go through, the outbox marks the result uncertain to avoid resending the photo.
+The outbox's `image` content holds the preview data and its summary. The transport renders and sends the bare PNG, then sends the summary as one text message. iMessage and WhatsApp use Spectrum's `attachment` and send the text separately (`@spectrum-ts` 12.14.0). The loopback stand-in accepts the preview as JSON. Telegram uses `sendPhoto` and `sendMessage` ([`host-telegram-channel` design 9](../archive/2026-11-24-host-telegram-channel/design.md#9-transport-and-outbox)). If the photo is accepted but the text does not go through, the outbox marks the result uncertain to avoid resending the photo.
 
 ## Risks
 

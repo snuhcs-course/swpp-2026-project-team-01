@@ -347,10 +347,15 @@ export async function startFakeGoogle(
           return;
         }
         const current = store[index]!;
+        // conferenceData: null removes the conference, as Google's patch does.
+        const { conferenceData, ...fields } = body;
         const next: FakeEvent = {
           ...current,
-          ...body,
-          hangoutLink: current.hangoutLink ?? (body.conferenceData ? `https://meet.google.com/${eventId.slice(0, 3)}-fake-link` : undefined),
+          ...fields,
+          hangoutLink:
+            conferenceData === null
+              ? undefined
+              : (current.hangoutLink ?? (conferenceData ? `https://meet.google.com/${eventId.slice(0, 3)}-fake-link` : undefined)),
           id: current.id,
         };
         store[index] = next;

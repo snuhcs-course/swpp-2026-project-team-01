@@ -82,9 +82,9 @@ async function hostSuggestion(db: Queryable, requestId: string): Promise<HostSug
   // The open suggestion, or else the latest settled one, so the host sees why a
   // shared time was rejected.
   const [row] = await db<
-    { changes: HostSuggestion["changes"]; id: string; proposal_version: number | null; rejection_reason: string | null; source: HostSuggestion["source"]; state: HostSuggestion["state"] }[]
+    { base_proposal_version: number | null; changes: HostSuggestion["changes"]; id: string; proposal_version: number | null; rejection_reason: string | null; source: HostSuggestion["source"]; state: HostSuggestion["state"] }[]
   >`
-    select id, source, state, changes, rejection_reason, proposal_version from app.shared_change_drafts
+    select id, source, state, changes, rejection_reason, base_proposal_version, proposal_version from app.shared_change_drafts
     where request_id = ${requestId} and state in ('pending', 'checking', 'shared', 'rejected')
     order by (state in ('pending', 'checking')) desc, created_at desc
     limit 1
@@ -92,6 +92,7 @@ async function hostSuggestion(db: Queryable, requestId: string): Promise<HostSug
 
   return row
     ? {
+        baseProposalVersion: row.base_proposal_version,
         changes: row.changes,
         id: row.id,
         proposalVersion: row.proposal_version,
