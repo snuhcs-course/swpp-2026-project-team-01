@@ -56,7 +56,7 @@ describe("account emails", () => {
     expect(named.text).not.toMatch(/https?:/);
 
     const unnamed = renderAccountEmail("host_account_closed", "ko", { hostAccountId, hostName: null });
-    expect(unnamed.subject).toBe("Your request with Your host is closed");
+    expect(unnamed.subject).toBe("Your meeting request is closed");
   });
 
   it("confirm the cancellation with a link to /app and the completion without one", () => {
