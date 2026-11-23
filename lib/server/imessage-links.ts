@@ -134,6 +134,19 @@ export function fallbackDailyLimit(env: Readonly<Record<string, string | undefin
   return Number.isInteger(value) && value >= 0 ? value : IMESSAGE_FALLBACK_LIMITS.perLineDay;
 }
 
+// Why the welcome asks for Calendar although the host signed in with Google,
+// read from the stored grant (imessage-onboarding-calendar-consent D2, #407):
+// Google reported no Calendar permission (unticked boxes, or scopes that could
+// not be read, which the row cannot tell apart), gave no refresh token, or
+// rejected the stored one.
+export type CalendarAskCause = "not_granted" | "no_lasting_access" | "ended";
+
+export const CALENDAR_ASK_CAUSES: Readonly<Record<CalendarAskCause, string>> = {
+  not_granted: "Google didn't confirm Calendar permission when you signed in, so I can't see your calendar yet.",
+  no_lasting_access: "Google didn't give lasting Calendar access when you signed in, so it needs one more consent.",
+  ended: "Your Google Calendar access has ended, so it needs connecting again.",
+};
+
 export const LINK_TEXTS = {
   // An attempt from the iMessage start has no host until a browser signs in (D15);
   // the link lets the sender sign in from this thread (D19), and the sign-in
@@ -145,8 +158,10 @@ export const LINK_TEXTS = {
   refusedTelegram: "That link code is not valid any more. Start again from Connect Telegram in Find Me a Time.",
   // A ready host gets this; one still setting up gets a welcome into setup here (D19).
   linked: "Linked. Send help for what I can do here.",
-  welcomeCalendar: (url: string) =>
-    `You're connected! I'm Thyme, and we can set up your meetings right here. ${SETUP_OVERVIEW.en}\n${withSetupStep("en", "calendar", `First, connect Google Calendar: ${url}`)}\n${PERMISSION_REASONS.en.googleSignIn}`,
+  // With the reason Calendar is still not usable when the host has a Google
+  // grant (#407); a host with none is simply asked.
+  welcomeCalendar: (url: string, cause: CalendarAskCause | null = null) =>
+    `You're connected! I'm Thyme, and we can set up your meetings right here. ${SETUP_OVERVIEW.en}\n${withSetupStep("en", "calendar", `First, connect Google Calendar: ${url}`)}\n${cause ? `${CALENDAR_ASK_CAUSES[cause]}\n` : ""}${PERMISSION_REASONS.en.googleSignIn}`,
   backFromGoogle: "You're back from Google. Let's keep going here: tell me your meeting preferences, or send setup to see what's next.",
   fallbackCode: (code: string, minutes: number) => `Your Find Me a Time code is ${code}. It expires in ${minutes} minutes.`,
 } as const;
@@ -401,10 +416,16 @@ export function calendarConnectUrl(origin: string) {
 // it is not usable yet, since setup cannot go further without it.
 async function linkedText(tx: Transaction, hostAccountId: string, options: BindOptions) {
   if ((await readReadiness(tx, hostAccountId)).ready) return LINK_TEXTS.linked;
-  const [grant] = await tx<{ usable: boolean }[]>`
-    select ${calendarUsable(tx)} as usable from app.provider_grants g where g.host_account_id = ${hostAccountId}
+  const [grant] = await tx<{ cause: CalendarAskCause; usable: boolean }[]>`
+    select ${calendarUsable(tx)} as usable,
+      case
+        when g.invalidated_at is not null then 'ended'
+        when g.refresh_token_ciphertext is null then 'no_lasting_access'
+        else 'not_granted'
+      end as cause
+    from app.provider_grants g where g.host_account_id = ${hostAccountId}
   `;
-  if (!grant?.usable) return LINK_TEXTS.welcomeCalendar(calendarConnectUrl(options.origin));
+  if (!grant?.usable) return LINK_TEXTS.welcomeCalendar(calendarConnectUrl(options.origin), grant?.cause ?? null);
   const roles = await defaultCalendarRoles(tx, hostAccountId, options.liveCalendars ?? null);
   const language = await hostConversationLanguage(tx, hostAccountId);
   const texts = channelReplies(language).onboarding;
