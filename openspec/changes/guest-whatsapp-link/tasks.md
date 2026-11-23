@@ -23,4 +23,8 @@
 
 - [ ] 5.1 Teammate review.
 - [ ] 5.2 After `imessage-number-registration` is archived, archive this change so its MODIFIED requirement applies to the archived spec.
+
+  Open: `imessage-number-registration` is not archived yet.
 - [ ] 5.3 With a working WhatsApp Business line, link a real guest phone and record whether Photon's users API registration was needed for the WhatsApp sender.
+
+  Open: needs a person with a working WhatsApp Business line and a real guest phone; kept unarchived on 2026-11-23.

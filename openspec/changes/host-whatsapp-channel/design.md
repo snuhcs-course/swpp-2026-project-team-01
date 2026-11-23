@@ -105,7 +105,7 @@ At dispatch, after the messaging gate and before marking the row `dispatching`, 
 |---|---|
 | Turn reply, command reply, link or unlinked-sender reply | `suppressed`, category `window_closed`. These answer an inbound message, so this happens only after a long admission deferral or an outage |
 | New request, awaiting approval, booking confirmed, booking not confirmed | `suppressed` with `window_closed`, and a template row for the event is queued under section 8's limits |
-| Booking still pending, welcome, back from Google | `suppressed` with `window_closed`, with no template |
+| Booking still pending (no longer queued for the host since #173), welcome, back from Google | `suppressed` with `window_closed`, with no template |
 
 A free-form send that Meta still refuses with 131047 ends `failed` (the transport outcome `rejected`) with category `window_closed` and follows the same table. Every suppressed or rejected row appears in `/app` the way a failed iMessage delivery does: "Not sent on WhatsApp: you have not written for a day."
 

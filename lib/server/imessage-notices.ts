@@ -18,6 +18,7 @@ export type HostNotice =
   | { readonly kind: "weekly_limit_hold"; readonly requestRevision: number; readonly settingsRevision: number; readonly weeklyLimit: number }
   | { readonly kind: "booking_confirmed"; readonly bookingId: string }
   | { readonly kind: "booking_failed"; readonly bookingId: string }
+  // No longer queued (#173); kept so a notice queued before the change still reads.
   | { readonly kind: "booking_pending"; readonly bookingId: string }
   // The guest cancelled a booked meeting; the event could not be deleted
   // (post-booking-changes design 3 and 4).

@@ -5,14 +5,16 @@ import type { StoryCase, StoryContext } from "../story/types";
 
 // The fixed guest story set (Iteration 4): the guest assistant on the revised
 // user stories G01 to G03 and M01, graded on its tool decisions, the request's
-// decision state and its replies. Cases are only ever appended: an existing case
-// is never edited or removed, and every appended case is recorded in
-// documentation 13 with its date. Expected behavior comes from the testing
+// decision state and its replies. Cases are only ever appended, and every
+// appended case is recorded in documentation 13 with its date. Expected behavior comes from the testing
 // baseline (PR #249, documentations/technical_specification/12_testing_baseline.md),
 // the shared base rules and the requester fragment as they stand on the
 // declaring commit; the case sheet was reviewed with Codex (gpt-6.2-sol) and the
 // team decided the open expectations on 2026-11-18. Rows the product does not
 // support yet are tracked in #255 and are not here. Every case runs three times.
+// The one exception to appending: when the team reverses an expectation, the
+// case's checks follow the new decision and documentation 13 records the change
+// (GU-50 and GU-A04, #378).
 
 const noApply = ["apply_request_review", "choose_time", "agree_to_proposal", "change_agreement", "withdraw_request", "cancel_booking", "change_booking"];
 
@@ -1566,7 +1568,7 @@ export const GUEST_STORY_CASES: readonly StoryCase[] = [
     conversation: "requester",
     category: "abnormal",
     shape: "out_of_order",
-    source: "G01 W-6",
+    source: "G01 W-6 · #378",
     state: "GU-1m",
     channel: "web",
     language: "ko",
@@ -1574,21 +1576,41 @@ export const GUEST_STORY_CASES: readonly StoryCase[] = [
     turns: [
       {
         message: "강남역에서요",
-        checks: [{ kind: "judge", criterion: "온라인인지 대면인지 확인한다." }],
+        checks: [
+          { kind: "judge", criterion: "온라인인지 대면인지 다시 묻지 않는다." },
+          { kind: "judge", criterion: "대면과 강남역을 검토 카드에 담았다고 말한다." },
+          { kind: "noDecisionClaim" },
+        ],
+        calls: [
+          {
+            name: "draft_request_review",
+            input: (input) =>
+              input.intent === "details" &&
+              field(input.details, "mode") === "in_person" &&
+              /강남/.test(String(field(input.details, "location") ?? "")),
+          },
+        ],
+        forbid: ["apply_request_review"],
       },
     ],
     allowed: [...GUEST_LOOKUP],
     database: [
+      { label: "saved request details stay the same", holds: (after, before) => JSON.stringify(after.details) === JSON.stringify(before.details) },
       {
-        label: "meeting mode is not recorded",
+        label: "a new pending in-person review at 강남역",
         holds: (after, before) =>
-          after.details.mode === before.details.mode && after.reviews.every((row) =>
-            row.intent === "question" &&
-            row.patch === null &&
-            "clarifications" in row &&
-            Array.isArray(row.clarifications) &&
-            row.clarifications.includes("missing_mode"),
+          after.reviews.some((row) =>
+            row.intent === "details" &&
+            row.state === "pending" &&
+            field(row.patch, "mode") === "in_person" &&
+            /강남/.test(String(field(row.patch, "location") ?? "")) &&
+            !before.reviews.some((old) => old.id === row.id),
           ),
+      },
+      {
+        label: "no question note was drafted",
+        holds: (after, before) =>
+          after.reviews.filter((row) => row.intent === "question").length === before.reviews.filter((row) => row.intent === "question").length,
       },
     ],
   },
@@ -2453,7 +2475,7 @@ export const GUEST_STORY_CASES: readonly StoryCase[] = [
     conversation: "requester",
     category: "abnormal",
     shape: "out_of_order",
-    source: "G01 W-6 · #280",
+    source: "G01 W-6 · #280 · #378",
     state: "GU-1m",
     channel: "web",
     language: "en",
@@ -2462,23 +2484,41 @@ export const GUEST_STORY_CASES: readonly StoryCase[] = [
       {
         message: "Somewhere near Gangnam Station",
         checks: [
-          { kind: "judge", criterion: "온라인인지 대면인지 확인한다." },
+          { kind: "judge", criterion: "온라인인지 대면인지 다시 묻지 않는다." },
+          { kind: "judge", criterion: "대면과 강남역을 검토 카드에 담았다고 말한다." },
+          { kind: "noDecisionClaim" },
           { kind: "language", language: "en" },
         ],
+        calls: [
+          {
+            name: "draft_request_review",
+            input: (input) =>
+              input.intent === "details" &&
+              field(input.details, "mode") === "in_person" &&
+              /gangnam|강남/i.test(String(field(input.details, "location") ?? "")),
+          },
+        ],
+        forbid: ["apply_request_review"],
       },
     ],
     allowed: [...GUEST_LOOKUP],
     database: [
+      { label: "saved request details stay the same", holds: (after, before) => JSON.stringify(after.details) === JSON.stringify(before.details) },
       {
-        label: "meeting mode is not recorded",
+        label: "a new pending in-person review near Gangnam",
         holds: (after, before) =>
-          after.details.mode === before.details.mode && after.reviews.every((row) =>
-            row.intent === "question" &&
-            row.patch === null &&
-            "clarifications" in row &&
-            Array.isArray(row.clarifications) &&
-            row.clarifications.includes("missing_mode"),
+          after.reviews.some((row) =>
+            row.intent === "details" &&
+            row.state === "pending" &&
+            field(row.patch, "mode") === "in_person" &&
+            /gangnam|강남/i.test(String(field(row.patch, "location") ?? "")) &&
+            !before.reviews.some((old) => old.id === row.id),
           ),
+      },
+      {
+        label: "no question note was drafted",
+        holds: (after, before) =>
+          after.reviews.filter((row) => row.intent === "question").length === before.reviews.filter((row) => row.intent === "question").length,
       },
     ],
   },
@@ -2581,6 +2621,75 @@ export const GUEST_STORY_CASES: readonly StoryCase[] = [
               row.state === "pending" &&
               /seongsu|성수/i.test(String(field(row.patch, "location") ?? "")) &&
               !before.reviews.some((old) => old.id === row.id),
+          ),
+      },
+    ],
+  },
+  {
+    id: "GU-A08",
+    conversation: "requester",
+    category: "abnormal",
+    shape: "out_of_order",
+    source: "G01 W-6 · #378",
+    state: "GU-1m",
+    channel: "web",
+    language: "ko",
+    prelude: ["투자 상담이요."],
+    turns: [
+      {
+        message: "참고로 저는 강남역 근처 회사에 다녀요",
+        checks: [
+          { kind: "judge", criterion: "온라인인지 대면인지 확인한다." },
+        ],
+        forbid: ["apply_request_review"],
+      },
+    ],
+    allowed: [...GUEST_LOOKUP],
+    database: [
+      {
+        label: "meeting mode is not recorded",
+        holds: (after, before) =>
+          after.details.mode === before.details.mode && after.reviews.every((row) =>
+            row.intent === "question" &&
+            row.patch === null &&
+            "clarifications" in row &&
+            Array.isArray(row.clarifications) &&
+            row.clarifications.includes("missing_mode"),
+          ),
+      },
+    ],
+  },
+  {
+    id: "GU-A09",
+    conversation: "requester",
+    category: "abnormal",
+    shape: "out_of_order",
+    source: "G01 W-6 · #378",
+    state: "GU-1m",
+    channel: "web",
+    language: "en",
+    prelude: ["Investment advice."],
+    turns: [
+      {
+        message: "Gangnam Station works, but online might be easier for me",
+        checks: [
+          { kind: "judge", criterion: "온라인인지 대면인지 확인한다." },
+          { kind: "language", language: "en" },
+        ],
+        forbid: ["apply_request_review"],
+      },
+    ],
+    allowed: [...GUEST_LOOKUP],
+    database: [
+      {
+        label: "meeting mode is not recorded",
+        holds: (after, before) =>
+          after.details.mode === before.details.mode && after.reviews.every((row) =>
+            row.intent === "question" &&
+            row.patch === null &&
+            "clarifications" in row &&
+            Array.isArray(row.clarifications) &&
+            row.clarifications.includes("missing_mode"),
           ),
       },
     ],

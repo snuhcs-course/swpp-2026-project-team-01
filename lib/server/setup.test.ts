@@ -248,7 +248,7 @@ describe("suggestions and field precedence", () => {
       source: "starter_default",
       value: "Asia/Seoul",
     });
-    expect(suggestions.durationMinutes).toMatchObject({ source: "starter_default", value: 30 });
+    expect(suggestions.durationMinutes).toMatchObject({ source: "starter_default", value: 60 });
     expect(suggestions.displayName).toMatchObject({ source: "starter_default", value: "alice.kim" });
     expect(suggestions.handle).toMatchObject({ source: "starter_default", value: "alice-kim" });
     expect(suggestions.meetingMode).toBeUndefined();

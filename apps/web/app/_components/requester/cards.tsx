@@ -356,7 +356,7 @@ export function CalendarSelectionCard({ context }: { readonly context: Requester
 // settings this request uses; nothing is used before **Use these settings**,
 // and **Not now** keeps the card from returning.
 const HOST_PROFILE_LINES: Readonly<Record<HostProfileItem, { readonly label: string; readonly line: string }>> = {
-  calendars: { label: "Calendars", line: "Check your busy time on the calendars you use as a host." },
+  calendars: { label: "Calendars", line: "Check your busy time on the calendars you use as a host, and offer times in your usual hours and lighter weeks first." },
   details: { label: "Basic details", line: "Fill in your time zone and travel mode." },
 };
 
