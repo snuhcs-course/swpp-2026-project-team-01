@@ -18,12 +18,14 @@ export type Bound = { readonly limit: number; readonly windowSeconds: number };
 // refresh token, one live per grant) and per source with room for a shared
 // egress; registration per source has room for a hosted agent's fallback to
 // dynamic registration, under the service-wide bound.
+//
+// Hotfix 2026-11-23: no bound counts a network (source) address any more. People on one
+// shared network (a campus, an office or a carrier NAT) present one address, so a
+// per-address bound blocked them all at once.
+// Registration keeps its service-wide bound and tokens their per-credential bound.
 export const AGENT_LIMITS = {
-  registrationPerSource: { limit: 60, windowSeconds: 3600 },
   registrationService: { limit: 500, windowSeconds: 86_400 },
-  authorizationPerSource: { limit: 30, windowSeconds: 3600 },
   tokenPerCredential: { limit: 10, windowSeconds: 60 },
-  tokenPerSource: { limit: 600, windowSeconds: 60 },
   metadataFetchPerClient: { limit: 30, windowSeconds: 3600 },
   toolCallPerGrant: { limit: 120, windowSeconds: 60 },
 } as const satisfies Record<string, Bound>;
@@ -42,21 +44,15 @@ export class AttemptLimitError extends Error {
 
 export type AttemptBound = { readonly key: string; readonly bound: Bound };
 
-// The bounds of one dynamic registration from a source.
-export function registrationBounds(source: string): AttemptBound[] {
-  return [
-    { bound: AGENT_LIMITS.registrationPerSource, key: `source:${source}` },
-    { bound: AGENT_LIMITS.registrationService, key: "service" },
-  ];
+// The bounds of one dynamic registration: service-wide only.
+export function registrationBounds(): AttemptBound[] {
+  return [{ bound: AGENT_LIMITS.registrationService, key: "service" }];
 }
 
 // The bounds of one token request: per the code or refresh token it presents
-// under its client, and per source.
-export function tokenBounds(request: { readonly clientId: string; readonly credential: string; readonly source: string }): AttemptBound[] {
-  return [
-    { bound: AGENT_LIMITS.tokenPerCredential, key: `credential:${request.clientId}:${request.credential}` },
-    { bound: AGENT_LIMITS.tokenPerSource, key: `source:${request.source}` },
-  ];
+// under its client.
+export function tokenBounds(request: { readonly clientId: string; readonly credential: string }): AttemptBound[] {
+  return [{ bound: AGENT_LIMITS.tokenPerCredential, key: `credential:${request.clientId}:${request.credential}` }];
 }
 
 function keyHash(key: string) {

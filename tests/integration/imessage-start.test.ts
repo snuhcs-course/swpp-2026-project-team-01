@@ -1,7 +1,6 @@
 import { randomBytes } from "node:crypto";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
-import { CommandError } from "../../lib/server/commands";
-import { claimContinuedLink, claimStartedLink, readStartStatus, type StartOptions, startImessageLink } from "../../lib/server/imessage-start";
+import { claimContinuedLink, claimStartedLink, IMESSAGE_START_LIMITS, readStartStatus, type StartOptions, startImessageLink } from "../../lib/server/imessage-start";
 import { imessageContinuationUrl, readReceivedContinuation } from "../../lib/server/imessage-continuation";
 import { imessageHash } from "../../lib/server/photon-receiver";
 import { calendarConnectUrl, LINK_TEXTS, resumeImessageOnboarding } from "../../lib/server/imessage-links";
@@ -245,10 +244,9 @@ describe("the iMessage start", () => {
     expect(await im.bindingOf(holder)).toMatchObject({ state: "active" });
   });
 
-  it("bounds starts per source address", async () => {
+  it("does not bound starts per source address", async () => {
     const address = source();
-    for (let index = 0; index < 5; index += 1) await startImessageLink(db, options, secret(), address, "imessage", "+15557654321");
-    await expect(startImessageLink(db, options, secret(), address, "imessage", "+15557654321")).rejects.toMatchObject({ category: "rate_limited" });
-    await expect(startImessageLink(db, options, secret(), address, "imessage", "+15557654321")).rejects.toBeInstanceOf(CommandError);
+    for (let index = 0; index < 8; index += 1) await startImessageLink(db, options, secret(), address, "imessage", "+15557654321");
+    expect(IMESSAGE_START_LIMITS.perSourceHour).toBe(Number.POSITIVE_INFINITY);
   });
 });

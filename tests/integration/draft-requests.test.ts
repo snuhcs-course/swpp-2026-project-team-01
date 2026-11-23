@@ -10,7 +10,7 @@ import { signInternalBearer } from "../../lib/server/internal-bearer";
 import { publishJob } from "../../lib/server/jobs";
 import { limitModel, sessionIdHash } from "../../lib/server/model-limits";
 import { createRequestExpiryHandler, REQUEST_EXPIRY_JOB } from "../../lib/server/request-lifecycle";
-import { CREATION_LIMITS, DRAFT_LIMITS, starterId } from "../../lib/server/request-start";
+import { CREATION_LIMITS, DRAFT_LIMITS, NETWORK_CREATION_LIMITS, starterId } from "../../lib/server/request-start";
 import {
   createRequesterCommandHandler,
   createRequesterMessageHandler,
@@ -165,39 +165,24 @@ describe("request.start", () => {
     expect((await startDraft(deps, host.handle, { nonce: randomUUID() })).status).toBe(201);
   });
 
-  it("bounds drafts to 5 per source an hour, 20 a day and 500 across the service a day", async () => {
+  it("does not bound drafts per network address, and keeps the service bound", async () => {
     const host = await readyHost(db);
-    const deps = guestDependencies(db, { creationLimits: { serviceDay: Number.POSITIVE_INFINITY } });
+    const deps = guestDependencies(db, { creationLimits: { ...NETWORK_CREATION_LIMITS, serviceDay: Number.POSITIVE_INFINITY } });
     const source = sourceAddress();
 
-    for (let index = 0; index < CREATION_LIMITS.perSourceHour; index += 1) {
+    for (let index = 0; index < CREATION_LIMITS.perSourceHour + 2; index += 1) {
       expect((await startDraft(deps, host.handle, { source })).status).toBe(201);
     }
-
-    const sixth = await startDraft(deps, host.handle, { source });
-    expect(sixth.status).toBe(429);
-    expect(await sixth.json()).toEqual({ code: "rate_limited", error: "Too many new requests from your network right now. Try again later." });
-
-    // A day's worth from one source, older than an hour.
-    const daily = sourceAddress();
-    await startDraft(deps, host.handle, { source: daily });
-    const [hash] = await db<{ source_hash: string }[]>`
-      select source_hash from app.request_creations where host_account_id = ${host.hostAccountId} order by created_at desc limit 1
-    `;
-    await db`update app.request_creations set created_at = now() - interval '2 hours' where source_hash = ${hash!.source_hash}`;
-    await db`
-      insert into app.request_creations (source_hash, host_account_id, created_at)
-      select ${hash!.source_hash}, ${host.hostAccountId}, now() - interval '3 hours' from generate_series(1, 19)
-    `;
-    expect((await startDraft(deps, host.handle, { source: daily })).status).toBe(429);
 
     // The service bound, with the day's count as the limit; no per-host bound.
     const [service] = await db<{ count: number }[]>`
       select count(*)::int as count from app.request_creations where created_at > now() - interval '24 hours'
     `;
-    const full = guestDependencies(db, { creationLimits: { perSourceDay: 100, perSourceHour: 100, serviceDay: service!.count } });
-    expect((await startDraft(full, host.handle)).status).toBe(429);
-    expect(CREATION_LIMITS).toEqual({ perSourceDay: 20, perSourceHour: 5, serviceDay: 500 });
+    const full = guestDependencies(db, { creationLimits: { ...NETWORK_CREATION_LIMITS, serviceDay: service!.count } });
+    const refused = await startDraft(full, host.handle);
+    expect(refused.status).toBe(429);
+    expect(await refused.json()).toEqual({ code: "rate_limited", error: "Too many new requests from your network right now. Try again later." });
+    expect(NETWORK_CREATION_LIMITS).toEqual({ perSourceDay: Number.POSITIVE_INFINITY, perSourceHour: Number.POSITIVE_INFINITY, serviceDay: 500 });
   });
 
   it("answers an unready, suspended or unknown host with the neutral unavailable result and creates nothing", async () => {
