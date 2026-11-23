@@ -173,7 +173,9 @@ export function GuestWorkspace({
   // (#373).
   const composer = guestComposerState(view);
   const handedOver = view.handedOver;
-  const reopenedAt = useMemo(() => (composer.calendarReopened ? new Date().toISOString() : null), [composer.calendarReopened]);
+  // Set after render, so the server and the first client render agree.
+  const [reopenedAt, setReopenedAt] = useState<string | null>(null);
+  useEffect(() => setReopenedAt(composer.calendarReopened ? new Date().toISOString() : null), [composer.calendarReopened]);
 
   const { entries, panel } = useMemo(() => {
     const placed = context

@@ -14,5 +14,5 @@
 
 ## Documents
 
-- [x] Update the guest booking flow (G5, G11) and regenerate its Korean mirror.
+- [x] Update the guest booking flow (G4, G11) and the testing baseline (G03, M01), and regenerate the testing baseline's Korean mirror.
 - [ ] Run the integration tests (`tests/integration/booking-routes.test.ts`) and the browser tests on main; not run in the implementing session.

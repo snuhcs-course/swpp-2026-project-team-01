@@ -23,9 +23,10 @@ export const CLOSED_TEXT: Readonly<Partial<Record<RequestState, string>>> = {
 // The composer's words until the fixed steps hand over to Thyme (U9).
 export const COMPOSER_LOCKED = "Finish the step above, then you can write to Thyme here";
 
-// Thyme's line above a Calendar step that reopened after the handover.
+// Thyme's line above a Calendar step open after the handover, usually
+// reopened (a second Google sign-in, Change, host calendars removed).
 export const CALENDAR_REOPENED =
-  "Your Calendar step is open again: connect your calendar or skip it on the card below, so I offer times that suit you. You can keep writing to me meanwhile.";
+  "Your Calendar step is open: connect your calendar or skip it on the card below, so I offer times that suit you. You can keep writing to me meanwhile.";
 
 const STEP_KINDS = new Set(["identity", "review", "host_profile", "calendar"]);
 
@@ -43,6 +44,9 @@ export function guestComposerState(
   now: Date = new Date(),
 ): ComposerState {
   const { state } = view.request;
+  // The booking page reloads into its closed view as soon as it reads a closed
+  // request, so in practice the reason shown here is expiry reached while the
+  // page is open; the other closed states are covered for a stale view.
   const ended =
     CLOSED_TEXT[state] !== undefined && state !== "booked"
       ? CLOSED_TEXT[state]
