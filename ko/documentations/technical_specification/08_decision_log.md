@@ -197,6 +197,7 @@
 | CLI 출처 | `https` 출처, 또는 로컬 실행용으로 `localhost`, `127.0.0.1`, `[::1]`의 `http` | 모든 출처 | `cli/src/app.ts` | 같은 파일의 `originOf` |
 | CLI 빌드 | `npm run build:cli`는 `tsgo`로 `cli/src`를 `cli/dist`로 컴파일하고, `npm run fmat -- <command>`는 체크아웃에서 `tsx`로 실행합니다 | 번들러 | `package.json`, `cli/package.json` | 해당 파일 |
 | 생성 재시도 식별 | 요청을 만든 재시도 키로 `create_request`를 부르면 다른 인자와 무관하게 그 요청을 돌려주고, 다른 키는 이미 만들어졌다며 거절합니다. 더 이상 목록에 나오지 않더라도 바인딩된 부트스트랩 허가로 호출할 수 있습니다 | 명령 파이프라인처럼 생성 입력을 해시 | `agent-requests.ts`, `agent-mcp.ts` | 해당 파일의 `createRequestForGrant`와 `callable` |
+| 생성 전 요청자 도구 | 바인딩되지 않은 부트스트랩 허가는 범위가 허용하는 모든 요청자 도구를 목록에 보여 주며, 생성으로 바인딩되기 전까지는 `get_host`와 `create_request`만 실행됩니다. 나머지 도구는 "Create the request first with create_request."라고 답합니다. Claude 같은 클라이언트는 대화마다 `tools/list`를 한 번만 불러오고, 이 상태 없는 서버는 `notifications/tools/list_changed`를 보낼 수 없습니다 (#323) | 생성 전까지 부트스트랩 도구만 목록에 표시; 알림 스트림과 함께 `listChanged: true` | `agent-mcp.ts` | 해당 파일의 `visibleTools`와 `callable` |
 | 생성 트랜잭션 | 생성은 `runCommand`를 거치지 않고 허가의 행 잠금 아래 자체 트랜잭션에서 실행됩니다. 행위자(바인딩된 요청)가 그 트랜잭션에서 만들어지기 전에는 존재하지 않기 때문이며, `insertDraftRequest`, `identifyDraft`와 세부 정보 명령을 재사용합니다 | 바인딩되지 않은 허가를 위한 새 행위자 종류 | `agent-requests.ts` | 해당 모듈 |
 | 생성 시 세부 정보 | 에이전트가 준 세부 정보는 같은 트랜잭션에서 세부 정보 카드의 검증으로 적용되며, 거절되면 아무것도 만들지 않습니다 | 먼저 만들고 세부 정보를 따로 적용 | `agent-requests.ts` | 같은 파일의 `createRequestForGrant` |
 | 요청자 투영 | 스레드, 대화 상태, 캘린더 연결, 링크를 뺀 예약 페이지의 뷰이며, 호스트 표시 이름은 따옴표로 묶은 데이터로 인코딩합니다 | eve 요청자 도구의 최소화된 뷰 | `agent-requester-tools.ts` | 같은 파일의 `agentRequesterProjection` |
