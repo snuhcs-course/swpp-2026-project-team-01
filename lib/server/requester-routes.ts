@@ -592,7 +592,7 @@ export function requesterCommands(
     registered(useGoogleEmailCommand),
     registered(disconnectCalendarCommand),
     registered(setManualAvailabilityCommand),
-    registered(decideHostProfileCommand()),
+    registered(decideHostProfileCommand({ tokenKey: imessage.tokenKey, tokenKeys: imessage.tokenKeys })),
     registered(selectCalendarsCommand({ tokenKey: contact.tokenKey })),
     registered(resendConfirmationCommand(contact)),
     registered(changeEmailCommand(contact)),

@@ -360,19 +360,27 @@ const HOST_PROFILE_LINES: Readonly<Record<HostProfileItem, { readonly label: str
   details: { label: "Basic details", line: "Fill in your time zone and travel mode." },
 };
 
+const MESSENGER_LINE = {
+  label: "Updates in your host conversation",
+  line: "Get this request's updates, and reply, in the messenger you use with Thyme as a host.",
+} as const;
+
 export function HostProfileCard({ context, onDone }: { readonly context: RequesterCardContext; readonly onDone: () => void }) {
   const profile = context.view.hostProfile;
   const [chosen, setChosen] = useState<Set<HostProfileItem>>(
     () => new Set(profile?.decided ? profile.items : (profile?.offered ?? [])),
   );
+  // #61: the request's updates in the account's own linked host conversation.
+  const [messenger, setMessenger] = useState(() => (profile?.decided ? profile.messenger.on : (profile?.messenger.offered ?? false)));
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   if (!profile) return null;
+  const offersMessenger = profile.messenger.offered || profile.messenger.on;
 
-  async function decide(items: readonly HostProfileItem[]) {
+  async function decide(items: readonly HostProfileItem[], useMessenger: boolean) {
     setBusy(true);
-    const outcome = await context.run("request.host_profile.decide", { items });
+    const outcome = await context.run("request.host_profile.decide", offersMessenger ? { items, messenger: useMessenger } : { items });
     setBusy(false);
     if (outcome.ok) onDone();
     else setError(outcome.error.message);
@@ -406,12 +414,26 @@ export function HostProfileCard({ context, onDone }: { readonly context: Request
             </span>
           </label>
         ))}
+        {offersMessenger ? (
+          <label className="flex min-h-11 items-start gap-2">
+            <input checked={messenger} className="mt-1 size-4" onChange={(event) => setMessenger(event.target.checked)} type="checkbox" />
+            <span className="min-w-0 break-words">
+              {MESSENGER_LINE.label}
+              <span className="block text-sm text-muted-foreground">{MESSENGER_LINE.line}</span>
+            </span>
+          </label>
+        ) : null}
       </fieldset>
       <GuestCardActions>
-        <Button className="min-h-11" disabled={busy || chosen.size === 0} onClick={() => void decide([...chosen])} type="button">
+        <Button
+          className="min-h-11"
+          disabled={busy || (chosen.size === 0 && !(offersMessenger && messenger))}
+          onClick={() => void decide([...chosen], messenger)}
+          type="button"
+        >
           Use these settings
         </Button>
-        <Button className="min-h-11" disabled={busy} onClick={() => void decide([])} type="button" variant="outline">
+        <Button className="min-h-11" disabled={busy} onClick={() => void decide([], false)} type="button" variant="outline">
           Not now
         </Button>
       </GuestCardActions>
