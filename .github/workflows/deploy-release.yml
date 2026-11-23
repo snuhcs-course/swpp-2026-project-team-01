@@ -42,7 +42,7 @@ jobs:
         run: |
           # The project held the iteration-1 prototype's fmat schema when it was
           # inspected on 2026-10-23; nothing is pushed onto it until it is emptied.
-          leftover=$(supabase db query --linked "select count(*)::int as n from pg_namespace where nspname = 'fmat'" | jq -r '.rows[0].n')
+          leftover=$(supabase db query --remote --read-only --agent no --output-format json "select count(*)::int as n from pg_namespace where nspname = 'fmat'" | jq -r '.[0].n')
           if [ "$leftover" != "0" ]; then
             echo "The release project still holds the prototype's fmat schema; empty it first." >&2
             exit 1
@@ -80,7 +80,7 @@ jobs:
             upsert worker_secret "$WORKER_SECRET"
             echo 'end $do$;'
           } > "$sql_file"
-          supabase db query --linked --file "$sql_file" > /dev/null
+          supabase db query --remote --yes --file "$sql_file" > /dev/null
           rm -f "$sql_file"
       - name: Push hosted configuration
         env:
@@ -95,5 +95,5 @@ jobs:
               exit 1
             fi
           done
-          supabase config diff --project-ref "$SUPABASE_PROJECT_REF"
-          supabase config push --project-ref "$SUPABASE_PROJECT_REF" --yes
+          supabase config diff --remote
+          supabase config push --remote --yes
