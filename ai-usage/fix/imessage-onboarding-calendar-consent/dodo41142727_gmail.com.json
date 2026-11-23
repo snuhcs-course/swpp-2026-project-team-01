@@ -1,0 +1,57 @@
+{
+  "branch": "fix/imessage-onboarding-calendar-consent",
+  "user": "dodo41142727@gmail.com",
+  "sessions": {
+    "claude:e92a3459-ae07-45d8-9988-7d6397377963": {
+      "agent": "claude-code",
+      "client": "claude-desktop",
+      "agent_ms": 0,
+      "models": {
+        "claude-opus-5-5": {
+          "input": 26,
+          "cache_read": 1135993,
+          "cache_write_5m": 0,
+          "cache_write_1h": 95248,
+          "output": 8572,
+          "reasoning": 0
+        }
+      },
+      "first": "2026-11-23T19:19:06.754Z",
+      "last": "2026-11-23T19:21:16.305Z"
+    },
+    "claude:fef25663-9375-4304-8084-dcd42b3129da": {
+      "agent": "claude-code",
+      "client": "claude-desktop",
+      "agent_ms": 0,
+      "models": {
+        "claude-opus-5-5": {
+          "input": 68,
+          "cache_read": 5393534,
+          "cache_write_5m": 0,
+          "cache_write_1h": 134716,
+          "output": 21056,
+          "reasoning": 0
+        }
+      },
+      "first": "2026-11-23T19:22:08.536Z",
+      "last": "2026-11-23T19:28:23.349Z"
+    },
+    "claude:fef25663-9375-4304-8084-dcd42b3129da/agent-a101b8f9b1f50311f": {
+      "agent": "claude-code",
+      "client": "claude-desktop",
+      "agent_ms": 0,
+      "models": {
+        "claude-sonnet-5-5": {
+          "input": 14,
+          "cache_read": 584990,
+          "cache_write_5m": 104093,
+          "cache_write_1h": 0,
+          "output": 2880,
+          "reasoning": 0
+        }
+      },
+      "first": "2026-11-23T19:27:50.041Z",
+      "last": "2026-11-23T19:28:12.615Z"
+    }
+  }
+}

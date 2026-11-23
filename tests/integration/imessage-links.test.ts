@@ -7,7 +7,7 @@ import { generateLinkCode } from "../../lib/server/email-links";
 import { channelReplies } from "../../lib/server/channel-texts";
 import { calendarConnectUrl, LINK_TEXTS, lockActiveBindingOfSender } from "../../lib/server/imessage-links";
 import { imessageHash } from "../../lib/server/photon-receiver";
-import { recordGoogleGrant } from "../../lib/server/provider-grants";
+import { markGoogleGrantInvalid, recordGoogleGrant } from "../../lib/server/provider-grants";
 import { testDatabase } from "./support/database";
 import { type FakePhoton, startFakePhoton } from "./support/fake-photon";
 import { imessageHarness, textOf } from "./support/imessage";
@@ -136,6 +136,18 @@ describe("linking by a host-sent code", () => {
       hostAccountId: calendarOnly, grantedScopes: [...GOOGLE_CALENDAR_SCOPES], refreshToken: "calendar-only",
     });
     expect(await welcomeOf(calendarOnly)).toEqual([`${SETUP_OVERVIEW.en}\n${channelReplies("en").onboarding.rolesNeeded}`]);
+
+    // A Google grant that still cannot use Calendar says why (#407).
+    const unticked = await newHostAccount(db);
+    await recordGoogleGrant(db, testTokenKey, { hostAccountId: unticked, grantedScopes: [], refreshToken: "identity-only" });
+    expect(await welcomeOf(unticked)).toEqual([LINK_TEXTS.welcomeCalendar(calendarConnectUrl("http://localhost:3000"), "not_granted")]);
+    const noToken = await newHostAccount(db);
+    await recordGoogleGrant(db, testTokenKey, { hostAccountId: noToken, grantedScopes: [...GOOGLE_CALENDAR_SCOPES], refreshToken: null });
+    expect(await welcomeOf(noToken)).toEqual([LINK_TEXTS.welcomeCalendar(calendarConnectUrl("http://localhost:3000"), "no_lasting_access")]);
+    const ended = await newHostAccount(db);
+    await recordGoogleGrant(db, testTokenKey, { hostAccountId: ended, grantedScopes: [...GOOGLE_CALENDAR_SCOPES], refreshToken: "revoked" });
+    await markGoogleGrantInvalid(db, ended);
+    expect(await welcomeOf(ended)).toEqual([LINK_TEXTS.welcomeCalendar(calendarConnectUrl("http://localhost:3000"), "ended")]);
 
     const ready = await newHostAccount(db);
     await makeHostReady(db, ready);
