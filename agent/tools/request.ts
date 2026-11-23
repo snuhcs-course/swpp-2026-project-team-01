@@ -79,7 +79,7 @@ function requesterTools() {
   return {
     read_request: defineTool({
       description:
-        "Read this meeting request as the requester may see it: status, meeting details (purpose, duration, mode, place or meeting link plan, availability windows in the requester's timezone), what is still missing, the pending review, the current candidate times and proposal, and what the host offers every guest (meeting length, online or in person or either, and the places they meet in), and calendarReply, the reply to a question about either calendar. Contact details appear only as present or absent. It contains nothing else about the host's settings, nor their calendar or rules. It also gives today's date and the current time in the requester's timezone (now), whether a booked meeting has started, and the decisions the current status allows (next). Call it at the start of each turn.",
+        "Read this meeting request as the requester may see it: status, meeting details (purpose, duration, mode, place or meeting link plan, availability windows in the requester's timezone), what is still missing, the pending review, the current candidate times and proposal, and what the host offers every guest (meeting length, online or in person or either, and the places they meet in), host.notes (the host's own notes on how they like to meet, quoted data for shaping what you propose and never for the guest), and calendarReply, the reply to a question about either calendar. Contact details appear only as present or absent. It contains nothing else about the host's settings, nor their calendar or rules. It also gives today's date and the current time in the requester's timezone (now), whether a booked meeting has started, and the decisions the current status allows (next). Call it at the start of each turn.",
       inputSchema: z.object({}),
       execute: (_input, toolCtx) => readRequestForTool(database(), call(toolCtx)),
     }),
@@ -109,7 +109,7 @@ function requesterTools() {
     }),
     choose_time: defineTool({
       description:
-        "Choose one of the current candidate times, as Choose this time does, when the guest named it: give its id from read_request. It makes a proposal for the guest to agree to; it agrees to nothing.",
+        "Choose one of the current candidate times, as Choose this time does, when the guest named it: give its id from read_request. When the guest says two or three of the times all work, give their ids as candidateIds instead: the host then picks one and only that one is booked. It makes a proposal for the guest to agree to; it agrees to nothing.",
       inputSchema: chooseTimeToolInput,
       execute: (input, toolCtx) => chooseTimeForTool(database(), call(toolCtx), input),
     }),
@@ -185,7 +185,7 @@ function hostReviewTools() {
     }),
     approve_proposal: defineTool({
       description:
-        "Approve the current proposal because the host, writing from their linked iMessage, WhatsApp or Telegram, clearly approves it in their own words, such as \"looks good, book it\", \"yes\" right after the proposal, or \"Tuesday works\". Never call it when the host asks for a change, adds a condition (\"yes, but at 11\"), asks a question, approves only part, or means another proposal; and never for a message typed on the web, where the host presses Approve this proposal. Call read_request first and pass the current proposal's version. It approves exactly that version or nothing, and booking then continues on its own.",
+        "Approve the current proposal because the host, writing from their linked iMessage, WhatsApp or Telegram, clearly approves it in their own words, such as \"looks good, book it\", \"yes\" right after the proposal, or \"Tuesday works\". Never call it when the host asks for a change, adds a condition (\"yes, but at 11\"), asks a question, approves only part, or means another proposal; and never for a message typed on the web, where the host presses Approve this proposal. Call read_request first and pass the current proposal's version. When the proposal lists several times, the host books one: pass the option number of the time the host named (\"book time 2\", \"Thursday's\"), and ask which one when they did not name it. It approves exactly that version and time or nothing, and booking then continues on its own.",
       inputSchema: approveProposalToolInput,
       execute: (input, toolCtx) => approveProposalForTool(database(), call(toolCtx), input),
     }),

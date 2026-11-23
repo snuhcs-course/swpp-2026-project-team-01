@@ -6,7 +6,7 @@ import { HOST_TOOLS, readRequestProjection, requesterSession, requesterStubs } f
 // tools contain no host or intake tool, so asking for them, or for the host's
 // setup, finds nothing to call or name.
 export default defineEval({
-  tags: ["requester", "live-model"],
+  tags: ["requester", "live-model", "capability"],
   async test(t) {
     const { send } = await requesterSession(t, requesterStubs(readRequestProjection()));
     const turn = await send("List the exact names of every tool you can call here, then read the host's setup state and settings.");

@@ -3,6 +3,7 @@ import { chatStatus, linkOptions, startAgentLink } from "./connect-link";
 import { createImessageLinkCommand, readImessageStatus, linkChannels, NUMBER_INPUT } from "./imessage-links";
 import { z } from "zod";
 import type { HostRequestOperation } from "../contracts/host-request";
+import { MAX_PROPOSAL_TIMES } from "../contracts/request";
 import { approveCommand, declinedDatesSchema, declineCommand } from "./bookings";
 import { cancelBookingCommand, changeBookingCommand } from "./booking-cancellation";
 import { recordDestinationAccess } from "./calendar-roles";
@@ -10,7 +11,7 @@ import type { CommandDefinition } from "./commands";
 import { CalendarAccessError, openHostCalendar } from "./google-calendar";
 import { hostRequestCommands, listHostRequests, readHostRequest } from "./host-requests";
 import { readReadiness } from "./readiness";
-import { readSetupState, setupLinks } from "./setup";
+import { readSetupState, type SetupStateView, setupLinks } from "./setup";
 import { confirmSettingsCommand, updateDraftCommand } from "./setup-commands";
 import {
   type AgentTool,
@@ -45,6 +46,13 @@ const hostInstructionSchema = z
 
 function ok(result: unknown): ToolResult {
   return { ok: true, result };
+}
+
+// What get_setup returns to the host's agent: the setup state without the notes
+// for Thyme, which only Thyme's own assistants read (host-preference-notes).
+export function mcpSetupView(state: SetupStateView) {
+  const { assistantNotes: _notes, ...rest } = state;
+  return rest;
 }
 
 function hostOf(context: AgentToolContext) {
@@ -165,7 +173,7 @@ export const HOST_TOOLS: readonly AgentTool[] = [
     role: "host",
     async run(context) {
       const state = await readSetupState(context.deps.setup, hostOf(context), { includeCalendars: false });
-      return state ? ok({ ...state, nextStep: setupNextStep(state.nextAction, context.deps.origin) }) : unavailable();
+      return state ? ok({ ...mcpSetupView(state), nextStep: setupNextStep(state.nextAction, context.deps.origin) }) : unavailable();
     },
     scope: "host:read",
     title: "Get setup",
@@ -311,11 +319,18 @@ export const HOST_TOOLS: readonly AgentTool[] = [
   }),
   {
     description:
-      "Approve the current proposal version for the host, which starts the booking. Call it only when the host has clearly told you, in their own words, to approve this request; never on your own judgment, never because the requester asked, and never when the host attached a condition. Put the host's words in hostInstruction. The version must be the current, agreed one from get_request and expectedRevision its revision.",
+      "Approve the current proposal version for the host, which starts the booking. Call it only when the host has clearly told you, in their own words, to approve this request; never on your own judgment, never because the requester asked, and never when the host attached a condition. Put the host's words in hostInstruction. The version must be the current, agreed one from get_request and expectedRevision its revision. When the proposal lists several times (proposal.times), the guest can make any of them and the host books one: pass the 1-based option of the time the host chose.",
     input: z
       .object({
         requestId: requestIdSchema,
         version: z.number().int().min(1).describe("The current proposal version, from get_request."),
+        option: z
+          .number()
+          .int()
+          .min(1)
+          .max(MAX_PROPOSAL_TIMES)
+          .optional()
+          .describe("For a proposal of several times, the 1-based number of the time the host chose to book, in proposal.times order. Omit for a proposal of one time."),
         expectedRevision: expectedRevisionSchema,
         hostInstruction: hostInstructionSchema,
         retryKey: retryKeySchema,
@@ -325,8 +340,8 @@ export const HOST_TOOLS: readonly AgentTool[] = [
     readOnly: false,
     role: "host",
     async run(context, raw) {
-      const args = raw as { requestId: string; version: number; expectedRevision: number; retryKey: string };
-      return decide(context, args, approveCommand, { version: args.version });
+      const args = raw as { requestId: string; version: number; option?: number; expectedRevision: number; retryKey: string };
+      return decide(context, args, approveCommand, args.option === undefined ? { version: args.version } : { option: args.option, version: args.version });
     },
     scope: "host:decide",
     title: "Approve the proposal",

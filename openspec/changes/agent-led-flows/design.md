@@ -75,7 +75,7 @@ The token seals `{ role, linkId }` with the deployment's token key (`sealToken`)
 
 - **Host attempt.** The page needs a session for the attempt's host. Signed out, it shows **Sign in with Google**, which returns to the same page (a `return=link` value beside `consent` and `imessage` in `lib/server/google-sign-in.ts`). Signed in as another account, it shows the closed message and binds nothing.
 - **Requester attempt.** The token alone authorizes this one attempt: showing its code and confirming it. It never shows the booking link, the request or its details.
-- **Content.** The same pieces as the web cards: the message to send, with **Open Messages** or **Open WhatsApp** on a phone, a QR code with **Copy** elsewhere, and **Open Messages on this Mac** on a Mac. The page polls the attempt. When the sender is recorded, it shows the sender in full, as the web cards do (`displaySender` in `lib/contracts/imessage.ts`, #118), with **Confirm and link** and **Cancel**. Only **Confirm and link** binds, through `imessage.link.confirm` (host, session actor) or `request.imessage_link.confirm` (requester, actor from the token's request).
+- **Content.** The same pieces as the web cards: the message to send, with **Open Messages** or **Open WhatsApp** on a phone, a QR code with **Copy** elsewhere, and **Open Messages on this Mac** on a Mac. The page polls the attempt. When the sender is recorded, it shows the sender in full, as the web cards do (`displaySender` in `lib/contracts/imessage.ts`, #118), with **Confirm and link** and **Cancel**. Only **Confirm and link** binds, through `imessage.link.confirm` (host, session actor) or `request.imessage_link.confirm` (requester, actor from the token's request). Superseded by [`link-on-code`](../link-on-code/proposal.md) D1: the code now binds on arrival, and the link page only says it is linked.
 - **After confirming.** "Linked. You can go back to your agent." A linked host gets the usual welcome in the chat; a requester gets the usual first update.
 
 ### Status
@@ -84,7 +84,7 @@ The token seals `{ role, linkId }` with the deployment's token key (`sealToken`)
 
 ## 5. Permission words
 
-`host:write` reads "Draft setup, find times, suggest and share changes, and start chat links for you to confirm". `request:write` adds "and start an updates link for you to confirm". Existing grants keep their scopes and gain the tools without a new consent, as in `agent-decisions-in-words`.
+`host:write` reads "Draft setup, find times, suggest and share changes, and start chat links you finish from your own phone". `request:write` adds "and start an updates link you finish from your own phone" (worded "for you to confirm" until [`link-on-code`](../link-on-code/proposal.md) D1 removed the confirmation). Existing grants keep their scopes and gain the tools without a new consent, as in `agent-decisions-in-words`.
 
 ## 6. Tests
 
@@ -96,4 +96,4 @@ The token seals `{ role, linkId }` with the deployment's token key (`sealToken`)
 
 - **Claude Code may need a restart** before a newly added server appears. The documentation is silent on this; the entry document covers both cases, and the UAT records which happened.
 - **`hostWords` and `hostInstruction` are attestations.** A model can invent them. The guidance and the UAT's conditional and refusal steps are what check this.
-- **A requester token is a bearer for one attempt.** Anyone who holds it within 15 minutes could send the code from their own phone and bind that number to the request's updates. The token goes only to the person's own agent, and the page shows the sender in full before **Confirm and link**, so the person sees whose number is bound.
+- **A requester token is a bearer for one attempt.** Anyone who holds it within 15 minutes could send the code from their own phone and bind that number to the request's updates. The token goes only to the person's own agent, and the page shows the sender in full before **Confirm and link**, so the person sees whose number is bound. Superseded by [`link-on-code`](../link-on-code/proposal.md) D1 and D3: the code now binds on arrival, so a leaked token or code links whoever sends it first; the person sees the masked sender on the page, and unlinking is in `/app` or on the booking page.

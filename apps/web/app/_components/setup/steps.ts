@@ -21,12 +21,16 @@ export const STEP_IDS = [
   "travelBuffer",
   "trips",
   "identity",
+  "assistantNotes",
 ] as const;
 
 export type StepId = (typeof STEP_IDS)[number];
 export type StepTarget = StepId | "review";
 
+// The notes for Thyme hold no draft field: they are saved at once to the account
+// (host-preference-notes), so the step is answered once they exist.
 export const STEP_FIELDS: Readonly<Record<StepId, readonly SetupFieldName[]>> = {
+  assistantNotes: [],
   duration: ["durationMinutes", "bufferBeforeMinutes", "bufferAfterMinutes"],
   identity: ["displayName", "handle"],
   limit: ["weeklyLimit", "weeklyLimitCounts"],
@@ -41,6 +45,7 @@ export const STEP_FIELDS: Readonly<Record<StepId, readonly SetupFieldName[]>> = 
 };
 
 export const STEP_CARD_IDS: Readonly<Record<StepTarget, string>> = {
+  assistantNotes: "setup-assistant-notes",
   duration: "setup-duration",
   identity: "setup-identity",
   limit: "setup-limit",
@@ -55,7 +60,7 @@ export const STEP_CARD_IDS: Readonly<Record<StepTarget, string>> = {
   windows: "setup-windows",
 };
 
-type StepState = Pick<SetupState, "analysis" | "fields" | "missingFields">;
+type StepState = Pick<SetupState, "analysis" | "assistantNotes" | "fields" | "missingFields">;
 
 // The host's accepted meeting mode, which decides whether the in-person steps exist.
 export function acceptedMode(state: Pick<SetupState, "fields">) {
@@ -88,6 +93,7 @@ export function setupSteps(state: StepState): StepId[] {
 // Whether the host has accepted every value of a step. The identity step also
 // needs a valid display name and an available handle.
 export function stepAccepted(state: StepState, step: StepId) {
+  if (step === "assistantNotes") return state.assistantNotes !== null;
   const accepted = STEP_FIELDS[step].every((field) => state.fields[field].proposed?.accepted === true);
   if (step !== "identity") return accepted;
   return accepted && !state.missingFields.includes("handle") && !state.missingFields.includes("displayName");
@@ -110,6 +116,7 @@ export function stepForField(field: SetupFieldName): StepId {
 
 // A step's name in receipts, the review's missing list and its Edit links.
 export const STEP_LABELS: Readonly<Record<StepId, string>> = {
+  assistantNotes: "Notes for Thyme",
   duration: "Meeting length",
   identity: "Booking page",
   limit: FIELD_LABELS.weeklyLimit,

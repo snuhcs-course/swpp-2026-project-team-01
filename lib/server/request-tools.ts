@@ -5,6 +5,7 @@ import {
   CLARIFICATION_CATEGORIES,
   type ClarificationCategory,
   type LinkPlan,
+  MAX_PROPOSAL_TIMES,
   type RequestDetails,
   type RequestLanguage,
   type RequesterProposal,
@@ -20,6 +21,7 @@ import { readBookingStatus } from "./bookings";
 import { type Actor, type CommandDefinition, runCommand, savedCommandResult } from "./commands";
 import type { Database, Queryable, Transaction } from "./database";
 import { encodeDisplayName } from "./entry-documents";
+import { guestNotesView } from "./host-notes";
 import { awaitEvaluation } from "./evaluation";
 import { REQUESTER_AUDIENCE } from "./eve-auth";
 import { detailsComplete, readyForTimes, standingBookingOf, withdrawRequestCommand } from "./request-lifecycle";
@@ -254,6 +256,10 @@ function minimizedProposal(proposal: RequesterProposal, timezone: string) {
     meetingLink: linkPlanLabel(proposal.linkPlan),
     mode: proposal.mode,
     time: window(proposal, timezone),
+    // Several times the guest is offering at once; the host books one of them.
+    ...(proposal.times && proposal.times.length > 1
+      ? { times: proposal.times.map((time) => ({ location: time.location, mode: time.mode, time: window(time, timezone) })) }
+      : {}),
     version: proposal.version,
   };
 }
@@ -262,6 +268,9 @@ type RequestRow = {
   contact_email: string | null;
   details: Partial<RequestDetails>;
   display_name: string | null;
+  // The host's notes for Thyme (host-preference-notes); only the requester
+  // read_request below gives them to the guest's assistant.
+  assistant_notes: string | null;
   offer: { durationMinutes?: number; meetingMode?: MeetingMode; location?: LocationAnswer | null } | null;
   expires_at: Date;
   revision: number;
@@ -271,6 +280,7 @@ type RequestRow = {
 async function requestRow(q: Queryable, id: string) {
   const [row] = await q<RequestRow[]>`
     select r.details, r.state, r.revision, r.expires_at, r.contact_email, s.settings ->> 'displayName' as display_name,
+           (select a.assistant_notes from app.host_accounts a where a.id = r.host_account_id) as assistant_notes,
            jsonb_build_object('durationMinutes', s.settings -> 'durationMinutes', 'meetingMode', s.settings -> 'meetingMode',
                               'location', s.settings -> 'location') as offer
     from app.requests r left join app.host_settings s on s.host_account_id = r.host_account_id
@@ -344,7 +354,7 @@ export async function readRequestForTool(db: Database, call: RequestToolCall) {
       lessPreferredWindows: (details.lessPreferredWindows ?? []).map((entry) => window(entry, timezone)),
       preferredWeeklyWindows: details.preferredWeeklyWindows ?? [],
     },
-    host: { displayName: encodeDisplayName(row.display_name ?? "Your host"), offer: hostOffer(row.offer) },
+    host: { displayName: encodeDisplayName(row.display_name ?? "Your host"), notes: guestNotesView(row.assistant_notes), offer: hostOffer(row.offer) },
     missing: missingFields(details, hostListsPlaces(row.offer)),
     next: nextSteps(row.state, phase, changing),
     pendingReview: review ? minimizedReview(storedReview(review, language), timezone) : null,
@@ -397,7 +407,7 @@ export const draftRequestReviewToolInput = z.object({
   details: localPatchSchema
     .optional()
     .describe(
-      "Omit for question and unknown. windows are required availability; preferredWindows and lessPreferredWindows are date-specific soft preferences; preferredWeeklyWindows are recurring weekday/start/end soft preferences for this request. Preferences never remove other times. Date-specific windows use local dates (YYYY-MM-DD); weekly windows use weekdays. All start/end clock times use HH:MM in the requester's timezone. Set inferredTime when using newly assumed morning or afternoon bounds. Omit durationMinutes unless stated.",
+      "Omit for question and unknown. windows are required availability; preferredWindows and lessPreferredWindows are date-specific soft preferences; preferredWeeklyWindows are recurring weekday/start/end soft preferences for this request. Preferences never remove other times. Date-specific windows use local dates (YYYY-MM-DD); weekly windows use weekdays. All start/end clock times use HH:MM in the requester's timezone. Set inferredTime when using newly assumed morning or afternoon bounds. Omit durationMinutes unless the guest stated one or host.notes give a length for this kind of meeting.",
     ),
   inferredTime: z.boolean().optional().describe("True if a time-of-day boundary was inferred, so the guest must review it before it is applied."),
   inferredMode: z
@@ -757,20 +767,33 @@ async function applyAndEvaluate(
   return { evaluation, message: "Applied. Describe the times found.", recorded: true as const, state: row.state };
 }
 
-export const chooseTimeToolInput = z.object({ candidateId: z.string().min(1).max(64) });
+export const chooseTimeToolInput = z.object({
+  candidateId: z.string().min(1).max(64).optional().describe("The one time the guest named."),
+  candidateIds: z
+    .array(z.string().min(1).max(64))
+    .min(2)
+    .max(MAX_PROPOSAL_TIMES)
+    .optional()
+    .describe(`In place of candidateId: two to ${MAX_PROPOSAL_TIMES} times the guest said all work for them. The host picks one, and only that one is booked.`),
+});
 
 export async function chooseTimeForTool(db: Database, call: RequestToolCall, input: z.infer<typeof chooseTimeToolInput>): Promise<DecisionResult> {
   const id = await authorizeRequestTool(db, call);
   const evaluation = await readCurrentEvaluation(db, id);
   if (!evaluation) return { message: "There are no current times to choose from: find times first.", recorded: false };
 
-  const { outcome } = await decide(db, call, chooseCandidateCommand, { candidateId: input.candidateId, evaluationId: evaluation.id });
+  if ((input.candidateId === undefined) === (input.candidateIds === undefined)) {
+    return { message: "Give either one candidateId or two or three candidateIds.", recorded: false };
+  }
+  const chosen = input.candidateIds ? { candidateIds: input.candidateIds } : { candidateId: input.candidateId! };
+  const { outcome } = await decide(db, call, chooseCandidateCommand, { ...chosen, evaluationId: evaluation.id });
   if (!outcome.ok) return refused(outcome.error.category);
   if (outcome.result.outcome === "needs_meeting_link") {
     return { message: "This online time needs a meeting link first: ask whether Google Meet is fine or for their own link.", recorded: false };
   }
+  const several = input.candidateIds ? ` It offers ${input.candidateIds.length} times; after the guest agrees, the host picks one of them to book.` : "";
   return {
-    message: `Proposal version ${outcome.result.version} is ready for the guest's agreement. Nothing is agreed yet.`,
+    message: `Proposal version ${outcome.result.version} is ready for the guest's agreement. Nothing is agreed yet.${several}`,
     recorded: true,
     state: "negotiating",
   };

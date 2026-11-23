@@ -66,11 +66,6 @@ async function lockForActor(tx: Transaction, actor: { readonly kind: string; rea
   throw new CommandError("forbidden");
 }
 
-// The pre-dispatch cancellation categories reuse withdrawal and decline.
-function byActor(kind: string) {
-  return kind === "host_account" ? ("declined" as const) : ("withdrawn" as const);
-}
-
 // What closing an open request settles, for a change after booking that the
 // cancellation ends (closeRequest does this for its own states).
 async function closeOpenParts(tx: Transaction, requestId: string) {
@@ -105,58 +100,69 @@ export function cancelBookingCommand(
       if (request.state !== "booked" && !changing) throw new CommandError("invalid_input", { reason: "not_booked" });
       assertRevision(request.revision, context.expectedRevision);
 
-      await lockHost(tx, request.host_account_id);
-      if (changing) await cancelReservedBooking(tx, request.id, byActor(context.actor.kind));
-      const [booking] = await tx<BookedMeeting[]>`
-        select b.id, b.start_at, b.end_at, p.details, b.evidence
-        from app.bookings b join app.proposals p on p.id = b.proposal_id
-        where b.request_id = ${request.id} and b.state = 'confirmed'
-        for update of b
-      `;
-      if (!booking) throw new CommandError("invalid_input", { reason: "not_booked" });
-
-      const [clock] = await tx<{ now: Date }[]>`select clock_timestamp() as now`;
-      if (booking.start_at.getTime() <= clock!.now.getTime()) throw new CommandError("invalid_input", { reason: "start_passed" });
-
-      const byHost = context.actor.kind === "host_account";
-      await tx`
-        update app.bookings
-        set state = 'cancelled', failure_category = ${byHost ? "host_cancelled" : "requester_cancelled"},
-            settled_at = now(), updated_at = now()
-        where id = ${booking.id} and state = 'confirmed'
-      `;
-      await tx`
-        update app.requests set state = 'cancelled', closed_at = now(), revision = revision + 1, updated_at = now()
-        where id = ${request.id} and state in ('booked', 'gathering', 'negotiating', 'awaiting_host_approval', 'booking')
-      `;
-      if (changing) await closeOpenParts(tx, request.id);
-      await publishJob(tx, {
-        dedupeKey: `cancel:${booking.id}`,
-        kind: BOOKING_CANCEL_JOB,
-        maxAttempts: BOOKING_CANCEL_ATTEMPTS,
-        payload: { bookingId: booking.id },
-      });
-
-      // Only the side that did not cancel is told; the side that did sees the
-      // outcome where it acted (design 4).
-      const meeting = {
-        bookingId: booking.id,
-        end: booking.end_at.toISOString(),
-        joinUrl: booking.details.mode === "online" ? (booking.evidence?.joinUrl ?? null) : null,
-        location: booking.details.mode === "in_person" ? booking.details.location : null,
-        mode: booking.details.mode,
-        start: booking.start_at.toISOString(),
-      };
-      if (byHost) {
-        await enqueueStatusNotice(tx, loadNotices(), request.id, { bookingId: booking.id, kind: "status_cancelled", meeting });
-      } else {
-        await enqueueHostNotice(tx, request.id, { bookingId: booking.id, kind: "booking_cancelled" });
-        await enqueueHostCancellation(tx, loadNotices(), request.id, meeting);
-      }
-
-      return { bookingId: booking.id, end: meeting.end, revision: request.revision + 1, start: meeting.start, state: "cancelled" };
+      return cancelLockedMeeting(tx, request, { byHost: context.actor.kind === "host_account", changing, notices: loadNotices });
     },
   };
+}
+
+// Cancels the confirmed meeting of a request the caller locked and checked,
+// with the other side's notices: booking.cancel, and a deleted guest account's
+// booked meetings (guest-account-history D3), which cancel as the requester.
+export async function cancelLockedMeeting(
+  tx: Transaction,
+  request: { readonly id: string; readonly host_account_id: string; readonly revision: number },
+  { byHost, changing, notices }: { readonly byHost: boolean; readonly changing: boolean; readonly notices: () => NoticeDependencies },
+): Promise<CancelBookingResult> {
+  await lockHost(tx, request.host_account_id);
+  // The pre-dispatch cancellation categories reuse withdrawal and decline.
+  if (changing) await cancelReservedBooking(tx, request.id, byHost ? "declined" : "withdrawn");
+  const [booking] = await tx<BookedMeeting[]>`
+    select b.id, b.start_at, b.end_at, p.details, b.evidence
+    from app.bookings b join app.proposals p on p.id = b.proposal_id
+    where b.request_id = ${request.id} and b.state = 'confirmed'
+    for update of b
+  `;
+  if (!booking) throw new CommandError("invalid_input", { reason: "not_booked" });
+
+  const [clock] = await tx<{ now: Date }[]>`select clock_timestamp() as now`;
+  if (booking.start_at.getTime() <= clock!.now.getTime()) throw new CommandError("invalid_input", { reason: "start_passed" });
+
+  await tx`
+    update app.bookings
+    set state = 'cancelled', failure_category = ${byHost ? "host_cancelled" : "requester_cancelled"},
+        settled_at = now(), updated_at = now()
+    where id = ${booking.id} and state = 'confirmed'
+  `;
+  await tx`
+    update app.requests set state = 'cancelled', closed_at = now(), revision = revision + 1, updated_at = now()
+    where id = ${request.id} and state in ('booked', 'gathering', 'negotiating', 'awaiting_host_approval', 'booking')
+  `;
+  if (changing) await closeOpenParts(tx, request.id);
+  await publishJob(tx, {
+    dedupeKey: `cancel:${booking.id}`,
+    kind: BOOKING_CANCEL_JOB,
+    maxAttempts: BOOKING_CANCEL_ATTEMPTS,
+    payload: { bookingId: booking.id },
+  });
+
+  // Only the side that did not cancel is told; the side that did sees the
+  // outcome where it acted (design 4).
+  const meeting = {
+    bookingId: booking.id,
+    end: booking.end_at.toISOString(),
+    joinUrl: booking.details.mode === "online" ? (booking.evidence?.joinUrl ?? null) : null,
+    location: booking.details.mode === "in_person" ? booking.details.location : null,
+    mode: booking.details.mode,
+    start: booking.start_at.toISOString(),
+  };
+  if (byHost) {
+    await enqueueStatusNotice(tx, notices(), request.id, { bookingId: booking.id, kind: "status_cancelled", meeting });
+  } else {
+    await enqueueHostNotice(tx, request.id, { bookingId: booking.id, kind: "booking_cancelled" });
+    await enqueueHostCancellation(tx, notices(), request.id, meeting);
+  }
+
+  return { bookingId: booking.id, end: meeting.end, revision: request.revision + 1, start: meeting.start, state: "cancelled" };
 }
 
 // ---------------------------------------------------------------------------

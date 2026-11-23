@@ -50,6 +50,7 @@
 | 가림 처리 | 게스트 입력에서 숫자나 구두점이 있는 8자 이상의 베어러 값, 연결 증명, 자격 증명 URL 매개변수, 예약 링크, 단독 UUID를 제거합니다 | 모든 베어러 단어 제거, 모든 곳에서 단독 UUID 제거 | 설계 14 | `lib/server/redaction.ts` |
 | Cloudflare 429 | 불확실이 아니라 거부로 기록 | 불확실로 기록하고 재전송 없음 | 설계 5 | `lib/server/cloudflare-email.ts` |
 | 평가 전용 인증 | `createEvalRequesterAuth`는 `FMAT_EVAL_AUDIENCE=requester`일 때만, Vercel 밖의 `eve dev` 안에서 스텁 요청자 평가를 허용합니다 | 오프라인 평가 없음 | 에이전트 구성 | `lib/server/eve-auth.ts` |
+| 호스트 설정 평가 인증 | `createEvalHostSetupAuth`는 `FMAT_EVAL_AUDIENCE=host_setup`일 때만, Vercel 밖의 `eve dev` 안에서, 평가가 시드한 설정 대화(#152)에 대해 호스트 설정 평가를 허용합니다 | 평가 프로세스에서 내부 bearer에 서명하기: 평가가 서명 키와 메시지 경로의 부기(bookkeeping)를 알아야 합니다 | 호스트 설정 평가 | `lib/server/eve-auth.ts` |
 | 순위 모델 | 모델 한도를 거치는 `gpt-5.6-terra`; 실제 품질은 검증하지 않음 | 다른 모델 | 설계 8 | `lib/server/evaluation.ts` |
 | 폐기된 접수 | 이전 테스트 요청이 기록을 계속 보여 주도록 접수 테이블과 `public_intake` 값을 유지하며, 새로 기록하는 것은 없습니다 | 지금 삭제 | 설계 2 | 열린 요청이 접수를 참조하지 않게 되면 이후 마이그레이션에서 `intakes`를 삭제 |
 
@@ -677,6 +678,7 @@
 | U17(D5, D6) | 수정된 요청은 아직 남은 게스트의 시간 창과 제외된 시간을 가져옵니다: 거절된 시간과 닫힌 요청 자체의 제외된 시간이며, 사유는 가져오지 않습니다. 시작 요약에는 앞서 제안한 시간을 나열합니다. 호스트가 거절하며 지정한 요일은 호스트 측이므로 #58에 맡깁니다 | 시간을 가져오지 않기 | 제안서 U17; `meeting-requests` 델타 | `lib/server/evaluation.ts`의 `excludedBusy`, `lib/server/revised-requests.ts`, `lib/server/request-reviews.ts`의 `excludedWindowProblem`(전적으로 그 안에 들어가는 초안 시간은 사유 없이 거부) |
 | U18(O1) | 예약 뒤에도 대화는 미팅에 관한 질문을 위해 읽기 전용으로 열려 있습니다 | 종료 알림 | 제안서 U18 | `lib/server/request-tools.ts`의 `fenced`, `lib/server/conversations.ts`의 `withPrincipalAuthority` |
 | U19(O3) | 수정된 요청에는 호스트 차단이 없습니다. 10개의 체인과 생성 한도는 그대로입니다 | 호스트의 "이 게스트 더 이상 받지 않기" | 제안서 U19 | `REVISED_CHAIN_LIMIT` |
+| U13 재개(#53) | `read_request`는 게스트의 어시스턴트에게 호스트가 Thyme에게 남긴 메모도 제안을 다듬는 용도의 인용된 데이터로만 제공합니다. U13의 나머지는 모두 그대로입니다(저장소 소유자, 2026-11-23) | `read_request`를 호스트가 모든 게스트에게 제공하는 내용으로 한정하기 | [`host-preference-notes`](#host-preference-notes) | `lib/server/host-notes.ts`의 `guestNotesView`, `lib/server/request-tools.ts`의 `readRequestForTool` |
 
 ### 구현 결정
 
@@ -831,6 +833,43 @@ Dohyeon Park이 2026-11-16에 결정했으며, 2026-11-14 UAT 회의가 [이슈 
 | D4 | 예약된 미팅은 취소하지 않습니다. 열린 요청은 닫히고 게스트는 이메일을 받으며, 호스트는 예약, 취소, 실행 때 이메일을 받습니다. 계정 이메일에는 요청이 없으므로 끝난 지 30일 뒤에 삭제합니다 | 호스트 대신 캘린더 이벤트 취소; 채팅으로 게스트에게 알리기 | 제안; 설계 5 | `lib/server/account-emails.ts`, `accountEmailCurrent`, `account_emails` 보존 규칙 |
 | D5 | 예약하면 Supabase의 전역 범위로 모든 세션에서 로그아웃합니다 | 세션을 유지하고 취소 버튼 제공 | 설계 2 | `createAccountDeletionHandler` |
 | D6 | 채팅과 MCP 서버는 삭제하지 않고 `/app?settings=account`를 안내합니다 | 확인 절차를 거치는 삭제 도구 | 설계 6 | `agent/instructions/base.md`, `host-imessage.ts`, `lib/server/agent-mcp.ts` |
+
+## `host-preference-notes`
+
+저장소 소유자가 2026-11-23에 [이슈 #53](https://github.com/snuhcs-course/swpp-2026-project-team-01/issues/53)을 결정했습니다: 만든다. 나머지는 [제안서](../../openspec/changes/archive/2026-11-23-host-preference-notes/proposal.md)와 [설계](../../openspec/changes/archive/2026-11-23-host-preference-notes/design.md)에 기록되어 있으며, 아래 구현 선택은 아직 팀원 검토를 받지 않았습니다.
+
+| # | 선택 | 대안 | 기록 위치 | 바꾸려면 |
+|---|---|---|---|---|
+| 범위(소유자) | 호스트는 설정 단계, Settings, 메신저에서 말로 Thyme에게 자유 형식 메모를 남길 수 있습니다. 게스트의 어시스턴트는 메모를 제안을 다듬는 데에만 사용하며, 인용하지 않고, 설정보다 우선하는 규칙으로 취급하지 않으며, 제안이 보여 주는 것 이상을 드러내지 않습니다. 이는 `guest-flow-completion`의 U13을 재개합니다 | `read_request`를 호스트가 모든 게스트에게 제공하는 내용으로 한정하기 | 제안서 | — |
+| 저장 | `host_accounts.assistant_notes`와 `assistant_notes_updated_at`을 `setup.save_assistant_notes`가 즉시 저장합니다. 답하기 전에는 null, 메모 없음은 빈 값이며, 계정이 삭제로 표시되면 트리거가 지웁니다 | 설정 초안 필드(일정과 무관한 텍스트에 확인과 캘린더 재확인이 필요함); `host_settings` 컬럼(첫 확인 전에는 없음); `app.operator_delete_host` 수정 | 설계 1–2; 마이그레이션 `20261123064947_host_assistant_notes` | `lib/server/host-notes.ts`, `supabase/schemas/app/tables/host_accounts.sql` |
+| 게스트 보기 | 요청자용 `read_request`에서만 `host.notes: { quoted, use }`로 제공합니다. 카드, 이메일, 호스트 검토 어시스턴트, MCP나 CLI를 통한 에이전트에는 제공하지 않습니다 | 게스트 측 모든 화면에 제공하기 | 설계 3 | `guestNotesView`, `agent/instructions/requester.ts` |
+| 설정 단계 | 마지막 선택 단계이며 **No notes**와 **Skip for now**가 있고, 최신 저장에 대해 영수증 하나만 보여 줍니다 | 미팅 방식 앞의 단계 | 설계 4 | `apps/web/app/_components/setup/steps.ts`, `assistant-notes-card.tsx` |
+
+## `guest-account-history`
+
+[설계](../../openspec/changes/archive/2026-11-23-guest-account-history/design.md)는 이슈 #48과 #233, 그리고 #228의 게스트 부분에 대한 다음 선택을 기록합니다. #48과 #233에 대한 저장소 소유자의 결정을 바탕으로 2026-11-23에 정했습니다.
+
+| # | 선택 | 대안 | 기록 위치 | 바꾸려면 |
+|---|---|---|---|---|
+| D1 | 삭제되지 않은 계정과 연결된 종료된 요청은 계정이 있는 동안 보관하며, 계정을 삭제하면 연결이 사라져 90일 규칙이 다시 적용됩니다 | 요청에 `retain_until` 컬럼 추가; 대화를 계정 테이블로 복사 | 설계 1; `guest-account-history` "Account-owned request history" | `supabase/schemas/app/functions/cleanup_retained_records.sql`과 새 마이그레이션 |
+| D2 | 열려 있지 않은 보낸 요청은 계정을 확인하는 라우트에서 Requests에 대화를 읽기 전용으로 보여 주며, 에이전트는 활성 계정이 그 요청을 소유한 동안에만 이를 제공합니다 | 요청별 링크 유지; 별도의 기록 페이지 | 설계 2 | `lib/server/host-request-routes.ts`의 `createSentRequestConversationHandler`; `lib/server/eve-auth.ts`의 `guestMayUse` |
+| D3 | `app.operator_delete_host`가 `account_requests_close` 작업 하나를 발행하며, 이 작업이 계정의 열린 보낸 요청을 철회하고 앞으로 예정된 예약 미팅을 요청자로서 취소합니다 | SQL에서 닫기; 설정 작업에서만 닫기 | 설계 3 | `supabase/schemas/app/functions/data_deletion.sql`; `lib/server/account-requests-close.ts` |
+| D4 | 계정 자체의 Google 권한 부여는 연결을 해제하거나 계정이 삭제될 때까지 유지되며, 요청을 닫으면 그 요청의 선택만 지워집니다 | 계정 권한 부여에 만료 두기 | 설계 4 | `lib/server/request-lifecycle.ts`의 `closeRequest` |
+| D5 | `delete-host`는 핸들이 없는 계정에 대해 Google 주소를 받습니다 | 별도의 `delete-guest` 명령 | 설계 5 | `lib/server/data-deletion.ts` |
+
+## `link-on-code`
+
+[제안](../../openspec/changes/link-on-code/proposal.md#decisions)과 [설계](../../openspec/changes/link-on-code/design.md)는 이슈 #412(호스트 연결)와 #383(게스트의 Telegram 연결)에 대한 다음 선택을 기록합니다. 저장소 소유자가 2026-11-23에 D1을 정했고, D2~D5는 그 결정을 바탕으로 변경안을 작성한 세션에서 구체화했습니다. 이 선택들은 `host-imessage-channel` D3, D15, D19, `host-whatsapp-channel` D12, `host-telegram-channel` D13, `guest-flow-completion` D1, `guest-telegram-link` D3의 브라우저 확인 절차를 대체합니다.
+
+| # | 선택 | 대안 | 기록 위치 | 바꾸려면 |
+|---|---|---|---|---|
+| D1 | 시도한 채널의 직접 대화에서 온, 대기 중이며 만료되지 않은 코드는 도착하는 즉시 발신자를 바인딩합니다. iMessage, WhatsApp, Telegram의 호스트·게스트 시도 모두 같습니다. 메신저는 연결됨 메시지(아직 설정 중인 호스트에게는 설정으로 이어지는 환영 메시지)를 받고, 코드를 보여 준 페이지는 스스로 **연결됨(Linked)**으로 넘어갑니다. **Is this you?**, **Is this your Telegram?**, **Confirm and link**, **This isn't me**, 확인 명령은 없어집니다. 에이전트 주도 `/connect/link` 페이지는 연결되었다고만 알려 줍니다 | 브라우저로 한 번 더 돌아가야 하는 **Confirm and link** 유지; "브라우저로 돌아가세요"라고만 답하는 응답(#398에서도 기각) | 제안; 설계 1 | `lib/server/imessage-links.ts`, `lib/server/requester-imessage-links.ts`의 `receiveLinkCode` |
+| D2 | 복구: 연결됨 화면이 발신자를 알려 주고, 호스트에게는 **내 번호가 아님 — 연결 해제(Not my number — unlink)**(Telegram은 **내 Telegram이 아님 — 연결 해제(Not my Telegram — unlink)**)를, 게스트에게는 기존 **연결 해제(Unlink …)**를 제공하며, 이는 `imessage.unlink` 또는 `request.imessage_link.unlink`를 실행합니다. 그 뒤 새 코드를 만듭니다 | 연결할 때마다 게스트에게 이메일 보내기(#383의 제안), 나중으로 미룸 | 제안; 설계 2 | `apps/web/app/_components/ink/link-step.tsx`, `imessage/imessage-card.tsx`, `requester/cards.tsx` |
+| D3 | 확인 절차를 대신하는 장치: 코드는 한 번만 쓸 수 있고(사용되거나 무효화되거나 교체된 코드는 다시 연결되지 않음), 15분 동안 유효하며, 그 코드를 보여 준 로그인 계정, 요청 또는 시작 브라우저가 소유하고, 소유자당 시간당 5개로 제한되며, 그룹, 다른 채널, 다른 호스트가 보유한 발신자에게서 오면 무효화됩니다 | 더 짧은 만료 시간. 앱을 오가는 사람에게는 시간이 필요하고, 위험 구간은 본인이 코드를 보내기 전의 시간뿐이기 때문 | 제안; 설계 3 | `lib/server/imessage-links.ts`의 `IMESSAGE_LINK_LIMITS` |
+| D4 | 연결됨 화면은 번호를 `•••• 1234`로, Apple ID 이메일은 전체로, Telegram 발신자는 이름과 @username으로 보여 줍니다. 로그인 전 iMessage 시작 화면은 여전히 발신자를 전체로 보여 줍니다 | 번호 전체. #118이 이를 원한 것은 확인 전에 본인이 점검하게 하려는 것뿐이었음 | 제안; 설계 4 | `lib/contracts/imessage.ts`의 `maskedSender` |
+| D5 | 아직 호스트가 없는 랜딩의 iMessage 시작에서 온 코드는 `received`로 기록합니다. 그 브라우저에서의 Google 로그인(`claimStartedLink`) 또는 Thyme의 로그인 링크(`claimContinuedLink`)가 `bindReceivedAttempt`로 이를 바인딩하며, 코드가 아직 도착하지 않은 시작은 호스트의 대기 중 시도가 됩니다 | 계정이 아직 없는데 호스트 없이 바인딩 | 제안; 설계 5 | `lib/server/imessage-start.ts`, `lib/server/imessage-links.ts`의 `bindReceivedAttempt` |
+
+D1과 D3과 함께 감수하는 남은 위험: 코드의 주인이 보내기 전에 코드가 유출되면(어깨너머로 본 화면, 전달된 스크린샷, 복사된 시작 링크나 QR 코드) 가장 먼저 보낸 사람이 연결됩니다. 게스트라면 그 발신자가 요청의 업데이트를 받고 게스트로서 답장할 수 있는데, 이는 예약 링크를 가진 사람이 이미 웹에서 할 수 있는 일입니다. 호스트라면 호스트가 연결을 해제할 때까지 그 번호가 메신저에서 미팅 승인을 포함해 호스트를 대신해 행동할 수 있습니다. 페이지는 잘못된 발신자의 마지막 네 자리 또는 이름을 즉시 보여 주고, **내 번호가 아님 — 연결 해제(Not my number — unlink)**가 바인딩을 끝내며, 이후 호스트가 옛 코드로 보낸 본인의 메시지는 거절 응답을 받고, 새 코드가 올바른 번호를 연결합니다.
 
 ## `place-settles-in-person`
 

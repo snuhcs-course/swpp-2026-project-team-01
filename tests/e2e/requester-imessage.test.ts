@@ -30,8 +30,9 @@ import { E2E_TOKEN_ENCRYPTION_KEY } from "./support/token-key";
 // request the guest agreed to (the line follows the agreement). The
 // guest's message is driven here through the real receiver and receipt job, as
 // Photon and the worker would: a desktop shows the number, the message and a QR
-// code; the arrived message shows the masked sender, and only **Confirm and
-// link** binds it; **Unlink iMessage** returns to the start. **Get updates in
+// code; the arrived message links at once (link-on-code D1) and the card moves
+// to linked by itself with the sender's last four digits; **Unlink iMessage**
+// returns to the start. **Get updates in
 // WhatsApp** (guest-whatsapp-link design 2) does the same with the WhatsApp
 // number and a wa.me link, and **Get updates in Telegram** (guest-telegram-link
 // design 2) with no number and the bot's telegram.me start link.
@@ -134,15 +135,11 @@ for (const width of [390, 1280]) {
     await expect(card.getByRole("img", { name: /QR code/ })).toBeVisible();
     expect(await page.evaluate(() => document.documentElement.scrollWidth <= document.documentElement.clientWidth)).toBe(true);
 
-    // The message arrives: the card shows the masked sender, and nothing is bound yet.
+    // The message arrives and links: the card, which polls, shows the last four digits.
     const sender = newSender();
     await guestSends(db, sender, message);
-    await expect(page.getByRole("heading", { name: "Is this your iMessage?" })).toBeVisible({ timeout: 10_000 });
-    await expect(page.getByText(sender)).toBeVisible();
-    expect(await db`select 1 from app.requester_imessage_bindings where request_id = ${request.requestId}`).toHaveLength(0);
-
-    await pressByKeyboard(page, "Confirm and link");
-    await expect(page.locator('[data-imessage-link="linked"]')).toContainText(`updates go to ${sender}`);
+    await expect(page.locator('[data-imessage-link="linked"]')).toContainText(`updates go to •••• ${sender.slice(-4)}`, { timeout: 10_000 });
+    await expect(page.getByRole("button", { name: "Confirm and link" })).toHaveCount(0);
     const [binding] = await db<{ state: string }[]>`select state from app.requester_imessage_bindings where request_id = ${request.requestId}`;
     expect(binding!.state).toBe("active");
 
@@ -183,8 +180,8 @@ test.describe("on a Mac", () => {
 
 // **Get updates in WhatsApp** (guest-whatsapp-link design 2): the number first,
 // then on a computer the WhatsApp number, the message, a QR code and **Open
-// WhatsApp** with the wa.me link; the guest's WhatsApp message shows the sender,
-// and **Confirm and link** binds it on WhatsApp, with no contact card.
+// WhatsApp** with the wa.me link; the guest's WhatsApp message links on WhatsApp
+// as it arrives, with no contact card.
 test("at 1280px a guest links and unlinks WhatsApp updates", async ({ db, page }) => {
   await page.setViewportSize({ height: 800, width: 1280 });
   const request = await agreedRequest(db);
@@ -205,11 +202,7 @@ test("at 1280px a guest links and unlinks WhatsApp updates", async ({ db, page }
 
   const sender = newWhatsAppSender();
   await guestSends(db, sender, message, "whatsapp");
-  await expect(page.getByRole("heading", { name: "Is this your WhatsApp?" })).toBeVisible({ timeout: 10_000 });
-  await expect(page.getByText(`+${sender}`)).toBeVisible();
-
-  await pressByKeyboard(page, "Confirm and link");
-  await expect(page.locator('[data-imessage-link="linked"]')).toContainText(`updates go to +${sender}`);
+  await expect(page.locator('[data-imessage-link="linked"]')).toContainText(`updates go to •••• ${sender.slice(-4)}`, { timeout: 10_000 });
   await expect(page.getByRole("button", { name: "Add to contacts" })).toHaveCount(0);
   const [binding] = await db<{ channel: string; state: string }[]>`select channel, state from app.requester_imessage_bindings where request_id = ${request.requestId}`;
   expect(binding).toEqual({ channel: "whatsapp", state: "active" });
@@ -220,8 +213,8 @@ test("at 1280px a guest links and unlinks WhatsApp updates", async ({ db, page }
 
 // **Get updates in Telegram** (guest-telegram-link design 2): no number, then on
 // a computer the bot, the code, a QR code and **Open Telegram** with the telegram.me
-// start link; the guest's Start shows their Telegram name with where Telegram
-// keeps the chat, and **Confirm and link** binds it on Telegram, with no
+// start link, with where Telegram keeps the chat beside the code; the guest's
+// Start links on Telegram as it arrives, named by their Telegram name, with no
 // contact card.
 const BOT = "findmeatime_e2e_bot";
 
@@ -245,16 +238,12 @@ test("at 1280px a guest links and unlinks Telegram updates by keyboard", async (
   await expect(card.getByRole("img", { name: /QR code/ })).toBeVisible();
   expect(new URL(page.url()).pathname).toBe(`/booking/${request.bookingId}`);
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= document.documentElement.clientWidth)).toBe(true);
+  await expect(card.getByText("Telegram keeps bot chats on its servers. Find Me a Time sends your request updates here.")).toBeVisible();
+  expect(await db`select 1 from app.requester_imessage_bindings where request_id = ${request.requestId}`).toHaveLength(0);
 
   const userId = newTelegramUser();
   await guestStartsBot(db, userId, code);
-  await expect(page.getByRole("heading", { name: "Is this your Telegram?" })).toBeVisible({ timeout: 10_000 });
-  await expect(page.getByText("Grace (@grace)")).toBeVisible();
-  await expect(page.getByText("Telegram keeps bot chats on its servers. Find Me a Time sends your request updates here.")).toBeVisible();
-  expect(await db`select 1 from app.requester_imessage_bindings where request_id = ${request.requestId}`).toHaveLength(0);
-
-  await pressByKeyboard(page, "Confirm and link");
-  await expect(page.locator('[data-imessage-link="linked"]')).toContainText("Telegram linked: updates go to Grace (@grace)");
+  await expect(page.locator('[data-imessage-link="linked"]')).toContainText("Telegram linked: updates go to Grace (@grace)", { timeout: 10_000 });
   await expect(page.getByRole("button", { name: "Add to contacts" })).toHaveCount(0);
   const [binding] = await db<{ channel: string; state: string }[]>`select channel, state from app.requester_imessage_bindings where request_id = ${request.requestId}`;
   expect(binding).toEqual({ channel: "telegram", state: "active" });

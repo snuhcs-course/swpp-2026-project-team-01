@@ -155,6 +155,13 @@ export function ReviewCard({ pending = false }: { readonly pending?: boolean }) 
         <Row label={FIELD_LABELS.handle} step="identity" field="handle">
           {handle ? <span className="font-mono break-all">/{handle}</span> : null}
         </Row>
+        <Row label={STEP_LABELS.assistantNotes} step="assistantNotes">
+          {state.assistantNotes === null ? null : state.assistantNotes.text.length === 0 ? (
+            "None"
+          ) : (
+            <span className="whitespace-pre-line">{state.assistantNotes.text}</span>
+          )}
+        </Row>
         <div className="flex min-w-0 items-start gap-2 border-t border-border py-2 sm:col-span-2">
           <div className="min-w-0 flex-1">
             <dt className="text-xs text-muted-foreground">Calendars</dt>

@@ -517,7 +517,11 @@ function threadEntries(
           receipt(
             card,
             RECEIPT_LABELS.proposal,
-            `You agreed to ${timeText(card.receipt.start, card.receipt.end, zone)}`,
+            // A host's pick from several times, or the several times agreed
+            // to (multiple-candidate-times), say so.
+            card.receipt.text === "The host chose" || card.receipt.text.startsWith("You agreed to ")
+              ? `${card.receipt.text}${card.receipt.text === "The host chose" ? "" : ", the first"} ${timeText(card.receipt.start, card.receipt.end, zone)}`
+              : `You agreed to ${timeText(card.receipt.start, card.receipt.end, zone)}`,
             view.request.state === "awaiting_host_approval" && card.id === `proposal:${view.proposal?.version}`
               ? change("Change the agreed time", () => void context.run("request.change_agreement", {}, view.request.revision))
               : undefined,

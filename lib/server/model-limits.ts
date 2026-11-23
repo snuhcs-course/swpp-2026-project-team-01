@@ -36,16 +36,29 @@ import type { NoteClassifierModel, NoteClassifierUsage } from "./note-classifier
 // the usage OpenAI reports; a denied call leaves its batch unsure.
 
 // USD per million tokens on the standard tier, which every call selects. One home
-// for the models in use: `gpt-5.6-terra` serves the agent (agent/agent.ts) and
-// the ranking call (lib/server/evaluation.ts). A model absent here cannot be
-// settled, so its reservations stay at the upper bound.
-// Source: OpenAI's model page, https://developers.openai.com/api/docs/models/gpt-5.6-terra,
+// for the models in use and the ones FMAT_ASSISTANT_MODEL and FMAT_RANKING_MODEL
+// may select (model-choice.ts): `gpt-5.6-terra` serves the agent (agent/agent.ts)
+// and the ranking call (lib/server/evaluation.ts) by default. A model absent here
+// cannot be settled, so its reservations stay at the upper bound.
+// Sources: OpenAI's model page, https://developers.openai.com/api/docs/models/gpt-5.6-terra,
 // and pricing page, https://developers.openai.com/api/docs/pricing, both read on
 // 2026-11-01: input $2.00, cached input $0.20, output $12.00. The pages price a
 // prompt over 272K input tokens at twice the input and 1.5 times the output; the
-// 128 KiB input cap keeps every call below that.
-export const MODEL_PRICES: Readonly<Record<string, { readonly cachedInputUsd: string; readonly inputUsd: string; readonly outputUsd: string }>> = {
+// 128 KiB input cap keeps every call below that. Claude: Anthropic's model table
+// as of 2026-11-03 (Opus 5.5 $4 / $20, cache reads $0.20; Sonnet 5.5 $2 / $10,
+// cache reads $0.10), with a 5-minute cache write at 1.25 times the input price.
+// A price without cacheWriteUsd charges written cache tokens as input.
+export type ModelPrice = {
+  readonly cachedInputUsd: string;
+  readonly cacheWriteUsd?: string;
+  readonly inputUsd: string;
+  readonly outputUsd: string;
+};
+
+export const MODEL_PRICES: Readonly<Record<string, ModelPrice>> = {
   "gpt-5.6-terra": { cachedInputUsd: "0.20", inputUsd: "2.00", outputUsd: "12.00" },
+  "claude-opus-5-5": { cachedInputUsd: "0.20", cacheWriteUsd: "5.00", inputUsd: "4.00", outputUsd: "20.00" },
+  "claude-sonnet-5-5": { cachedInputUsd: "0.10", cacheWriteUsd: "2.50", inputUsd: "2.00", outputUsd: "10.00" },
 };
 
 export const MODEL_LIMITS = {
@@ -377,23 +390,37 @@ async function settle(db: Database, reservationId: string, modelId: string, usag
   const output = usage?.outputTokens.total;
 
   if (input === undefined || output === undefined) return;
-  await settleTokens(db, reservationId, modelId, { cached: usage?.inputTokens.cacheRead ?? 0, input, output });
+  await settleTokens(db, reservationId, modelId, {
+    cached: usage?.inputTokens.cacheRead ?? 0,
+    cacheWrite: usage?.inputTokens.cacheWrite ?? 0,
+    input,
+    output,
+  });
 }
 
-async function settleTokens(db: Database, reservationId: string, modelId: string, tokens: { input: number; cached: number; output: number }) {
+async function settleTokens(
+  db: Database,
+  reservationId: string,
+  modelId: string,
+  tokens: { input: number; cached: number; cacheWrite?: number; output: number },
+) {
   const price = MODEL_PRICES[modelId];
   const { input, output } = tokens;
 
   if (!price || !Number.isFinite(input) || !Number.isFinite(output) || input < 0 || output < 0) return;
 
   const cached = Math.min(Math.max(tokens.cached, 0), input);
+  // Written cache tokens are charged at the write price where the model has one;
+  // the rest of the uncached input at the input price.
+  const written = price.cacheWriteUsd ? Math.min(Math.max(tokens.cacheWrite ?? 0, 0), input - cached) : 0;
 
   try {
     // Tokens times USD per million tokens is millionths of a dollar.
     await db`
       update app.model_reservations
       set amount_usd = greatest(
-        ceil(${input - cached}::numeric * ${price.inputUsd}::numeric
+        ceil(${input - cached - written}::numeric * ${price.inputUsd}::numeric
+           + ${written}::numeric * ${price.cacheWriteUsd ?? price.inputUsd}::numeric
            + ${cached}::numeric * ${price.cachedInputUsd}::numeric
            + ${output}::numeric * ${price.outputUsd}::numeric),
         1

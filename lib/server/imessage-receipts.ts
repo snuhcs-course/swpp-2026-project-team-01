@@ -13,7 +13,8 @@ import {
   HostRequestNotFoundError,
 } from "./conversations";
 import { database, type Database, type Transaction } from "./database";
-import { findLinkCode } from "./email-links";
+import { findLinkCode, hashLinkCode } from "./email-links";
+import { readDefaultRoleCalendars } from "./calendar-roles";
 import { acceptGuestMessage, DraftMessageLimitError } from "./guest-conversations";
 import { HostIneligibleError } from "./host-eligibility";
 import { internalSigningKey } from "./internal-bearer";
@@ -763,6 +764,22 @@ async function forwardGuest(
   return "forwarded";
 }
 
+// What an arriving code needs to bind its sender (link-on-code design 1). A
+// host's pending code also gets the live calendar list, read as the setup
+// commands read it here, so the link saves the primary calendar as the default
+// roles and its welcome names it, as Confirm and link did; a failed read only
+// means the welcome asks for the roles.
+// Codes that cannot link (from a group or for another channel) read nothing.
+async function arrivalOptions(tx: Transaction, deps: ImessageReceiptDependencies, code: string, receipt: OpenedReceipt) {
+  const [named] = receipt.spaceType === "dm" ? await tx<{ host_account_id: string }[]>`
+    select host_account_id from app.imessage_links
+    where code_hash = ${hashLinkCode(code)} and host_account_id is not null and state = 'pending' and expires_at > now()
+      and channel = ${receipt.channel}
+  ` : [];
+  const liveCalendars = named ? await readDefaultRoleCalendars(deps.db, named.host_account_id, deps.setup.calendar) : null;
+  return { liveCalendars, origin: deps.origin, tokenKey: deps.tokenKey, tokenKeys: deps.tokenKeys };
+}
+
 // ---------------------------------------------------------------------------
 // Telegram (host-telegram-channel design 6)
 
@@ -786,7 +803,7 @@ export async function telegramLinking(tx: Transaction, deps: ImessageReceiptDepe
   const code = findLinkCode(text);
 
   if (code) {
-    return receiveLinkCode(tx, { origin: deps.origin, tokenKey: deps.tokenKey }, {
+    return receiveLinkCode(tx, await arrivalOptions(tx, deps, code, receipt), {
       channel: "telegram",
       code,
       receiptId: receipt.id,
@@ -832,7 +849,7 @@ export async function processReceipt(
   const code = receipt.text ? findLinkCode(receipt.text) : null;
 
   if (code) {
-    return receiveLinkCode(tx, { origin: deps.origin, tokenKey: deps.tokenKey }, {
+    return receiveLinkCode(tx, await arrivalOptions(tx, deps, code, receipt), {
       channel: receipt.channel,
       code,
       receiptId: receipt.id,

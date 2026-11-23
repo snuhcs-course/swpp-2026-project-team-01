@@ -321,7 +321,7 @@ export const REQUESTER_TOOLS: readonly AgentTool[] = [
   }),
   requestCommandTool({
     description:
-      "Choose one candidate time (evaluationId and candidateId from get_request) within what the person allowed. It becomes the current proposal version for agreement; choosing is not agreeing, and the host is not asked until agree_to_proposal records the agreement.",
+      "Choose one candidate time (evaluationId and candidateId from get_request) within what the person allowed. It becomes the current proposal version for agreement; choosing is not agreeing, and the host is not asked until agree_to_proposal records the agreement. When the person says two or three of the times all work, pass them as candidateIds instead; after agreement the host books one.",
     name: "choose_time",
     command: () => loose(chooseCandidateCommand),
     commandInput: chooseCandidateCommand.input,

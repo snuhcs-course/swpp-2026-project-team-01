@@ -1,12 +1,15 @@
 import { z } from "zod";
 import type { RequesterEvaluationView } from "../contracts/feasibility";
-import type {
-  LinkPlan,
-  RequestDetails,
-  RequesterAgreement,
-  RequesterCandidate,
-  RequesterProposal,
-  RequestState,
+import {
+  type LinkPlan,
+  MAX_PROPOSAL_TIMES,
+  type ProposalTime,
+  proposalTimes,
+  type RequestDetails,
+  type RequesterAgreement,
+  type RequesterCandidate,
+  type RequesterProposal,
+  type RequestState,
 } from "../contracts/request";
 import { assertRevision, type CommandDefinition, CommandError } from "./commands";
 import type { Queryable, Transaction } from "./database";
@@ -29,15 +32,17 @@ import { detailsComplete } from "./request-lifecycle";
 //   the record.
 // - request.allow_trip (**Allow N minutes for my trip**) records the
 //   requester's own allowance for one leg of one candidate and evaluates again.
-// - request.choose_candidate (**Choose this time**) writes the next immutable
-//   proposal version from a candidate of the current evaluation. An online
-//   candidate with neither a Google Meet plan nor a requester link creates no
-//   proposal and asks for a link.
+// - request.choose_candidate (**Choose this time**, or **Offer these N times**)
+//   writes the next immutable proposal version from one candidate of the
+//   current evaluation, or from two or three of them at once
+//   (multiple-candidate-times, #146): the guest agrees to all of them and the
+//   host books one. An online candidate with neither a Google Meet plan nor a
+//   requester link creates no proposal and asks for a link.
 // - request.agree (**Agree to this proposal**) records agreement to the exact
 //   current version while its start is still in the future after the lock and
 //   the request is open, and moves the request to awaiting host approval. An
 //   unconfirmed contact does not block it (D3). It first reads the host's
-//   calendars again for the proposed interval (agreement-calendar-recheck):
+//   calendars again for each proposed interval (agreement-calendar-recheck):
 //   a time that stopped fitting records no agreement and sends the host
 //   nothing.
 //
@@ -224,7 +229,26 @@ export const allowTripCommand: CommandDefinition<z.infer<typeof allowTripInput>,
 // ---------------------------------------------------------------------------
 // request.choose_candidate
 
-const chooseInput = z.object({ evaluationId: z.uuid(), candidateId: z.string().min(1).max(64) }).strict();
+const candidateIdSchema = z.string().min(1).max(64);
+
+export const chooseInput = z
+  .object({
+    evaluationId: z.uuid(),
+    candidateId: candidateIdSchema.optional().describe("One candidate time to propose, from the current evaluation."),
+    candidateIds: z
+      .array(candidateIdSchema)
+      .min(2)
+      .max(MAX_PROPOSAL_TIMES)
+      .optional()
+      .describe(
+        `Two to ${MAX_PROPOSAL_TIMES} candidate times to propose at once, in place of candidateId, when the person accepts any of them. The host picks one, and only that one is booked.`,
+      ),
+  })
+  .strict()
+  .refine((input) => (input.candidateId === undefined) !== (input.candidateIds === undefined), "Give candidateId or candidateIds, not both.")
+  .refine((input) => !input.candidateIds || new Set(input.candidateIds).size === input.candidateIds.length, "candidateIds must differ.");
+
+export type ChooseInput = z.infer<typeof chooseInput>;
 
 export type ChooseResult =
   | { readonly outcome: "proposed"; readonly version: number }
@@ -235,8 +259,8 @@ function linkPlanOf(candidate: RequesterCandidate, details: Partial<RequestDetai
   return candidate.linkPlan ?? details.linkPlan ?? null;
 }
 
-export const chooseCandidateCommand: CommandDefinition<z.infer<typeof chooseInput>, ChooseResult> = {
-  input: chooseInput,
+export const chooseCandidateCommand: CommandDefinition<ChooseInput, ChooseResult> = {
+  input: chooseInput as unknown as z.ZodType<ChooseInput>,
   operation: CHOOSE_CANDIDATE_OPERATION,
   async run(tx, context) {
     const request = await lockOpenRequest(tx, requester(context));
@@ -248,13 +272,32 @@ export const chooseCandidateCommand: CommandDefinition<z.infer<typeof chooseInpu
       throw new CommandError("invalid_input");
     }
 
-    const { shown } = await currentCandidate(tx, request.id, context.input.evaluationId, context.input.candidateId);
+    const ids = context.input.candidateIds ?? [context.input.candidateId!];
+    const now = (await clock(tx)).getTime();
+    const chosen: RequesterCandidate[] = [];
+    for (const id of ids) {
+      const { shown } = await currentCandidate(tx, request.id, context.input.evaluationId, id);
+      if (shown.unresolvedRequesterLeg) throw new CommandError("invalid_input");
+      if (Date.parse(shown.start) <= now) throw new CommandError("invalid_input", { reason: "start_passed" });
+      chosen.push(shown);
+    }
+    chosen.sort((a, b) => Date.parse(a.start) - Date.parse(b.start));
 
-    if (shown.unresolvedRequesterLeg) throw new CommandError("invalid_input");
-    if (Date.parse(shown.start) <= (await clock(tx)).getTime()) throw new CommandError("invalid_input", { reason: "start_passed" });
-
-    const linkPlan = linkPlanOf(shown, request.details);
-    if (shown.mode === "online" && !linkPlan) return { outcome: "needs_meeting_link" };
+    const times: ProposalTime[] = [];
+    for (const candidate of chosen) {
+      const linkPlan = linkPlanOf(candidate, request.details);
+      if (candidate.mode === "online" && !linkPlan) return { outcome: "needs_meeting_link" };
+      times.push({
+        candidateId: candidate.id,
+        end: candidate.end,
+        linkPlan,
+        location: candidate.mode === "in_person" ? candidate.location : null,
+        mode: candidate.mode,
+        start: candidate.start,
+      });
+    }
+    const first = chosen[0]!;
+    const firstTime = times[0]!;
 
     const [names] = await tx<{ host_name: string | null; host_timezone: string | null; requester_name: string | null }[]>`
       select r.requester_name, s.settings ->> 'displayName' as host_name, s.settings ->> 'timezone' as host_timezone
@@ -264,24 +307,25 @@ export const chooseCandidateCommand: CommandDefinition<z.infer<typeof chooseInpu
     const [next] = await tx<{ version: number }[]>`
       select coalesce(max(version), 0) + 1 as version from app.proposals where request_id = ${request.id}
     `;
-    const displayTimezones = [...new Set([shown.displayTimezone, ...(names?.host_timezone ? [names.host_timezone] : [])])];
+    const displayTimezones = [...new Set([first.displayTimezone, ...(names?.host_timezone ? [names.host_timezone] : [])])];
     const details: Omit<RequesterProposal, "version"> = {
       displayTimezones,
-      durationMinutes: shown.durationMinutes,
-      end: shown.end,
-      linkPlan,
-      location: shown.mode === "in_person" ? shown.location : null,
-      mode: shown.mode,
+      durationMinutes: first.durationMinutes,
+      end: firstTime.end,
+      linkPlan: firstTime.linkPlan,
+      location: firstTime.location,
+      mode: firstTime.mode,
       participants: [
         { name: names?.host_name ?? "Host", role: "host" },
         { name: names!.requester_name ?? "Requester", role: "requester" },
       ],
-      start: shown.start,
+      start: firstTime.start,
+      ...(times.length > 1 ? { times } : {}),
     };
 
     await tx`
       insert into app.proposals (request_id, version, evaluation_id, candidate_id, start_at, end_at, details)
-      values (${request.id}, ${next!.version}, ${context.input.evaluationId}, ${shown.id}, ${shown.start}, ${shown.end},
+      values (${request.id}, ${next!.version}, ${context.input.evaluationId}, ${first.id}, ${firstTime.start}, ${firstTime.end},
               ${tx.json(details as unknown as Parameters<typeof tx.json>[0])})
     `;
 
@@ -328,18 +372,31 @@ export function agreeCommand(
         throw new CommandError("stale_revision", { reason: "proposal_superseded" });
       }
       if (request.state !== "negotiating" || latest.agreed_at) throw new CommandError("stale_revision");
-      if (latest.start_at.getTime() <= (await clock(tx)).getTime()) throw new CommandError("invalid_input", { reason: "start_passed" });
+      const times = proposalTimes(latest.details);
+      const now = (await clock(tx)).getTime();
+      if (times.some((time) => Date.parse(time.start) <= now)) throw new CommandError("invalid_input", { reason: "start_passed" });
 
-      const check = await checkInterval(
-        tx,
-        loadEvaluation(),
-        request.id,
-        { end: latest.end_at, start: latest.start_at },
-        // The chosen pair's own place (guest-time-place-pairs design 7).
-        { place: latest.details.mode === "in_person" ? (latest.details.location ?? null) : null, requesterCalendar: false },
-      );
+      // Every offered time is read again, since the host may book any of
+      // them (multiple-candidate-times); one that stopped fitting records no
+      // agreement, and the guest chooses again from fresh times.
+      let busy = false;
+      const dependencies = loadEvaluation();
+      for (const time of times) {
+        const check = await checkInterval(
+          tx,
+          dependencies,
+          request.id,
+          { end: new Date(time.end), start: new Date(time.start) },
+          // The chosen pair's own place (guest-time-place-pairs design 7).
+          { place: time.mode === "in_person" ? (time.location ?? null) : null, requesterCalendar: false },
+        );
+        if (!check.ok && check.problem !== "unavailable") {
+          busy = true;
+          break;
+        }
+      }
 
-      if (!check.ok && check.problem !== "unavailable") {
+      if (busy) {
         // A new evaluation at the same revision replaces the stale one as the
         // current times, so the busy candidate cannot be chosen again.
         const evaluationId = await publishEvaluation(tx, {

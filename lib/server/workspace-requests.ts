@@ -16,8 +16,12 @@ type SentRow = {
   link_ciphertext: string | null;
   link_key_id: string | null;
   link_live: boolean;
+  active: boolean;
 };
 
+// A sent request's conversation is read from GET
+// /api/host/workspace-requests/{requestId}/conversation once it is no longer
+// active, for as long as the account exists (guest-account-history D2).
 // The requester account association comes from a verified Google subject or
 // signed-in account session, never from a typed contact address. This query
 // never reads the receiving host's private
@@ -29,7 +33,8 @@ export async function listWorkspaceRequests(db: Queryable, hostAccountId: string
       select r.id, r.state, r.details, r.updated_at,
              coalesce(s.settings ->> 'displayName', h.display_name, 'Host') as host_name,
              p.start_at as proposal_start, b.start_at as booking_start,
-             l.link_ciphertext, l.link_key_id, coalesce(l.expires_at > now(), false) as link_live
+             l.link_ciphertext, l.link_key_id, coalesce(l.expires_at > now(), false) as link_live,
+             (r.closed_at is null and r.expires_at > now()) as active
       from app.requester_host_profiles match
       join app.requests r on r.id = match.request_id
       join app.host_accounts h on h.id = r.host_account_id
@@ -49,6 +54,7 @@ export async function listWorkspaceRequests(db: Queryable, hostAccountId: string
 
   const items: WorkspaceRequestItem[] = [
     ...received.map((item) => ({
+      active: false,
       bookingPath: null,
       counterpartyName: item.requesterName,
       direction: "received" as const,
@@ -71,6 +77,7 @@ export async function listWorkspaceRequests(db: Queryable, hostAccountId: string
         bookingPath = `/booking/${bookingId}`;
       }
       return {
+        active: row.active,
         bookingPath,
         counterpartyName: row.host_name ?? "Host",
         direction: "sent" as const,

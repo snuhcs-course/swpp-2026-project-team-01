@@ -32,6 +32,10 @@ describe("setup tool labels", () => {
     expect(describeSetupTool(part("draft_settings", undefined))).toBe("Drafted your settings");
   });
 
+  it("names saving the host's notes for Thyme without repeating them", () => {
+    expect(describeSetupTool(part("save_assistant_notes", { notes: "A first meeting is online." }))).toBe("Saved your notes for Thyme");
+  });
+
   it("leaves other tools to their own labels", () => {
     expect(describeSetupTool(part("search", { query: "x" }))).toBeUndefined();
   });
