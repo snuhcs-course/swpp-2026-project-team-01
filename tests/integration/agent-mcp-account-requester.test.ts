@@ -13,6 +13,8 @@ import { seedSchedulingRequest, runEvaluation, evaluationDeps, revisionOf } from
 import { readCurrentEvaluation } from "../../lib/server/request-proposals";
 import { approveCommand } from "../../lib/server/bookings";
 import { asHost, bookingDeps, runBooking } from "./support/booking";
+import { createGoogleUser } from "./support/auth";
+import { dropGuestHostCalendars } from "../../lib/server/requester-host-profiles";
 
 const db = testDatabase();
 let google: FakeGoogle;
@@ -22,18 +24,24 @@ afterAll(async () => { await google.close(); await db.end(); });
 async function setup(scopes: readonly string[] = AGENT_SCOPES) {
   const agent = agentDependencies(db);
   const accountId = await newHostAccount(db);
+  // The account signed in with Google: its verified address is the requester's.
+  const user = await createGoogleUser(db, `grace-${randomUUID()}@example.test`);
+  await db`
+    insert into app.google_identities (google_subject, host_account_id, auth_user_id, email)
+    values (${user.googleSubject}, ${accountId}, ${user.userId}, ${user.email})
+  `;
   const tokens = await issueToken(agent, { role: "host", hostAccountId: accountId, resource: HOST_RESOURCE, scopes });
   const handler = createMcpHandler("host", () => ({
     ...agent, setup: { db, appOrigin: ORIGIN, calendar: { db, config: fakeGoogleConfig(google), tokenKeys: [agent.tokenKey()] } }, evaluationWaitMs: 1, notices: () => testNotices,
   }));
-  return { agent, accountId, tokens, handler, call: (name: string, args: Record<string, unknown> = {}) => callTool(handler, "/mcp", tokens.access_token, name, args) };
+  return { agent, accountId, email: user.email, tokens, handler, call: (name: string, args: Record<string, unknown> = {}) => callTool(handler, "/mcp", tokens.access_token, name, args) };
 }
 
 async function host() {
   const id = await newHostAccount(db);
   return { id, ...await makeHostReady(db, id) };
 }
-const input = (handle: string, retryKey = randomUUID()) => ({ hostHandle: handle, retryKey, name: "Grace", email: "grace@example.test", timezone: "Asia/Seoul", details: { purpose: "Discuss compilers", mode: "online", durationMinutes: 30 } });
+const input = (handle: string, retryKey = randomUUID()) => ({ hostHandle: handle, retryKey, timezone: "Asia/Seoul", details: { purpose: "Discuss compilers", mode: "online", durationMinutes: 30 } });
 
 async function created(client: Awaited<ReturnType<typeof setup>>, handle: string) {
   const result = await client.call("create_request", input(handle));
@@ -63,19 +71,85 @@ describe("account requester MCP", () => {
     expect(count!.count).toBe(3);
   });
 
+  // R01 P-2 and P-3 (account-request-identity): the account is the requester.
+  it("identifies the request with the account and counts its host calendars without asking", async () => {
+    const client = await setup(); const target = await host();
+    await makeHostReady(db, client.accountId, { displayName: "Grace Hopper" });
+    await db`
+      update app.host_settings
+      set settings = settings || ${db.json({ conflictCalendars: [{ accessRole: "owner", id: "grace@example.test", summary: "Personal" }], timezone: "Europe/Paris" })}
+      where host_account_id = ${client.accountId}
+    `;
+    expect((await client.call("create_request", { name: "Someone", email: "someone@example.test", hostHandle: target.handle, retryKey: randomUUID() })).isError).toBe(true);
+    const result = await client.call("create_request", { hostHandle: target.handle, retryKey: randomUUID(), details: { purpose: "Compilers" } });
+    expect(result.structuredContent).toMatchObject({ created: true, requester: { name: "Grace Hopper", email: client.email }, calendars: ["Personal"], calendarReadable: true });
+    expect(JSON.stringify(result)).not.toContain("/booking/");
+    const requestId = (result.structuredContent as { requestId: string }).requestId;
+    const [row] = await db<{ requester_name: string; contact_email: string; contact_confirmed_email: string | null; timezone: string; calendar_settled: boolean; items: string[]; decided: boolean }[]>`
+      select r.requester_name, r.contact_email, r.contact_confirmed_email, r.details ->> 'timezone' as timezone,
+             r.calendar_settled_at is not null as calendar_settled, p.items, p.decided_at is not null as decided
+      from app.requests r join app.requester_host_profiles p on p.request_id = r.id
+      where r.id = ${requestId} and p.host_account_id = ${client.accountId}
+    `;
+    expect(row).toEqual({ requester_name: "Grace Hopper", contact_email: client.email, contact_confirmed_email: client.email, timezone: "Europe/Paris", calendar_settled: true, items: ["calendars"], decided: true });
+  });
+
+  it("links an account without host settings with no calendars", async () => {
+    const client = await setup(); const target = await host();
+    const result = await client.call("create_request", input(target.handle));
+    expect(result.structuredContent).toMatchObject({ created: true, calendars: [] });
+    const requestId = (result.structuredContent as { requestId: string }).requestId;
+    const [row] = await db<{ items: string[]; decided: boolean }[]>`
+      select items, decided_at is not null as decided from app.requester_host_profiles where request_id = ${requestId}
+    `;
+    expect(row).toEqual({ items: [], decided: true });
+  });
+
+  it("asks for a timezone when the account has no host timezone", async () => {
+    const client = await setup(); const target = await host();
+    const result = await client.call("create_request", { hostHandle: target.handle, retryKey: randomUUID() });
+    expect(result.structuredContent).toMatchObject({ error: { category: "invalid_input" } });
+  });
+
+  it("keeps the account's calendars when its host grant fails, so the search pauses", async () => {
+    const client = await setup(); const target = await host();
+    await makeHostReady(db, client.accountId);
+    await db`
+      update app.host_settings
+      set settings = settings || ${db.json({ conflictCalendars: [{ accessRole: "owner", id: "grace@example.test", summary: "Personal" }], timezone: "Asia/Seoul" })}
+      where host_account_id = ${client.accountId}
+    `;
+    const accountRequest = (await client.call("create_request", { hostHandle: target.handle, retryKey: randomUUID() })).structuredContent as { requestId: string };
+    await db.begin((tx) => dropGuestHostCalendars(tx, accountRequest.requestId));
+    const [kept] = await db<{ items: string[]; settled: boolean }[]>`
+      select p.items, r.calendar_settled_at is not null as settled
+      from app.requester_host_profiles p join app.requests r on r.id = p.request_id where p.request_id = ${accountRequest.requestId}
+    `;
+    expect(kept).toEqual({ items: ["calendars"], settled: true });
+
+    // A choice made later on the web card is dropped and reopens the Calendar step, as before.
+    await db`update app.requester_host_profiles set decided_at = now() + interval '1 minute' where request_id = ${accountRequest.requestId}`;
+    await db.begin((tx) => dropGuestHostCalendars(tx, accountRequest.requestId));
+    const [dropped] = await db<{ items: string[]; settled: boolean }[]>`
+      select p.items, r.calendar_settled_at is not null as settled
+      from app.requester_host_profiles p join app.requests r on r.id = p.request_id where p.request_id = ${accountRequest.requestId}
+    `;
+    expect(dropped).toEqual({ items: [], settled: false });
+  });
+
   it("serializes concurrent exact creation retries and rejects changed arguments", async () => {
     const client = await setup(); const target = await host(); const args = input(target.handle);
     const results = await Promise.all([client.call("create_request", args), client.call("create_request", args)]);
     expect(results[0].structuredContent).toMatchObject({ requestId: expect.any(String) });
     expect((results[0].structuredContent as { requestId: string }).requestId).toBe((results[1].structuredContent as { requestId: string }).requestId);
     expect(results.map(r => (r.structuredContent as { created: boolean }).created).sort()).toEqual([false, true]);
-    expect((await client.call("create_request", { ...args, name: "Someone else" })).structuredContent).toMatchObject({ error: { category: "retry_conflict" } });
+    expect((await client.call("create_request", { ...args, timezone: "Europe/London" })).structuredContent).toMatchObject({ error: { category: "retry_conflict" } });
   });
 
   it("hides unknown, another account's and same-email anonymous requests on reads and mutations", async () => {
     const owner = await setup(); const other = await setup(); const target = await host();
     const owned = await created(owner, target.handle);
-    const anonymous = await createTestRequest(db, { hostAccountId: target.id, contactEmail: "grace@example.test" });
+    const anonymous = await createTestRequest(db, { hostAccountId: target.id, contactEmail: owner.email });
     for (const requestId of [owned, anonymous.requestId, randomUUID()]) {
       for (const name of ["get_sent_request", "find_times", "withdraw_request"]) {
         expect((await other.call(name, { requestId, arguments: name === "get_sent_request" ? {} : { retryKey: randomUUID() } })).structuredContent).toMatchObject({ error: { category: "request_unavailable" } });

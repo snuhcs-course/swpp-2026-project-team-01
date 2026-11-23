@@ -45,6 +45,7 @@ export function CandidateCalendar({
   bookingId,
   busy: busyDisabled,
   linkMissing,
+  marked = [],
   offered,
   onChoose,
   onTrip,
@@ -54,6 +55,8 @@ export function CandidateCalendar({
   readonly bookingId: string;
   readonly busy: boolean;
   readonly linkMissing: (candidate: RequesterCandidate) => boolean;
+  // Times ticked to offer together (multiple-candidate-times), tagged on the grid.
+  readonly marked?: readonly string[];
   readonly offered: readonly RequesterCandidate[];
   readonly onChoose: (candidate: RequesterCandidate) => void;
   readonly onTrip: (candidate: RequesterCandidate) => void;
@@ -108,9 +111,9 @@ export function CandidateCalendar({
       end: candidate.end,
       id: candidate.id,
       onSelect: () => onChoose(candidate),
-      srLabel: `Choose this time: ${candidateLabel(candidate, timeZone, shared)}`,
+      srLabel: `Choose this time: ${candidateLabel(candidate, timeZone, shared)}${marked.includes(candidate.id) ? ", ticked as also working" : ""}${candidate.notes?.length ? `. ${candidate.notes.join(" ")}` : ""}`,
       start: candidate.start,
-      tag: detailsOf(candidate, shared) || undefined,
+      tag: [marked.includes(candidate.id) ? "✓ Also works" : null, detailsOf(candidate, shared) || null].filter(Boolean).join(" · ") || undefined,
       tone: "option" as const,
     })),
     ...trips.map((candidate) => ({

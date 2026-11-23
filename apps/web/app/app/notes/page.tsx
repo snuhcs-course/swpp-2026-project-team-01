@@ -5,7 +5,8 @@ import { connection } from "next/server";
 import { Suspense } from "react";
 import { LOCALE_COOKIE, localeOf } from "@/app/_components/ink/copy";
 import { NoteReviewPanel } from "@/app/_components/notes/note-review-panel";
-import { SignInCard, WorkspaceLoading } from "@/app/_components/sign-in-card";
+import { SignInCard } from "@/app/_components/sign-in-card";
+import { WorkspaceLoading } from "@/app/_components/workspace-loading";
 import { WorkspaceMenu } from "@/app/_components/workspace-menu";
 
 // The note review page (calendar-note-review design 7): the link the chat

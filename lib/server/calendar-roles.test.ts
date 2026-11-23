@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { isWritable, recommendCalendarRoles } from "./calendar-roles";
+import { isWritable, otherConflictCandidates, recommendCalendarRoles } from "./calendar-roles";
 import type { CalendarListEntry } from "./google-calendar";
 
 function calendar(id: string, accessRole: string, extra: Partial<CalendarListEntry> = {}): CalendarListEntry {
@@ -53,5 +53,25 @@ describe("isWritable", () => {
       false,
       false,
     ]);
+  });
+});
+
+// The calendar step asks once about the calendars besides the primary that
+// would also be checked (issue #361).
+describe("otherConflictCandidates", () => {
+  it("lists the recommended calendars other than the primary, by name, without generated or free/busy-only ones", () => {
+    expect(
+      otherConflictCandidates([
+        calendar("me@example.test", "owner", { primary: true, summary: "Me" }),
+        calendar("team@group.calendar.google.com", "reader", { summary: "Team" }),
+        calendar("shared@group.calendar.google.com", "writer", { summary: "Work" }),
+        calendar("en.south_korea#holiday@group.v.calendar.google.com", "reader", { summary: "Holidays" }),
+        calendar("busy-only@example.test", "freeBusyReader", { summary: "Busy" }),
+      ]),
+    ).toEqual(["Team", "Work"]);
+  });
+
+  it("is empty when the primary is the only calendar worth checking", () => {
+    expect(otherConflictCandidates([calendar("me@example.test", "owner", { primary: true })])).toEqual([]);
   });
 });

@@ -9,6 +9,8 @@
 // The card links Telegram too (guest-telegram-link design 2): "none" names the
 // bot's username, and a Telegram code carries the bot as lineNumber and the
 // bare code as message, so telegramLinkFor(lineNumber, message) is the start link.
+// The code links as soon as it arrives (link-on-code D1): "pending" goes straight
+// to "linked", whose sender is masked (maskedSender) or the Telegram name.
 
 export type GuestChannel = "imessage" | "whatsapp" | "telegram";
 
@@ -17,7 +19,6 @@ export const GUEST_CHANNELS = ["imessage", "whatsapp", "telegram"] as const sati
 export const REQUESTER_IMESSAGE_OPERATIONS = {
   emailOnly: "request.notifications.email_only",
   create: "request.imessage_link.create",
-  confirm: "request.imessage_link.confirm",
   unlink: "request.imessage_link.unlink",
   shareContactCard: "request.imessage_contact_card.share",
 } as const;
@@ -37,16 +38,6 @@ export type RequesterImessageStatus =
       readonly code: string;
       readonly message: string;
       readonly expiresAt: string;
-    }
-  // The code's message arrived; the guest confirms the masked sender (on
-  // Telegram, the sender's name).
-  | {
-      readonly state: "received";
-      readonly channel: GuestChannel;
-      readonly lineNumber: string;
-      readonly linkId: string;
-      readonly sender: string;
-      readonly confirmBy: string;
     }
   | { readonly state: "linked"; readonly channel: GuestChannel; readonly lineNumber: string; readonly sender: string; readonly linkedAt: string; readonly contactCard: { readonly state: "queued" | "sent" | "failed" | "uncertain" } | null };
 

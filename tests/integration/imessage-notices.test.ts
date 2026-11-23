@@ -16,8 +16,8 @@ import { runJob, testNotices, testTokenKey } from "./support/requests";
 import { revisionOf } from "./support/scheduling";
 
 // Host summaries and outcomes (host-imessage-channel task 4.4): each event of a
-// linked host's request (a new request, a proposal awaiting approval, a booking
-// confirmed, failed or still pending) is queued once to the linked
+// linked host's request (a proposal awaiting approval, a booking confirmed or
+// failed; a booking still pending sends nothing, #173) is queued once to the linked
 // conversation; a host without a binding gets nothing; a summary for an
 // outdated version is skipped; and a failed delivery shows on the web and leaves
 // the request as it was.
@@ -104,7 +104,7 @@ describe("host summaries", () => {
     expect(text).toMatch(/^Booked with Grace Hopper: .+\. It's on your calendar\.$/);
   });
 
-  it("reports a booking that was not confirmed, or is still pending", async () => {
+  it("reports a booking that was not confirmed, and none still pending (#173)", async () => {
     const { request } = await linkedAgreed();
     await noticesSent(request.hostAccountId, request.requestId);
     const approved = await asHost(db, request.hostAccountId, request.requestId, approveCommand, { version: 1 }, {
@@ -117,7 +117,8 @@ describe("host summaries", () => {
     // The 15-minute pending check, as the dispatch schedules it.
     const pendingJob = await db.begin((tx) => publishJob(tx, { dedupeKey: `test:${bookingId}`, kind: BOOKING_PENDING_JOB, payload: { bookingId } }));
     await runJob(db, pendingJob!, createBookingPendingHandler(() => testNotices));
-    expect((await noticesSent(request.hostAccountId, request.requestId))[0]).toContain("is taking longer than usual to confirm");
+    // The guest is told; the host is not, since booking_confirmed or booking_failed follows.
+    expect(await noticesSent(request.hostAccountId, request.requestId)).toEqual([]);
 
     await db`update app.bookings set state = 'reserved', dispatched_at = null, payload = null where id = ${bookingId}`;
     request.setCalendar({ insertBehavior: { [request.calendarId]: { status: 403 } } });

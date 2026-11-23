@@ -45,4 +45,13 @@ describe("the Choose a time calendar", () => {
     expect(html).toContain("cw-mark cw-trip");
     expect(html).toContain("Dashed times depend on your trip");
   });
+
+  it("tags a ticked time and names its notes", () => {
+    const noted = { ...a, notes: ["Inside your usual Tuesday hours 09:00–12:00."] };
+    const html = renderToStaticMarkup(
+      <CandidateCalendar bookingId="x" busy={false} linkMissing={() => false} marked={["a"]} offered={[noted, b]} onChoose={() => {}} onTrip={() => {}} timeZone={SEOUL} trips={[]} />,
+    );
+    expect(html).toContain('aria-label="Choose this time: Tuesday 1 Dec, 10:00–10:30, ticked as also working. Inside your usual Tuesday hours 09:00–12:00."');
+    expect(html).toContain("✓ Also works");
+  });
 });

@@ -12,6 +12,7 @@
 ## 3. Guest (#374)
 
 - [x] 3.1 Draw **Choose a time** as a week grid (one day with a day switcher on a phone), with shared details said once and trip-dependent times dashed.
+- [x] 3.1a Keep offering several times together and the guest-host notes (#426, #60) in a list under the grid, and tag ticked times on it.
 - [x] 3.2 Add `GET /api/requests/{bookingId}/busy` and draw the guest's own busy times under the offered times; cover the busy rules and the times-only answer with unit tests.
 
 ## 4. Documents and acceptance

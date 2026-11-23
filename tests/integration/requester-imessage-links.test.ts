@@ -9,7 +9,6 @@ import { guestNoticeKey, IMESSAGE_NOTICE_JOB } from "../../lib/server/imessage-n
 import { withdrawRequestCommand } from "../../lib/server/request-lifecycle";
 import { REQUESTER_LINK_TEXTS } from "../../lib/server/requester-imessage-bindings";
 import {
-  confirmRequesterImessageLinkCommand,
   createRequesterImessageLinkCommand,
   emailOnlyRequesterCommand,
   readRequesterImessageStatus,
@@ -26,11 +25,11 @@ import { createTestRequest, jobFor, runJob, testNotices, testTokenKey } from "./
 
 // Linking a guest's iMessage to one request against the local stack and the
 // Photon stand-in (guest-flow-completion task 3.4): a code the booking page made
-// binds only after the guest confirms the masked sender, with a welcome that
-// carries no booking link; a code that ran out binds nothing; a forwarded code
-// binds nothing until the holder of the booking link confirms, and confirms
-// only the sender it shows; a host may also be a guest; unlinking ends the
-// binding and suppresses what had not left; and a withdrawn request keeps it.
+// binds its sender as soon as it arrives (link-on-code D1), with a welcome that
+// carries no booking link; a code that ran out, or arrives for a closed request,
+// binds nothing; a forwarded code links whoever sends it first, only to its own
+// request, and the guest unlinks it; a host may also be a guest; unlinking ends
+// the binding and suppresses what had not left; and a withdrawn request keeps it.
 // WhatsApp links the same way (guest-whatsapp-link tasks 2.1 and 2.2): the
 // number is registered without keeping Photon's assigned number, the code is
 // addressed to the WhatsApp number, the binding records its channel, the
@@ -43,7 +42,7 @@ let photon: FakePhoton;
 const im = imessageHarness(db, () => photon);
 const options = { lineNumber: TEST_LINE, registrar: im.registrar, tokenKey: testTokenKey, tokenKeys: [testTokenKey], whatsappNumber: TEST_WHATSAPP_NUMBER };
 const commands: Readonly<Record<string, CommandDefinition<unknown, unknown>>> = Object.fromEntries(
-  [createRequesterImessageLinkCommand(options), confirmRequesterImessageLinkCommand(options), unlinkRequesterImessageCommand, emailOnlyRequesterCommand, shareRequesterContactCardCommand(options)].map(
+  [createRequesterImessageLinkCommand(options), unlinkRequesterImessageCommand, emailOnlyRequesterCommand, shareRequesterContactCardCommand(options)].map(
     (command) => [command.operation, command as unknown as CommandDefinition<unknown, unknown>],
   ),
 );
@@ -86,10 +85,9 @@ async function pendingCode(requestId: string) {
 async function linkedGuest(sender: string = newSender()) {
   const request = await createTestRequest(db);
   const pending = await pendingCode(request.requestId);
-  await im.deliver({ sender, text: pending.message });
-  const received = await status(request.requestId);
-  if (received.state !== "received") throw new Error(`Expected a received code, got ${received.state}.`);
-  expect((await asGuest(request.requestId, REQUESTER_IMESSAGE_OPERATIONS.confirm, { linkId: received.linkId })).ok).toBe(true);
+  expect((await im.deliver({ sender, text: pending.message })).outcome).toBe("link_received");
+  const linked = await status(request.requestId);
+  if (linked.state !== "linked") throw new Error(`Expected a linked sender, got ${linked.state}.`);
   return { ...request, sender };
 }
 
@@ -126,25 +124,21 @@ describe("linking a guest's iMessage", () => {
     expect((await asGuest(guest.requestId, REQUESTER_IMESSAGE_OPERATIONS.unlink)).ok).toBe(true);
     expect(await status(guest.requestId)).toMatchObject({ state: "none" });
   });
-  it("shows the code and the guest message, records the arriving sender, and binds only after confirmation", async () => {
+  it("shows the code and the guest message, and binds the arriving sender at once", async () => {
     const request = await createTestRequest(db);
     const sender = newSender();
     const pending = await pendingCode(request.requestId);
     expect(pending).toMatchObject({ lineNumber: TEST_LINE, message: `Get Find Me a Time updates: ${pending.code}` });
 
     expect((await im.deliver({ sender, text: pending.message })).outcome).toBe("link_received");
-    const received = await status(request.requestId);
-    expect(received).toMatchObject({ sender: sender, state: "received" });
-    expect(await bindingOf(request.requestId)).toBeNull();
-
     const senderHash = imessageHash(testTokenKey, "sender", sender);
-    const [ack] = await im.outbox({ kind: "link_received", recipientHash: senderHash });
-    expect(textOf((await im.send(ack!.id)).sent)).toEqual([REQUESTER_LINK_TEXTS.received]);
-
-    if (received.state !== "received") throw new Error("Expected a received code.");
-    expect((await asGuest(request.requestId, REQUESTER_IMESSAGE_OPERATIONS.confirm, { linkId: received.linkId })).ok).toBe(true);
     expect(await bindingOf(request.requestId)).toMatchObject({ sender_hash: senderHash, state: "active" });
-    expect(await status(request.requestId)).toMatchObject({ sender: sender, state: "linked" });
+    // The card shows the number by its last four digits (link-on-code D4).
+    expect(await status(request.requestId)).toMatchObject({ sender: `•••• ${sender.slice(-4)}`, state: "linked" });
+    const [attempt] = await db<{ state: string }[]>`select state from app.imessage_links where request_id = ${request.requestId}`;
+    expect(attempt!.state).toBe("linked");
+    // No "go back to your booking page" reply: the welcome is the only message.
+    expect(await im.outbox({ kind: "link_received", recipientHash: senderHash })).toHaveLength(0);
 
     // The welcome is a reply in that conversation and names no booking link.
     const [welcome] = await im.outbox({ kind: "linked", recipientHash: senderHash });
@@ -154,37 +148,54 @@ describe("linking a guest's iMessage", () => {
     expect(textOf(sent)[0]).not.toContain(request.bookingId);
   });
 
-  it("binds nothing for a code that ran out or was never confirmed", async () => {
+  it("binds nothing for a code that ran out, or that arrives once the request closed", async () => {
     const request = await createTestRequest(db);
     const expired = await pendingCode(request.requestId);
     await db`update app.imessage_links set expires_at = now() - interval '1 second' where request_id = ${request.requestId} and state = 'pending'`;
     expect((await im.deliver({ sender: newSender(), text: expired.message })).outcome).toBe("link_refused");
     expect(await status(request.requestId)).toMatchObject({ state: "none" });
 
-    const unconfirmed = await pendingCode(request.requestId);
-    await im.deliver({ sender: newSender(), text: unconfirmed.message });
-    await db`update app.imessage_links set confirm_by = now() - interval '1 second' where request_id = ${request.requestId} and state = 'received'`;
-    expect(await status(request.requestId)).toMatchObject({ state: "none" });
-    const [link] = await db<{ id: string }[]>`select id from app.imessage_links where request_id = ${request.requestId} and state = 'received'`;
-    expect((await asGuest(request.requestId, REQUESTER_IMESSAGE_OPERATIONS.confirm, { linkId: link!.id })).ok).toBe(false);
+    const closed = await pendingCode(request.requestId);
+    await db`update app.requests set state = 'withdrawn', closed_at = now() where id = ${request.requestId}`;
+    expect((await im.deliver({ sender: newSender(), text: closed.message })).outcome).toBe("link_refused");
     expect(await bindingOf(request.requestId)).toBeNull();
+    const [attempt] = await db<{ state: string }[]>`select state from app.imessage_links where code_hash = ${hashLinkCode(closed.code)}`;
+    expect(attempt!.state).toBe("voided");
   });
 
-  it("binds a forwarded code to nobody but the sender the booking page shows, and only for that request", async () => {
+  it("treats the same sender sending the code again as the same link, and refuses it from anyone else", async () => {
+    const request = await createTestRequest(db);
+    const sender = newSender();
+    const pending = await pendingCode(request.requestId);
+    expect((await im.deliver({ sender, text: pending.message })).outcome).toBe("link_received");
+    const binding = await bindingOf(request.requestId);
+    expect((await im.deliver({ sender, text: pending.message })).outcome).toBe("link_received");
+    expect(await im.outbox({ kind: "link_refused", recipientHash: imessageHash(testTokenKey, "sender", sender) })).toHaveLength(0);
+    expect(await im.outbox({ kind: "linked", recipientHash: imessageHash(testTokenKey, "sender", sender) })).toHaveLength(1);
+
+    expect((await im.deliver({ sender: newSender(), text: pending.message })).outcome).toBe("link_refused");
+    expect(await bindingOf(request.requestId)).toMatchObject({ id: binding!.id, state: "active" });
+  });
+
+  // A forwarded code links whoever sends it first (link-on-code D3); the booking
+  // page then shows that number and Unlink, and the guest makes a new code (D2).
+  it("binds a forwarded code to its sender for that request only, and lets the guest unlink it", async () => {
     const request = await createTestRequest(db);
     const other = await createTestRequest(db);
     const pending = await pendingCode(request.requestId);
-    // Someone the code was forwarded to sends it first.
     const stranger = newSender();
-    await im.deliver({ sender: stranger, text: pending.message });
-    const received = await status(request.requestId);
-    expect(received).toMatchObject({ sender: stranger, state: "received" });
-    if (received.state !== "received") throw new Error("Expected a received code.");
-
-    // Another request's booking link cannot confirm it.
-    expect((await asGuest(other.requestId, REQUESTER_IMESSAGE_OPERATIONS.confirm, { linkId: received.linkId })).ok).toBe(false);
+    expect((await im.deliver({ sender: stranger, text: pending.message })).outcome).toBe("link_received");
+    expect(await status(request.requestId)).toMatchObject({ sender: `•••• ${stranger.slice(-4)}`, state: "linked" });
     expect(await bindingOf(other.requestId)).toBeNull();
-    expect(await bindingOf(request.requestId)).toBeNull();
+
+    expect(await asGuest(request.requestId, REQUESTER_IMESSAGE_OPERATIONS.unlink)).toMatchObject({ ok: true, result: { unlinked: true } });
+    expect(await status(request.requestId)).toMatchObject({ state: "none" });
+    expect((await im.outbox({ kind: "linked", recipientHash: imessageHash(testTokenKey, "sender", stranger) }))[0]!.state).toBe("suppressed");
+
+    const own = newSender();
+    const fresh = await pendingCode(request.requestId);
+    expect((await im.deliver({ sender: own, text: fresh.message })).outcome).toBe("link_received");
+    expect(await bindingOf(request.requestId)).toMatchObject({ sender_hash: imessageHash(testTokenKey, "sender", own), state: "active" });
   });
 
   it("lets a linked host link the same number as a guest, and a sender hold several requests", async () => {
@@ -271,9 +282,7 @@ async function linkedWhatsAppGuest(sender: string = newWhatsAppSender()) {
   const pending = await status(request.requestId);
   if (pending.state !== "pending") throw new Error(`Expected a pending code, got ${pending.state}.`);
   expect((await im.deliver({ channel: "whatsapp", sender, text: pending.message })).outcome).toBe("link_received");
-  const received = await status(request.requestId);
-  if (received.state !== "received") throw new Error(`Expected a received code, got ${received.state}.`);
-  expect((await asGuest(request.requestId, REQUESTER_IMESSAGE_OPERATIONS.confirm, { linkId: received.linkId })).ok).toBe(true);
+  expect(await status(request.requestId)).toMatchObject({ state: "linked" });
   return { ...request, sender, senderHash: channelHash(testTokenKey, "whatsapp", "sender", sender) };
 }
 
@@ -318,7 +327,7 @@ describe("linking a guest's WhatsApp", () => {
     expect(await status(request.requestId)).toMatchObject({ state: "none" });
   });
 
-  it("registers the number, addresses the WhatsApp number, and binds the WhatsApp sender after confirmation", async () => {
+  it("registers the number, addresses the WhatsApp number, and binds the WhatsApp sender on arrival", async () => {
     const request = await createTestRequest(db);
     const sender = newWhatsAppSender();
     photon.nextRegistration({ lineNumber: "+15550009999" });
@@ -333,22 +342,19 @@ describe("linking a guest's WhatsApp", () => {
     if (pending.state !== "pending") throw new Error("Expected pending.");
 
     expect((await im.deliver({ channel: "whatsapp", sender, text: pending.message })).outcome).toBe("link_received");
-    const received = await status(request.requestId);
-    expect(received).toMatchObject({ channel: "whatsapp", sender: `+${sender}`, state: "received" });
     const senderHash = channelHash(testTokenKey, "whatsapp", "sender", sender);
-    const [ack] = await im.outbox({ kind: "link_received", recipientHash: senderHash });
-    const acked = await im.send(ack!.id);
-    expect(acked.sent).toEqual([expect.objectContaining({ channel: "whatsapp" })]);
-    expect(textOf(acked.sent)).toEqual([REQUESTER_LINK_TEXTS.received]);
-
-    if (received.state !== "received") throw new Error("Expected received.");
-    expect((await asGuest(request.requestId, REQUESTER_IMESSAGE_OPERATIONS.confirm, { linkId: received.linkId })).ok).toBe(true);
+    expect(await im.outbox({ kind: "link_received", recipientHash: senderHash })).toHaveLength(0);
     const [binding] = await db<{ channel: string; sender_hash: string; in_window: boolean }[]>`
       select channel, sender_hash, last_inbound_at > now() - interval '1 hour' as in_window
       from app.requester_imessage_bindings where request_id = ${request.requestId} and state = 'active'
     `;
     expect(binding).toEqual({ channel: "whatsapp", in_window: true, sender_hash: senderHash });
-    expect(await status(request.requestId)).toMatchObject({ channel: "whatsapp", lineNumber: TEST_WHATSAPP_NUMBER, state: "linked" });
+    expect(await status(request.requestId)).toMatchObject({
+      channel: "whatsapp",
+      lineNumber: TEST_WHATSAPP_NUMBER,
+      sender: `•••• ${sender.slice(-4)}`,
+      state: "linked",
+    });
 
     // The welcome goes out on WhatsApp, inside the window the link message opened.
     const [welcome] = await im.outbox({ kind: "linked", recipientHash: senderHash });

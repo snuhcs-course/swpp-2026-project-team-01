@@ -51,6 +51,14 @@ export async function readReadiness(db: Queryable, hostAccountId: string): Promi
 
 // The ready host behind a public handle, or null for an unknown, released,
 // unready or suspended one, which every public surface treats the same way.
+// Whether the host saved settings at least once. Readiness can lapse later (a
+// revoked grant, a booking calendar that is no longer writable), but setup is
+// not starting over, so the chat setup's overview and step lines are left out.
+export async function savedSettingsOnce(db: Queryable, hostAccountId: string) {
+  const [row] = await db`select 1 from app.host_settings where host_account_id = ${hostAccountId}`;
+  return row !== undefined;
+}
+
 export async function findReadyHostByHandle(db: Queryable, handle: string) {
   const [row] = await db<{ host_account_id: string }[]>`
     select host_account_id from app.host_handles where handle = ${handle} and released_at is null

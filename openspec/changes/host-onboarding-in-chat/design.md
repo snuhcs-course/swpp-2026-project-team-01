@@ -2,13 +2,13 @@
 
 ## Context
 
-A host links iMessage or WhatsApp from the landing (`/?flow=imessage`, `/?flow=whatsapp`): number, code, Thyme's sign-in link, Google sign-in, **Confirm and link** ([`host-imessage-channel`](../host-imessage-channel/proposal.md) D15, D19; [`imessage-number-registration`](../imessage-number-registration/proposal.md)). Google sign-in already requests the Calendar scopes with identity (`lib/server/google-sign-in.ts`), so most hosts have a usable grant when the link is confirmed. The welcome then asks for Calendar or the first setup question (`LINK_TEXTS`, `lib/server/imessage-links.ts`).
+A host links iMessage or WhatsApp from the landing (`/?flow=imessage`, `/?flow=whatsapp`): number, code, Thyme's sign-in link, Google sign-in, **Confirm and link** ([`host-imessage-channel`](../host-imessage-channel/proposal.md) D15, D19; [`imessage-number-registration`](../imessage-number-registration/proposal.md)). Google sign-in already requests the Calendar scopes with identity (`lib/server/google-sign-in.ts`), so most hosts have a usable grant when the link is confirmed. The welcome then asks for Calendar or the first setup question (`LINK_TEXTS`, `lib/server/imessage-links.ts`). Superseded by [`link-on-code`](../link-on-code/proposal.md) D5: the sign-in now binds the recorded sender, with no **Confirm and link**.
 
 Two steps block finishing in the chat: calendar roles (only `setup.save_calendar_roles` from the web saves them) and the host-answer fields (meeting mode, location, travel mode), which `missingFields` counts only when `accepted` (`lib/server/setup.ts`), set only by the web's `setup.update_draft`.
 
 ## 1. The path
 
-1. Web: number, code, Thyme's sign-in link, Google sign-in with Calendar, **Confirm and link**. The browser then shows the post-link page owned by the web UI work.
+1. Web: number, code, Thyme's sign-in link, Google sign-in with Calendar, **Confirm and link**. The browser then shows the post-link page owned by the web UI work. Superseded by [`link-on-code`](../link-on-code/proposal.md) D5: the sign-in now binds the recorded sender, with no **Confirm and link**.
 2. Chat: the welcome. With a usable grant, the service saves the default roles (design 2), publishes the analysis and says so; without one, Thyme sends the Calendar link as today, and the same happens on the return from Google.
 3. When the analysis settles (done or failed), the service sends the hours question (design 3) once.
 4. Thyme records the host's answer and asks the place question (design 4).
