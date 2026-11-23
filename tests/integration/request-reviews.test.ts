@@ -89,7 +89,7 @@ describe("declared intent", () => {
     expect(await reviews(r.requestId)).toEqual([]);
   });
 
-  it("keeps an explicit scheduling draft advisory until it is applied", async () => {
+  it("keeps a draft that changes the length and purpose the request holds advisory until it is applied", async () => {
     const r = await requester();
     const outcome = await draftRequestReviewForTool(db, r.call(), {
       details: { durationMinutes: 45, mode: "online", purpose: "Research collaboration", windows: [{ date: "2099-03-02", end: "12:00", start: "10:00" }] },
@@ -148,19 +148,20 @@ describe("temporally valid review windows", () => {
 
   it("invents no duration for windows proposed before one is known, and incomplete details cannot choose", async () => {
     const r = await requester({ durationMinutes: null });
+    // The guest's own times apply at once (#411); without a length there is
+    // nothing to search yet (#241).
     const outcome = await draftRequestReviewForTool(db, r.call(), {
       details: { windows: [{ date: "2099-03-02", end: "10:20", start: "10:00" }] },
       intent: "availability",
     });
 
-    expect(outcome).toMatchObject({ recorded: true });
+    expect(outcome).toMatchObject({ message: expect.stringContaining("Something is still missing"), recorded: true, review: null });
     const [review] = await reviews(r.requestId);
+    expect(review!.state).toBe("applied");
     expect(review!.patch).not.toHaveProperty("durationMinutes");
-
-    const applied = await asRequester(db, r.requestId, applyReviewCommand(contact), { reviewId: review!.id }, { expectedRevision: 1 });
     expect((await details(r.requestId)).details.durationMinutes).toBeNull();
-    // Without a length there is nothing to search yet (#241).
-    expect(applied).toMatchObject({ ok: true, result: { findTimes: false } });
+    const [evaluations] = await db<{ count: number }[]>`select count(*)::int as count from app.evaluations where request_id = ${r.requestId}`;
+    expect(evaluations!.count).toBe(0);
   });
 });
 
