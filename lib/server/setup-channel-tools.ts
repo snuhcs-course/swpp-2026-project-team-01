@@ -26,6 +26,7 @@ import type { ClaimedJob, JobHandler } from "./jobs";
 import { slotPreviewNoteExclusions } from "./note-decisions";
 import { readNoteReview } from "./note-review";
 import { latestSlotImage, noteReviewLinkKey, noteStepOf, queueSlotImageAfterWait, slotImageDelivery } from "./onboarding-note-step";
+import { stripChannelMarkers } from "../contracts/messaging-channel";
 import { SETUP_FIELD_SCHEMAS } from "../contracts/setup";
 import { enqueueSettingsButtonRetirement } from "./telegram-jobs";
 
@@ -328,7 +329,9 @@ export async function previewNextWeekForTool(deps: SetupDependencies, call: Setu
     };
   }
   const times = channelReplies(language).onboarding.slotSummary(preview);
-  const change = input.changeSummary && redactCredentials(input.changeSummary, { bareUuids: true }).trim();
+  // The model's summary leads the image's text, which stands in for the turn
+  // reply, so it drops a copied channel marker too (#410).
+  const change = input.changeSummary && stripChannelMarkers(redactCredentials(input.changeSummary, { bareUuids: true })).trim();
   const summary = change ? `${change} ${times}` : times;
   const outcome = await runCommand({ authenticate: async () => actor, db: deps.db }, {
     operation: "setup.preview_next_week",

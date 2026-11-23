@@ -190,7 +190,7 @@ export function confirmSettingsCommand(
 
       if (savedChange) {
         if (!proposal.records.confirmed) throw new CommandError("invalid_input");
-        if (savedChange.call) await authorizeSetupTool(tx, savedChange.call.auth, savedChange.call.sessionId, { lock: true });
+        if (savedChange.call) await authorizeSetupTool(tx, savedChange.call.auth, savedChange.call.sessionId, { allowReview: savedChange.call.fromRequest, lock: true });
         if (savedChange.acceptStated && !(savedChange.call && (await channelOfTurn(tx, savedChange.call.sessionId, hostAccountId)))) {
           throw new CommandError("forbidden");
         }

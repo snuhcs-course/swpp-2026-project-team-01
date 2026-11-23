@@ -263,3 +263,82 @@ When the requester is a host who uses their host calendars for the request, feas
 #### Scenario: Explaining the order to the guest only
 - **WHEN** a time is inside the guest-host's usual Monday hours
 - **THEN** the guest sees "Inside your usual Monday hours 12:00–13:00." under it, and the host's basis for that time does not mention it
+
+### Requirement: Same-day trip preference
+A host MAY confirm in setup a preference to group trips by day; it SHALL be off by default and on every policy confirmed before it existed, and it SHALL be a preference, never a hard constraint. With it on, for an in-person meeting whose place the host's travel mode puts beyond 30 minutes of the host's preferred area, candidates on days that already hold a timed in-person commitment within 15 minutes of the meeting place SHALL come first, and candidates on days whose in-person commitments all lie within 15 minutes of the preferred area SHALL come last. Distances SHALL come from the same route estimates and cache as the travel check, not straight-line distance. The preference SHALL order candidates after the weekly meeting load preference and before requester preferences and the spread across days, SHALL never remove a candidate, and SHALL leave the order unchanged for online meetings, an unknown meeting place, a per-trip travel mode, or missing estimates. The host's private explanation MAY say the host is already near the meeting place that day; requester output SHALL contain only the times.
+
+#### Scenario: Already out that way
+- **WHEN** the policy is on, the meeting place is far from the preferred area, and one day holds an in-person commitment near the meeting place
+- **THEN** that day's candidates are offered before other days' and the host's explanation says they are already near the meeting place that day
+
+#### Scenario: A day in the preferred area
+- **WHEN** the policy is on, the meeting place is far, and one day's in-person commitments are all near the preferred area
+- **THEN** that day's candidates come after every other day's, and no candidate is removed
+
+#### Scenario: Weekly limit still wins
+- **WHEN** the day with a nearby commitment falls in a week at the weekly limit and another week is below it
+- **THEN** candidates from the week below the limit come first
+
+#### Scenario: Online meeting
+- **WHEN** the meeting is online
+- **THEN** the order is the same as with the policy off
+
+#### Scenario: Requester view
+- **WHEN** a candidate is ranked by the preference
+- **THEN** the requester's projection contains no basis, place or explanation of the rank
+
+### Requirement: Time and place pairs
+When an in-person request names no place and the host's confirmed location answer lists places, each candidate SHALL be a pair of a time and one of those places, the venue first and then the areas in the host's order. Each pair SHALL pass every feasibility check with its own place as the meeting place, including both parties' travel legs, buffers, allowances and unresolved rules. The candidate cut before the travel check SHALL count pairs, so an evaluation needs no more route estimates than with one place. The requester SHALL see each pair's time and place, with each time's first offered pair before any time's second. A request that names a place, a host who decides the place per meeting, and online meetings SHALL keep one place or none per candidate. Observed place evidence from calendar analysis SHALL NOT become a pair's place.
+
+#### Scenario: Two host places
+- **WHEN** the host lists a venue and one area, the guest asks to meet in person without naming a place, and a time is free
+- **THEN** that time is checked once at the venue and once in the area, and each feasible pair is its own option showing its time and place
+
+#### Scenario: Travel decides the place
+- **WHEN** the host's commitment before a time leaves too little gap to reach the venue but enough to reach the area
+- **THEN** the pair at the area is offered and the pair at the venue is not, and the guest sees no reason
+
+#### Scenario: Guest named a place
+- **WHEN** the request names a place
+- **THEN** every candidate is at that place only, with the candidate IDs and order it had before pairs existed
+
+### Requirement: Another meeting area
+When the guest asks to meet in another area, its place SHALL become the request's place through the existing review, and the next evaluation SHALL offer only pairs at that place under the same checks. When none is offered, the requester SHALL be told that no time works there yet, with no reason that reveals the host's calendar, commitments, travel, allowances or rules. Asking for another area SHALL count as an evaluation under the existing limit per request.
+
+#### Scenario: Feasible pairs elsewhere
+- **WHEN** the guest asks for another area and some times there fit the host's calendar and travel
+- **THEN** the guest sees those times, each with the area they asked for
+
+#### Scenario: Nothing works there
+- **WHEN** no time in the guest's area passes the checks
+- **THEN** the guest is told no time works there yet and may try another area, other days or one of the host's places, and nothing names the host's events or trips
+
+#### Scenario: Repeated areas
+- **WHEN** a guest who already started 10 evaluations of the request in the last hour asks for yet another area
+- **THEN** no evaluation starts and the guest is told to try again later
+
+### Requirement: The chosen pair stays as chosen
+Choosing a pair SHALL make a proposal with exactly its time and place. Agreement's calendar recheck and booking revalidation SHALL check that pair's place, and the host's approval and the booked event SHALL carry that place unchanged.
+
+#### Scenario: Recheck at the chosen place
+- **WHEN** the guest chose the pair at the area and agrees to it
+- **THEN** the recheck checks travel to the area, not to the venue, and the host approves and books the area at that time
+
+### Requirement: Offered times spread across the range
+Feasibility SHALL order the times it offers across the requested range and the parts of each day, for the default search and the requester's own windows alike. Within each rank set by the host's weekly-limit and trip preferences and the requester's preferences, each local day's first time SHALL come before any day's second, and a later time on a day SHALL come at least two hours from that day's earlier times while such a time remains; the remaining times SHALL follow in their order. The spread SHALL NOT remove a time or move one across a rank. A model ranking SHALL be spread the same way, its order breaking ties, so it cannot put one day's times first.
+
+#### Scenario: A whole week
+- **WHEN** the requester gives any weekday next week and Monday is free only from 12:45
+- **THEN** the first three offered times are Monday 12:45, Tuesday's first time and Wednesday's first time, and Monday 13:00 is still offered later
+
+#### Scenario: One day
+- **WHEN** the requester gives Monday 10:00 to 17:00 for a 30-minute meeting
+- **THEN** the times are offered as 10:00, 12:00, 14:00 and 16:00 first, then the other quarter hours in time order
+
+#### Scenario: A preferred week
+- **WHEN** one week is at the host's weekly limit and the next is below it
+- **THEN** every time in the week below the limit still comes first, spread across its days
+
+#### Scenario: A ranking that favours sooner dates
+- **WHEN** the ranking puts three Monday times 15 minutes apart before Tuesday's first time
+- **THEN** Monday's first ranked time and Tuesday's come first, and the other two Monday times after them
