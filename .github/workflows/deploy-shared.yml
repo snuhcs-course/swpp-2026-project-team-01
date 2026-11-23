@@ -79,5 +79,5 @@ jobs:
               exit 1
             fi
           done
-          supabase config diff --project-ref "$SUPABASE_PROJECT_REF"
-          supabase config push --project-ref "$SUPABASE_PROJECT_REF" --yes
+          supabase config diff --remote
+          supabase config push --remote --yes
