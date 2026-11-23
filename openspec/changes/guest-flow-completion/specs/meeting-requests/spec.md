@@ -55,7 +55,7 @@ The booking page SHALL offer **Get updates in iMessage** while the request is op
 ## MODIFIED Requirements
 
 ### Requirement: Complete account-free intake
-Ready public hosts SHALL accept requests without requester signup. The service SHALL collect purpose, requester identity/contact, timezone, duration, mode, and location or meeting link, clarifying missing or ambiguous fields; date windows SHALL be optional, and without them times SHALL be found over the next two weeks. A new request SHALL start with the host's meeting length, and with the meeting form when the host offers only one. The requester's assistant SHALL ask only for what is still open, one question at a time, using what the host offers every guest and nothing else of the host's settings, and SHALL draft the details in one review once nothing is missing. The requester website SHALL allow the requester to supply and refine scheduling details through conversation, review extracted changes before applying them, except that availability alone is applied and searched immediately when the meeting details are complete; evaluate availability, select a feasible candidate, and explicitly agree to the exact current proposal. Determinable days and relative weeks use the requester's timezone and cover the whole named days; genuinely ambiguous times still require clarification.
+Ready public hosts SHALL accept requests without requester signup. The service SHALL collect purpose, requester identity/contact, timezone, duration, mode, and location or meeting link, clarifying missing or ambiguous fields; date windows SHALL be optional, and without them times SHALL be found over the next two weeks. A new request SHALL start with the host's meeting length, and with the meeting form when the host offers only one. The requester's assistant SHALL ask only for what is still open, one question at a time, using what the host offers every guest and nothing else of the host's settings, and SHALL draft the details once nothing is missing. The requester website SHALL allow the requester to supply and refine scheduling details through conversation, have the details they state applied at once and searched once the meeting has its purpose, length and form, review before applying only the changes the assistant inferred, those that differ from what the request holds and contact changes (apply-stated-details, #411); evaluate availability, select a feasible candidate, and explicitly agree to the exact current proposal. Determinable days and relative weeks use the requester's timezone and cover the whole named days; genuinely ambiguous times still require clarification.
 
 #### Scenario: Missing details
 - **WHEN** a requester asks for thirty minutes next week without timezone or location
@@ -65,9 +65,13 @@ Ready public hosts SHALL accept requests without requester signup. The service S
 - **WHEN** English or Korean intake supplies sufficient details
 - **THEN** the service normalizes validated details and preserves the requester's stated intent
 
+#### Scenario: Stated conversational details
+- **WHEN** a requester message states an unambiguous purpose, meeting length, meeting mode, location or availability window that the request does not yet hold differently
+- **THEN** the assistant's draft applies it at once without a review card, says in one line what it applied and that the requester can change it in words, and finds times once the request has its purpose, length and form
+
 #### Scenario: Reviewed conversational details
-- **WHEN** a requester message contains an unambiguous purpose, meeting mode, or location
-- **THEN** the website presents the extracted changes for review and does not change the request until the requester applies them, on the card or in words
+- **WHEN** the assistant infers a value the requester did not state, such as an afternoon read as clock bounds or in person taken from a place named as where to meet, or the message gives a value that differs from what the request holds
+- **THEN** the website presents that value for review and does not change it until the requester applies it, on the card or in words, while the stated rest of the message applies at once and no times are searched until the review is settled
 
 #### Scenario: A guest names days after completing meeting details
 - **WHEN** a requester with complete meeting details names only a date or a determinable relative week
@@ -93,7 +97,7 @@ Ready public hosts SHALL accept requests without requester signup. The service S
 
 #### Scenario: Host offers one form
 - **WHEN** the host meets only online and the guest has said what the meeting is for
-- **THEN** the assistant does not ask for the form or the length, and drafts the review
+- **THEN** the assistant does not ask for the form or the length, and drafts the details, which apply at once
 
 ### Requirement: Continuous guest conversation
 A ready host's public page SHALL open on a landing that names whose booking link it is and offers **Start with agent** and **Continue with web**. The web start SHALL show two fixed messages, the host's assistant's greeting and a request to continue with Google and Calendar, with the identity card, and SHALL write nothing and call no model until the guest presses **Continue with Google** or **Continue without Google**. That button SHALL create a draft request that is invisible to the host, accepts no message and is deleted 24 hours after creation unless the guest is identified, and the Google return or the name and email form SHALL identify it, send the creation email and open the booking page. Drafts SHALL be bounded to 5 per source address in any rolling hour and 20 in any rolling day. A request whose contact is unconfirmed and that holds no live Google identity SHALL have at most USD 3 of model allowance per 24 hours, counted toward a USD 50 anonymous allowance across the service; once its contact is confirmed or a Google identity is held, the usual request allowance SHALL apply, counting what it already spent. The booking page SHALL keep the two fixed messages at the top of the thread, settle the Calendar step, then ask with a fixed message what the meeting is for, with what the host offers, before the assistant's first turn. Candidate evaluation, candidate selection and agreement SHALL require the guest to be identified.
