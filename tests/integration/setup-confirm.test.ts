@@ -1,5 +1,6 @@
 import { randomUUID } from "node:crypto";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
+import { DEFAULT_MEETING_MINUTES } from "../../lib/contracts/setup";
 import { recordDestinationAccess, saveCalendarRolesCommand } from "../../lib/server/calendar-roles";
 import { runCommand } from "../../lib/server/commands";
 import { approveCommand, declineCommand } from "../../lib/server/bookings";
@@ -204,10 +205,10 @@ describe("setup.confirm_settings", () => {
     const live = await prepareReviewableHost(db, host);
     expect(await confirm(host, live)).toMatchObject({ ok: true });
 
-    expect(await adjust(host, "durationMinutes", 60)).toMatchObject({ ok: true });
+    expect(await adjust(host, "durationMinutes", 45)).toMatchObject({ ok: true });
 
     expect(await readHostStanding(db, host.userId)).toMatchObject({ ready: true });
-    expect((await settingsOf(host.hostAccountId))!.settings).toMatchObject({ durationMinutes: 30 });
+    expect((await settingsOf(host.hostAccountId))!.settings).toMatchObject({ durationMinutes: DEFAULT_MEETING_MINUTES });
     expect(await readSetupState(deps, host.hostAccountId)).toMatchObject({ nextAction: "ready", pendingChanges: true });
   });
 

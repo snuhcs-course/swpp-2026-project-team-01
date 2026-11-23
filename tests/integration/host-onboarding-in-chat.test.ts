@@ -11,7 +11,7 @@ import { listHostRequests } from "../../lib/server/host-requests";
 import { resumeImessageOnboarding } from "../../lib/server/imessage-links";
 import { computeSetupProposal } from "../../lib/server/setup";
 import { chooseTutorialForTool, confirmSettingsForTool, previewNextWeekForTool, setCalendarRolesForTool } from "../../lib/server/setup-channel-tools";
-import { draftSettingsForTool, modelProjection, readSetupStateForTool, type SetupToolCall } from "../../lib/server/setup-tools";
+import { changeSettingsFromRequestForTool, draftSettingsForTool, modelProjection, readSettingsFromRequestForTool, readSetupStateForTool, type SetupToolCall } from "../../lib/server/setup-tools";
 import { settingsRef } from "../../lib/server/request-ref";
 import { readSetupState } from "../../lib/server/setup";
 import { testDatabase } from "./support/database";
@@ -247,6 +247,60 @@ describe("slot preview and acceptance", () => {
     const image = (await im.outbox({ hostAccountId: host.hostAccountId, kind: "image" })).at(-1);
     await im.send(image!.id, { ...im.sendDeps(), tokenKeys: deps.calendar.tokenKeys });
     expect(photon.sends.at(-1)?.content).toMatchObject({ kind: "image", preview: { saved: true }, summary: expect.stringMatching(/(?:Guests can book these now\.|지금 게스트가 이 시간으로 예약할 수 있어요\.)$/) });
+  });
+
+  it("saves a preferred place change from a request's conversation at once (#367)", async () => {
+    const { host, sender, call } = await reviewable();
+    const ref = settingsRef((await computeSetupProposal(db, host.hostAccountId))!.proposalHash);
+    await sendPreview(call, host);
+    const yes = await turn(host, sender, "Yes, open those");
+    expect(await confirmSettingsForTool(deps, yes, { reviewRef: ref })).toMatchObject({ saved: true });
+
+    // The sample request's summary moves the linked conversation to that request.
+    const accepted = await turn(host, sender, "Yes, I'd like to try the tutorial");
+    expect(await chooseTutorialForTool(deps, accepted, { start: true })).toMatchObject({ started: true });
+    const [sample] = await listHostRequests(db, host.hostAccountId);
+    const [job] = await db<{ id: string }[]>`select id from app.jobs where kind = ${IMESSAGE_NOTICE_JOB} and payload ->> 'requestId' = ${sample!.requestId}`;
+    await runJob(db, job!.id, createImessageNoticeHandler(() => ({ db, origin: deps.appOrigin, tokenKey: testTokenKey, tokenKeys: [testTokenKey] })));
+
+    expect((await im.deliver({ sender, text: "I meet in person now. Change my preferred meeting location to Gangnam, I go by transit" })).outcome).toBe("forwarded");
+    const [session] = await db<{ session_id: string; discussion_id: string }[]>`
+      select s.session_id, s.discussion_id from app.agent_sessions s join app.discussions d on d.id = s.discussion_id
+      where d.request_id = ${sample!.requestId} and s.state = 'active'
+    `;
+    // The turn answers the host's latest message, as the runtime sets it.
+    const [input] = await db<{ id: string }[]>`select id from app.conversation_inputs where discussion_id = ${session!.discussion_id} order by accepted_at desc, id desc limit 1`;
+    await db`update app.agent_sessions set current_input_id = ${input!.id} where session_id = ${session!.session_id}`;
+    const review = {
+      auth: { principalId: host.hostAccountId, principalType: "user" as const, attributes: { audience: "host_review", requestId: sample!.requestId } },
+      sessionId: session!.session_id,
+      callId: randomUUID(),
+    };
+
+    const current = await readSettingsFromRequestForTool(deps, review);
+    expect(current).toMatchObject({ ready: true, draftRevision: expect.any(Number) });
+    const result = await changeSettingsFromRequestForTool(deps, { ...review, callId: randomUUID() }, {
+      expectedRevision: (current as { draftRevision: number }).draftRevision,
+      values: {
+        location: { source: "stated", value: { kind: "places", areas: ["Gangnam"], venue: null } },
+        meetingMode: { source: "stated", value: "in_person" },
+        travelMode: { source: "stated", value: "transit" },
+      },
+    });
+    expect(result).toMatchObject({ saved: true, savedChange: "saved", state: { pendingChanges: false, ready: true } });
+    const [saved] = await db<{ location: unknown; mode: string }[]>`
+      select settings -> 'location' as location, settings ->> 'meetingMode' as mode from app.host_settings where host_account_id = ${host.hostAccountId}
+    `;
+    expect(saved).toEqual({ location: { kind: "places", areas: ["Gangnam"], venue: null }, mode: "in_person" });
+
+    // The same words typed on the web change nothing: the host uses Settings there.
+    await db`update app.conversation_inputs set client_input_id = ${randomUUID()} where id = ${input!.id}`;
+    const web = await changeSettingsFromRequestForTool(deps, { ...review, callId: randomUUID() }, {
+      expectedRevision: (current as { draftRevision: number }).draftRevision + 1,
+      values: { location: { source: "stated", value: { kind: "places", areas: ["Mapo"], venue: null } } },
+    });
+    expect(web).toMatchObject({ saved: false, problem: expect.stringContaining("Settings") });
+    expect(await readSettingsFromRequestForTool(deps, review)).toMatchObject({ saved: false });
   });
 
   it("leaves first-time setup to the host's own save", async () => {

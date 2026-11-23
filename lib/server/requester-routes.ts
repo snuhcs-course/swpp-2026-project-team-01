@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { isValidTimeZone, type LocationAnswer, type MeetingMode } from "../contracts/setup";
+import { DEFAULT_MEETING_MINUTES, isValidTimeZone, type LocationAnswer, type MeetingMode } from "../contracts/setup";
 import { revokeGrantCommand } from "./agent-grants";
 import { checkBookingCommand, readBookingStatus } from "./bookings";
 import { isUsableHandle, normalizeHandle } from "../contracts/handles";
@@ -277,7 +277,7 @@ export async function readRequesterView(
     hasIntakeTranscript: row.has_intake,
     host,
     meeting: {
-      durationMinutes: row.meeting?.durationMinutes ?? 30,
+      durationMinutes: row.meeting?.durationMinutes ?? DEFAULT_MEETING_MINUTES,
       meetingMode: row.meeting?.meetingMode ?? "online",
       venue: row.meeting?.location?.kind === "places" ? row.meeting.location.venue : null,
     },

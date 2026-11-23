@@ -1,6 +1,7 @@
 import { createHmac } from "node:crypto";
 import { getChatMessageLengthError } from "../contracts/chat-message";
 import { isUsableHandle, normalizeHandle } from "../contracts/handles";
+import { EMAIL_PREFIX } from "../contracts/messaging-channel";
 import type { RequestLanguage } from "../contracts/request";
 import { isValidTimeZone } from "../contracts/timezone";
 import {
@@ -179,7 +180,7 @@ async function reply(
 
 // Forwarded text is marked, as iMessage text is, so the shared transcript and
 // the assistant know it came by email and the reply goes back as plain text.
-export const EMAIL_PREFIX = "[Email] ";
+export { EMAIL_PREFIX };
 
 // Forwards the message's text into the request's discussion and records the
 // reply its turn will produce. The message that started a request carries its
