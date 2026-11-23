@@ -37,7 +37,13 @@ const STARTED_TEXT: Readonly<Record<Exclude<MeetingPhase, "upcoming">, string>> 
     "Booked, and the meeting has already ended (see now). It can no longer be cancelled or changed here. Answer questions about it from booking; for another meeting, the guest can write again later.",
 };
 
-export function statusText(state: RequestState, phase: MeetingPhase | null) {
+// While a change to a booked meeting is being booked, the meeting that stands
+// can still be cancelled (booking-cancellation.ts); only the change is fixed.
+const CHANGE_BOOKING_TEXT =
+  "The host approved the change and the new version is being booked. The change itself can no longer be edited here: no time, place or detail changes, and no tool reopens it. The booked meeting in booking still stands until the new version is booked.";
+
+export function statusText(state: RequestState, phase: MeetingPhase | null, changing = false) {
+  if (state === "booking" && changing) return CHANGE_BOOKING_TEXT;
   return state === "booked" && phase && phase !== "upcoming" ? STARTED_TEXT[phase] : STATUS_TEXT[state];
 }
 
@@ -52,7 +58,8 @@ const OPEN_STEPS = `The guest decides on the booking page's cards or in words: a
 const NO_STEPS = "No decision tool applies in this state: answer from the status and do not call one.";
 
 // What the guest can decide now, by state: only the tools its commands accept.
-export function nextSteps(state: RequestState, phase: MeetingPhase | null = null): string {
+// changing: the request is reopened from a booked meeting that still stands.
+export function nextSteps(state: RequestState, phase: MeetingPhase | null = null, changing = false): string {
   switch (state) {
     case "draft":
     case "gathering":
@@ -61,6 +68,13 @@ export function nextSteps(state: RequestState, phase: MeetingPhase | null = null
     case "awaiting_host_approval":
       return `The request waits for the host's approval. change_agreement reopens it if the guest wants to change its details or time (a new time then needs a new agreement), and withdraw_request withdraws it. ${DECIDE_ONLY_WHEN_CLEAR}`;
     case "booking":
+      if (changing) {
+        const cancel =
+          phase && phase !== "upcoming"
+            ? "The booked meeting has started, so do not call cancel_booking."
+            : "cancel_booking cancels the booked meeting itself after the guest confirms once.";
+        return `The approved change is being booked: do not call change_agreement or change_booking. ${cancel} withdraw_request drops the change and keeps the booked meeting. Either may report that the new booking is already being written; then say so. ${DECIDE_ONLY_WHEN_CLEAR}`;
+      }
       return `Nothing can be decided here until the meeting is booked: do not call change_agreement, change_booking or cancel_booking. ${NO_STEPS}`;
     case "booked":
       return phase && phase !== "upcoming"

@@ -339,13 +339,13 @@ export async function readRequestForTool(db: Database, call: RequestToolCall) {
     },
     host: { displayName: encodeDisplayName(row.display_name ?? "Your host"), offer: hostOffer(row.offer) },
     missing: missingFields(details, hostListsPlaces(row.offer)),
-    next: nextSteps(row.state, phase),
+    next: nextSteps(row.state, phase, changing),
     pendingReview: review ? minimizedReview(storedReview(review, language), timezone) : null,
     readyForTimes: identified && detailsComplete(details),
     status: {
       expiresAt: displayTime(row.expires_at, timezone),
       state: row.state,
-      text: statusText(row.state, phase),
+      text: statusText(row.state, phase, changing),
       ...(changing ? { change: CHANGE_NOTE } : {}),
     },
     booking,
@@ -540,7 +540,7 @@ export async function readBookingStatusForTool(db: Database, call: RequestToolCa
   const timezone = zoneOf(row.details);
   const now = new Date();
   const booking = row.state === "booked" || changing ? await minimizedBooking(db, id, timezone, now) : null;
-  const text = statusText(row.state, booking?.phase ?? null);
+  const text = statusText(row.state, booking?.phase ?? null, changing);
 
   return {
     agreedVersion: current?.agreement?.proposalVersion ?? null,

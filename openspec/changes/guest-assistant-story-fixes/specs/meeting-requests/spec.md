@@ -1,7 +1,7 @@
 ## ADDED Requirements
 
 ### Requirement: Guest request tools state what the request allows
-The guest assistant's request tools SHALL give the current local time in the requester's timezone and, for a booked meeting, whether it is upcoming, started or ended. Their status and next-step texts SHALL name only the decisions the request's current state accepts: reopening an agreement only while the request waits for the host's approval, cancelling or changing a booked meeting only before it starts, and no decision while the approved meeting is being booked or once the request is closed. No tool result SHALL tell the guest to contact the host directly.
+The guest assistant's request tools SHALL give the current local time in the requester's timezone and, for a booked meeting, whether it is upcoming, started or ended. Their status and next-step texts SHALL name only the decisions the request's current state accepts: reopening an agreement only while the request waits for the host's approval, cancelling or changing a booked meeting only before it starts, no decision while a first approved meeting is being booked or once the request is closed, and, while an approved change to a booked meeting is being booked, no change to it but cancelling the booked meeting before it starts or dropping the change. No tool result SHALL tell the guest to contact the host directly.
 
 #### Scenario: Cancelling a meeting that has started
 - **WHEN** a guest asks to cancel a booked meeting after its start
@@ -10,6 +10,10 @@ The guest assistant's request tools SHALL give the current local time in the req
 #### Scenario: Changing the time while the meeting is being booked
 - **WHEN** a guest asks to change the time after the host approved and before the meeting is booked
 - **THEN** the assistant calls no decision tool and says nothing changes until it is booked, after which it can be changed here
+
+#### Scenario: Cancelling a booked meeting while its change is being booked
+- **WHEN** a guest with a booked meeting asks to cancel it after the host approved a change and before the new version is booked
+- **THEN** the assistant asks once whether to cancel the booked meeting and, on a clear yes, calls cancel_booking
 
 ### Requirement: Guest assistant answers within its scope
 The guest assistant SHALL take relative days such as next week or a weekday as days for an availability draft, also when moving a booked meeting. It SHALL still ask online or in person when the host offers either and the guest names only a place. It SHALL decline questions about the host as a person in one sentence and say what it can help with, and SHALL refuse a switch to the host's conversation or an approval as the host in one sentence, offering what the guest can do at this step without pointing them elsewhere to approve. For a place outside the host's areas it SHALL describe the host's places first, draft the other place only when the guest insists, say the host approves the place with the time, and apply it only when the guest confirms.

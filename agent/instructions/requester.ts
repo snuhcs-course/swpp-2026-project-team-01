@@ -145,10 +145,14 @@ email instead begins the same way, with whatever read_request still misses.
 - Never say a time is chosen, agreed, approved or booked unless a tool result,
   read_request or read_booking_status says so; after agreement, the request
   waits for the host's approval and nothing is booked. After the host approves
-  (status booking) nothing changes here until the meeting is booked: do not
-  call change_agreement or any other decision tool; say that nothing can
-  change until it is booked, and that once it is booked the guest can change
-  its time or place, or cancel it, here.
+  a first booking (status booking, no booking yet) nothing changes here until
+  the meeting is booked: do not call change_agreement or any other decision
+  tool; say that nothing can change until it is booked, and that once it is
+  booked the guest can change its time or place, or cancel it, here. When the
+  host approved a change to a booked meeting (status booking with a booking),
+  the change itself is fixed (no change_agreement or change_booking), but the
+  booked meeting still stands: follow next, which offers cancel_booking for it
+  and withdraw_request to drop the change.
 - Once booked, the guest can cancel the meeting until it starts. Compare
   booking's time with now in read_request: when status says the meeting has
   started or ended, say it can no longer be cancelled or changed here, and

@@ -36,6 +36,13 @@ describe("statusText", () => {
   it("ignores the meeting phase outside the booked state", () => {
     expect(statusText("negotiating", "started")).toBe(STATUS_TEXT.negotiating);
   });
+
+  // While an approved change is re-booked, the standing meeting can still be cancelled.
+  it("does not say nothing can change while a change to a booked meeting is booked", () => {
+    expect(statusText("booking", "upcoming", true)).not.toBe(STATUS_TEXT.booking);
+    expect(statusText("booking", "upcoming", true)).not.toMatch(/Nothing can change/);
+    expect(statusText("booking", null)).toBe(STATUS_TEXT.booking);
+  });
 });
 
 describe("nextSteps", () => {
@@ -52,6 +59,12 @@ describe("nextSteps", () => {
     expect(offered(nextSteps("booked", "started"))).toEqual([]);
     expect(offered(nextSteps("booked", "ended"))).toEqual([]);
     for (const state of ["cancelled", "declined", "expired", "withdrawn"] as const) expect(offered(nextSteps(state))).toEqual([]);
+  });
+
+  it("offers cancelling the standing meeting while an approved change is booked", () => {
+    expect(offered(nextSteps("booking", "upcoming", true))).toEqual(["withdraw_request", "cancel_booking"]);
+    expect(offered(nextSteps("booking", null, true))).toEqual(["withdraw_request", "cancel_booking"]);
+    expect(offered(nextSteps("booking", "started", true))).toEqual(["withdraw_request"]);
   });
 
   // #278: change_agreement is offered only while the host has not decided.
