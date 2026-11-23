@@ -45,13 +45,16 @@ export function HostSettingsDialog() {
   const [locationRaw, setLocationRaw] = useState("");
   const [initialLocation, setInitialLocation] = useState("");
   const [focusDeletion, setFocusDeletion] = useState(false);
+  const [focusWeeklyLimit, setFocusWeeklyLimit] = useState(false);
 
   useEffect(() => {
     const url = new URL(window.location.href);
-    if (url.searchParams.get(SETTINGS_PARAM) !== "account") return;
+    const target = url.searchParams.get(SETTINGS_PARAM);
+    if (target !== "account" && target !== "weekly-limit") return;
     url.searchParams.delete(SETTINGS_PARAM);
     window.history.replaceState(window.history.state, "", url);
-    setFocusDeletion(true);
+    setFocusDeletion(target === "account");
+    setFocusWeeklyLimit(target === "weekly-limit");
     setOpen(true);
   }, []);
 
@@ -214,7 +217,7 @@ export function HostSettingsDialog() {
                   <span className="block text-sm font-normal text-muted-foreground">Leave empty for no limit · 1–50</span>
                 </label>
                 <div className="flex items-center gap-2">
-                  <Input className="h-10 w-16 bg-card text-center" disabled={busy} id="settings-weekly-limit" max={50} min={1} onChange={(event) => setLimitRaw(event.target.value)} type="number" value={limitRaw} />
+                  <Input autoFocus={focusWeeklyLimit} className="h-10 w-16 bg-card text-center" disabled={busy} id="settings-weekly-limit" max={50} min={1} onChange={(event) => setLimitRaw(event.target.value)} type="number" value={limitRaw} />
                   <span className="text-sm text-muted-foreground">meetings / week</span>
                 </div>
               </div>

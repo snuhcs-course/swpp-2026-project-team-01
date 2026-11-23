@@ -15,6 +15,7 @@ export type HostNotice =
   | { readonly kind: "new_request" }
   | { readonly kind: "sample_request"; readonly bindingId: string }
   | { readonly kind: "awaiting_approval"; readonly version: number }
+  | { readonly kind: "weekly_limit_hold"; readonly requestRevision: number; readonly settingsRevision: number; readonly weeklyLimit: number }
   | { readonly kind: "booking_confirmed"; readonly bookingId: string }
   | { readonly kind: "booking_failed"; readonly bookingId: string }
   | { readonly kind: "booking_pending"; readonly bookingId: string }
@@ -29,6 +30,8 @@ export function noticeKey(requestId: string, notice: HostNotice) {
       return `${SAMPLE_NOTICE_PREFIX}${requestId}:${notice.bindingId}`;
     case "awaiting_approval":
       return `notice:${notice.kind}:${requestId}:v${notice.version}`;
+    case "weekly_limit_hold":
+      return `notice:${notice.kind}:${requestId}:r${notice.requestRevision}:s${notice.settingsRevision}`;
     case "new_request":
       return `notice:${notice.kind}:${requestId}`;
     default:

@@ -99,6 +99,7 @@ export const TEMPLATE_DAILY_LIMIT = 50;
 // The template for each summary the window closed on (design 8); other summaries get none.
 export const TEMPLATE_FOR_NOTICE: Readonly<Record<string, string>> = {
   awaiting_approval: "fmat_proposal_waiting",
+  weekly_limit_hold: "fmat_weekly_limit_hold",
   booking_confirmed: "fmat_booking_update",
   booking_failed: "fmat_booking_update",
   booking_cancelled: "fmat_booking_update",

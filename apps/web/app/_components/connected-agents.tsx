@@ -5,6 +5,7 @@ import type { ImessageStatus } from "@lib/contracts/imessage";
 import { MESSAGING_CHANNELS, channelName, type MessagingChannel } from "@lib/contracts/messaging-channel";
 import { type RefObject, useCallback, useEffect, useState } from "react";
 import { ImessageCard } from "@/app/_components/imessage/imessage-card";
+import { ConnectedGoogleCalendar } from "@/app/_components/connected-google-calendar";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 
@@ -118,7 +119,7 @@ export function ConnectedAgentsDialog({
           <DialogTitle>{appsMode ? "Connected apps" : "Connected agents"}</DialogTitle>
           <DialogDescription>
             {appsMode
-              ? "Review your connected agents and messaging app."
+              ? "Review your Google Calendar, messaging app and connected agents."
               : "Agents you allowed to work with Find Me a Time. Revoking one stops it at its next request."}
           </DialogDescription>
         </DialogHeader>
@@ -150,6 +151,7 @@ export function ConnectedAgentsDialog({
           </section>
         ) : null}
         {appsMode ? <div className="h-px bg-border" /> : null}
+        {appsMode ? <><ConnectedGoogleCalendar /><div className="h-px bg-border" /></> : null}
         <section aria-labelledby="connected-agents-heading" className="space-y-3">
           <div>
             <h3 className="text-sm font-semibold" id="connected-agents-heading">Connected agents</h3>

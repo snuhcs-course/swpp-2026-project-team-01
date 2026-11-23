@@ -1,5 +1,16 @@
 ## ADDED Requirements
 
+### Requirement: Notify a host when the weekly limit holds a requester
+When a requester evaluation finds feasible candidates but offers none because every candidate falls in a full week under the host's current weekly limit, the service SHALL send the host a notice on the host's active linked conversation. The notice SHALL explain that the guest cannot choose a time, ask whether the host wants to adjust the weekly limit, and link directly to that setting. It SHALL be suppressed when the request or settings revision changes before delivery and deduplicated for the same revisions.
+
+#### Scenario: Weekly limit holds every feasible time
+- **WHEN** a current requester evaluation holds all otherwise feasible candidates because of the weekly limit
+- **THEN** the host receives one revision-scoped notice with a direct link to edit the limit
+
+#### Scenario: Request or settings changed before delivery
+- **WHEN** the queued weekly-limit notice is processed after its request or settings revision changed, or the hold no longer applies
+- **THEN** the notice is suppressed
+
 ### Requirement: Host request inbox
 `/app` SHALL offer a request inbox from the workspace menu that lists the host's requests, except drafts, as selectable cards with requester, purpose, status and whether a decision is needed. A selected request SHALL open on the host-private discussion with the assistant and its decision cards: the proposal review, any suggested shared changes, the rule and travel review and the booking status. The host SHALL NOT be shown the requester's conversation with the assistant; the request's details, current proposal, agreement and status SHALL come from the host projection. Selection SHALL be addressable as `/app?request={requestId}`.
 
