@@ -1,6 +1,6 @@
 # Proposal
 
-Tracking issue: #275. The same pull request fixes #272, #274 and #276, the other host review failures the story path evaluation found ([documentation 13](../../../documentations/technical_specification/13_story_path_evaluation.md#key-findings-failures-and-impact-on-implementation)); those are instruction and tool-text fixes that bring the assistant back to behavior already specified, so only #275 changes a requirement.
+Tracking issue: #275. The same pull request fixes #272, #274 and #276, the other host review failures the story path evaluation found ([documentation 13](../../../../documentations/technical_specification/13_story_path_evaluation.md#key-findings-failures-and-impact-on-implementation)); those are instruction and tool-text fixes that bring the assistant back to behavior already specified, so only #275 changes a requirement.
 
 ## Why
 
@@ -34,5 +34,5 @@ None.
 ## Impact
 
 - `lib/server/shared-changes.ts`, `lib/server/host-review-tools.ts`, `agent/tools/request.ts`, `agent/instructions/host-review.ts`.
-- [Agent configuration](../../../documentations/technical_specification/04_agent_configuration.md) describes `propose_shared_changes`.
+- [Agent configuration](../../../../documentations/technical_specification/04_agent_configuration.md) describes `propose_shared_changes`.
 - No schema change.

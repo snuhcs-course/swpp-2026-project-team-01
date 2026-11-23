@@ -1,7 +1,7 @@
 ## ADDED Requirements
 
 ### Requirement: Other dates named when declining
-A host declining a request SHALL be able to name up to 14 other dates that no longer work, beside **Decline request** on the proposal review, after the reference of a typed `decline` command in their linked conversation, or in words to their assistant in that conversation. Each date SHALL be kept, once, as the whole local day in the host's time zone in the declined request's excluded times, which its revised request leaves out of every search; a day that has already ended SHALL NOT be kept. No reason SHALL be asked for, stored or passed on, and the decline SHALL refuse any input other than the dates. A decline that keeps a booked meeting SHALL store no dates.
+A host declining a request SHALL be able to name up to 14 other dates that no longer work, in the decline confirmation that **Decline request** opens on the proposal review (offering dates from today in the host's time zone), after the reference of a typed `decline` command in their linked conversation, or in words to their assistant in that conversation. Each date SHALL be kept, once, as the whole local day in the host's time zone in the declined request's excluded times, which its revised request leaves out of every search; a day that has already ended SHALL NOT be kept. No reason SHALL be asked for, stored or passed on, and the decline SHALL refuse any input other than the dates. A decline that keeps a booked meeting SHALL store no dates.
 
 #### Scenario: Host names two more days
 - **WHEN** the host in Asia/Seoul declines and names 3 and 5 December

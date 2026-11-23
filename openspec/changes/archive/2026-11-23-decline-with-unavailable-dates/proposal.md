@@ -4,7 +4,7 @@ Tracking issue: #58
 
 ## Why
 
-When a host declines a request, the guest's revised request leaves out only the declined time ([guest-flow-completion U17](../guest-flow-completion/proposal.md#decisions)). A host cannot say "that day and these days no longer work": the decline confirmation on `/app` takes no dates, `decline <ref>` takes no other input, and the decline tools take none. The guest side is ready for such dates: `requests.details.excludedTimes` carries over to the revised request, every evaluation treats it as all-day blocked time, and a time the guest names inside it is refused without a reason. Only the host input is missing. U17 split it out to #58 on 2026-11-02.
+When a host declines a request, the guest's revised request leaves out only the declined time ([guest-flow-completion U17](../../guest-flow-completion/proposal.md#decisions)). A host cannot say "that day and these days no longer work": the decline confirmation on `/app` takes no dates, `decline <ref>` takes no other input, and the decline tools take none. The guest side is ready for such dates: `requests.details.excludedTimes` carries over to the revised request, every evaluation treats it as all-day blocked time, and a time the guest names inside it is refused without a reason. Only the host input is missing. U17 split it out to #58 on 2026-11-02.
 
 ## What Changes
 
@@ -24,4 +24,4 @@ When a host declines a request, the guest's revised request leaves out only the 
 
 - **Changed code:** `lib/contracts/declined-dates.ts` (new: date checks and whole days in a zone); `lib/contracts/timezone.ts` (exports `localDate` and `addDays`); `lib/server/bookings.ts` (`request.decline` input and storing the days); `lib/server/imessage-commands.ts` and `channel-texts.ts` (the typed command, its reply and the help example); `lib/server/host-review-tools.ts`, `agent/tools/request.ts`, `lib/server/agent-host-tools.ts` and `agent/instructions/host-imessage.ts` (the decline tools); `apps/web/app/_components/host/host-request-cards.tsx` (the date field beside **Decline request**).
 - **Schema:** none. The days join the existing `requests.details.excludedTimes` (U17).
-- **Documents:** the [page list](../../../documentations/user_experience/04_page_list.md) already describes naming other days when declining; the [story path evaluation](../../../documentations/technical_specification/13_story_path_evaluation.md) records the appended host review case RV-D01.
+- **Documents:** the [page list](../../../../documentations/user_experience/04_page_list.md) already describes naming other days when declining; the [story path evaluation](../../../../documentations/technical_specification/13_story_path_evaluation.md) records the appended host review case RV-D01.
