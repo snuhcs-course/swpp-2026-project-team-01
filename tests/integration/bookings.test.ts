@@ -308,7 +308,7 @@ describe("withdrawal, decline and status", () => {
   it("keeps the other dates the host names as whole days in the host's zone, and nothing else (#58)", async () => {
     const request = await agreedRequest(db, google);
     const revision = await revisionOf(db, request.requestId);
-    const reason = await asHost(db, request.hostAccountId, request.requestId, declineCommand(() => testNotices), { excludedDates: ["2099-01-05"], reason: "travel" }, {
+    const reason = await asHost(db, request.hostAccountId, request.requestId, declineCommand(() => testNotices), { excludedDates: ["2099-01-05"], reason: "away on a business trip" }, {
       expectedRevision: revision,
     });
     expect(!reason.ok && reason.error.category).toBe("invalid_input");
@@ -330,7 +330,8 @@ describe("withdrawal, decline and status", () => {
     const [row] = await db<{ details: { excludedTimes?: { start: string; end: string }[] } }[]>`select details from app.requests where id = ${request.requestId}`;
     // The day that has already ended is left out; the named day is kept once.
     expect(row!.details.excludedTimes).toEqual([{ end: "2099-01-05T15:00:00.000Z", start: "2099-01-04T15:00:00.000Z" }]);
-    expect(JSON.stringify(row!.details)).not.toContain("travel");
+    // details always carries travelMode, so check for the reason itself.
+    expect(JSON.stringify(row!.details)).not.toContain("business trip");
   });
 
   it("sends the pending notice only while the booking is unconfirmed", async () => {
