@@ -45,6 +45,7 @@ Stop and report if any of these fail:
 node --version                         # v24.x
 docker info --format '{{.ServerVersion}}'
 npx --yes supabase@2.119.0 --version   # the pinned CLI; the one on PATH may be another major
+supabase status -o json | head -3      # the Playwright config and qa:stack read the stack through the `supabase` on PATH
 npx playwright --version
 df -h ~ | tail -1                      # at least 10 GB free
 ```
@@ -108,7 +109,7 @@ npm run qa:stack    # in the background; add `-- --base-port 3300` to start else
 
 Wait for the line starting `QA_STACK {…}` in its output (about a minute the first time); the same JSON is in `output/browser-qa/stack.json`. It names:
 
-- `web`: the app (default `http://localhost:3200`), configured exactly as the browser tests configure it.
+- `web`: the app (default `http://localhost:3200`), configured as the browser tests configure it, except that WhatsApp stays hidden as in production.
 - `control`: the QA control page (default `http://localhost:3207`).
 - The stand-ins for OpenAI, Google, Cloudflare Email, Google Routes and Photon, and the job worker (`jobs:dev`), which runs evaluations, emails, bookings and cancellations by itself about every 5 seconds.
 
@@ -125,7 +126,7 @@ Open `control` in the browser. It is a test harness on its own port, not part of
 - **QA test hosts**: every test host on the stack with its booking link and **Sign in as this host**.
 - **Sign out**: removes the Supabase session cookies on `localhost`.
 - **Guest draft**: `/guest/draft?booking=<booking page URL>&purpose=…&mode=online` records the details draft the model would have written. Use it after the guest answers the fixed question, then reload the booking page to see "Apply these details?". Only with the model stand-in.
-- **Emails**: what the Cloudflare stand-in received (`?to=` filters), for booking links, confirmations and notices.
+- **Emails**: what the Cloudflare stand-in received for one address (`/emails?to=<address>`), for booking links, confirmations and notices.
 
 Cookies on `localhost` are shared across ports and tabs. To act as the guest while the host is signed in, either use a second browser profile or an incognito window, or press **Sign out** first and **Sign in as this host** to return.
 
@@ -146,21 +147,21 @@ Take a screenshot at each scenario's last step and at every failure. Save them u
 
 Walk them in this order. For each row, compare what you see with the `Then` column of the baseline table it names, quote the screen text you saw in the report, and mark the result.
 
-**H01 · Host sign-up and onboarding (Web · start with Google).** New host, setup not started. Check W-A3: the link step "Connect a messaging app" with iMessage and Telegram, WhatsApp hidden. W-A4: press iMessage, enter a malformed number and check the error, then the browser tests' sample number `10-1234-5678` and check the send screen with a code appears (the Photon stand-in accepts the registration; nothing is sent). W-A5–W-A7 need a real iPhone: not covered. "Set up here in web chat" is offered only because the QA stack runs the browser tests' build (`NEXT_PUBLIC_E2E_TEST=1`); in production it is hidden (W-A3 **never**), so do not report it.
+**H01 · Host sign-up and onboarding (Web · start with Google).** New host, setup not started. Check W-A3: the link step "Connect a messaging app" with iMessage and Telegram, WhatsApp hidden. W-A4: press iMessage, enter a malformed number and check the error, then the browser tests' sample number `10-1234-5678` and check the send screen with a code appears (the Photon stand-in accepts the registration; nothing is sent). W-A5–W-A7 need a real iPhone: not covered. The QA stack runs the browser tests' build (`NEXT_PUBLIC_E2E_TEST=1`), whose test-only escape hatches (such as "Set up here in web chat", W-A3 **never** in production) may appear; do not report those.
 
 **H02 · Host booking settings (Web · settings dialog).** Ready host. W-1–W-5: open the gear, edit hours, a weekly limit out of range (expect "Enter 1–50 meetings per week…"), save, review and confirm ("Your public schedule is updated."), then turn Accept new meeting requests off and check W-5.1 by opening the booking link (neutral not-found page), and back on.
 
 **G01 · Guest request and time selection (Web · start from the booking link).** As the guest (signed out, or a second profile), open the host's booking link from the control page:
 
 1. W-1: the landing names the host; Continue with web and Start with agent.
-2. W-2, W-3.1: Continue with web → the two fixed messages and the identity card → Continue without Google → an empty or invalid email shows "Enter your name and a valid email address."; then `Grace Hopper` and a fresh `qa-guest-<n>@example.test` → `/booking/<id>`. The control page's Emails list shows the booking-link email.
+2. W-2, W-3.1: Continue with web → the two fixed messages and the identity card → Continue without Google → an empty or invalid email shows "Enter your name and a valid email address."; then `Grace Hopper` and a fresh `qa-guest-<n>@example.test` → `/booking/<id>`. The control page's Emails for that address show the booking-link email.
 3. W-4, W-5: the Calendar step (Skipped), then the fixed question with the host's meeting length and modes.
 4. W-6, W-7: type a purpose such as "Talk about compilers, online."; with the stand-in Thyme answers "Hello from Thyme." (the AI rows are not covered). Record the draft on the control page with the booking page URL, reload the booking page, check "Apply these details?" and press Apply these details; "Checking both calendars…" and then, within about 15 seconds, W-8: "I found some available times…" with candidate times, Find other times and Edit details.
 5. W-9, W-10: Choose this time → "Agree to this time?" → Agree to this proposal → "Request sent successfully", then the waiting card "Waiting for … to approve".
 
 **H03 · Host review and decision (Web · request review).** Sign in as the host. The menu shows "1 request needs your decision"; Requests → the request → "Approve this meeting?" → Approve this proposal → "Booking in progress" → (the job worker books it) **Booked** with Join meeting and Open in Google Calendar. Also try Decline on a second request when the baseline lists it.
 
-**G03 · Guest status and result (Web · booking page).** As the guest, reload the booking page: "Your meeting is booked", the details and Join meeting. The Emails list shows the booked email.
+**G03 · Guest status and result (Web · booking page).** As the guest, reload the booking page: "Your meeting is booked", the details and Join meeting. Emails for the guest's address show the booked email.
 
 **H04 · Host schedule (Web · dashboard).** As the host: the week view shows the booked meeting on its day; the Requests list shows Booked.
 

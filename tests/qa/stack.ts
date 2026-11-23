@@ -35,12 +35,19 @@ const { values: args } = parseArgs({
 const stack = JSON.parse(execFileSync("supabase", ["status", "-o", "json"], { encoding: "utf8" })) as LocalStack;
 assertLocalStack(stack);
 
-function portFree(port: number) {
+// Free on every loopback and wildcard address the browser's "localhost" may
+// resolve to; an address this machine lacks (no IPv6) does not count as taken.
+function freeOn(port: number, host: string) {
   return new Promise<boolean>((resolve) => {
     const server = createNetServer();
-    server.once("error", () => resolve(false));
-    server.listen(port, "127.0.0.1", () => server.close(() => resolve(true)));
+    server.once("error", (error: NodeJS.ErrnoException) => resolve(error.code === "EADDRNOTAVAIL" || error.code === "EAFNOSUPPORT"));
+    server.listen(port, host, () => server.close(() => resolve(true)));
   });
+}
+
+async function portFree(port: number) {
+  for (const host of ["127.0.0.1", "::1", "0.0.0.0", "::"]) if (!(await freeOn(port, host))) return false;
+  return true;
 }
 
 // Eight consecutive ports, the first block from the base port up whose ports are all free.
@@ -54,6 +61,10 @@ async function choosePorts(base: number) {
 }
 
 const requestedBase = Number(args["base-port"] ?? process.env.QA_BASE_PORT ?? "3200");
+if (!Number.isInteger(requestedBase) || requestedBase < 1024 || requestedBase > 65_000) {
+  console.error(`[qa] --base-port must be a whole number from 1024 to 65000, not ${args["base-port"] ?? process.env.QA_BASE_PORT}.`);
+  process.exit(1);
+}
 const { block, moved } = await choosePorts(requestedBase);
 const [web, eve, openai, google, cloudflare, routes, photon, control] = block.map(String) as [
   string, string, string, string, string, string, string, string,
@@ -87,10 +98,14 @@ function liveKey() {
 }
 
 const live = Boolean(args["live-model"]);
+// Read before anything starts, so a missing key stops nothing half-started.
+const model = modelEnv(ports, live ? liveKey() : undefined);
 const webOrigin = `http://localhost:${web}`;
 const eveOrigin = `http://127.0.0.1:${eve}`;
 const controlOrigin = `http://localhost:${control}`;
-const shared = serviceEnv(stack, ports);
+// WhatsApp hidden, as production has it (baseline H01 W-A3); the browser tests
+// offer it to keep its screens covered.
+const shared = { ...serviceEnv(stack, ports), WHATSAPP_OFFERED: "0" };
 // Only what the services need from this process, never the caller's env files.
 const base = {
   HOME: process.env.HOME ?? "",
@@ -142,6 +157,11 @@ async function stop(code = 0) {
   process.exit(code);
 }
 for (const signal of ["SIGINT", "SIGTERM"] as const) process.once(signal, () => void stop(0));
+// Any other way out (a failed startup step, an uncaught error) still stops the
+// services, so they never keep holding the port block.
+process.once("exit", () => {
+  for (const { child } of children) if (child.exitCode === null) child.kill("SIGTERM");
+});
 
 // The stand-ins, then the agent and web services, then the job worker.
 const fake = (file: string, env: Record<string, string>) => start(file.replace(/^fake-|-server$/g, ""), "npx", ["tsx", `tests/e2e/support/${file}.ts`], env);
@@ -159,7 +179,7 @@ start("eve", "npx", ["eve", "dev", "--no-ui", "--host", "127.0.0.1", "--port", e
   EVE_AGENT_URL: eveOrigin,
   EVE_TELEMETRY_DISABLED: "1",
   NODE_ENV: "production",
-  ...modelEnv(ports, live ? liveKey() : undefined),
+  ...model,
 });
 start("web", "npx", ["next", "dev", "apps/web", "--port", web], {
   ...shared,
@@ -167,7 +187,7 @@ start("web", "npx", ["next", "dev", "apps/web", "--port", web], {
   EVE_AGENT_URL: eveOrigin,
   NEXT_PUBLIC_E2E_TEST: "1",
 });
-start("jobs", "npx", ["tsx", "scripts/jobs-dev.ts"], { ...shared, APP_ORIGIN: webOrigin, ...modelEnv(ports, live ? liveKey() : undefined) });
+start("jobs", "npx", ["tsx", "scripts/jobs-dev.ts"], { ...shared, APP_ORIGIN: webOrigin, ...model });
 
 // The helpers read the ports set above at import time.
 const { testDatabase, clearServiceWindow } = await import("../integration/support/database");
@@ -295,7 +315,7 @@ async function index(response: ServerResponse) {
 <h2>Guest helpers</h2>
 <ul>
 <li><code>/guest/draft?booking=&lt;booking page URL&gt;&amp;purpose=Talk%20about%20compilers&amp;mode=online</code> records the details draft the model would have written (stand-in model only), then reload the booking page. Without <code>booking</code> it uses the newest request.</li>
-<li><a href="/emails">Emails the Cloudflare stand-in received</a> (<code>?to=address</code> filters), for booking links and notices.</li>
+<li><a href="/emails">Emails the Cloudflare stand-in received</a> for one address (<code>/emails?to=address</code>), for booking links and notices.</li>
 </ul>
 <p>Jobs (evaluations, emails, bookings, cancellations) run by themselves through <code>jobs:dev</code> about every 5 seconds.</p>`,
   );
@@ -332,6 +352,11 @@ async function route(request: IncomingMessage, response: ServerResponse) {
     const found = await findRequest(url.searchParams.get("booking"));
     if (!found) return page(response, "No request", "<p>No request matches.</p>", 404);
     const patch = { mode: url.searchParams.get("mode") || "online", purpose: url.searchParams.get("purpose") || "Talk about compilers" };
+    // As the assistant's draft tool does: a new draft replaces the pending one.
+    await db`
+      update app.request_reviews set state = 'superseded', resolved_at = now()
+      where request_id = ${found.id} and state = 'pending'
+    `;
     await db`
       insert into app.request_reviews (request_id, base_revision, intent, patch, clarifications)
       values (${found.id}, ${found.revision}, 'details', ${db.json(patch)}, ${[]})
@@ -340,13 +365,16 @@ async function route(request: IncomingMessage, response: ServerResponse) {
   }
 
   if (url.pathname === "/emails") {
-    const to = url.searchParams.get("to");
-    const listed = await fetch(`http://127.0.0.1:${cloudflare}/__messages${to ? `?to=${encodeURIComponent(to)}` : ""}`);
+    const to = url.searchParams.get("to")?.trim();
+    const form = `<form action="/emails"><label>Recipient <input name="to" type="email" value="${escape(to ?? "")}" required></label> <button>Show emails</button></form>`;
+    // The stand-in lists messages by recipient only.
+    if (!to) return page(response, "Emails", `<p>Enter the guest's or host's address.</p>${form}`);
+    const listed = await fetch(`http://127.0.0.1:${cloudflare}/__messages?to=${encodeURIComponent(to)}`);
     const messages = (await listed.json()) as { to?: unknown; subject: string; text: string }[];
     const items = messages
       .map((message) => `<li><strong>${escape(message.subject)}</strong>${message.to ? ` → ${escape(String(message.to))}` : ""}<pre style="white-space:pre-wrap">${escape(message.text)}</pre></li>`)
       .join("");
-    return page(response, "Emails", items ? `<ol>${items}</ol>` : "<p>No emails yet.</p>");
+    return page(response, `Emails to ${to}`, `${form}${items ? `<ol>${items}</ol>` : "<p>No emails to this address yet.</p>"}`);
   }
 
   return page(response, "Not found", "<p>No such control action.</p>", 404);
@@ -359,7 +387,10 @@ const controlServer = createHttpServer((request, response) => {
   });
 });
 cleanups.push(() => controlServer.close());
-await new Promise<void>((resolve) => controlServer.listen(Number(control), "127.0.0.1", resolve));
+await new Promise<void>((resolve, reject) => {
+  controlServer.once("error", reject);
+  controlServer.listen(Number(control), "127.0.0.1", resolve);
+});
 
 await waitFor(`${eveOrigin}/eve/v1/health`, 180_000);
 await waitFor(webOrigin, 120_000);
