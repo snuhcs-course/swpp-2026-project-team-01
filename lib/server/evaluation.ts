@@ -39,6 +39,7 @@ import { markNegotiating } from "./request-lifecycle";
 import type { NoticeDependencies } from "./booking-notices";
 import { enqueueHostNotice } from "./imessage-notices";
 import { settleSharedChange } from "./shared-change-settle";
+import { rankingModelChoice } from "./model-choice";
 import { limitModel, type ModelLimits, type Principal } from "./model-limits";
 import {
   readRequesterCalendarGrant,
@@ -67,7 +68,6 @@ export const EVALUATION_DEADLINE_MS = 18_000;
 // The valid candidates the model may reorder.
 export const RANKING_LIMIT = 20;
 const AWAIT_POLL_MS = 250;
-const RANKING_MODEL_ID = "gpt-5.6-terra";
 
 export type EvaluationAudience = "requester" | "host";
 
@@ -445,10 +445,15 @@ export function evaluationDependenciesFromEnvironment(model: LanguageModel | nul
   };
 }
 
-// The OpenAI provider is loaded only when an evaluation runs.
+// The ranking provider, FMAT_RANKING_MODEL or gpt-5.6-terra by default
+// (model-choice.ts), is loaded only when an evaluation runs.
 async function defaultDependencies(): Promise<EvaluationDependencies> {
-  const { openai } = await import("eve/models/openai");
-  return evaluationDependenciesFromEnvironment(openai(RANKING_MODEL_ID));
+  const choice = rankingModelChoice();
+  const model =
+    choice.provider === "openai"
+      ? (await import("eve/models/openai")).openai(choice.modelId)
+      : (await import("eve/models/anthropic")).anthropic(choice.modelId);
+  return evaluationDependenciesFromEnvironment(model);
 }
 
 type Loaded = {

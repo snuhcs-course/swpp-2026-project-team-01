@@ -6,7 +6,7 @@ Carry one account-free meeting request through protected, versioned negotiation 
 ## Requirements
 
 ### Requirement: Complete account-free intake
-Ready public hosts SHALL accept requests without requester signup. The service SHALL collect purpose, requester identity/contact, date windows, timezone, duration, mode, and location or meeting link, clarifying missing or ambiguous fields. The requester website SHALL allow the requester to supply and refine scheduling details through conversation, review extracted changes before applying them, evaluate availability, select a feasible candidate, and explicitly agree to the exact current proposal.
+Ready public hosts SHALL accept requests without requester signup. The service SHALL collect purpose, requester identity/contact, date windows, timezone, duration, mode, and location or meeting link, clarifying missing or ambiguous fields. The requester website SHALL allow the requester to supply and refine scheduling details through conversation, have the details they state applied at once, review before applying only the changes the assistant inferred, those that differ from what the request holds and contact changes, evaluate availability, select a feasible candidate, and explicitly agree to the exact current proposal.
 
 #### Scenario: Missing details
 - **WHEN** a requester asks for thirty minutes next week without timezone or location
@@ -16,9 +16,13 @@ Ready public hosts SHALL accept requests without requester signup. The service S
 - **WHEN** English or Korean intake supplies sufficient details
 - **THEN** the service normalizes validated details and preserves the requester's stated intent
 
+#### Scenario: Stated conversational details
+- **WHEN** a requester message states an unambiguous purpose, meeting length, meeting mode, location or availability window that the request does not yet hold differently
+- **THEN** the assistant's draft applies it at once without a review card, says in one line what it applied and that the requester can change it in words, and finds times once the request has its purpose, length and form
+
 #### Scenario: Reviewed conversational details
-- **WHEN** a requester message contains an unambiguous purpose, meeting mode, location, or availability window
-- **THEN** the website presents the extracted changes for review and does not change the request until the requester explicitly applies them
+- **WHEN** the assistant infers a value the requester did not state, such as an afternoon read as clock bounds or in person taken from a place named as where to meet, or the message gives a value that differs from what the request holds
+- **THEN** the website presents that value for review and does not change it until the requester explicitly applies it, while the stated rest of the message applies at once and no times are searched until the review is settled
 
 #### Scenario: Conversational candidate agreement
 - **WHEN** evaluated candidates are available in the requester conversation
@@ -200,7 +204,7 @@ New application-owned conversation tool results SHALL replace structured request
 - **THEN** the exact contact remains visible there and existing verification invalidation and human confirmation rules still apply
 
 ### Requirement: Declared uncertain extraction has no patch
-Application-owned requester extraction SHALL declare details, availability, question or unknown intent. Question and unknown outcomes SHALL contain no proposed scheduling or contact fields and SHALL include clarification. Invalid or missing classification SHALL be rejected before domain execution. Valid details and availability outcomes SHALL remain advisory and require the existing explicit review application.
+Application-owned requester extraction SHALL declare details, availability, question or unknown intent. Question and unknown outcomes SHALL contain no proposed scheduling or contact fields and SHALL include clarification. Invalid or missing classification SHALL be rejected before domain execution. Valid details and availability outcomes SHALL NOT grant agreement or approval; their stated scheduling fields SHALL apply at once under the existing revision and retry rules, and only inferred, conflicting or contact fields SHALL require the existing explicit review application. The guest web, email and messenger conversations SHALL apply this one rule.
 
 #### Scenario: Question carries a change
 - **WHEN** extraction declares question or unknown intent while supplying any patch field
@@ -211,8 +215,12 @@ Application-owned requester extraction SHALL declare details, availability, ques
 - **THEN** the result can request clarification but cannot apply scheduling changes
 
 #### Scenario: Explicit scheduling draft
-- **WHEN** details or availability intent supplies a valid advisory draft
-- **THEN** it follows the existing revision, retry and explicit application rules without granting agreement or approval
+- **WHEN** details or availability intent supplies a valid draft of fields the requester stated
+- **THEN** it is validated as a whole, applied at once at the request's current revision with its own retry key, and grants no agreement or approval
+
+#### Scenario: Draft with inferred or conflicting fields
+- **WHEN** a valid draft marks inferred time bounds or an inferred meeting mode, or gives a value that differs from one the request holds, or changes the name or email
+- **THEN** those fields, and windows that must fit a length still under review, remain one pending review for explicit application, and the other fields apply at once
 
 ### Requirement: Authored application extraction questions
 New clarification text from application-owned requester extraction SHALL come only from authored questions for supported clarification categories in English or Korean. Unsupported categories or languages SHALL be rejected before domain execution. Clarification questions SHALL NOT assert agreement, approval, selection or booking. Current draft, retry and explicit-application rules SHALL remain in force.
@@ -334,7 +342,11 @@ A proposal for an online meeting SHALL record its link plan as either a Google M
 
 ### Requirement: Optional sample request after host onboarding
 
-The service SHALL offer a newly onboarded host one optional request-review tutorial after the first successful setup save. The host SHALL be able to accept or skip it on the web or in their linked Telegram, iMessage, or WhatsApp chat.
+The service SHALL offer a newly onboarded host one optional request-review tutorial after the first successful setup save. The offer SHALL say in one line, before asking, that a pretend guest sends a sample request for the host to approve or change and that no real person is messaged, with the same meaning in English and Korean. The host SHALL be able to accept or skip it on the web or in their linked Telegram, iMessage, or WhatsApp chat.
+
+#### Scenario: The offer explains the tutorial
+- **WHEN** the first setup save offers the tutorial
+- **THEN** the offer says that a pretend guest sends a sample request, that the host tries approving or changing it, and that nobody real gets a message, then asks whether to try it
 
 #### Scenario: Practice reviewing a request
 
@@ -347,6 +359,61 @@ The service SHALL offer a newly onboarded host one optional request-review tutor
 - **WHEN** the host approves, declines, asks to change the sample, or asks to end the tutorial
 - **THEN** the tutorial ends and the sample disappears from the inbox
 - **AND** it creates no booking, sends no guest notification, and uses no request creation or meeting quota
+
+### Requirement: Request another host from the host's messenger
+A set-up host who sends another host's booking link or @handle in their linked messenger conversation SHALL be able to start a request to that host as their account, using the account's name, Google-verified address, host timezone and host conflict calendars without asking for them, or continue the account's open request with that host unless they ask for another meeting. The host's own link SHALL start nothing, and an unknown, unready or paused host SHALL get a neutral reply. The request's guest conversation SHALL be the host's linked conversation, and the request's guest notices SHALL arrive there. Nothing about the host's settings, calendars or other requests SHALL reach the other host.
+
+#### Scenario: Link starts a request
+- **WHEN** a linked host sends `findmeatime.com/dodo` or "Book a meeting with @dodo"
+- **THEN** a request to @dodo is created as the account, its host calendars count, and the host's next message reaches that request's discussion
+
+#### Scenario: Own link
+- **WHEN** a host sends their own booking link or handle
+- **THEN** no request is created and they are told it is their own link
+
+#### Scenario: Existing request continues
+- **WHEN** the account already has an open request with that host and does not ask for another meeting
+- **THEN** that request continues and no second request is created
+
+### Requirement: One conversation routes by context
+In a host conversation that also holds the host's sent requests, a message SHALL go to the discussion the host binding has selected, without a picker. `request <ref>` SHALL select a sent request bound to that conversation; a message saying the sender is the host SHALL select setup; another host's booking link or @handle SHALL reach the host role; a message naming another such request SHALL select it, and while a received request is selected only its reference SHALL. A host notice SHALL select its received request and a guest notice SHALL select its sent request, except during the host tutorial. A reference SHALL resolve only requests the account received or sent bound to that conversation.
+
+#### Scenario: Notice moves the conversation
+- **WHEN** a guest notice about a sent request arrives after the host was talking about setup
+- **THEN** the host's next plain message goes to that sent request
+
+#### Scenario: Another host's request
+- **WHEN** the host sends `request <ref>` for a request that is neither theirs nor bound to their conversation
+- **THEN** nothing is selected for it and nothing reaches that request
+
+### Requirement: Received and sent requests listed apart
+When the host asks about their requests in conversation, the service SHALL list the requests they received and the requests they sent to other hosts apart, each by person, purpose and status.
+
+#### Scenario: Both kinds open
+- **WHEN** a host with a received and a sent request asks what meetings they have
+- **THEN** the list tool returns both, received and sent apart
+
+### Requirement: A guest-host's updates in their host conversation
+A guest whose request is linked to their host account SHALL be able to choose, with the host settings card, that the request's notices and replies use their linked host conversation, and to turn it off again. The choice SHALL be offered only while the account has a linked messenger.
+
+#### Scenario: Opt in
+- **WHEN** the guest-host chooses **Updates in your host conversation**
+- **THEN** the request is bound to their host conversation, its notices arrive there, and `request <ref>` there resolves it
+
+### Requirement: Agreement notice in the guest's linked chat
+When a guest with an active iMessage, WhatsApp or Telegram binding agrees to a proposal, and when a guest links such a chat while their agreement waits for the host's approval, the service SHALL send that chat one English message of what the guest sent: the people, the purpose, the date and time with the guest's timezone named, the duration, and online or the place. It SHALL say the request waits for the host's approval and is not booked, or, for a change to a booked meeting, that the booked meeting stands until then, and SHALL NOT contain the booking link. Each agreed version SHALL send at most one such message per binding, and a version the guest reopened or the host decided before it was sent SHALL send none. WhatsApp's 24-hour window rule SHALL apply as for every guest notice.
+
+#### Scenario: Linked guest agrees
+- **WHEN** a guest with a linked iMessage agrees to the current proposal
+- **THEN** one message there lists the people, purpose, time with the zone, length and place or online, says it waits for the host's approval and is not booked, and has no booking link
+
+#### Scenario: Guest links after agreeing
+- **WHEN** a guest agrees and then links their WhatsApp from the waiting card
+- **THEN** that chat receives the same message once
+
+#### Scenario: Retried agreement notice
+- **WHEN** the notice job runs again for the same version and binding
+- **THEN** no second message is sent
 
 ### Requirement: Guest composer availability
 The booking page composer SHALL be locked, saying the step above must be finished first, only before the fixed steps first hand the guest over to the assistant and only while one of those steps is open. The guest SHALL count as handed over once the Calendar step was settled, the request has a purpose, or the guest has written in the request's conversation, and SHALL stay handed over when the Calendar step reopens. A Calendar step that reopens after the handover SHALL appear where the thread is now, with the assistant's line saying it is open again and what to do, while the composer stays usable. A request that has ended while its page is open SHALL close the composer with the reason.
@@ -492,3 +559,37 @@ A host declining a request SHALL be able to name up to 14 other dates that no lo
 #### Scenario: Too many or malformed dates
 - **WHEN** a decline names 15 dates, a date that does not exist, or an extra field
 - **THEN** nothing is declined and the input is refused
+
+### Requirement: Several candidate times in one agreement
+A requester SHALL be able to make one proposal version of up to three distinct candidate times from the current evaluation and agree to all of them at once, on the web, through the guest's assistant and through the requester's agent. Agreement SHALL read the host's conflict calendars again for every listed time, and a time that no longer fits SHALL record no agreement and offer newly evaluated times. Agreement SHALL mean that any listed time works for the requester; the request SHALL await host approval as for one time, and the requester's **Change** SHALL reopen it as for one time.
+
+#### Scenario: Guest offers three times
+- **WHEN** the requester ticks three current candidate times, offers them and agrees to the resulting proposal
+- **THEN** one proposal version lists the three times, the request awaits host approval, and the host is asked once
+
+#### Scenario: Fourth time
+- **WHEN** the requester tries to offer four times in one proposal
+- **THEN** the input is rejected and no proposal is created
+
+#### Scenario: One of the times became busy
+- **WHEN** one of the listed times is busy on the host's calendars when the requester agrees
+- **THEN** no agreement is recorded, the host is sent nothing, and new times are found
+
+### Requirement: Host books one of the agreed times
+For an agreed proposal of several times, the host's request view, messenger summary, messenger assistant and host agent tools SHALL show every time, numbered, and the host SHALL approve by naming one of them. Approval SHALL read the host's conflict calendars again for the chosen time; a time that no longer fits SHALL approve nothing and leave the other times available. A chosen time that fits SHALL become the next proposal version on its own, carrying the requester's agreement, and SHALL be approved and booked as a proposal of one time. An approval that names no time SHALL be rejected without change.
+
+#### Scenario: Host books the second time
+- **WHEN** the host presses **Book this time** on the second of three agreed times
+- **THEN** that time is checked, becomes the agreed current version, and is booked; the other times are not booked
+
+#### Scenario: Chosen time became busy
+- **WHEN** the host books a time that is now busy on their calendar
+- **THEN** nothing is approved, the host is told, and they can book another listed time or decline
+
+#### Scenario: Messenger approval without a time
+- **WHEN** the host approves a proposal of several times in the messenger without naming which
+- **THEN** nothing is approved and the reply lists the numbered times with a button for each where the channel has buttons
+
+#### Scenario: Repeated approval
+- **WHEN** the host's approval is repeated from another interface after one time was booked
+- **THEN** the existing booking is returned and no second time is booked

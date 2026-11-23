@@ -7,7 +7,7 @@ import setupTools from "../../agent/tools/setup";
 import { STARTER_DEFAULTS } from "../contracts/setup";
 import { buildFieldViews } from "./setup";
 import type { SetupStateView } from "./setup";
-import { authorizeSetupTool, changeSettingsToolInput, draftSettingsToolInput, isHostSetupSession, modelProjection, type SessionPrincipal } from "./setup-tools";
+import { authorizeSetupTool, changeSettingsToolInput, draftSettingsToolInput, isHostSetupSession, modelProjection, saveAssistantNotesToolInput, type SessionPrincipal } from "./setup-tools";
 
 function principal(attributes: Record<string, string>, principalType = "user"): SessionPrincipal {
   return { attributes, principalId: "4f1c7a52-2b8e-4a36-9b1d-0e6a7d1f2c33", principalType };
@@ -28,7 +28,7 @@ describe("setup capabilities resolve per audience", () => {
   it("gives a host setup session the setup tools and switching in words", async () => {
     const tools = await setupTools.events["session.started"]!({}, resolveContext(hostSetup));
 
-    expect(Object.keys(tools ?? {}).sort()).toEqual(["choose_note_items", "choose_request_tutorial", "confirm_note_items", "confirm_settings", "draft_settings", "list_host_requests", "preview_next_week", "read_schedule", "read_setup_state", "set_calendar_roles", "switch_conversation"]);
+    expect(Object.keys(tools ?? {}).sort()).toEqual(["choose_note_items", "choose_request_tutorial", "confirm_note_items", "confirm_settings", "draft_settings", "list_host_requests", "preview_next_week", "read_schedule", "read_setup_state", "save_assistant_notes", "set_calendar_roles", "start_request", "switch_conversation"]);
   });
 
   it("leaves the tools absent for any other audience or no principal", async () => {
@@ -57,6 +57,17 @@ describe("setup capabilities resolve per audience", () => {
     expect(content).not.toContain("keep hours the host already answered and do not");
     expect(content).toContain("ask whether to switch");
     expect(content).toContain("Their hours stay until they agree");
+  });
+
+  it("guides chat setup with the shared step names and one calendar question (setup-chat-guidance)", async () => {
+    const instructions = await hostSetupInstructions.events["session.started"]!({}, resolveContext(hostSetup));
+    const content = (instructions as { content: string }).content;
+
+    expect(content).toContain("Calendar, Meeting hours, Where you meet, Open times");
+    expect(content).toContain('Put the line\n  "3/4 · Where you meet" ("3/4 · 미팅 장소")');
+    expect(content).toContain("asks once\n   whether they should count for busy times too");
+    expect(content).toContain("Never repeat that question");
+    expect(content).toContain("setup is done");
   });
 
   it("describes draft_settings to the model as JSON Schema", () => {
@@ -91,6 +102,7 @@ describe("setup capabilities resolve per audience", () => {
 describe("modelProjection", () => {
   const state: SetupStateView = {
     tutorialOffered: false,
+    assistantNotes: { text: "A first meeting is online.", updatedAt: "2026-10-19T00:02:00.000Z" },
     account: { googleEmail: "alice@example.test" },
     analysis: {
       calendars: [{ id: "secret-calendar-id@group.calendar.google.com", ok: true, summary: "Work" }],
@@ -196,6 +208,20 @@ describe("modelProjection", () => {
     expect(projected.roles).toEqual({ bookingCalendar: '"Work"', conflictCalendars: ['"Work"'] });
     expect(projected.calendar.calendars).toEqual([{ access: "owner", index: 0, name: '"Work"', primary: true, recommended: ["conflict", "booking"] }]);
     expect(projected.links).toBeNull();
+  });
+
+  it("gives the host's assistant their own notes for Thyme, without when they were saved", () => {
+    const projected = modelProjection(state);
+    expect(projected.assistantNotes).toBe("A first meeting is online.");
+    expect(JSON.stringify(projected)).not.toContain("2026-10-19T00:02:00.000Z");
+    expect(modelProjection({ ...state, assistantNotes: null }).assistantNotes).toBeNull();
+  });
+
+  it("describes save_assistant_notes as the whole notes, capped at 1000 characters", () => {
+    expect(saveAssistantNotesToolInput.safeParse({ notes: "투자 상담은 30분" }).success).toBe(true);
+    expect(saveAssistantNotesToolInput.safeParse({ notes: "" }).success).toBe(true);
+    expect(saveAssistantNotesToolInput.safeParse({ notes: "x".repeat(1001) }).success).toBe(false);
+    expect(saveAssistantNotesToolInput.safeParse({ notes: "ok", source: "stated" }).success).toBe(false);
   });
 
   it("leaves out place names and gives calendar names only as quoted data", () => {

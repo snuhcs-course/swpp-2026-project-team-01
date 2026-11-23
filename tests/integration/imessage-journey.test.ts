@@ -157,9 +157,8 @@ describe("the Phase 6 join", () => {
         if (pending.state !== "pending") throw new Error("Expected a pending code.");
         sender = `+1555${String(Math.floor(Math.random() * 1e7)).padStart(7, "0")}`;
         expect((await arrive(sender, linkMessage(pending.code))).outcome).toBe("link_received");
-        const received = await im.status(seeded.hostAccountId);
-        if (received.state !== "received") throw new Error("Expected the received sender.");
-        expect((await im.command(seeded.hostAccountId, "imessage.link.confirm", { linkId: received.linkId })).ok).toBe(true);
+        // The code links on arrival (link-on-code D1).
+        expect(await im.status(seeded.hostAccountId)).toMatchObject({ state: "linked" });
       },
     });
     const host = request.hostAccountId;

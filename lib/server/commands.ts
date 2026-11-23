@@ -111,6 +111,15 @@ function actorKey(actor: Actor) {
   return `${actor.kind}:${actor.id}`;
 }
 
+// The saved result of a committed command, or null: lets a multi-step caller
+// replay later steps of the same retried call with their original inputs.
+export async function savedCommandResult<Result>(db: Queryable, actor: Actor, retryKey: string): Promise<Result | null> {
+  const [saved] = await db<{ result: Result }[]>`
+    select result from app.command_outcomes where actor = ${actorKey(actor)} and retry_key = ${retryKey}
+  `;
+  return saved?.result ?? null;
+}
+
 export function missingConfiguration(
   names: readonly string[],
   env: Readonly<Record<string, string | undefined>> = process.env,

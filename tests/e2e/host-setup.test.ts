@@ -1,5 +1,6 @@
 import { randomUUID } from "node:crypto";
 import type { Page } from "@playwright/test";
+import { TUTORIAL_TEXT } from "../../lib/contracts/host-tutorial";
 import { runCommand } from "../../lib/server/commands";
 import { updateDraftCommand } from "../../lib/server/setup-commands";
 import { draftRevision, hostCommandDeps } from "../integration/support/setup-host";
@@ -125,7 +126,7 @@ test("a new host completes setup one card at a time, from the authored messages 
   await expectOnlyCard(page, "Which time zone do you meet in?");
   const timezone = card(page, "Which time zone do you meet in?");
   await expect(timezone.getByRole("heading", { name: "Which time zone do you meet in?" })).toBeFocused();
-  await expect(timezone.getByText("1 of 7")).toBeVisible();
+  await expect(timezone.getByText("1 of 8")).toBeVisible();
   // No stepper chrome: answered steps are receipts, and Edit replaces Back.
   await expect(timezone.getByRole("button", { name: "Back" })).toHaveCount(0);
   await expectCardFits(page);
@@ -189,7 +190,7 @@ test("a new host completes setup one card at a time, from the authored messages 
   // Online leaves out the in-person steps; the identity step comes last.
   await expectOnlyCard(page, "What should your booking page show?");
   const identity = card(page, "What should your booking page show?");
-  await expect(identity.getByText("7 of 7")).toBeVisible();
+  await expect(identity.getByText("7 of 8")).toBeVisible();
   const displayName = await identity.getByLabel("Display name").inputValue();
   expect(displayName.length).toBeGreaterThan(0);
   const handle = uniqueHandle();
@@ -197,12 +198,21 @@ test("a new host completes setup one card at a time, from the authored messages 
   await expect(identity.getByText("Available.")).toBeVisible();
   await identity.getByRole("button", { name: "Save" }).click();
 
+  // The last, optional step: notes for Thyme, saved at once (host-preference-notes).
+  const notesName = "Anything Thyme should know when talking with your guests?";
+  await expectOnlyCard(page, notesName);
+  const thymeNotes = card(page, notesName);
+  await expect(thymeNotes.getByText("8 of 8")).toBeVisible();
+  await thymeNotes.getByLabel("Notes for Thyme").fill("Investment advisory meetings are 30 minutes.\nA first meeting is online.");
+  await thymeNotes.getByRole("button", { name: "Save notes" }).click();
+
   // The review: one compact list, with the skipped step marked as only proposed.
   await expectOnlyCard(page, "Review your booking settings");
   const review = card(page, "Review your booking settings");
   await expect(review.getByRole("heading", { name: "Review your booking settings" })).toBeFocused();
   await expect(review.getByText("Checked in the note review")).toBeVisible();
   await expect(review.getByText(`/${handle}`)).toBeVisible();
+  await expect(review.getByText("A first meeting is online.")).toBeVisible();
   await expect(review.getByText("Proposed, not reviewed")).toHaveCount(1);
   // Receipts accumulated in the order the steps were answered.
   expect(await receiptsInOrder(page)).toEqual([
@@ -215,7 +225,9 @@ test("a new host completes setup one card at a time, from the authored messages 
     "notes:current",
     "mode:current",
     "identity:current",
+    "assistantNotes:current",
   ]);
+  await expect(receipt(page, "assistantNotes")).toContainText("Investment advisory meetings are 30 minutes.");
   await expect(receipt(page, "identity")).toContainText(`/${handle}`);
 
   // The review's Edit opens that step in a fresh card and returns to the review.
@@ -294,7 +306,7 @@ for (const [button, confirmation] of [
     await expectOnlyCard(page, "You're ready.");
     await page.reload();
     const links = card(page, "You're ready.");
-    await expect(links.getByText("Would you like to try a sample request?")).toBeVisible();
+    await expect(links.getByText(TUTORIAL_TEXT.en.offer)).toBeVisible();
     await links.getByRole("button", { name: "Try it" }).click();
 
     await expect(page.getByRole("heading", { name: "Requests" })).toBeVisible();

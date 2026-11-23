@@ -68,7 +68,11 @@ export type GuestNotice =
   | { readonly kind: "status_pending"; readonly bookingId: string }
   | { readonly kind: "status_cancelled"; readonly bookingId: string }
   | { readonly kind: "status_change_dropped"; readonly bookingId: string; readonly reason: "declined" | "expired"; readonly version: number }
-  | { readonly kind: "booking_confirmation"; readonly bookingId: string };
+  | { readonly kind: "booking_confirmation"; readonly bookingId: string }
+  // What the guest sent when they agreed (guest-email-and-agree-notices design
+  // 4): one per agreed version and binding, so a binding made after agreeing
+  // gets its own.
+  | { readonly kind: "agreement_sent"; readonly version: number; readonly bindingId: string };
 
 export function guestNoticeKey(requestId: string, notice: GuestNotice) {
   switch (notice.kind) {
@@ -76,6 +80,8 @@ export function guestNoticeKey(requestId: string, notice: GuestNotice) {
       return `guest-notice:${notice.kind}:${requestId}:v${notice.version}`;
     case "status_change_dropped":
       return `guest-notice:${notice.kind}:${requestId}:v${notice.version}:${notice.reason}`;
+    case "agreement_sent":
+      return `guest-notice:${notice.kind}:${requestId}:v${notice.version}:${notice.bindingId}`;
     case "status_pending":
     case "status_cancelled":
     case "booking_confirmation":
@@ -96,6 +102,36 @@ export async function enqueueGuestNotice(tx: Transaction, requestId: string, not
     kind: IMESSAGE_NOTICE_JOB,
     payload: { audience: "requester", notice, requestId },
   });
+}
+
+// The agreement notice for the request's active guest binding, when there is
+// one: from request.agree in its transaction, and from a binding made while the
+// request waits for the host's approval. The job sends it only while that
+// version is still the one awaiting approval and the binding is still active.
+export async function enqueueAgreementNotice(tx: Transaction, requestId: string, version: number) {
+  const [binding] = await tx<{ id: string }[]>`
+    select id from app.requester_imessage_bindings where request_id = ${requestId} and state = 'active'
+  `;
+  if (!binding) return;
+
+  const notice: GuestNotice = { bindingId: binding.id, kind: "agreement_sent", version };
+  await publishJob(tx, {
+    dedupeKey: guestNoticeKey(requestId, notice),
+    kind: IMESSAGE_NOTICE_JOB,
+    payload: { audience: "requester", notice, requestId },
+  });
+}
+
+// The version a request awaiting the host's approval was agreed at, or null.
+export async function awaitingAgreementVersion(tx: Transaction, requestId: string) {
+  const [row] = await tx<{ version: number }[]>`
+    select p.version from app.requests r
+    join app.proposals p on p.request_id = r.id
+    join app.agreements a on a.proposal_id = p.id
+    where r.id = ${requestId} and r.state = 'awaiting_host_approval'
+    order by p.version desc limit 1
+  `;
+  return row?.version ?? null;
 }
 
 // Telegram decision buttons (host-telegram-channel design 7, D9): a path that

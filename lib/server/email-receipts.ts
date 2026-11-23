@@ -51,6 +51,8 @@ import { type TokenKey, tokenKeyFromEnvironment } from "./token-encryption";
 //     is forwarded (guest-flow-completion U16, U18);
 //   - a new thread whose subject names a ready host starts a request (D6), and
 //     one that names none gets one fixed reply;
+//   - a reply to a guest's booking confirmation, which replies to this inbox,
+//     reaches that request's discussion (guest-email-and-agree-notices design 2);
 //   - anything else does nothing.
 // Admission limits and an unreachable AgentMail fail the attempt, so the receipt
 // is retried with backoff rather than dropped (D11).
@@ -420,6 +422,10 @@ export async function processReceivedMessage(
 
   if (startsThread(message)) return start(deps, receipt, message, address);
 
+  // A reply to the guest's booking confirmation, which replies to this inbox.
+  const answered = await confirmationReply(deps, receipt, message, address);
+  if (answered) return answered;
+
   // A reply that arrived before the thread's first message was processed waits
   // for it, rather than being ignored for good.
   const [earlier] = await deps.db<{ id: string }[]>`
@@ -431,6 +437,71 @@ export async function processReceivedMessage(
   if (earlier) throw new Error("An earlier message of this thread is not processed yet.");
 
   return "ignored";
+}
+
+// The Message-ID form a reply's In-Reply-To or References names, without the
+// angle brackets and case-folded, so it compares with a provider message ID.
+function messageIdOf(value: string) {
+  return value.trim().replace(/^<|>$/g, "").toLowerCase();
+}
+
+// A reply to a requester's booking confirmation (guest-email-and-agree-notices
+// design 2). The confirmation goes out through Cloudflare with Reply-To this
+// inbox, so its reply arrives here in a thread of its own. An authenticated
+// sender whose address is a request's current contact and received that
+// request's confirmation with Reply-To this inbox reaches that request's
+// requester discussion: the reply's In-Reply-To or References picks the
+// confirmation when it names one, else the latest. The thread is bound to the
+// request as a started thread, or, when the request already has an active
+// thread, the message is forwarded through that binding and answered in its
+// own thread. Returns null when the message answers no such confirmation.
+async function confirmationReply(
+  deps: EmailReceiptDependencies,
+  receipt: Receipt,
+  message: ReceivedMessage,
+  address: string,
+): Promise<ReceiptOutcome | null> {
+  const confirmations = await deps.db<{ request_id: string; provider_message_id: string | null }[]>`
+    select d.request_id, d.provider_message_id
+    from app.email_deliveries d
+    join app.requests r on r.id = d.request_id
+    where d.kind = 'booking_confirmation' and d.state = 'accepted'
+      and d.parameters ->> 'audience' = 'requester'
+      and lower(d.recipients[1]) = ${address}
+      and lower(d.reply_to) = ${receipt.inbox_id.toLowerCase()}
+      and lower(r.contact_email) = ${address}
+    order by d.created_at desc
+    limit 20
+  `;
+  if (confirmations.length === 0) return null;
+
+  const named = new Set([message.in_reply_to ?? "", ...(message.references ?? [])].filter(Boolean).map(messageIdOf));
+  const chosen =
+    confirmations.find((row) => row.provider_message_id && named.has(messageIdOf(row.provider_message_id))) ?? confirmations[0]!;
+
+  const bound = await deps.db.begin(async (tx) => {
+    await tx`select pg_advisory_xact_lock(hashtextextended(${`app.email_thread:${receipt.inbox_id}:${receipt.thread_id}`}, 0))`;
+    const existing = await activeBinding(tx, receipt.inbox_id, receipt.thread_id);
+    if (existing) return existing.bound_by_receipt_id === receipt.id ? { binding: existing, first: true } : null;
+
+    await tx`select id from app.requests where id = ${chosen.request_id} for update`;
+    const [current] = await tx<Binding[]>`
+      select id, request_id, origin, sender_hash, bound_by_receipt_id from app.email_threads
+      where request_id = ${chosen.request_id} and state = 'active'
+    `;
+    if (current) return { binding: current, first: false };
+
+    const [created] = await tx<Binding[]>`
+      insert into app.email_threads (request_id, inbox_id, thread_id, origin, sender_hash, bound_by_receipt_id, last_message_id)
+      values (${chosen.request_id}, ${receipt.inbox_id}, ${receipt.thread_id}, 'started', ${senderHash(deps.tokenKey, address)},
+              ${receipt.id}, ${receipt.message_id})
+      returning id, request_id, origin, sender_hash, bound_by_receipt_id
+    `;
+    return { binding: created!, first: true };
+  });
+
+  if (!bound) return "ignored";
+  return forward(deps, receipt, message, bound.binding, bound.first);
 }
 
 // Auto-replies and bulk mail never reach the assistant, so an out-of-office

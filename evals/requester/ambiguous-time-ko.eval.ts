@@ -10,7 +10,7 @@ import { readRequestProjection, requesterSession, requesterStubs } from "./suppo
 const QUESTION = CLARIFICATION_QUESTIONS.missing_date.ko;
 
 export default defineEval({
-  tags: ["requester", "live-model"],
+  tags: ["requester", "live-model", "capability"],
   async test(t) {
     const projection = readRequestProjection({
       details: { ...readRequestProjection().details, language: "ko", windows: [] },

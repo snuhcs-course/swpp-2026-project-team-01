@@ -1,4 +1,6 @@
 import { createHash } from "node:crypto";
+import type { HostNotesView } from "../contracts/host-notes";
+import { readHostNotes } from "./host-notes";
 import type { AnalysisCard, PlaceHint } from "../contracts/analysis";
 import {
   type ConfirmedSettings,
@@ -134,6 +136,8 @@ export type SetupStateView = {
   readonly pendingChanges: boolean;
   // When the host last confirmed settings (ISO time), for the confirmation receipt.
   readonly confirmedAt: string | null;
+  // The host's notes for Thyme (host-preference-notes), null until answered.
+  readonly assistantNotes: HostNotesView;
 };
 
 export type SetupReadOptions = {
@@ -642,6 +646,7 @@ export async function readSetupState(
   return {
     account: { googleEmail: records.email },
     analysis,
+    assistantNotes: await readHostNotes(deps.db, hostAccountId),
     analysisSkipped: records.analysisSkipped,
     calendar: { connected: records.calendarConnected, destinationLost: lost, invalid: records.grantInvalid, ...live },
     confirmedAt: records.confirmedAt,

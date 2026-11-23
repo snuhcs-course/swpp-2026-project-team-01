@@ -151,6 +151,10 @@ export type RequesterHostProfileView = {
   readonly offered: readonly HostProfileItem[];
   readonly items: readonly HostProfileItem[];
   readonly decided: boolean;
+  // The request's notices and replies in the guest-host's own linked host
+  // conversation (#61): offered while the account has one; on while this
+  // request is bound to it.
+  readonly messenger: { readonly offered: boolean; readonly on: boolean };
 };
 
 // The commands the booking page posts to /api/requests/{bookingId}/commands, as
@@ -168,6 +172,7 @@ export const REQUESTER_OPERATIONS = [
   "request.agree",
   "request.withdraw",
   "contact.resend_confirmation",
+  "contact.change_email",
   "contact.use_google_email",
   "calendar.disconnect",
   "calendar.select",

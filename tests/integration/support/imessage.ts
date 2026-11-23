@@ -197,7 +197,7 @@ export function imessageHarness(
       return runJob(db, job!.id, createImessageReceiptHandler(() => deps));
     },
     async command(hostAccountId: string, operation: string, input: unknown = {}, retryKey: string = randomUUID(), lineDayLimit?: number) {
-      const liveCalendars = operation === "imessage.link.confirm" || operation === "imessage.link.verify_code"
+      const liveCalendars = operation === "imessage.link.verify_code"
         ? await readDefaultRoleCalendars(db, hostAccountId, receiptDeps().setup.calendar)
         : null;
       return runCommand(
@@ -226,7 +226,8 @@ export function imessageHarness(
       const result = await runJob(db, job!.id, createImessageSendHandler(() => deps));
       return { result, sent: photon().sends.slice(before) };
     },
-    // Links a sender to the host the way the card and the host's message do.
+    // Links a sender to the host the way the card and the host's message do:
+    // the code links on arrival.
     // With channel "whatsapp", the sender is a WhatsApp contact ID.
     async link(hostAccountId: string, sender?: string, channel: "imessage" | "whatsapp" = "imessage") {
       sender ??= channel === "whatsapp" ? newWhatsAppSender() : newSender();
@@ -238,11 +239,10 @@ export function imessageHarness(
       );
       const pending = await this.status(hostAccountId);
       if (pending.state !== "pending") throw new Error(`Expected a pending code, got ${pending.state}.`);
+      // The code links as soon as it arrives (link-on-code D1).
       await this.deliver({ channel, sender, text: linkMessage(pending.code) });
-      const received = await this.status(hostAccountId);
-      if (received.state !== "received") throw new Error(`Expected a received code, got ${received.state}.`);
-      const confirmed = await this.command(hostAccountId, "imessage.link.confirm", { linkId: received.linkId });
-      if (!confirmed.ok) throw new Error("Confirming the link failed.");
+      const linked = await this.status(hostAccountId);
+      if (linked.state !== "linked") throw new Error(`Expected a linked sender, got ${linked.state}.`);
       return { hostAccountId, message: linkMessage(pending.code), sender };
     },
     async bindingOf(hostAccountId: string) {

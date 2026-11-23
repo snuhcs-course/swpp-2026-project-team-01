@@ -196,10 +196,13 @@ export function openTelegramText(sealed: string): { readonly text: string | null
 
 const REQUEST_REF = /^[0-9A-HJKMNP-TV-Z]{6}$/;
 const VERSION = /^[1-9]\d{0,5}$/;
+const OPTION = /^[1-9]$/;
 const SETTINGS_REF = /^[0-9A-F]{8}$/;
 
 // The exact command a button's callback_data names, never its label:
-//   - a:<ref>-<version> is approve <ref>-<version>;
+//   - a:<ref>-<version> is approve <ref>-<version>, and a:<ref>-<version>-<n>
+//     approve of the n-th time of a proposal of several
+//     (multiple-candidate-times);
 //   - d:<ref>-<version> is decline <ref>-<version>;
 //   - s:<ref> is request <ref>;
 //   - c:<settingsRef> is confirm <settingsRef>.
@@ -212,8 +215,9 @@ export function parseCallbackData(data: string | null): ParsedCommand | null {
   const ref = value.toUpperCase();
 
   if (action === "a" || action === "d") {
-    const dash = ref.lastIndexOf("-");
-    if (dash < 0 || !REQUEST_REF.test(ref.slice(0, dash)) || !VERSION.test(ref.slice(dash + 1))) return null;
+    const [request = "", version = "", option, ...rest] = ref.split("-");
+    if (!REQUEST_REF.test(request) || !VERSION.test(version) || rest.length > 0) return null;
+    if (option !== undefined && (action === "d" || !OPTION.test(option))) return null;
     return { name: action === "a" ? "approve" : "decline", ref };
   }
   if (action === "s") return REQUEST_REF.test(ref) ? { name: "request", ref } : null;
@@ -385,10 +389,11 @@ const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 // proposal summary asks for, or the settings review's confirmation. Stored on
 // the row, so a later edit can remove it once the proposal is no longer current.
 export type TelegramButtons =
-  | { readonly kind: "decision"; readonly ref: string; readonly version: number }
+  // options: how many times of a proposal of several have a button each.
+  | { readonly kind: "decision"; readonly ref: string; readonly version: number; readonly options?: number }
   | { readonly kind: "settings"; readonly ref: string };
 
-export const BUTTON_LABELS = { approve: "Approve", confirm: "Confirm settings", decline: "Decline", details: "Show details" } as const;
+export const BUTTON_LABELS = { approve: "Approve", approveTime: "Book time", confirm: "Confirm settings", decline: "Decline", details: "Show details" } as const;
 
 // The keyboard a summary's buttons make on Telegram. The commands build one set
 // of buttons for every channel, whose IDs are this change's callback data
@@ -398,8 +403,9 @@ export function telegramButtonsOf(buttons: WhatsAppButtons): TelegramButtons | n
   for (const item of buttons.items) {
     const command = parseCallbackData(item.id);
     if (command?.name === "approve") {
-      const dash = command.ref.lastIndexOf("-");
-      return { kind: "decision", ref: command.ref.slice(0, dash), version: Number(command.ref.slice(dash + 1)) };
+      const [ref = "", version = ""] = command.ref.split("-");
+      const options = buttons.items.filter((entry) => parseCallbackData(entry.id)?.name === "approve").length;
+      return { kind: "decision", ref, version: Number(version), ...(options > 1 ? { options } : {}) };
     }
     if (command?.name === "confirm") return { kind: "settings", ref: command.ref };
   }
@@ -410,6 +416,18 @@ export function telegramButtonsOf(buttons: WhatsAppButtons): TelegramButtons | n
 export function inlineKeyboard(buttons: TelegramButtons) {
   if (buttons.kind === "settings") return { inline_keyboard: [[{ callback_data: `c:${buttons.ref}`, text: BUTTON_LABELS.confirm }]] };
   const decision = `${buttons.ref}-${buttons.version}`;
+  if (buttons.options && buttons.options > 1) {
+    // One button per time of a proposal of several, then the same Decline and details.
+    return {
+      inline_keyboard: [
+        Array.from({ length: buttons.options }, (_, index) => ({ callback_data: `a:${decision}-${index + 1}`, text: `${BUTTON_LABELS.approveTime} ${index + 1}` })),
+        [
+          { callback_data: `d:${decision}`, text: BUTTON_LABELS.decline },
+          { callback_data: `s:${buttons.ref}`, text: BUTTON_LABELS.details },
+        ],
+      ],
+    };
+  }
   return {
     inline_keyboard: [
       [

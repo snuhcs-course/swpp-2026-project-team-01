@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { checkWindows, intentProblem, localPatchSchema, storedPatch } from "./request-reviews";
+import { checkWindows, intentProblem, localPatchSchema, splitStatedPatch, storedPatch } from "./request-reviews";
 
 const at = (iso: string) => Date.parse(iso);
 
@@ -80,5 +80,78 @@ describe("intentProblem", () => {
     expect(intentProblem({ clarifications: [], intent: "unknown", patch: null })).toBe("missing_clarification");
     expect(intentProblem({ clarifications: ["booked"], intent: "question", patch: null })).toBe("unsupported_clarification");
     expect(intentProblem({ clarifications: ["missing_time"], intent: "question", patch: null })).toBeNull();
+  });
+});
+
+describe("splitStatedPatch (#411)", () => {
+  const window = { end: "2099-03-02T03:00:00.000Z", start: "2099-03-02T01:00:00.000Z" };
+  const fresh = { durationMinutes: 60, mode: null, purpose: null };
+
+  it("applies explicit details and times at once, holding nothing", () => {
+    const patch = { mode: "in_person" as const, location: "Gangnam Station", purpose: "Investment advice", windows: [window] };
+    expect(splitStatedPatch(fresh, patch)).toEqual({ applied: patch, changes: true, held: null });
+  });
+
+  it("holds assumed time bounds and applies the stated purpose and form", () => {
+    const patch = { mode: "online" as const, preferredWindows: [window], purpose: "Investment advice", windows: [window] };
+    expect(splitStatedPatch(fresh, patch, { time: true })).toEqual({
+      applied: { mode: "online", purpose: "Investment advice" },
+      changes: true,
+      held: { preferredWindows: [window], windows: [window] },
+    });
+  });
+
+  it("holds in person and its place when the form was taken from a named place (#378)", () => {
+    const patch = { location: "강남역", mode: "in_person" as const, purpose: "투자 상담" };
+    expect(splitStatedPatch(fresh, patch, { mode: true })).toEqual({
+      applied: { purpose: "투자 상담" },
+      changes: true,
+      held: { location: "강남역", mode: "in_person" },
+    });
+    expect(splitStatedPatch(fresh, { location: "강남역", mode: "in_person" }, { mode: true })).toMatchObject({ applied: null });
+  });
+
+  it("holds a value that differs from what the request holds, and the windows that must fit a changed length", () => {
+    const held = splitStatedPatch({ durationMinutes: 60, mode: "online", purpose: "Old" }, { durationMinutes: 30, mode: "online", windows: [window] });
+    expect(held).toEqual({ applied: { mode: "online" }, changes: false, held: { durationMinutes: 30, windows: [window] } });
+
+    const changedPurpose = splitStatedPatch({ purpose: "Old" }, { purpose: "New", travelMode: "transit" });
+    expect(changedPurpose).toEqual({ applied: { travelMode: "transit" }, changes: true, held: { purpose: "New" } });
+  });
+
+  it("treats the same value as stated, and an empty stored value as not yet held", () => {
+    expect(splitStatedPatch({ durationMinutes: 60, mode: "online" }, { durationMinutes: 60, mode: "online" })).toEqual({
+      applied: { durationMinutes: 60, mode: "online" },
+      changes: false,
+      held: null,
+    });
+    expect(splitStatedPatch({ location: null }, { location: "Seongsu" })).toMatchObject({ applied: { location: "Seongsu" }, held: null });
+  });
+
+  it("keeps name and email for the protected review", () => {
+    expect(splitStatedPatch(fresh, { contactName: "Grace", purpose: "Lunch" })).toEqual({
+      applied: { purpose: "Lunch" },
+      changes: true,
+      held: { contactName: "Grace" },
+    });
+  });
+
+  it("applies a new set of times over earlier ones without a card", () => {
+    const earlier = { windows: [{ end: "2099-03-01T03:00:00.000Z", start: "2099-03-01T01:00:00.000Z" }] };
+    expect(splitStatedPatch(earlier, { windows: [window] })).toMatchObject({ applied: { windows: [window] }, held: null });
+  });
+
+  it("holds the place, link and travel with a change of form", () => {
+    expect(splitStatedPatch({ mode: "online" }, { location: "성수", mode: "in_person", purpose: "Coffee" })).toEqual({
+      applied: { purpose: "Coffee" },
+      changes: true,
+      held: { location: "성수", mode: "in_person" },
+    });
+  });
+
+  it("compares stored values regardless of key order", () => {
+    const stored = { linkPlan: { url: "https://meet.example.test/x", kind: "requester_link" as const } };
+    const restated = { linkPlan: { kind: "requester_link" as const, url: "https://meet.example.test/x" } };
+    expect(splitStatedPatch(stored, restated)).toEqual({ applied: restated, changes: false, held: null });
   });
 });

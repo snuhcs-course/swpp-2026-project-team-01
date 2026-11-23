@@ -2,6 +2,8 @@ import { randomUUID } from "node:crypto";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { createCalendarAnalysisHandler, hoursSuggestion } from "../../lib/server/analysis";
 import { readCalendarRoles } from "../../lib/server/calendar-roles";
+import { TUTORIAL_TEXT } from "../../lib/contracts/host-tutorial";
+import { SETUP_OVERVIEW } from "../../lib/contracts/setup-progress";
 import { channelReplies } from "../../lib/server/channel-texts";
 import { runCommand } from "../../lib/server/commands";
 import { createImessageNoticeHandler } from "../../lib/server/imessage-notice-job";
@@ -70,14 +72,14 @@ async function sendPreview(call: SetupToolCall, host: SeededHost, changeSummary?
 }
 
 describe("default calendar roles", () => {
-  it.each(["imessage", "whatsapp"] as const)("saves a writable primary at %s link confirmation and publishes analysis", async channel => {
+  it.each(["imessage", "whatsapp"] as const)("saves a writable primary when the %s code links and publishes analysis", async channel => {
     const host = await seedHost(db, deps, google);
     await im.link(host.hostAccountId, undefined, channel);
     expect(await readCalendarRoles(db, host.hostAccountId)).toMatchObject({ revision: 1, bookingCalendar: { id: host.primaryId }, conflictCalendars: [{ id: host.primaryId }] });
     expect(await analysisJob(host)).toBeTruthy();
     const [welcome] = await im.outbox({ hostAccountId: host.hostAccountId, kind: "linked" });
     const { sent } = await im.send(welcome!.id);
-    expect(sent[0]?.content).toMatchObject({ kind: "text", text: channelReplies("en").onboarding.rolesDefault("Me") });
+    expect(sent[0]?.content).toMatchObject({ kind: "text", text: `${SETUP_OVERVIEW.en}\n${channelReplies("en").onboarding.rolesDefault("Me", ["Team"])}` });
   });
 
   it("asks for roles for a read-only primary without choosing another calendar", async () => {
@@ -85,16 +87,16 @@ describe("default calendar roles", () => {
     await im.link(host.hostAccountId);
     expect(await readCalendarRoles(db, host.hostAccountId)).toBeNull();
     const [welcome] = await im.outbox({ hostAccountId: host.hostAccountId, kind: "linked" });
-    expect((await im.send(welcome!.id)).sent[0]?.content).toMatchObject({ text: channelReplies("en").onboarding.rolesNeeded });
+    expect((await im.send(welcome!.id)).sent[0]?.content).toMatchObject({ text: `${SETUP_OVERVIEW.en}\n${channelReplies("en").onboarding.rolesNeeded}` });
   });
 
-  it("confirms the link and asks for roles when the grant cannot be decrypted", async () => {
+  it("links and asks for roles when the grant cannot be decrypted", async () => {
     const host = await seedHost(db, setupDependencies(db, google), google);
     await im.link(host.hostAccountId);
     expect(await im.bindingOf(host.hostAccountId)).toMatchObject({ state: "active" });
     expect(await readCalendarRoles(db, host.hostAccountId)).toBeNull();
     const [welcome] = await im.outbox({ hostAccountId: host.hostAccountId, kind: "linked" });
-    expect((await im.send(welcome!.id)).sent[0]?.content).toMatchObject({ text: channelReplies("en").onboarding.rolesNeeded });
+    expect((await im.send(welcome!.id)).sent[0]?.content).toMatchObject({ text: `${SETUP_OVERVIEW.en}\n${channelReplies("en").onboarding.rolesNeeded}` });
 
     await resumeImessageOnboarding(db, testTokenKey, host.hostAccountId, "unreadable-grant", deps.calendar);
     const [resume] = await im.outbox({ hostAccountId: host.hostAccountId, kind: "command" });
@@ -114,6 +116,8 @@ describe("default calendar roles", () => {
     expect((await readCalendarRoles(db, host.hostAccountId))?.revision).toBe(1);
     const rows = await db`select id from app.imessage_outbox where host_account_id = ${host.hostAccountId} and dedupe_key like 'google-return:%'`;
     expect(rows).toHaveLength(1);
+    // The return names the other calendar it could also check, once (issue #361).
+    expect((await im.send(rows[0]!.id as string)).sent[0]?.content).toMatchObject({ text: channelReplies("en").onboarding.rolesDefault("Me", ["Team"]) });
   });
 });
 
@@ -180,7 +184,7 @@ describe("slot preview and acceptance", () => {
     await sendPreview(call, host, `I recorded online meetings. ${randomUUID()}`);
     const image = photon.sends.find(send => send.content.kind === "image" && send.content.preview.reviewRef === ref && send.channel === channel);
     expect(image?.content).toMatchObject({ kind: "image", language: "en", preview: { meetingMode: "online", reviewRef: ref, days: expect.any(Array) } });
-    expect(image?.content).toMatchObject({ summary: expect.stringMatching(/^I recorded online meetings\. \[removed credential\][\s\S]*Shall I open these for booking\?$/) });
+    expect(image?.content).toMatchObject({ summary: expect.stringMatching(/^4\/4 · Open times\nI recorded online meetings\. \[removed credential\][\s\S]*Shall I open these for booking\?$/) });
     const [reply] = await im.outbox({ hostAccountId: host.hostAccountId, kind: "turn" });
     expect(reply!.state).toBe("waiting");
     expect(await im.send(reply!.id)).toEqual({ result: "completed", sent: [] });
@@ -189,7 +193,7 @@ describe("slot preview and acceptance", () => {
     expect(await confirmSettingsForTool(deps, yes, { reviewRef: ref })).toMatchObject({
       saved: true,
       links: { booking: expect.any(String) },
-      tutorialOffer: "Would you like to try a sample request?",
+      tutorialOffer: TUTORIAL_TEXT.en.offer,
     });
     const [draft] = await db<{ accepted: boolean }[]>`select (fields -> 'meetingMode' ->> 'accepted')::boolean as accepted from app.setup_drafts where host_account_id = ${host.hostAccountId}`;
     expect(draft!.accepted).toBe(true);
