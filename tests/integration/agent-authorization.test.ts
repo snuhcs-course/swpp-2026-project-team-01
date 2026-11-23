@@ -120,11 +120,15 @@ describe("registration", () => {
     }
   });
 
-  it("bounds registrations per source and grants nothing", async () => {
+  it("refuses registrations past the service-wide bound and grants nothing", async () => {
     const deps = agentDependencies(db);
     await db`delete from app.agent_protocol_attempts where kind = 'registration'`;
     const clients: string[] = [];
-    for (let index = 0; index < AGENT_LIMITS.registrationPerSource.limit; index += 1) clients.push(await registerTestClient(deps));
+    for (let index = 0; index < 3; index += 1) clients.push(await registerTestClient(deps));
+    await db`
+      insert into app.agent_protocol_attempts (kind, key_hash)
+      select 'registration', encode(sha256('service'::bytea), 'hex') from generate_series(1, ${AGENT_LIMITS.registrationService.limit - 3})
+    `;
 
     const refused = await createRegistrationHandler(() => deps)(
       new Request(`${ORIGIN}/oauth/register`, {
@@ -138,6 +142,8 @@ describe("registration", () => {
 
     const [{ count }] = Array.from(await db<{ count: number }[]>`select count(*)::int as count from app.agent_grants where client_id = any(${clients})`);
     expect(count).toBe(0);
+    // Free the service bound for the tests that follow.
+    await db`delete from app.agent_protocol_attempts where kind = 'registration'`;
   });
 });
 
