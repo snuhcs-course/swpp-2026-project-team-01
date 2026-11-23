@@ -29,7 +29,8 @@ import { activeBindingOfHost, bindingRecipient } from "./imessage-links";
 import { recordOutbound } from "./imessage-outbox";
 import { hostConversationLanguage } from "./channel-language";
 import { channelReplies } from "./channel-texts";
-import { readReadiness } from "./readiness";
+import { readReadiness, savedSettingsOnce } from "./readiness";
+import { withoutSetupStep } from "../contracts/setup-progress";
 import { HostIneligibleError } from "./host-eligibility";
 import { type ClaimedJob, type JobHandler, publishJob } from "./jobs";
 import { type NoteAnswer, noteAnswerMatcher, readNoteAnswers } from "./note-answers";
@@ -821,10 +822,13 @@ export async function queueHoursQuestion(tx: Transaction, hostAccountId: string,
   `;
   if (!marked) return;
   const language = await hostConversationLanguage(tx, hostAccountId);
+  const question = channelReplies(language).onboarding.hoursQuestion(hoursSuggestion(evidence));
+  // A host who saved settings before is not starting setup over (issue #368).
+  const text = (await savedSettingsOnce(tx, hostAccountId)) ? withoutSetupStep(question) : question;
   await recordOutbound(tx, {
     kind: "notice", dedupeKey: `onboarding-hours:${binding.id}`, bindingId: binding.id, hostAccountId,
     recipient: bindingRecipient(tokenKeys, binding), recipientHash: binding.sender_hash, tokenKey: tokenKeys[0]!,
-    text: channelReplies(language).onboarding.hoursQuestion(hoursSuggestion(evidence)),
+    text,
   });
 }
 

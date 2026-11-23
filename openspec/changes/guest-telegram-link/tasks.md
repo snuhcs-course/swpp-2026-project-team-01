@@ -22,3 +22,5 @@
 
 - [ ] 5.1 Teammate review of D1–D6.
 - [ ] 5.2 Link a real guest's Telegram on production and record it in the acceptance record.
+
+  Open: needs a person to link a real guest's Telegram on production; kept unarchived on 2026-11-23.

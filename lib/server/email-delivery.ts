@@ -120,7 +120,7 @@ type DeliveryRow = {
 // emails (creation, link resend) need the request open and unexpired with an
 // unexpired booking link, and the address still its contact (for a creation
 // email, whose confirmation link must not be superseded) or still its
-// confirmed contact (for a link resend). Booking emails (host-review-and-booking
+// confirmed contact (for a link resend, which a booked request may also get). Booking emails (host-review-and-booking
 // design 9) need their condition to still hold: a confirmation its confirmed
 // booking; a new-version notice its version still the latest and unagreed on an
 // open request; a decline or expiry notice that closed state; a pending notice
@@ -198,16 +198,18 @@ async function recipientCurrent(tx: Transaction, delivery: DeliveryRow) {
     default: {
       const [row] = await tx<{ current: boolean }[]>`
         select (
-          r.closed_at is null
-          and r.expires_at > now()
-          and l.expires_at > now()
+          l.expires_at > now()
           and case ${delivery.kind}
-            when 'request_creation' then lower(r.contact_email) = ${recipient}
+            when 'request_creation' then r.closed_at is null and r.expires_at > now()
+              and lower(r.contact_email) = ${recipient}
               and not exists (
                 select 1 from app.contact_confirmations c
                 where c.delivery_id = ${delivery.id} and c.superseded_at is not null
               )
-            when 'link_resend' then lower(coalesce(r.contact_confirmed_email, '')) = ${recipient}
+            -- A booked meeting's guest may ask Thyme for the link again
+            -- (guest-email-and-agree-notices design 3).
+            when 'link_resend' then ((r.closed_at is null and r.expires_at > now()) or r.state = 'booked')
+              and lower(coalesce(r.contact_confirmed_email, '')) = ${recipient}
             else false
           end
         ) as current

@@ -1,5 +1,6 @@
 import type { GuestChannel } from "../contracts/requester-imessage";
 import type { Queryable, Transaction } from "./database";
+import { awaitingAgreementVersion, enqueueAgreementNotice } from "./imessage-notices";
 import { recordOutbound } from "./imessage-outbox";
 import { openToken, sealToken, type TokenKey } from "./token-encryption";
 
@@ -117,6 +118,10 @@ export async function bindRequester(
     text: REQUESTER_LINK_TEXTS.linked(binding.hostName),
     tokenKey,
   });
+  // A guest who links while their agreement waits for the host gets what they
+  // sent, after the welcome (guest-email-and-agree-notices design 4).
+  const agreed = await awaitingAgreementVersion(tx, binding.requestId);
+  if (agreed !== null) await enqueueAgreementNotice(tx, binding.requestId, agreed);
   return bindingId;
 }
 

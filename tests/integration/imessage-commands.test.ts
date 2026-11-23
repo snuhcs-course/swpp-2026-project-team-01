@@ -1,5 +1,6 @@
 import { randomUUID } from "node:crypto";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
+import { TUTORIAL_TEXT } from "../../lib/contracts/host-tutorial";
 import { approveCommand } from "../../lib/server/bookings";
 import { requestRef, reviewRef, settingsRef } from "../../lib/server/imessage-commands";
 import { receivePhotonWebhook } from "../../lib/server/photon-receiver";
@@ -200,7 +201,8 @@ describe("settings commands", () => {
     const [image] = await im.outbox({ hostAccountId: host.hostAccountId, kind: "image" });
     await im.send(image!.id);
     const saved = await say(sender, host.hostAccountId, `confirm ${ref}`);
-    expect(saved.reply).toMatch(/^Saved\. Your booking link is https:\/\/findmeatime\.test\//);
+    expect(saved.reply).toMatch(/^Setup is done\. Your booking link: https:\/\/findmeatime\.test\//);
+    expect(saved.reply).toContain(TUTORIAL_TEXT.en.offer);
     expect(await db`select 1 from app.host_settings where host_account_id = ${host.hostAccountId}`).toHaveLength(1);
   });
 });
