@@ -155,8 +155,9 @@ for (const viewport of [
     await expect.poll(() => runEvaluations(db, request!.id)).toBe(1);
     await expect(page.getByRole("heading", { name: "Choose a time" })).toBeVisible();
     await openCardCount(page, 1);
+    // The week grid lists the times of the shown week (calendar-views design 3).
     const times = page.getByRole("list", { name: "Candidate times" }).getByRole("listitem");
-    baseExpect(await times.count()).toBeGreaterThan(1);
+    baseExpect(await times.count()).toBeGreaterThan(0);
     await expect(page.getByText(/Asia\/Seoul \(GMT\+9\) · 30 minutes · Online/).first()).toBeVisible();
     await noHorizontalScroll(page);
 

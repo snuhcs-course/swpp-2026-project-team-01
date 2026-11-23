@@ -7,7 +7,7 @@ import type { LinkPlan } from "@lib/contracts/request";
 import { isCalendarDate, MAX_DECLINED_DATES } from "@lib/contracts/declined-dates";
 import { DEFAULT_MEETING_MINUTES } from "@lib/contracts/setup";
 import { displayTime, instantFromLocal, localDate, zoneLabel } from "@lib/contracts/timezone";
-import { type FormEvent, type ReactNode, useId, useState } from "react";
+import { type FormEvent, type ReactNode, useEffect, useId, useState } from "react";
 import { Receipt } from "@/app/_components/booking-receipt";
 import { GuestCard, GuestCardActions } from "@/app/_components/guest/guest-card";
 import { Button } from "@/components/ui/button";
@@ -282,12 +282,33 @@ function localParts(instant: string | undefined, timeZone: string) {
   return { date: `${parts.year}-${parts.month}-${parts.day}`, time: `${parts.hour}:${parts.minute}` };
 }
 
-export function SuggestionEditor({ context, onClose }: { readonly context: HostCardContext; readonly onClose: () => void }) {
+export function SuggestionEditor({
+  context,
+  onClose,
+  onDraft,
+  picked = null,
+}: {
+  readonly context: HostCardContext;
+  readonly onClose: () => void;
+  // Reports the start and length the form holds, so the calendar beside it can mark them.
+  readonly onDraft?: (draft: { readonly start: string; readonly durationMinutes: number } | null) => void;
+  // A time picked on the calendar (calendar-views design 2), filled in as the start.
+  readonly picked?: { readonly start: string } | null;
+}) {
   const { view } = context;
   const base = view.proposal;
-  const initial = localParts(base?.start, view.hostTimezone);
+  const initial = localParts(picked?.start ?? base?.start, view.hostTimezone);
   const [date, setDate] = useState(initial.date);
   const [time, setTime] = useState(initial.time);
+
+  // A later pick on the calendar replaces the date and time.
+  useEffect(() => {
+    if (!picked) return;
+    const next = localParts(picked.start, view.hostTimezone);
+    setDate(next.date);
+    setTime(next.time);
+  }, [picked, view.hostTimezone]);
+
   const [duration, setDuration] = useState(String(base?.durationMinutes ?? view.details.durationMinutes ?? DEFAULT_MEETING_MINUTES));
   const [mode, setMode] = useState<"online" | "in_person">(base?.mode ?? (view.details.mode === "in_person" ? "in_person" : "online"));
   const [place, setPlace] = useState(base?.location ?? view.details.location ?? "");
@@ -295,6 +316,11 @@ export function SuggestionEditor({ context, onClose }: { readonly context: HostC
   const [problem, setProblem] = useState<string | null>(null);
   const { act, busy, error } = useAction(context);
   const ids = useId();
+
+  useEffect(() => {
+    const start = date && time ? instantFromLocal(date, time, view.hostTimezone) : null;
+    onDraft?.(start ? { durationMinutes: Number(duration), start } : null);
+  }, [date, time, duration, onDraft, view.hostTimezone]);
 
   async function submit(event: FormEvent) {
     event.preventDefault();
