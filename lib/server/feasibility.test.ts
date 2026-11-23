@@ -1394,4 +1394,44 @@ describe("a guest-host's own preferences (#60)", () => {
     const projection = requesterProjection(result.candidates, { displayTimezone: "Asia/Seoul", id: "e", notes: result.requesterNotes, state: "completed" });
     expect(projection.candidates.every((candidate) => candidate.notes === undefined)).toBe(true);
   });
+
+  it("names the guest-host's zone when the times are shown in another", () => {
+    const result = evaluateFeasibility(
+      input({ request: { timezone: "Asia/Tokyo", windows: [monday] }, requesterPreferences: preferences() }),
+    );
+    expect(result.requesterNotes.get(result.candidates[0]!.id)).toEqual(["Inside your usual Monday hours 12:00–13:00 in Asia/Seoul."]);
+  });
+
+  it("keeps times the stated preferences do not favour even when the guest-host's hours cover them", () => {
+    // Stated weekly windows cover the whole of two weeks' afternoons (more
+    // than the candidate cut); the guest-host's own hours cover the mornings.
+    const twoWeeks = { end: kst("2026-11-14", "00:00"), start: kst("2026-11-02", "00:00") };
+    const afternoons = (["monday", "tuesday", "wednesday", "thursday", "friday"] as const).map((weekday) => ({ end: "17:00", start: "13:00", weekday }));
+    const mornings = (["monday", "tuesday", "wednesday", "thursday", "friday"] as const).map((weekday) => ({ end: "13:00", start: "10:00", weekday }));
+    const result = evaluateFeasibility(
+      input({
+        request: { preferredWeeklyWindows: afternoons, windows: [twoWeeks] },
+        requesterPreferences: preferences({ weeklyWindows: mornings }),
+      }),
+    );
+    // Times inside the guest-host's mornings, ending by 13:00 Seoul time (04:00 UTC).
+    const morning = result.candidates.filter((candidate) => new Date(candidate.end).getUTCHours() * 60 + new Date(candidate.end).getUTCMinutes() <= 4 * 60);
+    expect(morning.length).toBeGreaterThan(0);
+    expect(morning.length).toBeLessThanOrEqual(10);
+  });
+
+  it("takes the guest-host's own event with no location to be at their usual place", () => {
+    const AREA = { key: hashed("Gwanak-gu"), text: "Gwanak-gu" };
+    const at = (clock: string) => kst("2026-11-02", clock);
+    const result = evaluateFeasibility(
+      input({
+        estimate: routes({ "Cafe Onion, Seongsu -> Gwanak-gu": 40 }),
+        requesterBusy: [busy(at("13:30"), at("14:00"))],
+        request: { location: MEETING, mode: "in_person", travelMode: "transit", windows: [{ end: at("12:30"), start: at("12:00") }] },
+        requesterPreferences: preferences({ usualPlace: AREA, weeklyWindows: [] }),
+      }),
+    );
+    expect(result.candidates[0]!.status).toBe("offered");
+    expect(result.candidates[0]!.legs[0]).toMatchObject({ party: "requester", status: "fits", travelMinutes: 40, usualPlace: true });
+  });
 });

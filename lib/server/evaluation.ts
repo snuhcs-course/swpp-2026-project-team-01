@@ -590,7 +590,8 @@ export function guestHostPreferences(
   settings: GuestHostSource["preferences"],
   bookedStarts: readonly number[],
   busy: readonly BusyInterval[],
-): RequesterPreferences {
+  hash: (text: string) => string = (text) => text,
+): RequesterPreferences | null {
   const counted = [
     ...bookedStarts,
     ...(weeklyLimitCountsOf(settings) === "all_meetings" ? busy.filter((interval) => interval.meeting).map((interval) => interval.start) : []),
@@ -601,7 +602,16 @@ export function guestHostPreferences(
     const week = addDays(local.date, -WEEKDAYS.indexOf(local.weekday));
     weekCounts[week] = (weekCounts[week] ?? 0) + 1;
   }
-  return { timezone: settings.timezone, weekCounts, weeklyLimit: settings.weeklyLimit, weeklyWindows: settings.weeklyWindows };
+  const place = usualPlace(settings, hash);
+  // Nothing to order by: no preferences, so the ranking and the order stay as for any guest.
+  if (settings.weeklyWindows.length === 0 && settings.weeklyLimit === null && !place) return null;
+  return {
+    timezone: settings.timezone,
+    usualPlace: place,
+    weekCounts,
+    weeklyLimit: settings.weeklyLimit,
+    weeklyWindows: settings.weeklyWindows,
+  };
 }
 
 // The host's confirmed places a request without a place is paired with
@@ -791,7 +801,7 @@ async function evaluate(
         timezone: requesterZone,
       });
       requesterBusy = [...(requesterBusy ?? []), ...own];
-      requesterPreferences = guestHostPreferences(guestHost.preferences, ownBookings.map((row) => row.start_at.getTime()), own);
+      requesterPreferences = guestHostPreferences(guestHost.preferences, ownBookings.map((row) => row.start_at.getTime()), own, hash);
     } catch (error) {
       if (error instanceof EvaluationDeadlineError) throw error;
       await dropGuestHostCalendars(tx, evaluation.requestId);

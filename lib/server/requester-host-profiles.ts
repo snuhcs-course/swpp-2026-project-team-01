@@ -152,7 +152,7 @@ export type GuestHostSource = {
   readonly conflictCalendars: ConfirmedSettings["conflictCalendars"];
   // The guest-host's own weekly windows and weekly limit, which order this
   // request's candidates as soft preferences (#60, design 7).
-  readonly preferences: Pick<ConfirmedSettings, "timezone" | "weeklyWindows" | "weeklyLimit" | "weeklyLimitCounts">;
+  readonly preferences: Pick<ConfirmedSettings, "timezone" | "weeklyWindows" | "weeklyLimit" | "weeklyLimitCounts" | "location">;
 };
 
 export async function readGuestHostSource(q: Queryable, requestId: string): Promise<GuestHostSource | null> {
@@ -170,6 +170,7 @@ export async function readGuestHostSource(q: Queryable, requestId: string): Prom
         email: row.email,
         hostAccountId: row.host_account_id,
         preferences: {
+          location: row.settings.location,
           timezone: row.settings.timezone,
           weeklyLimit: row.settings.weeklyLimit,
           weeklyLimitCounts: row.settings.weeklyLimitCounts,

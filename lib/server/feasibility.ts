@@ -356,6 +356,9 @@ export type RequesterPreferences = {
   readonly weeklyWindows: readonly WeeklyWindow[];
   readonly weeklyLimit: number | null;
   readonly weekCounts: Readonly<Record<string, number>>;
+  // The guest-host's own usual place, which their own events with no location
+  // are taken to happen at, as for the host (#324).
+  readonly usualPlace?: { readonly text: string; readonly key: string } | null;
 };
 
 export type FeasibilityInput = {
@@ -789,7 +792,11 @@ function weeklyIntervals(rules: readonly WeeklyWindow[], timezone: string, entri
 // A guest-host's soft preferences (#60): the score each candidate adds (0.5
 // inside their weekly windows, 0.25 in a week below their weekly limit) and the
 // guest-only sentences that explain it. Without preferences nothing changes.
-function guestPreferences(preferences: RequesterPreferences | null, entries: readonly { readonly start: number; readonly end: number }[]) {
+function guestPreferences(
+  preferences: RequesterPreferences | null,
+  entries: readonly { readonly start: number; readonly end: number }[],
+  displayTimezone: string,
+) {
   if (!preferences) return { active: false, notes: () => [], score: () => 0 };
 
   const windows = weeklyIntervals(preferences.weeklyWindows, preferences.timezone, entries);
@@ -808,7 +815,7 @@ function guestPreferences(preferences: RequesterPreferences | null, entries: rea
         const window = inside(entry);
         notes.push(
           window
-            ? `Inside your usual ${weekdayLabel(window.rule.weekday)} hours ${window.rule.start}–${window.rule.end}${endsNextDay(window.rule) ? " (next day)" : ""}.`
+            ? `Inside your usual ${weekdayLabel(window.rule.weekday)} hours ${window.rule.start}–${window.rule.end}${endsNextDay(window.rule) ? " (next day)" : ""}${preferences.timezone === displayTimezone ? "" : ` in ${preferences.timezone}`}.`
             : "Outside your usual hours, so it comes after times inside them.",
         );
       }
@@ -940,12 +947,12 @@ function plan(input: FeasibilityInput): Plan {
   // A guest-host's own weekly windows and weekly limit (#60) come after the
   // host's keys and the request's stated preferences: inside their hours
   // first, then weeks below their limit first. Neither removes a candidate.
-  const guest = guestPreferences(input.requesterPreferences ?? null, paired);
-  const score = (entry: (typeof paired)[number]) =>
+  const guest = guestPreferences(input.requesterPreferences ?? null, paired, request.timezone);
+  const stated = (entry: (typeof paired)[number]) =>
     Number(preferred.some((window) => entry.start >= window.start.getTime() && entry.end <= window.end.getTime())) +
     Number(recurring.some((window) => entry.start >= window.start && entry.end <= window.end)) -
-    3 * Number(lessPreferred.some((window) => entry.start < window.end.getTime() && entry.end > window.start.getTime())) +
-    guest.score(entry);
+    3 * Number(lessPreferred.some((window) => entry.start < window.end.getTime() && entry.end > window.start.getTime()));
+  const score = (entry: (typeof paired)[number]) => stated(entry) + guest.score(entry);
   // The host's weekly-limit preference, then their trip preference, outweigh
   // all guest preference signals (score is within [-3, 2.75]; the request's
   // stated preferences move it in whole steps and the guest-host's own
@@ -958,11 +965,16 @@ function plan(input: FeasibilityInput): Plan {
   );
   const kept = ranked.slice(0, CANDIDATE_LIMIT);
   // Retain some non-preferred alternatives when doing so preserves host priority.
-  if (preferred.length || weekly.length || lessPreferred.length || guest.active) {
-    const alternatives = ranked.filter((entry) => score(entry) <= 0 && !kept.includes(entry));
+  // With stated preferences, an alternative is a time none of them favours,
+  // whatever the guest-host's own preferences say; otherwise it is a time
+  // outside the guest-host's preferences.
+  const anyStated = preferred.length > 0 || weekly.length > 0 || lessPreferred.length > 0;
+  if (anyStated || guest.active) {
+    const retain = anyStated ? stated : score;
+    const alternatives = ranked.filter((entry) => retain(entry) <= 0 && !kept.includes(entry));
     for (const alternative of alternatives) {
-      const replace = kept.findLastIndex((entry) => hostWeight(entry) === hostWeight(alternative) && score(entry) > score(alternative));
-      if (replace < 0 || kept.filter((entry) => score(entry) <= score(alternative) && hostWeight(entry) === hostWeight(alternative)).length >= 10) continue;
+      const replace = kept.findLastIndex((entry) => hostWeight(entry) === hostWeight(alternative) && retain(entry) > retain(alternative));
+      if (replace < 0 || kept.filter((entry) => retain(entry) <= retain(alternative) && hostWeight(entry) === hostWeight(alternative)).length >= 10) continue;
       kept[replace] = alternative;
     }
     kept.sort((a, b) => weighted(b) - weighted(a));
@@ -1009,8 +1021,9 @@ function plan(input: FeasibilityInput): Plan {
       // The requester's own trips carry no host buffer, and use public transit
       // unless the requester named a mode (guest-travel-default).
       const requesterMode = request.travelMode ?? DEFAULT_REQUESTER_TRAVEL_MODE;
-      if (own.previous) legs.push(planLeg("requester", "inbound", own.previous, meeting, entry, requesterMode, 0));
-      if (own.next) legs.push(planLeg("requester", "outbound", own.next, meeting, entry, requesterMode, 0));
+      const ownUsual = input.requesterPreferences?.usualPlace ?? null;
+      if (own.previous) legs.push(planLeg("requester", "inbound", own.previous, meeting, entry, requesterMode, 0, ownUsual));
+      if (own.next) legs.push(planLeg("requester", "outbound", own.next, meeting, entry, requesterMode, 0, ownUsual));
     }
 
     return { ...entry, legs, requesterNotes: guest.notes(entry) };

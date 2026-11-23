@@ -144,22 +144,32 @@ describe("a guest-host's preferences (#60)", () => {
     meeting: isMeeting,
     start: at(iso),
   });
-  const settings = { timezone: "Asia/Seoul", weeklyLimit: 3, weeklyWindows: [] };
+  const settings = { location: { kind: "decide_per_meeting" as const }, timezone: "Asia/Seoul", weeklyLimit: 3, weeklyWindows: [] };
 
   it("counts their bookings by their own week, and their other meetings only when every meeting counts", () => {
     // Sunday 8 Nov 23:30 in Seoul is still the week of Monday 2 Nov.
     const booked = [at("2026-11-08T14:30:00Z"), at("2026-11-09T01:00:00Z")];
     const busy = [meeting("2026-11-03T01:00:00Z", true), meeting("2026-11-03T03:00:00Z", false)];
 
-    expect(guestHostPreferences({ ...settings, weeklyLimitCounts: "bookings" }, booked, busy).weekCounts).toEqual({
+    expect(guestHostPreferences({ ...settings, weeklyLimitCounts: "bookings" }, booked, busy)!.weekCounts).toEqual({
       "2026-11-02": 1,
       "2026-11-09": 1,
     });
     expect(guestHostPreferences({ ...settings, weeklyLimitCounts: "all_meetings" }, booked, busy)).toEqual({
       timezone: "Asia/Seoul",
+      usualPlace: null,
       weekCounts: { "2026-11-02": 2, "2026-11-09": 1 },
       weeklyLimit: 3,
       weeklyWindows: [],
     });
+  });
+
+  it("is none for a guest-host with no hours, no limit and no usual place, so nothing changes", () => {
+    expect(guestHostPreferences({ ...settings, weeklyLimit: null, weeklyLimitCounts: "bookings" }, [], [])).toBeNull();
+  });
+
+  it("carries the guest-host's usual place, keyed", () => {
+    const places = { ...settings, location: { areas: ["Gwanak-gu"], kind: "places" as const, venue: null }, weeklyLimit: null, weeklyLimitCounts: "bookings" as const };
+    expect(guestHostPreferences(places as never, [], [], (text) => `h:${text}`)!.usualPlace).toEqual({ key: "h:Gwanak-gu", text: "Gwanak-gu" });
   });
 });
