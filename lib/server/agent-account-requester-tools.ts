@@ -19,6 +19,14 @@ const SENT_NAMES: Readonly<Record<string, string>> = {
   change_booking: "change_sent_booking",
 };
 
+// Requester guidance names the per-host tools; on the account connection the
+// renamed ones (change_booking is the account's own host tool there) must be
+// named by their sent names.
+const SENT_NAME_PATTERN = new RegExp(`\\b(${Object.keys(SENT_NAMES).join("|")})\\b`, "g");
+export function sentText(text: string) {
+  return text.replace(SENT_NAME_PATTERN, (name) => SENT_NAMES[name]!);
+}
+
 // An account association is established by verified identity/session, never by
 // matching the request's contact email. Keep the anonymous live-link boundary.
 async function requestContext(context: AgentToolContext, requestId: string): Promise<AgentToolContext | null> {
@@ -66,7 +74,7 @@ const sentTools: readonly AgentTool[] = REQUESTER_TOOLS
     ...tool,
     role: "host",
     name: SENT_NAMES[tool.name] ?? tool.name,
-    description: `${tool.description.replaceAll("get_request", "get_sent_request")} On this account connection, supply requestId from create_request or list_sent_requests. Read sent requests with get_sent_request.`,
+    description: `${sentText(tool.description)} On this account connection, supply requestId from create_request or list_sent_requests. Read sent requests with get_sent_request.`,
     input: z.object({ requestId: z.uuid(), arguments: tool.input.optional().describe("The request action arguments; omit for reads.") }).strict(),
     async run(context, raw) {
       const args = raw as { requestId: string; arguments?: unknown };
@@ -78,9 +86,9 @@ const sentTools: readonly AgentTool[] = REQUESTER_TOOLS
       const parsed = tool.input.safeParse(args.arguments ?? {});
       if (!parsed.success) return { ok: false, category: "invalid_input", message: "The action arguments do not match the input schema.", nextAction: "Check this tool's arguments schema and retry." };
       const result = await tool.run(target, parsed.data);
-      if (!result.ok) return { ...result, nextAction: result.nextAction.replaceAll("get_request", "get_sent_request") };
+      if (!result.ok) return { ...result, nextAction: sentText(result.nextAction) };
       if (result.result && typeof result.result === "object" && "next" in result.result && typeof result.result.next === "string") {
-        return { ok: true, result: { ...result.result, next: result.result.next.replaceAll("get_request", "get_sent_request") } };
+        return { ok: true, result: { ...result.result, next: sentText(result.result.next) } };
       }
       return result;
     },

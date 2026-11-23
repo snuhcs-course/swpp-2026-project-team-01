@@ -6,6 +6,7 @@
 - [x] 1.2 Add `decline_request`, `share_changes` and `dismiss_changes` to the host-review tools, and the suggestion's id to `read_request`. Verify integration tests for a channel message, a web message, a stale version or suggestion, a closed request and a repeated call.
 - [x] 1.3 Add `list_host_requests` and `confirm_settings` to the setup tools, and `reviewRef` to `read_setup_state`. Verify integration tests for a channel message, a web message, a stale review and a repeated call, and the list on the web.
 - [x] 1.4 Tell the assistant to act on clear words with these tools and to answer reviews, changes and request lists in words.
+- [x] 1.5 Add `read_settings` and `change_settings` to the host-review tools, so a saved setting such as the preferred place changes in words while the linked conversation is about a request (issue #367). Verify a unit test for the tool set and instructions, and an integration test for a place change saved from a request's conversation and refused for a web message.
 
 ## 2. Replies
 

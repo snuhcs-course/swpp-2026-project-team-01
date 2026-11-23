@@ -1,0 +1,74 @@
+{
+  "branch": "docs/success-criteria",
+  "user": "dodo41142727@gmail.com",
+  "sessions": {
+    "claude:157b1f93-121c-4112-9a28-585b8f572d3c": {
+      "agent": "claude-code",
+      "client": "claude-desktop",
+      "agent_ms": 0,
+      "models": {
+        "claude-opus-5-5": {
+          "input": 116,
+          "cache_read": 9827042,
+          "cache_write_5m": 0,
+          "cache_write_1h": 177536,
+          "output": 37710,
+          "reasoning": 0
+        }
+      },
+      "first": "2026-11-23T07:26:44.092Z",
+      "last": "2026-11-23T07:43:35.695Z"
+    },
+    "claude:157b1f93-121c-4112-9a28-585b8f572d3c/agent-a17677e870a57268f": {
+      "agent": "claude-code",
+      "client": "claude-desktop",
+      "agent_ms": 0,
+      "models": {
+        "claude-opus-5-5": {
+          "input": 52,
+          "cache_read": 3644755,
+          "cache_write_5m": 136402,
+          "cache_write_1h": 0,
+          "output": 19819,
+          "reasoning": 0
+        }
+      },
+      "first": "2026-11-23T07:37:00.729Z",
+      "last": "2026-11-23T07:41:27.014Z"
+    },
+    "claude:157b1f93-121c-4112-9a28-585b8f572d3c/agent-a3ce03e66fd6f5387": {
+      "agent": "claude-code",
+      "client": "claude-desktop",
+      "agent_ms": 0,
+      "models": {
+        "claude-sonnet-5-5": {
+          "input": 18,
+          "cache_read": 835957,
+          "cache_write_5m": 74069,
+          "cache_write_1h": 0,
+          "output": 9239,
+          "reasoning": 0
+        }
+      },
+      "first": "2026-11-23T07:35:01.491Z",
+      "last": "2026-11-23T07:36:06.415Z"
+    },
+    "claude:157b1f93-121c-4112-9a28-585b8f572d3c/agent-aee5375502bdc3e3f": {
+      "agent": "claude-code",
+      "client": "claude-desktop",
+      "agent_ms": 0,
+      "models": {
+        "claude-sonnet-5-5": {
+          "input": 8,
+          "cache_read": 318767,
+          "cache_write_5m": 68900,
+          "cache_write_1h": 0,
+          "output": 3940,
+          "reasoning": 0
+        }
+      },
+      "first": "2026-11-23T07:43:06.301Z",
+      "last": "2026-11-23T07:43:28.965Z"
+    }
+  }
+}
