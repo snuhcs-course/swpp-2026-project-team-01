@@ -1,6 +1,6 @@
 import { randomUUID } from "node:crypto";
 import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
-import { NO_MATCH_MESSAGE, nearestTimesMessage } from "../../lib/contracts/feasibility";
+import { CALENDAR_PRIVACY_REPLY, NO_MATCH_MESSAGE, nearestTimesMessage } from "../../lib/contracts/feasibility";
 import { EVALUATION_JOB } from "../../lib/server/evaluation";
 import { closeRequest } from "../../lib/server/request-lifecycle";
 import { applyReviewCommand } from "../../lib/server/request-reviews";
@@ -119,6 +119,7 @@ describe("read_request and read_booking_status", () => {
     const text = JSON.stringify(projection);
 
     expect(projection).toMatchObject({
+      calendarReply: CALENDAR_PRIVACY_REPLY.en,
       contact: { email: "present", name: "present" },
       details: { durationMinutes: 30, mode: "online", purpose: "Talk about compilers", timezone: "Asia/Seoul" },
       readyForTimes: true,

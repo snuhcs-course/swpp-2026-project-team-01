@@ -38,6 +38,16 @@ export type NearestOpenTimes = {
 // it searches again; the assistant describes the same three (U11).
 export const TIMES_SHOWN = 3;
 
+// The authored reply when a guest asks about either calendar, such as whether
+// the host has other plans that day (#309, #311): the assistant cannot see it,
+// both calendars are checked privately when times are found, and it offers to
+// look at other days or a wider window. Choosing among the times already shown
+// is not that offer, and like every requester message it gives no reason.
+export const CALENDAR_PRIVACY_REPLY = {
+  en: "I can't see the host's calendar, or yours. Both calendars are checked privately and automatically when times are found. Want me to look at other days or a wider window?",
+  ko: "호스트의 캘린더는 볼 수 없고, 게스트님 캘린더도 마찬가지예요. 가능한 시간을 찾을 때 두 분의 캘린더는 비공개로 자동 확인돼요. 다른 날짜나 더 넓은 시간대로 찾아볼까요?",
+} as const;
+
 export const NO_MATCH_MESSAGE = {
   en: "No time in your windows works yet. Try a wider window, other days or a shorter meeting.",
   ko: "말씀하신 시간대에서는 아직 맞는 시간이 없어요. 시간대를 넓히거나 다른 날짜, 더 짧은 미팅으로 다시 찾아보세요.",

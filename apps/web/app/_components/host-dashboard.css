@@ -14,3 +14,16 @@
 .hd-sent.hd-event,.hd-sent.hd-month-event{background:#f7f9fc;border-color:#2c3e63;color:#2c3e63}
 .hd-agenda-item.hd-sent{border-color:#2c3e63;background:#f7f9fc}
 .hd-source.hd-sent{background:#fff;color:#2c3e63;border:1px solid #2c3e63}
+
+/* A short block keeps its time and who it is with on one line. */
+.hd-event.hd-compact{flex-direction:row;align-items:center;gap:5px;padding:3px 7px;white-space:nowrap}
+.hd-event.hd-compact span{margin-top:0;display:block;min-width:0;overflow:hidden;text-overflow:ellipsis}
+
+/* A booked meeting's approved details, then the way back to its request. */
+.hd-facts{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:14px 12px;margin:0}
+.hd-facts>div{min-width:0}
+.hd-facts>div:first-child,.hd-facts>div:nth-child(n+4){grid-column:1/-1}
+.hd-facts dt{font-size:11px;font-weight:600;color:#586172}
+.hd-facts dd{margin:3px 0 0;font-size:12px;line-height:1.5;color:#3e444e;overflow-wrap:anywhere}
+.hd-facts a,.hd-open-request{color:#2c3e63;font-weight:600;text-decoration:underline;text-underline-offset:2px}
+.hd-open-request{display:inline-flex;align-items:center;min-height:44px;margin-top:8px;font-size:12px}

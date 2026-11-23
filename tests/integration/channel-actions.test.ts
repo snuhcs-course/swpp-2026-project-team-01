@@ -207,11 +207,11 @@ describe("sharing or dismissing suggested changes in words", () => {
     const { call, request } = await reviewerWrote("Yes, send them the new time");
     const id = await suggest(request.hostAccountId, request.requestId, request.start);
 
-    expect(await resolveChangesForTool(db, call, "share", { suggestionId: id })).toMatchObject({ done: true, message: expect.stringContaining("Shared") });
+    expect(await resolveChangesForTool(db, call, "share", { suggestionId: id })).toMatchObject({ done: true, message: expect.stringContaining("Submitted for checking") });
     expect(await suggestionState(id)).toBe("checking");
 
     const again = await resolveChangesForTool(db, { ...call, callId: randomUUID() }, "share", { suggestionId: id });
-    expect(again).toMatchObject({ done: true, message: expect.stringContaining("already shared") });
+    expect(again).toMatchObject({ done: true, message: expect.stringContaining("already submitted for checking") });
     expect(await suggestionState(id)).toBe("checking");
   });
 

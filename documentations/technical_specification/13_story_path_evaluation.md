@@ -100,18 +100,23 @@ After every failed run was read against the instructions (pre-check below), 48 r
 
 | Failure | Runs | Cases | Cause found | Issue |
 |---|---|---|---|---|
-| Replies in Korean to a host writing in English from a messenger | 11 | RV-02, RV-05, RV-P5, RV-X10 | Korean examples in the messenger fragment and the host tool descriptions, with Korean request data and no language signal for the host; replaying one call, removing both turned 6 of 6 Korean replies into 0 of 6. Ungraded turns show the same: 39 of 53 English host messages got Korean replies | #272 |
+| Replies in Korean to a host writing in English from a messenger | 11 | RV-02, RV-05, RV-P5, RV-X10 | Korean examples in the messenger fragment and the host tool descriptions, with Korean request data and no language signal for the host; replaying one call, removing both turned 6 of 6 Korean replies into 0 of 6. Ungraded turns show the same: 39 of 53 English host messages got Korean replies | #272; fixed by [`host-assistant-story-fixes`](../../openspec/changes/host-assistant-story-fixes/proposal.md): English examples, and `read_request` and `list_host_requests` say the host's latest message decides the language; not rerun |
 | Asks for the year of "11월 26일" and makes no suggestion | 6 | RV-13, RV-X17, RV-X19 | The host's `read_request` gives times without a year and no today's date; the guest's has `today` | #273 |
-| Says the revised details were sent when they were only submitted for checking | 4 | RV-07, RV-X14 | `share_changes` answers "Shared." while the suggestion is `checking` | #274 |
-| Replaces a pending suggestion without its time, so 15:00 is lost | 3 | RV-22 | A new suggestion supersedes the pending one and keeps only its own changes; nothing tells the assistant | #275 |
-| Offers 14:30 instead of drafting the 15:00 the host asked for | 2 | RV-06 | Took the guest's windows as the limit; sharing checks the exact time against the host only | #276 |
-| Offers to cancel a meeting that has already started | 3 | GU-21 | `read_request` has no current time and keeps `booked` after the start; the command refuses the cancellation | #277 |
-| Calls `change_agreement` after the host approved | 3 | GU-31 | The `next` text lists it whatever the state | #278 |
-| Asks which days instead of drafting "next week" for a booked meeting | 2 | GU-19 | The requester fragment limits availability drafts to exact days or times | #279 |
-| Records in person from a place name instead of asking | 3 | GU-50 | The instructions do not say whether a place settles the form | #280 |
-| Answers who the host is instead of declining | 3 | GU-26 | The instructions do not cover questions about the host; the expectation is the team's | #281 |
-| Refuses a switch to the host conversation without saying what it can do | 2 | GU-R06 | Not found | #282 |
-| Handles a place outside the host's areas differently on each run | 2 | GU-05 | Not found | #283 |
+| Says the revised details were sent when they were only submitted for checking | 4 | RV-07, RV-X14 | `share_changes` answers "Shared." while the suggestion is `checking` | #274; fixed: `share_changes` reports the suggestion as submitted for checking, and the instructions say it is not sent until it passes; not rerun |
+| Replaces a pending suggestion without its time, so 15:00 is lost | 3 | RV-22 | A new suggestion supersedes the pending one and keeps only its own changes; nothing tells the assistant | #275; fixed: the assistant's new suggestion keeps the pending one's other changes ([`host-assistant-story-fixes`](../../openspec/changes/host-assistant-story-fixes/proposal.md) D1); not rerun |
+| Offers 14:30 instead of drafting the 15:00 the host asked for | 2 | RV-06 | Took the guest's windows as the limit; sharing checks the exact time against the host only | #276; fixed: the instructions and tools say to draft the exact time, even outside the requester's windows; not rerun |
+| Offers to cancel a meeting that has already started | 3 | GU-21 | `read_request` has no current time and keeps `booked` after the start; the command refuses the cancellation | #277, fix 1 |
+| Calls `change_agreement` after the host approved | 3 | GU-31 | The `next` text lists it whatever the state | #278, fix 1 |
+| Asks which days instead of drafting "next week" for a booked meeting | 2 | GU-19 | The requester fragment limits availability drafts to exact days or times | #279, fix 2 |
+| Records in person from a place name instead of asking | 3 | GU-50 | The instructions do not say whether a place settles the form | #280, fix 2 |
+| Answers who the host is instead of declining | 3 | GU-26 | The instructions do not cover questions about the host; the expectation is the team's | #281, fix 2 |
+| Refuses a switch to the host conversation without saying what it can do | 2 | GU-R06 | Not found; the fragment had no rule for a switch to the host's side, and `base.md` says only to say what can be done here | #282, fix 2 |
+| Handles a place outside the host's areas differently on each run | 2 | GU-05 | Not found; the fragment's rule did not separate the first mention from insistence, nor insistence from confirming the draft | #283, fix 2 |
+
+Fixes for the guest failures, in the [`guest-assistant-story-fixes`](../../openspec/changes/guest-assistant-story-fixes/proposal.md) change, not yet rerun:
+
+1. Tool results (#277, #278): `read_request` and `read_booking_status` give the current local time and whether a booked meeting has started; a started or ended meeting's status says it can no longer be cancelled or changed; the `booking` status says nothing changes until it is booked; `next` lists only the decisions the state accepts; and the `change_agreement` refusal no longer sends the guest to the host ([`lib/server/request-status-texts.ts`](../../lib/server/request-status-texts.ts)).
+2. Requester fragment (#279 to #283): relative days count as days for an availability draft, also when moving a booked meeting; a place alone does not answer online or in person; questions about the host as a person are declined; a switch to the host's side is refused with what the guest can do here; a place outside the host's areas is drafted only on insistence and applied only on confirmation.
 
 The rest (4 runs) happened once each: a whole-day window drafted as hours (GU-13), no decline (GU-42), "next Friday" read as this week's (GU-P6), and not asking a hesitating host (RV-18).
 
@@ -173,6 +178,13 @@ The Iteration 3 prompts fail the guest's normal paths (drafting, applying and as
 
 ## Appended cases
 
-| Date | Case | Conversation | What it checks | Change |
-|---|---|---|---|---|
-| 2026-11-23 | RV-D01 | Host review (Telegram, Korean) | Declining with two more dates that no longer work and a reason passes both dates as `excludedDates`, stores them as whole Asia/Seoul days on the declined request, and keeps the reason out of the request | [`decline-with-unavailable-dates`](../../openspec/changes/decline-with-unavailable-dates/proposal.md), #58 |
+| Date | Cases | Why |
+|---|---|---|
+| 2026-11-23 | GU-A01 to GU-A07 | One per guest failure #277 to #283, in another wording or language, so a fix that only fits the original case's words still fails: a change asked for after the start (GU-A01), a place change while booking (GU-A02), "next week" in English (GU-A03), a place in English instead of the form (GU-A04), the host's background (GU-A05), approving as the host in English (GU-A06), and Seongsu in English with no draft at the first mention (GU-A07). Not run yet |
+| 2026-11-23 | RV-F01 | #272: an English question from WhatsApp about a request with a Korean purpose gets an English reply |
+| 2026-11-23 | RV-F02 | #274: sharing in English says the new time is being checked, not that it was sent |
+| 2026-11-23 | RV-F03 | #275: RV-22 with a database check that can pass. RV-22's check looks for a pending suggestion at Tuesday 11:00, which its start state (`RV-A3`, Wednesday 15:00) never suggests, so it fails whatever the assistant does; RV-F03 checks that the new suggestion keeps Wednesday 15:00 and is in person at 강남역, whichever input the assistant passes |
+| 2026-11-23 | RV-F04 | #276: RV-06 in English, a time outside the guest's window drafted as asked |
+| 2026-11-23 | RV-D01 | #58: declining in Korean on Telegram with two more dates that no longer work and a reason passes both dates as `excludedDates`, stores them as whole Asia/Seoul days on the declined request, and keeps the reason out of the request ([`decline-with-unavailable-dates`](../../openspec/changes/decline-with-unavailable-dates/proposal.md)) |
+
+The four cases were added with [`host-assistant-story-fixes`](../../openspec/changes/host-assistant-story-fixes/proposal.md) and have not run yet; that change's release tasks run them with the failing cases they follow.

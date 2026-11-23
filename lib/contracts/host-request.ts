@@ -106,8 +106,29 @@ export type HostRequestView = {
   readonly needsDecision: boolean;
   // The earlier request a revised request follows (guest-flow-completion
   // design 5), by its reference, and how that one ended.
-  readonly revisedFrom: { readonly ref: string; readonly outcome: "declined" | "expired" } | null;
+  readonly revisedFrom: { readonly ref: string; readonly outcome: RevisedFromOutcome } | null;
 };
+
+// How the earlier request of a revised request ended: the host declined it, it
+// expired, or the guest withdrew it (guest-flow-completion U16, #59). A revised
+// request follows only these closed states.
+export type RevisedFromOutcome = "declined" | "expired" | "withdrawn";
+
+export function revisedFromOutcome(state: RequestState | null): RevisedFromOutcome | null {
+  return state === "declined" || state === "expired" || state === "withdrawn" ? state : null;
+}
+
+// The line /app shows above a revised request's card.
+export function revisedFromText(revisedFrom: { readonly ref: string; readonly outcome: RevisedFromOutcome }): string {
+  switch (revisedFrom.outcome) {
+    case "declined":
+      return `Follows request ${revisedFrom.ref}, which you declined.`;
+    case "expired":
+      return `Follows request ${revisedFrom.ref}, which expired.`;
+    case "withdrawn":
+      return `Follows request ${revisedFrom.ref}, which the guest withdrew.`;
+  }
+}
 
 // The host commands of the request view, each a card action.
 export const HOST_REQUEST_OPERATIONS = [

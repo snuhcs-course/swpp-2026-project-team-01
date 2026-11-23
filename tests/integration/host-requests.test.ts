@@ -6,6 +6,7 @@ import { displayTime } from "../../lib/contracts/timezone";
 import { listHostRequests, readHostRequest, readHostTimezone } from "../../lib/server/host-requests";
 import { hostRequestsForModel } from "../../lib/server/host-review-tools";
 import { agreeCommand, readCurrentEvaluation } from "../../lib/server/request-proposals";
+import { readRequesterView } from "../../lib/server/requester-routes";
 import { allowHostTripCommand, hostEvaluateCommand, waiveWeeklyLimitCommand } from "../../lib/server/request-exceptions";
 import { dismissChangesCommand, shareChangesCommand, suggestChangesCommand } from "../../lib/server/shared-changes";
 import { localAuthConfig, signInHost } from "./support/auth";
@@ -146,6 +147,8 @@ describe("shared changes", () => {
 
     const view = await readHostRequest(db, request.hostAccountId, request.requestId);
     expect(view?.suggestion).toMatchObject({ proposalVersion: 2, state: "shared" });
+    // The guest's page says the host reopened the agreed time, not the guest (#321).
+    expect(await readRequesterView(db, request.requestId)).toMatchObject({ reopenedBy: "host" });
     expect(view?.proposal).toMatchObject({ agreedAt: null, durationMinutes: 45, start: new Date(later).toISOString(), version: 2 });
     const deliveries = await deliveriesOf(db, request.requestId);
     expect(deliveries.map((email) => email.kind)).toEqual(["status_new_version"]);
@@ -185,6 +188,28 @@ describe("shared changes", () => {
     expect(view?.suggestion?.rejectionReason).toBeTruthy();
     expect(view?.proposal?.version).toBe(1);
     expect(await deliveriesOf(db, request.requestId)).toEqual([]);
+  });
+
+  it("keeps the pending suggestion's time in the assistant's replacement, not in the editor's (#275)", async () => {
+    const request = await agreedRequest(db, google);
+    const later = seoul("10:30");
+    const pending = await asHost(db, request.hostAccountId, request.requestId, suggestChangesCommand("host"), { changes: { start: later } });
+    if (!pending.ok) throw new Error("suggest failed");
+
+    const assistant = await asHost(db, request.hostAccountId, request.requestId, suggestChangesCommand("assistant"), {
+      changes: { location: "강남역", mode: "in_person" },
+    });
+    if (!assistant.ok) throw new Error("suggest failed");
+    expect(assistant.result.changes).toEqual({ location: "강남역", mode: "in_person", start: later });
+    expect((await readHostRequest(db, request.hostAccountId, request.requestId))?.suggestion).toMatchObject({
+      changes: { location: "강남역", mode: "in_person", start: later },
+      id: assistant.result.suggestionId,
+      state: "pending",
+    });
+
+    const editor = await asHost(db, request.hostAccountId, request.requestId, suggestChangesCommand("host"), { changes: { durationMinutes: 60 } });
+    if (!editor.ok) throw new Error("suggest failed");
+    expect(editor.result.changes).toEqual({ durationMinutes: 60 });
   });
 
   it("dismisses a suggestion without changing anything shared", async () => {
