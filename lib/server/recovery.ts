@@ -54,10 +54,9 @@ export type ConversationStatus = {
 export async function conversationStatus(
   db: Database,
   authUserId: string,
-  requestId: string | null = null,
 ): Promise<ConversationStatus> {
   const hostAccountId = await eligibleHost(db, authUserId);
-  const discussionId = await findHostDiscussion(db, hostAccountId, requestId);
+  const discussionId = await findHostDiscussion(db, hostAccountId);
   const latest = discussionId ? await latestSession(db, discussionId) : null;
 
   if (!discussionId || !latest) {
@@ -139,18 +138,17 @@ async function redeliveryFilter(db: Database, discussionId: string) {
   };
 }
 
-// Events of the host's discussion (setup, or its review of `requestId`) from
-// `cursor`. With `follow`, the current generation is followed to the end of its
-// current turn.
+// Events of the host's setup discussion from `cursor`. With `follow`, the
+// current generation is followed to the end of its current turn.
 export async function* discussionEvents(
   deps: Pick<ConversationDependencies, "db" | "runtime">,
   authUserId: string,
   cookie: string,
   cursor: number,
-  options: { readonly follow: boolean; readonly signal?: AbortSignal; readonly idleMs?: number; readonly requestId?: string | null },
+  options: { readonly follow: boolean; readonly signal?: AbortSignal; readonly idleMs?: number },
 ): AsyncGenerator<DiscussionEvent> {
   const hostAccountId = await eligibleHost(deps.db, authUserId);
-  const discussionId = await findHostDiscussion(deps.db, hostAccountId, options.requestId ?? null);
+  const discussionId = await findHostDiscussion(deps.db, hostAccountId);
 
   if (!discussionId) return;
 
@@ -326,7 +324,7 @@ export function settled(latest: SessionRow | null, observedGeneration: number): 
   return null;
 }
 
-// POST /api/chat/recover: replaces a confirmed failed generation with at most one
+// Terminal recovery: replaces a confirmed failed generation with at most one
 // successor for the same discussion. The recovery identity is the discussion and
 // the observed generation, so an exact retry returns the transition's status.
 export async function recoverDiscussion(
@@ -337,6 +335,8 @@ export async function recoverDiscussion(
   options: { readonly inspectTimeoutMs?: number; readonly requestId?: string | null } = {},
 ): Promise<RecoveryOutcome> {
   const hostAccountId = await eligibleHost(deps.db, authUserId);
+  // A request's discussion is recovered only from server code; no web route
+  // names a request (remove-host-web-chat).
   const requestId = options.requestId ?? null;
   const discussionId = await findHostDiscussion(deps.db, hostAccountId, requestId);
   const observed = discussionId ? await latestSession(deps.db, discussionId) : null;

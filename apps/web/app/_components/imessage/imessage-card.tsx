@@ -73,7 +73,7 @@ import { cn } from "@/lib/utils";
 
 export const IMESSAGE_CARD_ID = "imessage-card";
 
-// Maybe later on the card or Set up here in web chat on the /app link step,
+// Maybe later on the card or Go to your workspace on the /app link step,
 // which this browser remembers.
 const IMESSAGE_LATER_KEY = "fmat:imessage-later";
 

@@ -196,7 +196,7 @@ const en = {
     ledePhone: "Send Thyme one message. It's already written for you, and sending it links this account.",
     altDesktop: "No iPhone, or rather not now?",
     altPhone: "On Android, or rather not now?",
-    skip: "Set up here in web chat",
+    skip: "Go to your workspace",
     // The code links on arrival (link-on-code D1, D2): the linked screen names the sender and offers the way back.
     connected: "Your iMessage is linked.",
     connectedLede: "You can onboard with Thyme in iMessage. Thyme just sent you a hello there.",

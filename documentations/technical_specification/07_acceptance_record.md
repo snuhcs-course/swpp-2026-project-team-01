@@ -251,7 +251,7 @@ Fixture and local-stack evidence only; each names the test that shows it.
 | AC-07 | `bookings.test.ts` "stops at revalidation when a busy event appeared" and "dispatches only one of two competing bookings for the same host" |
 | AC-08 | `bookings.test.ts` "reconciles a lost response by reading the event, never inserting twice" and "inserts the same frozen payload again when the first insert never arrived" |
 | AC-09 | `bookings.test.ts` "fails definitively on a refused write and lets the host retry", "records revoked Calendar access"; `tests/integration/booking-emails.test.ts` "keeps the booking confirmed when a copy bounces, and sends nothing twice" |
-| AC-10 web-only | `tests/integration/host-review.test.ts`: "Approve it and book it." in the private discussion records nothing, and the session lists only the host-review tools; the requester side is Phase 3's |
+| AC-10 web-only | `tests/integration/host-review.test.ts`: the private discussion lists only the host-review tools; the requester side is Phase 3's. Since 2026-11-23 (#326) the test opens it as a messenger does, and the web routes refuse a request scope, so "Approve it and book it." typed on the web reaches no discussion |
 | AC-13 | `bookings.test.ts` "lets the requester withdraw a reserved booking", "refuses withdrawal and decline once dispatch may have begun", "declines with the requester's status email" (a late approval answers `request_closed`), "cancels a reserved booking whose request expired" |
 | Confirmation consistency | `booking-emails.test.ts` "sends each party a copy with the host's name, Reply-To the other party and the matching calendar part"; `lib/server/booking-emails.test.ts` for both languages and the calendar part |
 
