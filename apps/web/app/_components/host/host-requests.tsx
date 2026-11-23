@@ -13,6 +13,7 @@ import { WorkspaceMenu } from "@/app/_components/workspace-menu";
 import { HostSettingsDialog } from "@/app/_components/host-settings-dialog";
 import { Button } from "@/components/ui/button";
 import { postHostCommand, readHostRequest, readWorkspaceRequests } from "@/lib/chat/host-requests";
+import { announceRequestsChanged } from "@/lib/chat/pending-decisions";
 import { errorMessage } from "@/lib/chat/use-host-discussion";
 import {
   BookingCard,
@@ -102,7 +103,11 @@ function Inbox({ initialRequest, onNotice }: { readonly initialRequest: string |
 
   const [tutorialCompletion, setTutorialCompletion] = useState<{ requestId: string; action: TutorialCompletion } | null>(null);
 
-  const refresh = useCallback(() => readWorkspaceRequests().then(setItems).catch((cause) => setError(errorMessage(cause))), []);
+  const refresh = useCallback(() => {
+    // A decision here changes the menu's pending count too.
+    announceRequestsChanged();
+    return readWorkspaceRequests().then(setItems).catch((cause) => setError(errorMessage(cause)));
+  }, []);
 
   useEffect(() => {
     const controller = new AbortController();
