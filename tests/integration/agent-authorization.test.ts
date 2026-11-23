@@ -142,6 +142,8 @@ describe("registration", () => {
 
     const [{ count }] = Array.from(await db<{ count: number }[]>`select count(*)::int as count from app.agent_grants where client_id = any(${clients})`);
     expect(count).toBe(0);
+    // Free the service bound for the tests that follow.
+    await db`delete from app.agent_protocol_attempts where kind = 'registration'`;
   });
 });
 
