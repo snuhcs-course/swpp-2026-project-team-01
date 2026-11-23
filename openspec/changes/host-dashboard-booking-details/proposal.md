@@ -1,6 +1,6 @@
 # Proposal
 
-Tracking issues: #295 and #298, implemented together in one pull request.
+Tracking issues: #295 and #298, implemented together in one pull request. Implementation pull requests refer to both with `Part of #295` and `Part of #298`; the pull request that archives this change closes both with `Closes #295` and `Closes #298`.
 
 ## Why
 

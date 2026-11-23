@@ -35,6 +35,8 @@ export async function agreedRequest(
     readonly events?: FakeEvent[];
     readonly settings?: Partial<ConfirmedSettings>;
     readonly candidateIndex?: number;
+    // Records the contact address as confirmed, as the email link does.
+    readonly confirmed?: boolean;
     // Runs once the request exists, before the requester agrees.
     readonly beforeAgree?: (request: SchedulingRequest) => Promise<void>;
   } = {},

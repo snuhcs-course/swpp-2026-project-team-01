@@ -13,6 +13,6 @@
 ## 3. Documents and acceptance
 
 - [x] 3.1 Update DESIGN.md, the page list and the testing baseline (H03 W-1, H04 W-3).
-- [ ] 3.2 Regenerate the Korean mirrors of the changed documents.
-- [ ] 3.3 Run the Dashboard and Requests browser journeys and `tests/integration/workspace-requests.test.ts` against the local stack.
+- [x] 3.2 Regenerate the Korean mirrors of the changed documents (`ko/DESIGN.md` and the testing baseline; the page list has no Korean mirror).
+- [ ] 3.3 Run the Dashboard and Requests browser journeys and `tests/integration/workspace-requests.test.ts` (which now books an online and an in-person meeting and reads them back through the Dashboard) against the local stack.
 - [ ] 3.4 Review with the team, then archive the change into `openspec/specs/chat-workspaces/spec.md`.
