@@ -2,6 +2,7 @@ import { defineDynamic, defineTool } from "eve/tools";
 import { z } from "zod";
 import { switchConversationForTool, switchConversationToolInput } from "../../lib/server/channel-selection";
 import { database } from "../../lib/server/database";
+import { START_REQUEST_DESCRIPTION, startRequestDependenciesFromEnvironment, startRequestForTool, startRequestToolInput } from "../../lib/server/host-sent-requests";
 import {
   agreeToolInput,
   agreeToProposalForTool,
@@ -145,7 +146,7 @@ function hostReviewTools() {
     }),
     list_host_requests: defineTool({
       description:
-        "List the host's requests, newest first, with each one's reference, requester, purpose, status, whether it needs a decision, and its booked or proposed time with the week it falls in, and the current date and time in the host's timezone. On the web the host switches requests in the workspace inbox; from the linked conversation, switch_conversation moves to the request they name.",
+        "List the host's received requests, newest first, with each one's reference, requester, purpose, status, whether it needs a decision, and its booked or proposed time with the week it falls in, and the current date and time in the host's timezone, and apart from them (sent) the requests the host sent to other hosts; report the two apart. On the web the host switches requests in the workspace inbox; from the linked conversation, switch_conversation moves to the request they name.",
       inputSchema: z.object({}),
       execute: (_input, toolCtx) => listHostRequestsForTool(database(), call(toolCtx)),
     }),
@@ -201,6 +202,12 @@ function hostReviewTools() {
         "Drop the pending suggested changes because the host, writing from their linked iMessage, WhatsApp or Telegram, clearly says not to send them, as Dismiss suggestions does. Never for a message typed on the web. Call read_request first and pass the pending suggestion's id. Nothing is shared.",
       inputSchema: suggestionToolInput,
       execute: (input, toolCtx) => resolveChangesForTool(database(), call(toolCtx), "dismiss", input),
+    }),
+    start_request: defineTool({
+      description: START_REQUEST_DESCRIPTION,
+      inputSchema: startRequestToolInput,
+      execute: (input, toolCtx) =>
+        startRequestForTool(startRequestDependenciesFromEnvironment(database()), { auth: toolCtx.session.auth.current, callId: toolCtx.callId, sessionId: toolCtx.session.id }, input),
     }),
     switch_conversation: defineTool({
       description:

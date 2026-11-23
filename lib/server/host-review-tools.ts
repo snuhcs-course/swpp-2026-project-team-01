@@ -15,6 +15,7 @@ import { HOST_REVIEW_AUDIENCE } from "./eve-auth";
 import { listHostRequests, readHostRequest, readHostTimezone } from "./host-requests";
 import type { NoticeDependencies } from "./booking-notices";
 import { hostEvaluateCommand } from "./request-exceptions";
+import { listSentRequests, type SentRequestItem } from "./host-sent-requests";
 import { requestRef } from "./request-ref";
 import type { SessionPrincipal } from "./setup-tools";
 import { dismissChangesCommand, shareChangesCommand, sharedChangesSchema, suggestChangesCommand } from "./shared-changes";
@@ -201,9 +202,20 @@ export const WEEK_NOTE =
 // switch_conversation takes, the requester and purpose as quoted data, the
 // state, whether each needs a decision, and the booked and proposed times with
 // the week each falls in, so "next week's meetings" is worked out from now.
-export function hostRequestsForModel(items: readonly HostRequestItem[], zone: string, now: Date = new Date()) {
+// Received requests, and apart from them (sent) the requests the host sent to
+// other hosts as their account (R01 M-8): never mixed, never dropped.
+export function hostRequestsForModel(items: readonly HostRequestItem[], zone: string, now: Date = new Date(), sentItems: readonly SentRequestItem[] = []) {
   const slot = (start: string) => ({ time: displayTime(new Date(start), zone), week: weekOf(new Date(start), zone, now) });
   return {
+    sent: sentItems.map((item) => ({
+      booked: item.bookedStart ? slot(item.bookedStart) : null,
+      host: encodeDisplayName(item.hostName),
+      proposed: item.proposalStart && item.proposalStart !== item.bookedStart && ACTIVE_STATES.has(item.state) ? slot(item.proposalStart) : null,
+      purpose: item.purpose === null ? null : encodeDisplayName(item.purpose),
+      ref: requestRef(item.requestId),
+      state: item.state,
+    })),
+    sentNote: SENT_NOTE,
     current: currentTime(zone, now),
     dataNote: QUOTED_NOTE,
     languageNote: LANGUAGE_NOTE,
@@ -221,12 +233,15 @@ export function hostRequestsForModel(items: readonly HostRequestItem[], zone: st
   };
 }
 
+export const SENT_NOTE =
+  "sent lists the requests this host asked of other hosts, as a guest: report them apart from the received requests (\"To you: … / You asked: …\"). The other host decides them; this host cannot approve or decline them.";
+
 export const SELECT_NOTE =
   "On the web the host opens another request from the inbox. From the linked iMessage, WhatsApp or Telegram, switch_conversation moves the conversation to the request the host names.";
 
 export async function listHostRequestsForTool(db: Database, call: HostReviewToolCall) {
   const { hostAccountId } = await authorizeHostReviewTool(db, call);
-  return hostRequestsForModel(await listHostRequests(db, hostAccountId), await readHostTimezone(db, hostAccountId));
+  return hostRequestsForModel(await listHostRequests(db, hostAccountId), await readHostTimezone(db, hostAccountId), new Date(), await listSentRequests(db, hostAccountId));
 }
 
 export async function evaluateCandidatesForHostTool(

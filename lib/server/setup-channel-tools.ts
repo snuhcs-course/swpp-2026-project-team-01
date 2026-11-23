@@ -1,3 +1,4 @@
+import { listSentRequests } from "./host-sent-requests";
 import { z } from "zod";
 import { readCalendarRoles, saveCalendarRolesCommand, recordDestinationAccess } from "./calendar-roles";
 import { channelOfTurn, linkedMessagingTurn } from "./channel-selection";
@@ -40,7 +41,7 @@ import { enqueueSettingsButtonRetirement } from "./telegram-jobs";
 
 export async function listHostRequestsForSetupTool(deps: SetupDependencies, call: SetupToolCall) {
   const actor = await authorizeSetupTool(deps.db, call.auth, call.sessionId);
-  return hostRequestsForModel(await listHostRequests(deps.db, actor.id), await readHostTimezone(deps.db, actor.id));
+  return hostRequestsForModel(await listHostRequests(deps.db, actor.id), await readHostTimezone(deps.db, actor.id), new Date(), await listSentRequests(deps.db, actor.id));
 }
 
 export const confirmSettingsToolInput = z

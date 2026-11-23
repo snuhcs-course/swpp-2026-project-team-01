@@ -370,9 +370,12 @@ type GuestBinding = {
   readonly sealed_key_id: string | null;
 };
 
+// link_id is null for a guest conversation bound to the sender's own host
+// conversation (host-as-guest-messenger, #61).
 async function activeGuestBindings(tx: Transaction, senderHash: string) {
-  return tx<(GuestBinding & { host_name: string | null })[]>`
-    select b.id, b.request_id, b.state, b.moved_to_request_id, b.sealed_key_id, s.settings ->> 'displayName' as host_name
+  return tx<(GuestBinding & { host_name: string | null; link_id: string | null; channel: string })[]>`
+    select b.id, b.request_id, b.state, b.moved_to_request_id, b.sealed_key_id, b.link_id, b.channel,
+           s.settings ->> 'displayName' as host_name
     from app.requester_imessage_bindings b
     join app.requests r on r.id = b.request_id
     left join app.host_settings s on s.host_account_id = r.host_account_id
@@ -427,10 +430,58 @@ export function namedConversation<Binding extends { readonly request_id: string;
 
 type GuestRoute = { readonly binding: GuestBinding; readonly switched: boolean; readonly forward?: boolean };
 
-async function guestRoute(tx: Transaction, receipt: OpenedReceipt): Promise<GuestRoute | "ambiguous" | null> {
+type HereBinding = GuestBinding & { readonly host_name: string | null };
+
+// A guest conversation bound to the sender's host conversation (R01, #61)
+// follows the host binding's selection, as a received request does: no picker.
+//   - `request <ref>` naming one of them selects it there; a reference the host's
+//     own requests share is ambiguous;
+//   - a message that says the sender is the host goes to setup ("host");
+//   - a message that names another of them (its reference, or a word of its
+//     host's name) selects it and goes on;
+//   - otherwise the selected one, when the selection is one of them.
+// Undefined leaves the message to the other routes.
+async function hostConversationRoute(
+  tx: Transaction,
+  receipt: OpenedReceipt,
+  command: ReturnType<typeof parseCommand>,
+  host: { readonly id: string; readonly host_account_id: string; readonly selected_request_id: string | null },
+  here: readonly HereBinding[],
+): Promise<GuestRoute | "ambiguous" | "host" | undefined> {
+  const select = (binding: HereBinding) =>
+    tx`update app.imessage_bindings set selected_request_id = ${binding.request_id} where id = ${host.id} and state = 'active'`;
+
+  if (command?.name === "request") {
+    const named = here.find((binding) => requestRef(binding.request_id) === command.ref);
+    if (!named) return undefined;
+    const own = await tx<{ id: string }[]>`select id from app.requests where host_account_id = ${host.host_account_id} and state <> 'draft'`;
+    if (own.some((request) => requestRef(request.id) === command.ref)) return "ambiguous";
+    await select(named);
+    return { binding: named, switched: true };
+  }
+  if (command) return undefined;
+
+  const selected = here.find((binding) => binding.request_id === host.selected_request_id);
+  const named = receipt.text ? namedConversation(receipt.text, here, true) : null;
+  if (named === "host") return selected ? "host" : undefined;
+  if (named && named !== selected) {
+    await select(named);
+    return { binding: named, forward: true, switched: true };
+  }
+  return selected ? { binding: selected, switched: false } : undefined;
+}
+
+async function guestRoute(tx: Transaction, receipt: OpenedReceipt): Promise<GuestRoute | "ambiguous" | "host" | null> {
   const command = receipt.text ? parseCommand(receipt.text) : null;
-  const guests = await activeGuestBindings(tx, receipt.senderHash);
+  const all = await activeGuestBindings(tx, receipt.senderHash);
   const host = await activeBindingOfSender(tx, receipt.senderHash);
+  const here = host ? all.filter((binding) => binding.link_id === null && binding.channel === host.channel) : [];
+  const guests = all.filter((binding) => !here.includes(binding));
+
+  if (host && here.length) {
+    const route = await hostConversationRoute(tx, receipt, command, host, here);
+    if (route !== undefined) return route;
+  }
 
   if (command?.name === "request") {
     const named = guests.filter((binding) => requestRef(binding.request_id) === command.ref);
@@ -601,6 +652,11 @@ async function revise(tx: Transaction, deps: ImessageReceiptDependencies, receip
     ),
   );
   if (outcome.kind === "refused" || !outcome.bindingId) return closedNotice(tx, deps, receipt, binding);
+  // In the sender's host conversation the revised request stays the selected one.
+  await tx`
+    update app.imessage_bindings set selected_request_id = ${outcome.requestId}
+    where sender_hash = ${receipt.senderHash} and state = 'active' and selected_request_id = ${binding.request_id}
+  `;
 
   const accepted = await acceptRevisedSummary(deps, outcome.requestId, (await readRevisedSummary(tx, binding.request_id))!);
   if (accepted !== "accepted") return accepted;
@@ -760,9 +816,16 @@ export async function processReceipt(
   // message that names one in words goes there; otherwise the choice is asked
   // in the message's language, answerable in words.
   let hostByWords = false;
+  if (guest === "host") {
+    guest = null;
+    hostByWords = true;
+  }
   if (guest === "ambiguous") {
-    const guests = await activeGuestBindings(tx, receipt.senderHash);
     const host = await activeBindingOfSender(tx, receipt.senderHash);
+    // Conversations bound to the host conversation are never in the picker.
+    const guests = (await activeGuestBindings(tx, receipt.senderHash)).filter(
+      (binding) => !(host && binding.link_id === null && binding.channel === host.channel),
+    );
     const named = receipt.text && !parseCommand(receipt.text) ? namedConversation(receipt.text, guests, Boolean(host)) : null;
     if (named === "host") {
       guest = null;
