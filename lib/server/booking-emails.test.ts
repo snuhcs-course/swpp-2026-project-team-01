@@ -27,7 +27,7 @@ describe("the booking confirmation", () => {
   it("renders the English blocks, View booking and Join meeting with the zone named", () => {
     const email = renderBookingEmail("booking_confirmation", "en", meeting, secrets);
 
-    expect(email.subject).toBe("Talk about compilers between Ada Lovelace and Grace Hopper");
+    expect(email.subject).toBe("Your meeting with Ada Lovelace is booked: Talk about compilers");
     for (const text of [email.text, email.html]) {
       expect(text).toContain("Confirmed");
       expect(text).toContain("Monday, 2 November 2026, 10:00–10:30 (Asia/Seoul, GMT+9)");
@@ -39,13 +39,13 @@ describe("the booking confirmation", () => {
     expect(email.text).toContain("Join meeting: ");
   });
 
-  it("renders a Korean requester's copy in Korean", () => {
+  it("uses English copy for a Korean-language request", () => {
     const email = renderBookingEmail("booking_confirmation", "ko", meeting, secrets);
 
-    expect(email.subject).toBe("Ada Lovelace 와 Grace Hopper 사이의 Talk about compilers");
-    expect(email.text).toContain("확정됨");
-    expect(email.text).toContain("2026년 11월 2일 월요일 10:00–10:30 (Asia/Seoul, GMT+9)");
-    expect(email.text).toContain("예약 보기");
+    expect(email.subject).toBe("Your meeting with Ada Lovelace is booked: Talk about compilers");
+    expect(email.text).toContain("Confirmed");
+    expect(email.text).toContain("Monday, 2 November 2026, 10:00–10:30 (Asia/Seoul, GMT+9)");
+    expect(email.text).toContain("View booking");
   });
 
   it("links the host's copy to the request in /app and carries no booking link", () => {
@@ -108,8 +108,8 @@ describe("the cancellation notices (post-booking-changes)", () => {
     expect(email.text).toContain(secrets.bookingUrl);
 
     const inbox = renderBookingEmail("status_cancelled", "ko", { ...meeting, bookingId: "b1" }, {});
-    expect(inbox.subject).toBe("Ada Lovelace님과의 미팅이 취소되었습니다");
-    expect(inbox.text).toContain("답장");
+    expect(inbox.subject).toBe("Your meeting with Ada Lovelace was cancelled");
+    expect(inbox.text).toContain("Reply to this email");
     expect(inbox.text).not.toContain("/booking/");
   });
 
@@ -128,9 +128,9 @@ describe("changes after booking (post-booking-changes)", () => {
   it("says a declined or expired change leaves the meeting as it was", () => {
     const declined = renderBookingEmail("status_change_dropped", "en", { ...meeting, bookingId: "b1", reason: "declined" }, secrets);
     expect(declined.subject).toBe("Your meeting with Ada Lovelace stays as booked");
-    expect(declined.text).toContain("kept your meeting as it was");
+    expect(declined.text).toContain("declined your change request");
     expect(declined.text).toContain("10:00–10:30");
-    expect(renderBookingEmail("status_change_dropped", "ko", { ...meeting, reason: "expired" }, secrets).text).toContain("기한 안에");
+    expect(renderBookingEmail("status_change_dropped", "ko", { ...meeting, reason: "expired" }, secrets).text).toContain("not confirmed in time");
   });
 
   it("confirms a changed meeting as updated", () => {
@@ -158,7 +158,7 @@ describe("the new-version notice says what the host changed (#198)", () => {
       expect(text).not.toContain("Length:");
       expect(text).not.toContain("Meeting type:");
     }
-    expect(email.text).toContain("Ada Lovelace sent back changed meeting details.\n");
+    expect(email.text).toContain("Ada Lovelace suggested changes to your meeting request.\n");
   });
 
   it("lists only the time when only the time changed", () => {
@@ -173,7 +173,7 @@ describe("the new-version notice says what the host changed (#198)", () => {
     expect(email.text).not.toContain("Meeting type:");
   });
 
-  it("names a new meeting type, place and length together, in Korean", () => {
+  it("names changed meeting type, place and length in English for a Korean-language request", () => {
     const online = { ...meeting, version: 2 };
     const email = renderBookingEmail(
       "status_new_version",
@@ -182,10 +182,10 @@ describe("the new-version notice says what the host changed (#198)", () => {
       secrets,
     );
 
-    expect(email.text).toContain("바뀐 내용:");
-    expect(email.text).toContain("소요 시간: 60분 (이전: 30분)");
-    expect(email.text).toContain("미팅 방식: 대면 (이전: 온라인)");
-    expect(email.text).toContain("장소: Seoul Station (이전: 없음)");
+    expect(email.text).toContain("What changed:");
+    expect(email.text).toContain("Length: 60 minutes (was: 30 minutes)");
+    expect(email.text).toContain("Meeting type: In person (was: Online)");
+    expect(email.text).toContain("Place: Seoul Station (was: None)");
     expect(email.text).not.toContain("시간: 2026");
   });
 
@@ -197,7 +197,7 @@ describe("the new-version notice says what the host changed (#198)", () => {
   it("keeps the new time in the sentence when it does not know the earlier version", () => {
     const email = renderBookingEmail("status_new_version", "en", inPerson, secrets);
 
-    expect(email.text).toContain("sent back changed meeting details: Monday, 2 November 2026, 10:00–10:30");
+    expect(email.text).toContain("suggested changes to your meeting request: Monday, 2 November 2026, 10:00–10:30");
     expect(email.text).not.toContain("What changed");
   });
 

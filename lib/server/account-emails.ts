@@ -41,10 +41,10 @@ function escapeHtml(value: string) {
 }
 
 // The due date in UTC, written out so it reads the same in any mail client.
-export function dueDate(dueAt: string, language: RequestLanguage) {
+export function dueDate(dueAt: string, _language: RequestLanguage) {
   const date = new Date(dueAt);
   if (Number.isNaN(date.getTime())) throw new Error("A scheduled deletion email needs its due time.");
-  return new Intl.DateTimeFormat(language === "ko" ? "ko-KR" : "en-GB", {
+  return new Intl.DateTimeFormat("en-GB", {
     dateStyle: "long",
     timeStyle: "short",
     timeZone: "UTC",
@@ -54,91 +54,55 @@ export function dueDate(dueAt: string, language: RequestLanguage) {
 type Copy = { readonly subject: string; readonly paragraphs: readonly string[]; readonly action?: string };
 
 function copyOf(template: AccountEmailTemplate, language: RequestLanguage, parameters: AccountEmailParameters): Copy {
-  const ko = language === "ko";
-
   switch (template) {
     case "account_deletion_scheduled": {
       const date = dueDate(parameters.dueAt ?? "", language);
-      return ko
-        ? {
-            action: "로그인해서 계정 유지하기",
-            paragraphs: [
-              `요청하신 대로 Find Me a Time 계정이 ${date}에 삭제됩니다.`,
-              "그 전에 Google로 다시 로그인하면 삭제가 취소됩니다. 삭제되면 설정, 요청과 대화, Google 연결이 모두 지워지고 되돌릴 수 없습니다. 진행 중인 요청은 닫히고 게스트에게 알립니다. 이미 캘린더에 있는 일정은 그대로 남으니, 원하지 않는 미팅은 그 전에 취소해 주세요.",
-              "직접 요청하지 않으셨다면 로그인해서 취소하고 support@findmeatime.com으로 알려 주세요.",
-            ],
-            subject: "계정 삭제가 예약되었습니다",
-          }
-        : {
-            action: "Sign in to keep my account",
-            paragraphs: [
-              `As you asked, your Find Me a Time account will be deleted on ${date}.`,
-              "Signing in with Google before then cancels it. Once it runs, your settings, requests, conversations and Google connection are deleted and cannot be recovered. Open requests are closed and their guests told. Meetings already in a calendar stay there, so cancel any you no longer want before then.",
-              "If you did not ask for this, sign in to cancel it and tell us at support@findmeatime.com.",
-            ],
-            subject: "Your account is scheduled for deletion",
-          };
+      return {
+        action: "Sign in to keep my account",
+        paragraphs: [
+          `Your Find Me a Time account is scheduled for deletion on ${date}.`,
+          "Sign in with Google before then to cancel deletion. When deletion runs, your settings, requests, conversations and Google connection are permanently deleted. Open requests are closed and their guests notified. Events already on your calendar stay there, so cancel any you no longer want before the deletion date.",
+          "If you did not request deletion, sign in to cancel it and contact support@findmeatime.com.",
+        ],
+        subject: "Your account is scheduled for deletion",
+      };
     }
     case "account_deletion_cancelled":
-      return ko
-        ? {
-            action: "Find Me a Time 열기",
-            paragraphs: [
-              "다시 로그인하셔서 예약된 계정 삭제를 취소했습니다. 계정과 설정은 그대로입니다.",
-              "계정을 삭제하려면 설정에서 다시 요청해 주세요. 직접 로그인하지 않으셨다면 support@findmeatime.com으로 알려 주세요.",
-            ],
-            subject: "계정 삭제가 취소되었습니다",
-          }
-        : {
-            action: "Open Find Me a Time",
-            paragraphs: [
-              "You signed in again, so the scheduled deletion of your account is cancelled. Your account and settings are unchanged.",
-              "To delete your account, ask again from Settings. If you did not sign in, tell us at support@findmeatime.com.",
-            ],
-            subject: "Your account deletion is cancelled",
-          };
+      return {
+        action: "Open Find Me a Time",
+        paragraphs: [
+          "Your account deletion was cancelled when you signed in again. Your account and settings are still available.",
+          "To delete your account, request it again from Settings. If you did not sign in, contact support@findmeatime.com.",
+        ],
+        subject: "Your account deletion was cancelled",
+      };
     case "account_deletion_completed":
-      return ko
-        ? {
-            paragraphs: [
-              "요청하신 대로 Find Me a Time 계정을 삭제했습니다. 설정, 요청과 대화, Google 연결이 지워졌고, 다른 사람이 쓰지 못하도록 쓰시던 핸들만 남겼습니다.",
-              "이미 캘린더에 있는 일정과 본인 메일함의 이메일은 지워지지 않습니다. 같은 Google 계정으로 다시 로그인하면 빈 새 계정이 만들어집니다.",
-            ],
-            subject: "계정이 삭제되었습니다",
-          }
-        : {
-            paragraphs: [
-              "As you asked, your Find Me a Time account is deleted: its settings, requests, conversations and Google connection are gone. We keep only the handle you used, so that nobody else can take it over.",
-              "Events already in a calendar and emails in your own mailbox are not removed. Signing in again with the same Google account starts a new, empty account.",
-            ],
-            subject: "Your account is deleted",
-          };
+      return {
+        paragraphs: [
+          "Your Find Me a Time account has been deleted. Your settings, requests, conversations and Google connection are gone. We keep your handle so nobody else can claim it.",
+          "Events already on a calendar and messages in your mailbox are not deleted. If you sign in again with the same Google account, you will start with a new, empty account.",
+        ],
+        subject: "Your account has been deleted",
+      };
     case "host_account_closed": {
-      const host = parameters.hostName || (ko ? "호스트" : "Your host");
-      return ko
-        ? {
-            paragraphs: [
-              `${host}님이 Find Me a Time 계정을 닫아서 진행 중이던 미팅 요청이 닫히고 삭제되었습니다. 예약 링크도 더 이상 열리지 않습니다.`,
-              "미팅이 아직 필요하다면 호스트에게 직접 연락해 주세요.",
-            ],
-            subject: `${host}님과의 미팅 요청이 닫혔습니다`,
-          }
-        : {
-            paragraphs: [
-              `${host} closed their Find Me a Time account, so your open meeting request with them is closed and deleted, and its booking link no longer opens.`,
-              "If you still need the meeting, contact them directly.",
-            ],
-            subject: `Your meeting request with ${parameters.hostName || "your host"} is closed`,
-          };
+      const host = parameters.hostName || "Your host";
+      return {
+        paragraphs: [
+          `${host} closed their Find Me a Time account. Your open request with them is closed, and its private link no longer works.`,
+          "If you still need to meet, contact them directly.",
+        ],
+        subject: parameters.hostName ? `Your request with ${host} is closed` : "Your meeting request is closed",
+      };
     }
   }
 }
 
 export function renderAccountEmail(
   template: AccountEmailTemplate,
-  language: RequestLanguage,
+  _language: RequestLanguage,
   parameters: AccountEmailParameters,
 ): Rendered {
+  const language: RequestLanguage = "en";
   const copy = copyOf(template, language, parameters);
   const link = copy.action && parameters.appUrl ? { label: copy.action, url: parameters.appUrl } : null;
   const html = [
