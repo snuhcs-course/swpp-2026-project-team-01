@@ -94,7 +94,7 @@
 | D7 | **변경 요청(Request changes)**과 `propose_shared_changes`는 대기 중인 제안 하나를 만들고, **수정된 내용 공유(Share revised details)**가 이를 적용하고 시간을 확인한 뒤 다음 제안 버전을 기록합니다 | 실현 가능성 확인 없이 공유 | 제안서 | 제안서와 공유 변경 모듈 |
 | D8 | 모든 후보가 가득 찬 주에 걸리면, 호스트가 해당 요청의 주간 한도를 면제하거나 요청자가 기간을 넓힐 때까지 아무것도 제시하지 않습니다(주 명세 "Only full weeks"). 3단계의 순서만 정하던 동작을 대체합니다 | 순서만 정하는 동작 유지 | 제안서 | 제안서와 평가 작업의 요청자 프로젝션 |
 | D9 | 디스패치가 시작되었을 수 있는 시점 이후에는 작업이 이벤트 ID로 재조정하고 고정된 페이로드를 같은 ID로 다시 삽입하기만 하며, 실현 가능성을 다시 검증하지 않습니다. 8번 시도한 뒤 **예약 진행 중(Booking in progress)**과 **예약 상태 확인(Check booking status)**을 표시합니다 | 재시도마다 다시 검증 | 제안서 | 제안서와 예약 작업 |
-| D10 | 양쪽 모두 확인을 받습니다. 요청자의 Reply-To는 호스트의 Google 이메일이고, 호스트의 Reply-To는 확인 여부와 관계없이 요청자의 연락처 주소입니다 | 확인 후에만 Reply-To | 제안서; `email-delivery` 델타 | 제안서와 확인 빌더 |
+| D10 | 양쪽 모두 확인을 받습니다. 요청자의 Reply-To는 호스트의 Google 이메일(2026-11-23부터는 서비스 수신함이 있는 곳에서 그 수신함, [`guest-email-and-agree-notices`](#guest-email-and-agree-notices) D2)이고, 호스트의 Reply-To는 확인 여부와 관계없이 요청자의 연락처 주소입니다 | 확인 후에만 Reply-To | 제안서; `email-delivery` 델타 | 제안서와 확인 빌더 |
 | D11 | 상태 이메일은 확인 여부와 관계없이 요청자의 연락처 주소로 보냅니다 | 확인된 주소만 | 제안서; `email-delivery` 델타 | 제안서와 알림 모듈 |
 | D12 | 호스트는 `/app?request={requestId}`에서 요청을 열며, 예약 UUID는 호스트에게 전달되지 않습니다 | 인터페이스 문서의 `/app?request={bookingId}` | 제안서; 인터페이스 | 제안서와 호스트 워크스페이스 |
 
@@ -778,6 +778,17 @@ Dohyeon Park이 2026-11-16에 결정했으며, 2026-11-14 UAT 회의가 [이슈 
 | — | 고정 제품 문구와 이메일은 영어로만 제공합니다: 페이지, 카드, 영수증, 채팅의 고정 답장, 알림과 버튼 제목. 어시스턴트(웹의 Thyme, 연결된 iMessage·WhatsApp·Telegram 채팅, MCP나 CLI를 통한 에이전트)는 사용자가 쓰는 언어로 답합니다. 이슈 #178과 #179가 요구한 "영어와 한국어 사본"과 `channel-actions-in-words` D4의 한국어 고정 답장을 대체합니다 | 대화가 언어를 바꾸지 않도록 어시스턴트 답장도 영어로 하기; 요청의 언어를 따르는 고정 문구(한 스레드에서 언어가 섞였음, 이슈 #200) | PRD FR-27과 10절 "지원 언어"; 이슈 #200 | 먼저 PRD. 고정 문구: `lib/server/booking-emails.ts`, `lib/server/email-templates.ts`, `apps/web/app/_components/guest/guest-workspace.tsx`, `lib/server/channel-language.ts`, `channel-texts.ts`. 어시스턴트 답장: `agent/instructions/base.md`, `host-setup.ts`, `host-imessage.ts`, `requester.ts` |
 
 2026-11-16 기준 상태: PR #217이 랜딩과 호스트 설정을 영어 전용으로 만들었습니다. 게스트 이메일, 게스트 작업 공간의 고정 메시지, 연결된 채팅의 고정 답장은 아직 요청 또는 호스트의 언어를 따릅니다. 이슈 #200이 이 작업을 추적하며, `email-delivery`와 `meeting-requests` 명세, 에이전트 구성, 호스트 온보딩 흐름은 그 작업과 함께 바뀝니다. 어시스턴트는 이미 사용자의 언어로 답하며, `agent/instructions/base.md`는 영어 또는 한국어를 명시합니다.
+
+## `guest-email-and-agree-notices`
+
+[제안서](../../openspec/changes/archive/2026-11-23-guest-email-and-agree-notices/proposal.md#decisions)는 D1–D4를 기록합니다. 저장소 소유자가 [이슈 #332](https://github.com/snuhcs-course/swpp-2026-project-team-01/issues/332)에서 반송 후 주소 변경, 확인 이메일에 대한 답장이 Thyme에 도달하는 것, 채팅에서의 재전송을 구현하기로 결정한 뒤, 그리고 [이슈 #179](https://github.com/snuhcs-course/swpp-2026-project-team-01/issues/179)에 따라, 변경을 작성한 세션에서 2026-11-23에 정했습니다. 대화형 수신함이 있는 배포에서는 요청자 확인 이메일의 Reply-To에 대해 `host-review-and-booking` D10을 대체합니다. 아직 팀원의 검토를 받지 않았습니다.
+
+| # | 선택 | 대안 | 기록 위치 | 바꾸려면 |
+|---|---|---|---|---|
+| D1 | **Change email**은 연락처가 확인되지 않았고 가장 최근의 생성 이메일이 거부되었거나 차단된 경우에만 제공합니다 | 페이지에서 언제든 변경 | 제안서; 설계 1 | `lib/server/contact-confirmation.ts`의 `changeEmailCommand`와 `contactChangeAllowed`; `apps/web/app/_components/requester/cards.tsx`의 `SentLine` |
+| D2 | 게스트의 확인 이메일은 서비스 수신함으로 회신되며, 답장은 발신자가 해당 발송의 수신자이자 요청의 연락처인지로 대응시키고, In-Reply-To 또는 References로 확인 이메일을 고릅니다 | 요청별 회신 주소: AgentMail 수신함은 제공하지 않음; 제목으로 대응 | 제안서; 설계 2 | `lib/server/booking-notices.ts`의 `enqueueConfirmations`; `lib/server/email-receipts.ts`의 `confirmationReply` |
+| D3 | 어시스턴트의 재전송은 확인된 주소로만 갑니다 | 확인되지 않은 연락처에 생성 이메일 재전송 | 제안서; 설계 3 | `lib/server/link-resend.ts`의 `resendLinkCommand`; `agent/tools/request.ts`의 `resend_booking_link` |
+| D4 | 동의한 버전과 게스트 바인딩마다 동의 알림 한 건, 영어 전용 | 버전당 한 건: 동의한 뒤에 연결한 게스트는 놓침 | 제안서; 설계 4 | `lib/server/imessage-notices.ts`의 `enqueueAgreementNotice`; `lib/server/agreement-notice.ts` |
 
 ## `guest-telegram-link`
 
