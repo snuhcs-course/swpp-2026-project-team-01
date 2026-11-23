@@ -305,9 +305,20 @@ function evidenceOf(outcome: SendOutcome, dispatchId: string): Record<string, un
     case "accepted":
       return { delivered: outcome.delivered, dispatchId, queued: outcome.queued };
     case "rejected":
-      return { bounced: outcome.bounced, dispatchId, httpStatus: outcome.httpStatus, reason: outcome.reason };
+      return {
+        bounced: outcome.bounced,
+        dispatchId,
+        httpStatus: outcome.httpStatus,
+        reason: outcome.reason,
+        ...(outcome.providerErrors?.length ? { providerErrors: outcome.providerErrors } : {}),
+      };
     case "uncertain":
-      return { dispatchId, httpStatus: outcome.httpStatus, reason: outcome.reason };
+      return {
+        dispatchId,
+        httpStatus: outcome.httpStatus,
+        reason: outcome.reason,
+        ...(outcome.providerErrors?.length ? { providerErrors: outcome.providerErrors } : {}),
+      };
   }
 }
 
