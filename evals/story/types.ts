@@ -3,7 +3,8 @@ import type { GuestChannel, HostChannel } from "./sessions";
 import type { StoryView } from "./state";
 
 // The shape of a story case. A case file is append-only: a case is never
-// edited or removed once committed; a fix is a new case (documentation 13).
+// edited or removed once committed; a fix is a new case. Only an expectation the
+// team reverses changes a case's checks (documentation 13).
 
 export type Check =
   // One fixed criterion graded by the grader model; one condition per check.

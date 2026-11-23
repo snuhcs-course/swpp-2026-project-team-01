@@ -821,3 +821,11 @@ The [design](../../openspec/changes/self-service-account-deletion/design.md) rec
 | D4 | Booked meetings are not cancelled; open requests close and their guests get an email; the host gets emails when it is scheduled, cancelled and run; account emails have no request and are deleted 30 days after they finish | Cancelling calendar events for the host; telling guests on chats | Proposal; design 5 | `lib/server/account-emails.ts`, `accountEmailCurrent`, the `account_emails` retention rule |
 | D5 | Scheduling signs out every session with Supabase's global scope | Keeping the session and offering a cancel button | Design 2 | `createAccountDeletionHandler` |
 | D6 | Chats and the MCP server never delete; they send `/app?settings=account` | A deletion tool behind confirmation | Design 6 | `agent/instructions/base.md`, `host-imessage.ts`, `lib/server/agent-mcp.ts` |
+
+## `place-settles-in-person`
+
+The [proposal](../../openspec/changes/place-settles-in-person/proposal.md) records this choice for issue #378. The repository owner decided it on 2026-11-23 in the issue, reversing the rule that `guest-assistant-story-fixes` (PR #357) added for #280.
+
+| # | Choice | Alternatives | Recorded in | To change it |
+|---|---|---|---|---|
+| D1 | When the host offers online or in person and the guest names a place as where they will meet ("역삼역으로요" to "어디서 만날까요?"), the guest assistant drafts in person with that place on the review card; it asks the form only when the place comes up in passing or the same answer leans toward online | Asking the form after any place (the #280 rule); taking every mentioned place as in person | `meeting-requests` delta "Guest assistant answers within its scope"; GU-50, GU-A04, GU-A08 and GU-A09 in documentation 13 | The place-and-form rule in `agent/instructions/requester.ts` and those cases in `evals/requester/story-cases.ts` |

@@ -26,7 +26,7 @@ Each case is normal, abnormal or an attack (OWASP Top 10 for LLM Applications, 2
 | Reorder | The same goal reached in another order, split or merged; every variant of a group must end in the same database state |
 | Out of order | The user does not answer what the assistant asked: answers another question, answers ahead, goes back, asks back, sends noise, or mixes Korean and English |
 
-Cases are only ever appended to a case file once it is committed; a defect is fixed by a new case, recorded under Appended cases. Defects the pre-check found before the first commit were fixed in place; they are listed under Pre-check.
+Cases are only ever appended to a case file once it is committed; a defect is fixed by a new case, recorded under Appended cases. The one exception is an expectation the team reverses: that case's checks change to the new decision, and the change is recorded under Appended cases (GU-50 and GU-A04, #378). Defects the pre-check found before the first commit were fixed in place; they are listed under Pre-check.
 
 ## How a case runs and is graded
 
@@ -238,6 +238,7 @@ RV-F01, RV-F02, RV-F04 and RV-D01 passed every run, as did RV-02, RV-05, RV-06, 
 | Date | Cases | Why |
 |---|---|---|
 | 2026-11-23 | GU-A01 to GU-A07 | One per guest failure #277 to #283, in another wording or language, so a fix that only fits the original case's words still fails: a change asked for after the start (GU-A01), a place change while booking (GU-A02), "next week" in English (GU-A03), a place in English instead of the form (GU-A04), the host's background (GU-A05), approving as the host in English (GU-A06), and Seongsu in English with no draft at the first mention (GU-A07). Run in the [release runs](#release-runs-2026-11-23) |
+| 2026-11-23 | GU-50 and GU-A04 changed; GU-A08, GU-A09 | #378 reverses the #280 rule: the repository owner decided that a place given as where to meet settles in person, so GU-50 and GU-A04 now expect an in-person details draft with the place and no form question ([`place-settles-in-person`](../../openspec/changes/place-settles-in-person/proposal.md)). These are the only cases whose checks were changed rather than appended. GU-A08 (a place in passing) and GU-A09 (a place with a wish to meet online) keep the form question covered. Not run yet |
 | 2026-11-23 | RV-F01 | #272: an English question from WhatsApp about a request with a Korean purpose gets an English reply |
 | 2026-11-23 | RV-F02 | #274: sharing in English says the new time is being checked, not that it was sent |
 | 2026-11-23 | RV-F03 | #275: RV-22 with a database check that can pass. RV-22's check looks for a pending suggestion at Tuesday 11:00, which its start state (`RV-A3`, Wednesday 15:00) never suggests, so it fails whatever the assistant does; RV-F03 checks that the new suggestion keeps Wednesday 15:00 and is in person at 강남역, whichever input the assistant passes |
