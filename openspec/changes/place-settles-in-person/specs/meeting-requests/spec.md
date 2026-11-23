@@ -7,7 +7,7 @@ The guest assistant SHALL take relative days such as next week or a weekday as d
 - **WHEN** a guest asks to move a booked meeting to next week
 - **THEN** the assistant reopens it for a change and drafts next Monday to Sunday as availability without asking which days
 
-#### Scenario: A place given as where to meet
+#### Scenario: A place given instead of the form
 - **WHEN** the host offers online or in person and the guest answers where to meet with one of the host's places
 - **THEN** the assistant drafts in person with that place for the review card and asks no online-or-in-person question
 

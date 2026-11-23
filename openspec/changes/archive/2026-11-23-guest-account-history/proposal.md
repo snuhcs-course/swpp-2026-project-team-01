@@ -4,7 +4,7 @@ Tracking issues: [#48](https://github.com/snuhcs-course/swpp-2026-project-team-0
 
 ## Why
 
-Anyone who signs in with Google gets an account ([host-admission](../../../specs/host-admission/spec.md)), and an account that books with another host is a guest account: its requests are matched to it by a verified Google subject or the signed-in session ([host-as-guest-session](../../host-as-guest-session/), [request-dashboard](../../request-dashboard/)). Three things did not fit that account yet:
+Anyone who signs in with Google gets an account ([host-admission](../../../specs/host-admission/spec.md)), and an account that books with another host is a guest account: its requests are matched to it by a verified Google subject or the signed-in session ([host-as-guest-session](../2026-11-23-host-as-guest-session/), [request-dashboard](../../request-dashboard/)). Three things did not fit that account yet:
 
 - A closed request is deleted 90 days after it closed ([operations-and-release D9](../../operations-and-release/design.md#8-retention)), so an account's history disappeared on the same schedule as an anonymous guest's.
 - The Requests list linked a sent request only while its private link lasted, and the request page shows nothing but a status once a request closes, so a closed request's conversation could not be opened at all.

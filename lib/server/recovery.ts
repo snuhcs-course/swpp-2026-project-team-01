@@ -11,6 +11,7 @@ import {
 import type { DiscussionEvent } from "../contracts/discussion-events";
 import type { Database } from "./database";
 import { HostIneligibleError, readHostStanding, withEligibleHost } from "./host-eligibility";
+import { redactHostNotes } from "./host-notes";
 import { signInternalBearer } from "./internal-bearer";
 import { sessionIdHash } from "./model-limits";
 
@@ -35,9 +36,10 @@ async function eligibleHost(db: Database, authUserId: string) {
 
 const FAILURE_EVENTS = new Set(["step.failed", "turn.failed", "session.failed"]);
 
-// Provider error details never reach the browser.
+// Provider error details never reach the browser, and neither do the host's
+// notes for Thyme that the guest's read_request carries (host-preference-notes).
 export function audienceSafe(event: MessageStreamEvent): MessageStreamEvent {
-  if (!FAILURE_EVENTS.has(event.type) || !("data" in event)) return event;
+  if (!FAILURE_EVENTS.has(event.type) || !("data" in event)) return redactHostNotes(event);
 
   const { details: _details, ...data } = event.data as Record<string, unknown>;
   return { ...event, data: { ...data, message: "The assistant could not finish this reply." } } as MessageStreamEvent;
