@@ -46,6 +46,20 @@ The product should reduce host coordination work, help requesters complete sched
 
 Release acceptance requires zero unauthorized bookings, duplicate events, and private-information disclosures in the agreed acceptance suite. Conversion and speed targets use post-launch measurement over the first eight weeks after the first host outside the team joins the release environment, reported weekly: median host actions per booked request at most 2, at least 50 % of valid submitted requests booked, median submission-to-booking time at most 24 hours with the 90th percentile at most 72 hours, and no offered candidate that violates a code-checked constraint at evaluation time; a missed conversion or speed target opens a review, not a rollback (decided 2026-10-23 in the [`operations-and-release` change](../openspec/changes/operations-and-release/proposal.md#decisions), D1 and D2). A production pilot is not a prerequisite for the initial release. Passing a test suite is not a guarantee of zero production incidents.
 
+### Success criteria for the remaining stages
+
+Drafted on 2026-11-23 by a coding agent, as the repository owner decided on #168 and #232, in answer to the TA's request (#167) to say what "working" means at each stage instead of asking testers whether they liked the product. **Every threshold in this table is proposed, team to confirm**; it counts once the team confirms or edits it, and before the stage's results are seen. Each row is checked by an evaluation (**eval**), the [testing baseline](technical_specification/12_testing_baseline.md) rows run by hand (**QA**), or a usability test with people outside the team.
+
+| Stage | What is measured | Proposed threshold (team to confirm) | How it is checked |
+|---|---|---|---|
+| Iteration 4, now | The assistants on the story paths, against the Iteration 3 prompts and the 2026-11-23 release runs, including turns to agreement | The [Iteration 4 metrics and baselines](technical_specification/13_story_path_evaluation.md#proposed-iteration-4-metrics-and-baselines), which hold the zero-tolerance metrics, the pass rates and turns to agreement with their baselines | Eval |
+| Iteration 4, now | User acceptance on at least five stories (#187) | Every row of the chosen stories that the code supports gives its expected verdict on the production deployment, on each interface it names, run by two testers; a failed row has a filed issue before the report | QA |
+| Next iteration | Each [planned item](technical_specification/06_implementation_plan.md#10-next-iteration-plan-proposed): the feature, the part that changes and the stories it serves | The item's own check in that table, and every testing baseline row the item changes passes | QA, eval and automated tests, as the item says |
+| Next iteration | No regression in the assistants | The Iteration 4 thresholds still hold on every pull request that changes the assistant (#154) | Eval |
+| Next iteration | Whether people who schedule external meetings can use it unaided (#172): a guest reaching an agreement from a booking link, and a host deciding on it in the messenger | At least 5 participants per role; at least 4 of 5 finish each task without help; the step where anyone stopped is recorded | Usability test |
+| Release candidate | The [end-to-end release acceptance scenarios](#9-end-to-end-release-acceptance-scenarios) | Every scenario closed with local and production evidence in the [acceptance record](technical_specification/07_acceptance_record.md), or named there as pending with its reason; the zero-tolerance measures above have no failing case | QA and automated tests |
+| After launch | Conversion, speed, host actions and feasibility | The post-launch targets above, decided on 2026-10-23 | Weekly measurement |
+
 ## 3. Proposed initial release scope
 
 ### Included
