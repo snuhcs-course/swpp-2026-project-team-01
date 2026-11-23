@@ -47,7 +47,7 @@ Each email is still current only while the request is cancelled. Neither carries
 
 **Leaving a change.** Withdrawal by the guest, decline by the host and expiry each drop the change: a change still reserved is cancelled (one already dispatching answers `booking_pending`), and the request is booked again with the meeting as it was. A decline or an expiry tells the guest by the `status_change_dropped` email and chat message. A cancellation during a change cancels the meeting itself and any reserved change.
 
-**Not covered.** Google's own update email to the guest after a patch, and a conference the host added to the event by hand (another provider's link), which a change away from Meet also removes, are not checked by automated tests.
+**Not covered.** Google's own update email to the guest after a patch is not checked by automated tests, and neither is a real Google Calendar clearing the Meet on `conferenceData: null`. A conference the host added to the event by hand (another provider's link) is removed by a change away from Meet, and counts as the event's Meet for a change that stays on Meet, so no Meet is created then. A meeting on the guest's own link shows that link in confirmations and receipts even if the event still carries a conference.
 
 ## Alternatives
 

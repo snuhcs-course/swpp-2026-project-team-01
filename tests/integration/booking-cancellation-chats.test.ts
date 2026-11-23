@@ -71,7 +71,7 @@ async function bookedWith(chats: { readonly hostChat?: boolean; readonly guestSe
   });
   if (!approved.ok) throw new Error(`approve failed: ${approved.error.category}`);
   expect(await runBooking(db, bookingDeps(db, google), approved.result.bookingId)).toBe("completed");
-  return { ...request, bookingId: approved.result.bookingId };
+  return { ...request, approvedBookingId: approved.result.bookingId };
 }
 
 // Runs the request's pending notice jobs, then sends what the host's chat queued.
@@ -89,7 +89,7 @@ async function hostTexts(hostAccountId: string, requestId: string) {
   return texts;
 }
 
-// The guest's queued messages recorded after `before`, sent.
+// The IDs of the guest's outbox rows so far.
 async function guestOutbox(sender: string) {
   const rows = await db<{ id: string }[]>`
     select id from app.imessage_outbox where recipient_hash = ${imessageHash(testTokenKey, "sender", sender)} order by created_at, id
@@ -97,6 +97,7 @@ async function guestOutbox(sender: string) {
   return new Set(rows.map((row) => row.id));
 }
 
+// The guest's queued messages recorded after `before`, sent.
 async function guestTexts(sender: string, before: ReadonlySet<string>) {
   const rows = await db<{ id: string }[]>`
     select id from app.imessage_outbox
@@ -130,7 +131,7 @@ describe("a cancelled meeting in the linked chats", () => {
       expectedRevision: await revisionOf(db, request.requestId),
     });
     expect(outcome.ok).toBe(true);
-    const job = await jobFor(db, IMESSAGE_NOTICE_JOB, guestNoticeKey(request.requestId, { bookingId: request.bookingId, kind: "status_cancelled" }));
+    const job = await jobFor(db, IMESSAGE_NOTICE_JOB, guestNoticeKey(request.requestId, { bookingId: request.approvedBookingId, kind: "status_cancelled" }));
     await runJob(db, job.id, createImessageNoticeHandler(noticeDeps));
 
     const texts = await guestTexts(sender, since);
@@ -138,7 +139,9 @@ describe("a cancelled meeting in the linked chats", () => {
     expect(texts[0]).toMatch(
       /^Ada Lovelace cancelled your meeting \(.+\)\. The calendar invitation is cancelled too\. Write here if you'd like to ask for a new time\.$/,
     );
+    // request.bookingId is the seeded booking-link secret.
     expect(texts[0]).not.toContain(request.bookingId);
+    expect(texts[0]).not.toContain("/booking/");
   });
 
   it("tells the linked host when the guest cancels, and nothing to the guest who cancelled", async () => {
@@ -168,7 +171,7 @@ describe("a cancelled meeting in the linked chats", () => {
     // The host cancelled, so nothing is sent to the host's chat for the cancellation itself.
     expect(await hostTexts(request.hostAccountId, request.requestId)).toEqual([]);
 
-    expect(await runCancelJob(request.bookingId, bookingDeps(db, google, calendarRefusingDelete()))).toBe("completed");
+    expect(await runCancelJob(request.approvedBookingId, bookingDeps(db, google, calendarRefusingDelete()))).toBe("completed");
     const texts = await hostTexts(request.hostAccountId, request.requestId);
     expect(texts).toHaveLength(1);
     expect(texts[0]).toContain(`The meeting for request ${requestRef(request.requestId)} (`);

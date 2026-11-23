@@ -27,7 +27,7 @@
 - [x] Withdrawal, decline and expiry drop the change and keep the meeting; decline and expiry tell the guest (`status_change_dropped`); cancellation during a change cancels the meeting.
 - [x] Tools: `change_booking` for the guest assistant, the guest MCP, the host's linked chat and the host MCP; **Change meeting** on the host's booking card and a note while a change is open; assistant instructions.
 - [x] Tests: unit (`patchEvent`, email copy) and integration (reopen, own time offered again, patched approval, withdraw, decline, expiry, cancel midway).
-- [x] Remove a Meet link when a booked online meeting changes to in person (`changePatchBody` in `lib/server/bookings.ts`: `conferenceData: null`, and `location: null` when the change has no place), with unit tests.
+- [x] Remove a Meet link when a booked online meeting changes to in person (`changePatchBody` in `lib/server/bookings.ts`: `conferenceData: null`, and `location: null` when the change has no place), with unit tests; a meeting on the guest's own link shows that link (`bookingJoinUrl`); the fake Google drops the Meet on `conferenceData: null`, and `booking-changes.test.ts` covers a change to the guest's link (written, not run).
 - [ ] Try a change end to end against a real Google Calendar.
 
 ## Review

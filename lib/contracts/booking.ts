@@ -58,15 +58,15 @@ export type BookingReceipt = {
   readonly calendarUrl: string | null;
 };
 
-// An online meeting's join link: the one Google returned (Meet), else the
-// requester's own link. An in-person meeting has none.
+// An online meeting's join link: the requester's own link when the meeting uses
+// one, else the one Google returned (Meet). An in-person meeting has none.
 export function bookingJoinUrl(
   details: { readonly mode: "online" | "in_person"; readonly linkPlan?: LinkPlan | null },
   evidence: { readonly joinUrl?: unknown } | null,
 ): string | null {
   if (details.mode !== "online") return null;
-  if (typeof evidence?.joinUrl === "string" && evidence.joinUrl) return evidence.joinUrl;
-  return details.linkPlan?.kind === "requester_link" ? details.linkPlan.url : null;
+  if (details.linkPlan?.kind === "requester_link") return details.linkPlan.url;
+  return typeof evidence?.joinUrl === "string" && evidence.joinUrl ? evidence.joinUrl : null;
 }
 
 // The authored status lines both audiences share.

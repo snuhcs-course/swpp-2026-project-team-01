@@ -116,6 +116,34 @@ describe("booking.change", () => {
     expect((await readBookingStatus(db, request.requestId, "requester"))?.receipt?.start).toBe(new Date(candidate.start).toISOString());
   });
 
+  it("removes the Meet when an approved change moves the meeting to the guest's own link", async () => {
+    const request = await booked();
+    expect(google.createdEvents(request.calendarId)[0]!.hangoutLink).toBeDefined();
+    await reopen(request);
+    const { version } = await agreeToAnotherTime(request);
+    const approved = await asHost(db, request.hostAccountId, request.requestId, approveCommand, { version }, {
+      expectedRevision: await revisionOf(db, request.requestId),
+    });
+    if (!approved.ok) throw new Error(`approve failed: ${approved.error.category}`);
+    // The agreed version moves to the guest's own link before the booking job
+    // freezes its payload, as a change of meeting type would.
+    const guestLink = "https://zoom.example/j/1";
+    await db`
+      update app.proposals
+      set details = details || ${db.json({ linkPlan: { kind: "requester_link", url: guestLink } } as never)}
+      where id = (select proposal_id from app.bookings where id = ${approved.result.bookingId})
+    `;
+    expect(await runBooking(db, bookingDeps(db, google), approved.result.bookingId)).toBe("completed");
+
+    const [event] = google.createdEvents(request.calendarId);
+    expect(event!.hangoutLink).toBeUndefined();
+    expect(event!.location).toBe(guestLink);
+
+    const changed = (await deliveriesOf(db, request.requestId)).filter((email) => email.kind === "booking_confirmation" && email.parameters.changed === true);
+    expect(changed.map((email) => email.parameters.joinUrl)).toEqual([guestLink, guestLink]);
+    expect((await readBookingStatus(db, request.requestId, "requester"))?.receipt?.joinUrl).toBe(guestLink);
+  });
+
   it("names the side that reopened the booked meeting on the guest's page (#321)", async () => {
     const byHost = await booked();
     await reopen(byHost, "host");

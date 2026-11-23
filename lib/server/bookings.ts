@@ -846,15 +846,13 @@ async function confirm(tx: Transaction, deps: BookingDependencies, booking: JobB
   await closeRequest(tx, booking.request_id, "booked", { fromBooking: true });
   await enqueueHostNotice(tx, booking.request_id, { bookingId: booking.id, kind: "booking_confirmed" });
   const [proposal] = await tx<{ details: LatestProposal["details"] }[]>`select details from app.proposals where id = ${booking.proposal_id}`;
-  const linkPlan = proposal?.details.linkPlan ?? null;
-
   await enqueueConfirmations(tx, deps.notices, booking.request_id, {
     bookingId: booking.id,
     changed: booking.replaces_booking_id !== null,
     confirmedAt: confirmed[0]!.confirmed_at.toISOString(),
     end: booking.end_at.toISOString(),
     iCalUID: event.iCalUID,
-    joinUrl: proposal?.details.mode === "online" ? (event.joinUrl ?? (linkPlan?.kind === "requester_link" ? linkPlan.url : null)) : null,
+    joinUrl: proposal ? bookingJoinUrl(proposal.details, event) : null,
     location: proposal?.details.mode === "in_person" ? (proposal.details.location ?? null) : null,
     mode: proposal?.details.mode ?? "online",
     organizerEmail: event.organizerEmail,
