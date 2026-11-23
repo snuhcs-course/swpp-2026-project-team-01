@@ -48,14 +48,22 @@ export function simulatorPrompt(lines: readonly Line[]) {
 // The simulator's answer: the next guest message, or the end of the
 // conversation. An empty answer also ends it, so a broken simulator cannot
 // loop until the turn limit.
-export function readSimulatorTurn(text: string): { readonly done: true } | { readonly done: false; readonly message: string } {
+// A message written on the same line as the marker is still sent, and the
+// conversation ends after the assistant's reply to it.
+export type SimulatorTurn =
+  | { readonly done: true }
+  | { readonly done: false; readonly message: string; readonly last: boolean };
+
+export function readSimulatorTurn(text: string): SimulatorTurn {
+  const last = text.includes(DONE);
   const message = text
+    .replaceAll(DONE, "")
     .trim()
     .replace(/^(guest|you|me)\s*:\s*/i, "")
     .replace(/^"(.*)"$/s, "$1")
     .trim();
-  if (!message || message.includes(DONE)) return { done: true };
-  return { done: false, message };
+  if (!message) return { done: true };
+  return { done: false, last, message };
 }
 
 // Whether an agreed proposal fits the hidden goal: on the goal's day in

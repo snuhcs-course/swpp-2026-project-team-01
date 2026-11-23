@@ -204,10 +204,10 @@ A capability set that stays near 100% can move to `regression` by a team decisio
 
 The [Agent evals](../../.github/workflows/agent-evals.yml) workflow runs the `regression` sets on a Linux runner against a local Supabase stack, the fake Google and Routes this document's runtime starts, and the real model. It never starts on its own, because every run spends money:
 
-- **When.** A pull request that touches `agent/instructions/**`, `agent/tools/**`, `agent/agent.ts`, `lib/server/*-tools.ts` or `evals/**`, once a maintainer adds the `run-agent-evals` label (adding it again reruns), or a manual dispatch with an optional pull request number.
+- **When.** A pull request that touches `agent/instructions/**`, `agent/tools/**`, `agent/agent.ts`, `lib/server/*-tools.ts`, `lib/server/request-*.ts`, `lib/server/setup*.ts`, `lib/contracts/**`, `evals/**` or the workflow and its summary script, once a maintainer adds the `run-agent-evals` label. Adding the label again reruns it and cancels a run still going; other labels never cancel it. For a change outside those paths, dispatch the workflow by hand with the pull request number: it then tests that pull request's head and comments there.
 - **What.** The guest defense set, then the host approval set (one `eve dev` per checkout), each case once (pass^1, `FMAT_EVAL_TRIALS=1`); official runs keep pass^3.
-- **Report.** [`scripts/agent-evals.ts`](../../scripts/agent-evals.ts) posts one comment on the pull request and updates it on a rerun: runs passed per set and category, each failed run with its failing checks and the `--tag case:<ID>` that reruns it, and the assistant's tokens from the runs' `step.completed` events (grader tokens are not counted). The artifacts are kept for 14 days. The job fails when a run fails or does not finish.
-- **Secret.** `EVAL_OPENAI_API_KEY`, an OpenAI key for `gpt-5.6-terra` (assistant and grader), added by the repository owner; a project key with its own budget limit is safest. Without it the job stops at its first step. The route is direct OpenAI, as in documentation 10 and 11, not the OpenRouter route of the story sets.
+- **Report.** [`scripts/agent-evals.ts`](../../scripts/agent-evals.ts) posts one comment on the pull request and updates it on a rerun: runs passed per set and category, each failed run with its failing checks and the `--tag case:<ID>` that reruns it, and the assistant's tokens from the runs' `step.completed` events (grader tokens are not counted). The comment names the pull request's head commit. The artifacts are kept for 14 days. The job fails when a run fails or does not finish; if the summary cannot be built, the comment says so and links the run.
+- **Secret.** `EVAL_OPENAI_API_KEY`, an OpenAI key for `gpt-5.6-terra` (assistant and grader), added by the repository owner; a project key with its own budget limit is safest. Only the key check and the two eval steps see it. Without it the job stops at its first step. The owner also creates the `run-agent-evals` label. The route is direct OpenAI, as in documentation 10 and 11, not the OpenRouter route of the story sets.
 - **Cost.** One run is 39 defense and 17 approval evals. Iteration 3's 73 defense evals used about 1.4 million input tokens (1 million cached), and the story sets cost about USD 0.02 per eval with the grader, so one CI run is estimated at about USD 1 to 1.5 and 10 to 15 minutes. Replace this estimate with the first run's measured tokens.
 - **Reading a failure.** With the same prompts, a single run can fail without a change (27 of 133 story cases were flaky on 2026-11-18), so rerun a failed case two more times with its `case:` tag before calling it a regression. Comparing against `main` on the same cases (`scripts/story-evals.ts compare`) shows a regression directly but doubles the cost; the workflow does not do it yet.
 
@@ -227,10 +227,10 @@ A set that measures whether a guest gets from a first message to an agreement wa
 |---|---|
 | End state | The request is `awaiting_host_approval` |
 | Agreed proposal | The latest agreed proposal starts on the goal's day inside its range, with the goal's length, mode and, in person, place |
-| Turn limit | The simulator ends within 12 guest messages |
+| Turn limit | The simulator ends within 12 guest messages: after the 12th it is asked once more, and any further message fails the run |
 | Tools | Only guest booking tools are called |
-| Tone | A rubric over the whole conversation: polite and plain, the guest's language, short replies, no internal terms |
-| No false booking | A rubric: never says the meeting is booked or approved by the host |
+| Tone | A rubric over all the assistant's replies together: polite and plain, the guest's language, short replies, no internal terms |
+| No false booking | A rubric over all the replies: none says the meeting is booked or approved by the host |
 
 **Run settings.** As for the story sets (above): the local stack, the fake Google, the OpenRouter route, and the simulator on the grader's model (`gpt-6.1-sol`, low reasoning), so the guest does not share the assistant's habits. Each case runs three times. Command: `FMAT_EVAL_AUDIENCE=requester npx eve eval requester/journey --max-concurrency 8`. One conversation is up to 12 assistant turns and 13 simulator calls, so a full run of 18 conversations is estimated at about USD 3.
 
@@ -249,5 +249,5 @@ Whether a change in route duration changes the slots a guest is shown ([#186](ht
 | 20 minutes | 11:45 and 12:00 | 11:45 and 12:00 |
 | 35 minutes | 12:00 only; 11:45 is omitted | 12:00 only |
 
-**Reproduce.** [`lib/server/routing-slots.test.ts`](../../lib/server/routing-slots.test.ts) runs the feasibility engine and the requester projection the booking page and the assistant read (`npm test`); it passed on 2026-11-23 at the commit that added it, based on `main` at `82fae0ad`. [`tests/integration/routing-slots.test.ts`](../../tests/integration/routing-slots.test.ts) repeats it through the real evaluation job, the fake Google Calendar and fake Routes on the local stack (`npm run test:integration`); it was not run with that commit and is to be run on `main`.
+**Reproduce.** [`lib/server/routing-slots.test.ts`](../../lib/server/routing-slots.test.ts) runs the feasibility engine and the requester projection the booking page and the assistant read (`npm test`); it passed on 2026-11-23 on branch `test/agent-eval-coverage` (pull request [#423](https://github.com/snuhcs-course/swpp-2026-project-team-01/pull/423)), based on `main` at `82fae0ad`; the squash commit of #423 on `main` is the build to rerun. [`tests/integration/routing-slots.test.ts`](../../tests/integration/routing-slots.test.ts) repeats it through the real evaluation job, the fake Google Calendar and fake Routes on the local stack (`npm run test:integration`); it was not run with that commit and is to be run on `main`.
 

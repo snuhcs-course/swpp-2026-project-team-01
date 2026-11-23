@@ -32,7 +32,9 @@ describe("the simulated guest's prompt", () => {
   });
 
   it("reads the next message or the end of the conversation", () => {
-    expect(readSimulatorTurn('Guest: "Thursday 2pm works."')).toEqual({ done: false, message: "Thursday 2pm works." });
+    expect(readSimulatorTurn('Guest: "Thursday 2pm works."')).toEqual({ done: false, last: false, message: "Thursday 2pm works." });
+    // An agreement on the marker's line is still sent, as the last message.
+    expect(readSimulatorTurn(`Yes, 2pm works for me. ${DONE}`)).toEqual({ done: false, last: true, message: "Yes, 2pm works for me." });
     expect(readSimulatorTurn(` ${DONE} `)).toEqual({ done: true });
     expect(readSimulatorTurn("")).toEqual({ done: true });
   });

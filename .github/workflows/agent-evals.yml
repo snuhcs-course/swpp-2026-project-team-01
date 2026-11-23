@@ -18,28 +18,35 @@ on:
       - agent/tools/**
       - agent/agent.ts
       - lib/server/*-tools.ts
+      - lib/server/request-*.ts
+      - lib/server/setup*.ts
+      - lib/contracts/**
       - evals/**
+      - scripts/agent-evals.ts
+      - .github/workflows/agent-evals.yml
+  # For a change outside these paths, dispatch the workflow by hand with the
+  # pull request number: it tests that pull request's head.
   workflow_dispatch:
     inputs:
       pr:
-        description: Pull request number to comment on (empty for none)
+        description: Pull request number to test and comment on (empty tests the dispatched branch)
         required: false
 
 permissions:
   contents: read
   pull-requests: write
 
-concurrency:
-  group: agent-evals-${{ github.event.pull_request.number || inputs.pr || github.ref }}
-  cancel-in-progress: true
-
 jobs:
   regression:
     if: github.event_name == 'workflow_dispatch' || github.event.label.name == 'run-agent-evals'
     runs-on: ubuntu-latest
     timeout-minutes: 45
+    # Job-level, so a pull request's other labels (whose runs skip this job)
+    # never cancel a paid run; a second run-agent-evals label does.
+    concurrency:
+      group: agent-evals-${{ github.event.pull_request.number || inputs.pr || github.ref }}
+      cancel-in-progress: true
     env:
-      OPENAI_API_KEY: ${{ secrets.EVAL_OPENAI_API_KEY }}
       # One run per case (pass^1); official runs keep pass^3.
       FMAT_EVAL_TRIALS: "1"
       SUPABASE_AUTH_SITE_URL: http://localhost:3000
@@ -49,12 +56,21 @@ jobs:
       GOOGLE_CLIENT_SECRET: ci-placeholder
     steps:
       - name: Require the model key
+        env:
+          OPENAI_API_KEY: ${{ secrets.EVAL_OPENAI_API_KEY }}
         run: |
           if [ -z "$OPENAI_API_KEY" ]; then
             echo "::error::Add the EVAL_OPENAI_API_KEY repository secret to run the agent evals."
             exit 1
           fi
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          ref: ${{ inputs.pr && format('refs/pull/{0}/head', inputs.pr) || '' }}
+      # On a pull request the checkout is GitHub's merge commit; name the PR's head instead.
+      - name: Name the commit under test
+        env:
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        run: echo "EVAL_COMMIT=${HEAD_SHA:-$(git rev-parse HEAD)}" >> "$GITHUB_ENV"
       - uses: supabase/setup-cli@1dedf2c611547ede7232d26866dd3c56ab903bbb # v1
         with:
           version: 2.119.0
@@ -70,10 +86,14 @@ jobs:
       - name: Guest defense set
         id: guest
         continue-on-error: true
+        env:
+          OPENAI_API_KEY: ${{ secrets.EVAL_OPENAI_API_KEY }}
         run: FMAT_EVAL_AUDIENCE=requester npx eve eval requester/defense --tag regression --max-concurrency 8
       - name: Host approval set
         id: host
         continue-on-error: true
+        env:
+          OPENAI_API_KEY: ${{ secrets.EVAL_OPENAI_API_KEY }}
         run: FMAT_EVAL_AUDIENCE=host_review npx eve eval host-review/approval --tag regression --max-concurrency 8
       - name: Summarize
         id: summary
@@ -82,7 +102,11 @@ jobs:
         run: |
           set +e
           { echo '<!-- agent-evals -->'; npx tsx scripts/agent-evals.ts summary .eve/evals/*/; } > summary.md
-          echo "failed=$?" >> "$GITHUB_OUTPUT"
+          failed=$?
+          echo "failed=$failed" >> "$GITHUB_OUTPUT"
+          if ! grep -q '^## Regression evals' summary.md; then
+            { echo '<!-- agent-evals -->'; echo '## Regression evals'; echo; echo "The summary could not be built; see the [workflow run]($EVAL_RUN_URL) and its artifacts."; } > summary.md
+          fi
           cat summary.md >> "$GITHUB_STEP_SUMMARY"
       - name: Post or update the eval comment
         if: github.event.pull_request.number || inputs.pr

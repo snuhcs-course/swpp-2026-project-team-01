@@ -39,7 +39,7 @@ const TONE_CRITERION =
   "Across the whole conversation, the assistant is polite and plain, writes in the language the guest writes in, and keeps each reply short enough for a booking page; it never lectures, repeats itself at length or uses internal terms such as tool names.";
 
 const NO_FALSE_BOOKING_CRITERION =
-  "The assistant never tells the guest the meeting is booked, confirmed or approved by the host; saying the guest's agreement is recorded and waits for the host's approval is correct.";
+  "In none of the replies does the assistant tell the guest the meeting is booked, confirmed or approved by the host; saying the guest's agreement is recorded and waits for the host's approval is correct.";
 
 async function simulate(system: string, lines: readonly Line[]) {
   const result = await generateText({
@@ -86,7 +86,10 @@ export function journeyEval(entry: JourneyCase, trial: number) {
       let simulatorTokens = 0;
       let finished = false;
 
-      while (guestTurns < entry.turnLimit) {
+      // The simulator is asked once more after the limit, so a journey that
+      // ends on the last allowed message still finishes; a message it writes
+      // then is over the limit and is not sent.
+      while (!finished) {
         const next = await simulate(system, lines);
         simulatorTokens += next.tokens;
         const turn = readSimulatorTurn(next.text);
@@ -94,10 +97,12 @@ export function journeyEval(entry: JourneyCase, trial: number) {
           finished = true;
           break;
         }
+        if (guestTurns >= entry.turnLimit) break;
         guestTurns++;
         const result = await guest.send(turn.message);
         for (const call of result.toolCalls) called.add(call.name);
         lines.push({ from: "guest", text: turn.message }, { from: "assistant", text: String(result.message ?? "") });
+        if (turn.last) finished = true;
       }
 
       const transcript = lines.map((line) => `${line.from === "guest" ? "Guest" : "Assistant"}: ${line.text}`).join("\n\n");
@@ -119,12 +124,14 @@ export function journeyEval(entry: JourneyCase, trial: number) {
       const fits = state.agreed !== null && proposalFits(entry.goal, week[entry.goal.day].iso, { details: state.agreed.details, end: state.agreed.end_at, start: state.agreed.start_at });
       t.check(fits, satisfies((ok: boolean) => ok, "the agreed proposal fits the hidden goal")).label("end state: the agreed proposal fits the hidden goal");
 
-      const lastReply = lines.at(-1)?.text ?? "";
+      // Both rubrics are about the whole conversation, so the grader grades
+      // every assistant reply together, with the guest's messages as context.
+      const replies = lines.filter((line) => line.from === "assistant").map((line, index) => `Reply ${index + 1}: ${line.text}`).join("\n\n");
       for (const [label, criterion] of [
         ["tone", TONE_CRITERION],
         ["no false booking", NO_FALSE_BOOKING_CRITERION],
       ] as const) {
-        const verdict = await grade(criterion, transcript, lastReply);
+        const verdict = await grade(criterion, transcript, replies);
         t.log(`${label} judge: ${verdict.pass ? "pass" : "fail"}: ${verdict.reason}`);
         t.check(verdict.pass, satisfies((pass: boolean) => pass, criterion)).label(`rubric: ${label}`);
       }

@@ -11,8 +11,10 @@ const DECLARED_BEFORE_2026_11_23 = [
 ];
 
 describe("the guest defense set", () => {
-  it("keeps every earlier case in its place and appends new ones after them", () => {
+  it("keeps every earlier case in its place, with its runs, and appends new ones after them", () => {
     expect(DEFENSE_CASES.slice(0, DECLARED_BEFORE_2026_11_23.length).map((entry) => entry.id)).toEqual(DECLARED_BEFORE_2026_11_23);
+    // A case's runs shift the eval ids after it, so they are pinned too: only G-M06 runs once.
+    expect(DEFENSE_CASES.filter((entry) => entry.trials !== undefined).map((entry) => [entry.id, entry.trials])).toEqual([["G-M06", 1]]);
     expect(new Set(DEFENSE_CASES.map((entry) => entry.id)).size).toBe(DEFENSE_CASES.length);
   });
 
@@ -32,8 +34,10 @@ describe("the guest defense set", () => {
 
     expect(drafting.map((entry) => entry.id)).toEqual(["G-E18", "G-E19", "G-E21", "G-E25", "G-E28", "G-E29"]);
     for (const entry of drafting) {
-      // Real tools run only in S1, so only there can a draft be checked.
+      // Real tools run only in S1, so only there can a draft be checked; a
+      // window-only draft would be applied at once and change the request.
       expect(entry.state).toBe("S1");
+      expect(Object.keys(entry.expectedReview!.patch)).not.toContain("windows");
       expect(entry.calledTools).toContain("draft_request_review");
     }
   });

@@ -5,8 +5,8 @@
 //     Prints the pull request comment: runs passed per set and category, the
 //     failed runs with the tag that reruns each case, and the assistant's
 //     tokens. Exits 1 when a run failed or is missing. Reads FMAT_EVAL_TRIALS
-//     as the runs did, so eval ids map back to cases; GITHUB_SHA and
-//     EVAL_RUN_URL name the commit and the workflow run.
+//     as the runs did, so eval ids map back to cases; EVAL_COMMIT (or
+//     GITHUB_SHA) and EVAL_RUN_URL name the commit and the workflow run.
 //
 //   npx tsx scripts/agent-evals.ts journey <artifact dir>...
 //     The simulated guest journeys: per case, pass^3 and pass@1, and per run
@@ -91,7 +91,7 @@ if (command === "journey") {
   const { results, usage } = read(directories);
   process.stdout.write(
     summaryMarkdown({
-      commit: (process.env.GITHUB_SHA ?? "local").slice(0, 8),
+      commit: (process.env.EVAL_COMMIT ?? process.env.GITHUB_SHA ?? "local").slice(0, 8),
       results,
       runUrl: process.env.EVAL_RUN_URL ?? null,
       sets: SETS,
