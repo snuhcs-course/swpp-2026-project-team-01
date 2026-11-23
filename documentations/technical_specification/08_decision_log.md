@@ -48,7 +48,7 @@ The [proposal](../../openspec/changes/archive/2026-11-02-requester-intake-and-fe
 | Redaction | Removes bearer values of at least 8 characters with a digit or punctuation, linking proofs, credential URL parameters, booking links, and bare UUIDs in guest input | Removing every bearer word; removing bare UUIDs everywhere | Design 14 | `lib/server/redaction.ts` |
 | Cloudflare 429 | Recorded as rejected, not uncertain | Uncertain, with no resend | Design 5 | `lib/server/cloudflare-email.ts` |
 | Eval-only auth | `createEvalRequesterAuth` admits stubbed requester evals only with `FMAT_EVAL_AUDIENCE=requester`, outside Vercel, inside `eve dev` | No offline evals | Agent configuration | `lib/server/eve-auth.ts` |
-| Host setup eval auth | `createEvalHostSetupAuth` admits host setup evals only with `FMAT_EVAL_AUDIENCE=host_setup`, outside Vercel, inside `eve dev`, for a setup discussion the eval seeded (#152) | Grading setup by the order of tool calls | Host setup evaluation | `lib/server/eve-auth.ts` |
+| Host setup eval auth | `createEvalHostSetupAuth` admits host setup evals only with `FMAT_EVAL_AUDIENCE=host_setup`, outside Vercel, inside `eve dev`, for a setup discussion the eval seeded (#152) | Signing internal bearers in the eval process: the eval would need the signing key and the message route's bookkeeping | Host setup evaluation | `lib/server/eve-auth.ts` |
 | Ranking model | `gpt-5.6-terra` through the model limits; live quality untested | Another model | Design 8 | `lib/server/evaluation.ts` |
 | Retired intake | Intake tables and `public_intake` values kept so the earlier test request still shows its transcript; nothing new is written | Dropping them now | Design 2 | A later migration drops `intakes` once no open request refers to one |
 

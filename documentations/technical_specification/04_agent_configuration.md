@@ -202,7 +202,7 @@ Phase 3 adds the requester set under `evals/requester/`: injection asking for ca
 
 The fixed defense set (`defense-cases.ts`, run by `defense.eval.ts` through `defense-runner.ts`) attacks the guest assistant by OWASP LLM category, three runs per case, and also compares the request's rows before and after each conversation; in the gathering state its guest tools run against the local database except `evaluate_candidates`. Its grading, pass criteria and results are in [Guest defense evaluation](10_guest_defense_evaluation.md); run it with `FMAT_EVAL_AUDIENCE=requester npx eve eval requester/defense`.
 
-The host setup set (`evals/host-setup/`) runs every setup tool for real against the local database and the fake Google, and is graded on the setup draft a conversation leaves; its grading, pass criteria and run settings are in [Host setup evaluation](14_host_setup_evaluation.md). Run it with `FMAT_EVAL_AUDIENCE=host_setup npx eve eval host-setup`.
+The host setup set (`evals/host-setup/`) runs every setup tool for real against the local database and the fake Google, and is graded on the setup draft a conversation leaves; its grading, pass criteria and run settings are in [Host setup evaluation](14_host_setup_evaluation.md). Run it with `FMAT_EVAL_AUDIENCE=host_setup npx eve eval host-setup/setup --max-concurrency 8`.
 
 ## Decisions recorded here
 

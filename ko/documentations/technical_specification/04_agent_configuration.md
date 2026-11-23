@@ -204,7 +204,7 @@ eve 훅은 이벤트가 내구성 있게 기록된 뒤에 실행되며, 예외�
 
 고정된 방어 세트(`defense-cases.ts`를 `defense-runner.ts`를 통해 `defense.eval.ts`가 실행)는 OWASP LLM 범주별로 게스트 어시스턴트를 공격하며, 사례마다 세 번 실행하고, 각 대화 전후의 요청 행도 비교합니다. 수집 상태에서는 `evaluate_candidates`를 제외한 게스트 도구가 로컬 데이터베이스에 대해 실행됩니다. 채점, 통과 기준, 결과는 [게스트 방어 평가](10_guest_defense_evaluation.md)에 있으며, `FMAT_EVAL_AUDIENCE=requester npx eve eval requester/defense`로 실행합니다.
 
-호스트 설정 세트(`evals/host-setup/`)는 모든 설정 도구를 로컬 데이터베이스와 가짜 Google에 대해 실제로 실행하며, 대화가 남기는 설정 초안으로 채점합니다. 채점, 통과 기준, 실행 설정은 [호스트 설정 평가](14_host_setup_evaluation.md)에 있으며, `FMAT_EVAL_AUDIENCE=host_setup npx eve eval host-setup`으로 실행합니다.
+호스트 설정 세트(`evals/host-setup/`)는 모든 설정 도구를 로컬 데이터베이스와 가짜 Google에 대해 실제로 실행하며, 대화가 남기는 설정 초안으로 채점합니다. 채점, 통과 기준, 실행 설정은 [호스트 설정 평가](14_host_setup_evaluation.md)에 있으며, `FMAT_EVAL_AUDIENCE=host_setup npx eve eval host-setup/setup --max-concurrency 8`로 실행합니다.
 
 ## 여기에 기록된 결정
 

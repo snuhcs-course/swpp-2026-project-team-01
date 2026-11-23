@@ -473,8 +473,9 @@ export const EVAL_HOST_HEADER = "x-fmat-eval-host";
 export function createEvalHostSetupAuth(
   load: () => Pick<AppAuthDependencies, "db">,
   env: Readonly<Record<string, string | undefined>> = process.env,
+  // eve's synthetic local caller; tests pass their own to reach the lookups.
+  local: AuthFn<Request> = localDev(),
 ): AuthFn<Request> {
-  const local = localDev();
 
   return async (request) => {
     if (env.FMAT_EVAL_AUDIENCE !== "host_setup" || deploymentEnvironment(env) !== "local") return null;

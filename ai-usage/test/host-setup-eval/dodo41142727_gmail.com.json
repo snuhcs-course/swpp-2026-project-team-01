@@ -8,16 +8,50 @@
       "agent_ms": 0,
       "models": {
         "claude-opus-5-5": {
-          "input": 24,
-          "cache_read": 3841415,
+          "input": 46,
+          "cache_read": 7116838,
           "cache_write_5m": 0,
-          "cache_write_1h": 11070,
-          "output": 5938,
+          "cache_write_1h": 29446,
+          "output": 16500,
           "reasoning": 0
         }
       },
       "first": "2026-11-23T10:48:14.373Z",
-      "last": "2026-11-23T10:49:47.174Z"
+      "last": "2026-11-23T10:57:40.340Z"
+    },
+    "claude:4d30e3ca-35e0-46cf-a6e7-fb8f9114ff3a/agent-a13d35a6f3814ef15": {
+      "agent": "claude-code",
+      "client": "claude-desktop",
+      "agent_ms": 0,
+      "models": {
+        "claude-sonnet-5-5": {
+          "input": 8,
+          "cache_read": 246663,
+          "cache_write_5m": 51401,
+          "cache_write_1h": 0,
+          "output": 1125,
+          "reasoning": 0
+        }
+      },
+      "first": "2026-11-23T10:57:17.624Z",
+      "last": "2026-11-23T10:57:25.398Z"
+    },
+    "claude:4d30e3ca-35e0-46cf-a6e7-fb8f9114ff3a/agent-a1aaba967d6da0136": {
+      "agent": "claude-code",
+      "client": "claude-desktop",
+      "agent_ms": 0,
+      "models": {
+        "claude-opus-5-5": {
+          "input": 70,
+          "cache_read": 4519066,
+          "cache_write_5m": 145469,
+          "cache_write_1h": 0,
+          "output": 21762,
+          "reasoning": 0
+        }
+      },
+      "first": "2026-11-23T10:50:25.236Z",
+      "last": "2026-11-23T10:55:25.061Z"
     },
     "claude:4d30e3ca-35e0-46cf-a6e7-fb8f9114ff3a/agent-a8f62a8ec9b96877b": {
       "agent": "claude-code",

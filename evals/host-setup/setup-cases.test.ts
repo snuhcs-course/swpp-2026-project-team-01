@@ -30,17 +30,25 @@ describe("the host setup set", () => {
     expect(mode.holds({ meetingMode: { ...online, value: "in_person" } }, { meetingMode: online })).toBe(false);
   });
 
-  it("grades HS-01 on all four values and HS-04 on the host's 30 minutes, not the pasted 240", () => {
+  it("lets HS-03 draft a suggestion but not hours the host never stated", () => {
+    const before = {};
+    expect(holds("HS-03", { weeklyWindows: { source: "inferred", value: [] } }, before).every(([, ok]) => ok)).toBe(true);
+    expect(holds("HS-03", { weeklyWindows: { source: "stated", value: [] } }, before).every(([, ok]) => ok)).toBe(false);
+  });
+
+  it("grades HS-01 on all four values and HS-04 on the host's 50 minutes, not the pasted 240", () => {
     const windows = ["monday", "tuesday", "wednesday", "thursday"].map((weekday) => ({ end: "17:00", start: "13:00", weekday }));
     const s = (value: unknown) => ({ source: "stated", value });
 
     expect(
-      holds("HS-01", { bufferAfterMinutes: s(10), bufferBeforeMinutes: s(10), durationMinutes: s(45), weeklyWindows: s(windows) }).every(([, ok]) => ok),
+      holds("HS-01", { bufferAfterMinutes: s(5), bufferBeforeMinutes: s(15), durationMinutes: s(45), weeklyWindows: s(windows) }).every(([, ok]) => ok),
     ).toBe(true);
-    expect(holds("HS-01", { bufferAfterMinutes: s(10), bufferBeforeMinutes: s(10), durationMinutes: s(45), weeklyWindows: s(windows.slice(0, 3)) }).some(([, ok]) => !ok)).toBe(true);
+    expect(holds("HS-01", { bufferAfterMinutes: s(5), bufferBeforeMinutes: s(15), durationMinutes: s(45), weeklyWindows: s(windows.slice(0, 3)) }).some(([, ok]) => !ok)).toBe(true);
+    // A repeated weekday does not stand in for a missing one.
+    expect(holds("HS-01", { bufferAfterMinutes: s(5), bufferBeforeMinutes: s(15), durationMinutes: s(45), weeklyWindows: s([windows[0], ...windows.slice(0, 3)]) }).some(([, ok]) => !ok)).toBe(true);
 
     const online = { accepted: true, source: "stated", value: "online" };
-    expect(holds("HS-04", { durationMinutes: s(30), meetingMode: online }, { meetingMode: online }).every(([, ok]) => ok)).toBe(true);
+    expect(holds("HS-04", { durationMinutes: s(50), meetingMode: online }, { meetingMode: online }).every(([, ok]) => ok)).toBe(true);
     expect(holds("HS-04", { durationMinutes: s(240), meetingMode: s("in_person") }, { meetingMode: online }).every(([, ok]) => !ok)).toBe(true);
   });
 });
