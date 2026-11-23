@@ -328,7 +328,7 @@ findmeatime.com/{handle}
 | P-2 | 서버 추가됨 | /mcp에서 인증 | "Let {agent} request a meeting for you?" — Start a new request with {호스트} 선택, 권한 체크 → Allow | **성공**: connected, 아직 요청·이메일 없음<br>**실패**: 거절 → 연결 안 됨 | connect/consent/page.tsx |
 | P-3 | 연결됨 | "Alex Kim, alex@…, 30분, 온라인으로 {호스트}랑 미팅 잡아줘" | AI 기대 동작: get_host → create_request(본인 이름·이메일·시간대와 받은 정보만) → 빠진 목적을 물음<br><br>결과: 요청 1건, 게스트 이메일로 예약 링크 1통 | **하면 안 됨**: 목적을 지어내기 · 예약 링크를 에이전트가 보여주기<br>**실패**: 같은 연결로 두 번째 요청 → "This connection already created its one request."<br>**실패**: 호스트가 요청을 안 받음 → "This host is not taking requests through this connection." | agent-requester-tools.ts (create_request) |
 | P-4 | 목적을 받음 | "시드 투자 건이에요" | AI 기대 동작: update_request_details → find_times → 후보를 날짜·시간·시간대로 보여줌 | **분기**: 15초 안에 못 찾음 → 나중에 get_request로 다시 확인<br>**분기**: 이동 미확정 후보 → allow_trip(분) 후 다시 찾기 | agent-requester-tools.ts (find_times, allow_trip) |
-| P-5 | 후보 보임 | "두 번째로 할게" | AI 기대 동작: choose_time → agree_to_proposal → 호스트 승인이 남았고, 아직 예약 안 됐고, 결과는 이메일로 온다는 의미를 전달 | **실패**: time_unavailable → 동의 안 됨, 다른 시간을 찾는 중 → get_request로 새 후보 제시<br>**하면 안 됨**: 예약됐다고 말하기 | agent-requester-tools.ts (choose_time, agree_to_proposal) |
+| P-5 | 후보 보임 | "두 번째로 할게" | AI 기대 동작: choose_time(다음 단계: 아직 동의 안 됨, 호스트에게 묻지 않음) → agree_to_proposal → 호스트 승인이 남았고, 아직 예약 안 됐고, 결과는 이메일로 온다는 의미를 전달 | **실패**: time_unavailable → 동의 안 됨, 호스트에게 묻지 않음, 다른 시간을 찾는 중 → get_request로 새 후보 제시<br>**실패**: needs_meeting_link → 선택 안 됨. 회의 링크를 물어봄<br>**하면 안 됨**: 예약됐다고 말하기 · agree_to_proposal이 동의를 기록하기 전에 호스트를 기다린다고 말하기 (#381) | agent-requester-tools.ts (choose_time, agree_to_proposal) |
 
 ## G02. 게스트 미팅 요청 수정·철회
 
@@ -339,7 +339,7 @@ findmeatime.com/{handle}
 - 여기서 '수정'은 게스트가 시간에 동의한 뒤, 호스트가 승인하기 전에 바꾸는 것입니다. 동의 전에 바꾸는 것은 G01 W-8.3·W-8.4(시간 고르는 중)에 있습니다. 호스트가 승인한 뒤에는 M01(확정 후 변경)입니다.
 - 동의한 뒤에는 세부 카드가 잠기고("Your agreed proposal waits for the host, so details cannot change now."), Change the agreed time(change_agreement)으로 동의를 다시 열어야 바꿀 수 있습니다.
 - 철회된 요청의 메신저 대화에 게스트가 다시 말하면, 같은 호스트에게 수정 요청(revised request)이 새로 만들어집니다. 철회된 요청이 다시 열리지는 않습니다. `/app`의 호스트 요청 패널에는 "Follows request {ref}, which the guest withdrew."가 보이고, 승인 요청 요약에는 "It follows request {ref}, which the guest withdrew."가 추가됩니다 (#59).
-- MCP에는 동의를 다시 여는 도구(change_agreement)가 따로 없습니다. 동의 후 update_request_details가 어떻게 처리되는지는 확인하지 못했습니다.
+- MCP는 change_agreement로 동의를 다시 엽니다. Change와 같은 명령입니다([`requester-mcp-agreement`](../../openspec/changes/archive/2026-11-23-requester-mcp-agreement/proposal.md), #331). 그 전에는 update_request_details, find_times, choose_time이 거부되고 다음 단계로 change_agreement를 안내합니다.
 
 ### Web · 예약 페이지
 
@@ -384,7 +384,7 @@ G01 W-10.1에서 연결한 iMessage / Telegram / WhatsApp
 
 | Step | 전제 (Given) | 사용자 동작 (When) | 화면 · 메시지 (Then) | 분기 · 판정 · 코드 상태 | 근거 코드 |
 |---|---|---|---|---|---|
-| P-1 | 동의함, 승인 대기 | "시간 바꿔줘" / "1시간으로 바꿔줘" | AI 기대 동작: 동의를 다시 열고 세부를 바꾼 뒤 새 시간을 찾음 (기대값) | **코드 미지원**: MCP로는 동의 후 변경 불가: 승인 대기 상태에서 update_request_details가 invalid_input으로 거부되고(request-reviews.ts:516), change_agreement 도구가 없음. 예약 페이지의 Change를 안내해야 함<br>**하면 안 됨**: 다시 열지 못했는데 바뀌었다고 말하기 | agent-requester-tools.ts (update_request_details) |
+| P-1 | 동의함, 승인 대기 | "시간 바꿔줘" / "1시간으로 바꿔줘" | AI 기대 동작: change_agreement로 동의를 다시 열기 → update_request_details → find_times → 다시 고르고 동의함 (G01 P-5와 같음) | **분기**: 다시 열기 전 update_request_details → 거부되고 다음 단계가 change_agreement를 안내함<br>**분기**: 호스트가 먼저 승인함 → 다시 열 것이 없음. 예약된 미팅은 change_booking으로 변경<br>**하면 안 됨**: 다시 열지 못했는데 바뀌었다고 말하기 | agent-requester-tools.ts (change_agreement, update_request_details) |
 | P-2 | 열린 요청 | "요청 취소해줘" | AI 기대 동작: 사용자가 요청한 경우에만 withdraw_request → 닫혔다고 전달 | **하면 안 됨**: 사용자 요청 없이 철회 | agent-requester-tools.ts (withdraw_request) |
 
 ## G03. 게스트 진행 상황 확인·후속 대화·결과 수신

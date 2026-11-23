@@ -1,0 +1,40 @@
+{
+  "branch": "fix/requester-mcp-agreement",
+  "user": "dodo41142727@gmail.com",
+  "sessions": {
+    "claude:2e7591dc-57c3-476b-9f27-ea23404e02f2": {
+      "agent": "claude-code",
+      "client": "claude-desktop",
+      "agent_ms": 0,
+      "models": {
+        "claude-opus-5-5": {
+          "input": 94,
+          "cache_read": 6659519,
+          "cache_write_5m": 0,
+          "cache_write_1h": 96296,
+          "output": 30155,
+          "reasoning": 0
+        }
+      },
+      "first": "2026-11-23T06:14:50.390Z",
+      "last": "2026-11-23T06:28:55.770Z"
+    },
+    "claude:2e7591dc-57c3-476b-9f27-ea23404e02f2/agent-a082b6b9fcefbd151": {
+      "agent": "claude-code",
+      "client": "claude-desktop",
+      "agent_ms": 0,
+      "models": {
+        "claude-sonnet-5-5": {
+          "input": 12,
+          "cache_read": 422276,
+          "cache_write_5m": 59372,
+          "cache_write_1h": 0,
+          "output": 3197,
+          "reasoning": 0
+        }
+      },
+      "first": "2026-11-23T06:27:17.601Z",
+      "last": "2026-11-23T06:28:08.932Z"
+    }
+  }
+}
