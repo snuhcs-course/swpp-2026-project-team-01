@@ -226,7 +226,6 @@ export async function readHostRequest(db: Database | Transaction, hostAccountId:
   };
 }
 
-// The host request view's card commands, by operation.
 // The earlier request a revised request follows, when it closed as declined,
 // expired or withdrawn (guest-flow-completion design 5, #59).
 function revisedFromView(requestId: string | null, state: RequestState | null): HostRequestView["revisedFrom"] {
@@ -234,6 +233,7 @@ function revisedFromView(requestId: string | null, state: RequestState | null): 
   return requestId && outcome ? { outcome, ref: requestRef(requestId) } : null;
 }
 
+// The host request view's card commands, by operation.
 export function hostRequestCommands(): Readonly<Record<HostRequestOperation, CommandDefinition<unknown, unknown>>> {
   return {
     "tutorial.finish": finishSampleCommand,
