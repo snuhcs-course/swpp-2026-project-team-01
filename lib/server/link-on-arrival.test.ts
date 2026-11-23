@@ -149,6 +149,24 @@ describe("a host's code", () => {
     expect(kinds()).toEqual(["link_refused"]);
   });
 
+  it("refuses, rather than failing the job, when another host linked the sender under the sender's lock", async () => {
+    // The first check sees no owner; bind's check, under the sender's lock, sees host-2.
+    const fake = fakeTx(attempt());
+    let checks = 0;
+    const tx = ((strings: TemplateStringsArray, ...values: unknown[]) => {
+      const sql = strings.join("?").replace(/\s+/g, " ").trim();
+      if (sql.includes("from app.imessage_bindings where sender_hash")) {
+        checks += 1;
+        return Promise.resolve(checks > 1 ? [{ host_account_id: "host-2", id: "other-binding" }] : []);
+      }
+      return (fake.tx as unknown as (s: TemplateStringsArray, ...v: unknown[]) => Promise<unknown>)(strings, ...values);
+    }) as unknown as Transaction;
+    await expect(receiveLinkCode(tx, options, arrival())).resolves.toBe("link_refused");
+    expect(fake.ran("insert into app.imessage_bindings")).toBe(false);
+    expect(fake.ran("set state = 'voided'")).toBe(true);
+    expect(kinds()).toEqual(["link_refused"]);
+  });
+
   it("voids a code from a group and replies nothing into the group", async () => {
     const { ran, tx } = fakeTx(attempt());
     await expect(receiveLinkCode(tx, options, arrival({ spaceType: "group" }))).resolves.toBe("link_refused");

@@ -10,6 +10,8 @@ import { ensureHostAccount, type HostAccount } from "./host-accounts";
 import { claimContinuedLink, claimStartedLink, clearStartCookie, startSecretOf } from "./imessage-start";
 import { continuationCookie, continuationOf } from "./imessage-continuation";
 import { resumeImessageOnboarding } from "./imessage-links";
+import { readDefaultRoleCalendars } from "./calendar-roles";
+import { googleCalendarConfigFromEnvironment } from "./google-calendar";
 import { recordGoogleGrant } from "./provider-grants";
 import { type AppOrigins, appOriginsFromEnvironment, crossSiteRefusal, requestAppOrigin, unknownHost } from "./same-origin";
 import { admitSignUp, SIGNUP_LIMITS, SignUpLimitError, type SignUpLimits, sourceHash } from "./signup-limits";
@@ -237,14 +239,20 @@ export function createGoogleCallbackHandler(load: () => GoogleSignInDependencies
       console.error(JSON.stringify({ error: error instanceof Error ? error.name : typeof error, event }));
     };
     if (account.status === "active") {
-      const bindOptions = { origin, tokenKey: deps.tokenKey, tokenKeys: [deps.tokenKey] };
+      // A claim may bind the sender, which saves the default calendar roles from
+      // the live list as an arriving code does (link-on-code design 5).
+      const liveCalendars = continued || started
+        ? await readDefaultRoleCalendars(deps.db, account.id, { config: googleCalendarConfigFromEnvironment(), tokenKeys: [deps.tokenKey] })
+        : null;
+      const bindOptions = { liveCalendars, origin, tokenKey: deps.tokenKey, tokenKeys: [deps.tokenKey] };
       const claimed = continued
         ? await claimContinuedLink(deps.db, bindOptions, account.id, continued).catch(logged("imessage_continue_claim_failed"))
         : started
           ? await claimStartedLink(deps.db, bindOptions, account.id, started).catch(logged("imessage_start_claim_failed"))
           : false;
       // A claim that linked the conversation has queued its welcome, which
-      // already says what comes next; a second "you're back" would repeat it.
+      // already says what comes next, and a claimed code still to be sent gets
+      // it on arrival; a second "you're back" would repeat it.
       if (recorded === RETURN_IMESSAGE && !claimed) {
         await resumeImessageOnboarding(deps.db, deps.tokenKey, account.id, code).catch(logged("imessage_resume_failed"));
       }

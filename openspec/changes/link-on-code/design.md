@@ -26,7 +26,7 @@ The outcome recorded on the receipt stays `link_received`, so the receipts table
 
 ### 2. Recovery: Not my number
 
-The pages that showed the code poll while it is pending (`/app` link step and Connect card every 2 seconds, the landing popup, the booking page's card, the agent-led page every 3 seconds) and so move to **Linked** by themselves. The linked screen names the sender (design 4) and offers **Not my number — unlink** (**Not my Telegram — unlink** on Telegram). It runs `imessage.unlink` for a host and `request.imessage_link.unlink` for a guest, which end the binding in the database and suppress anything still queued for it, then shows the channel choice or the card's start again so a new code can be made. The agent-led page only says it linked; unlinking is in `/app` or on the booking page.
+The pages that showed the code poll while it is pending (`/app` link step and Connect card every 2 seconds, the landing popup, the booking page's card, the agent-led page every 3 seconds) and so move to **Linked** by themselves. The host's linked screen names the sender (design 4) and offers **Not my number — unlink** (**Not my Telegram — unlink** on Telegram); the guest card names the sender beside its existing **Unlink iMessage**, **Unlink WhatsApp** or **Unlink Telegram**. It runs `imessage.unlink` for a host and `request.imessage_link.unlink` for a guest, which end the binding in the database and suppress anything still queued for it, then shows the channel choice or the card's start again so a new code can be made. The agent-led page only says it linked; unlinking is in `/app` or on the booking page.
 
 ### 3. Safeguards and remaining risk
 
@@ -46,7 +46,7 @@ Remaining risk: a code that leaks before its owner sends it (a shoulder-surfed s
 
 ### 5. The iMessage start before sign-in
 
-A start's attempt has no host, so an arriving code records the sender as `received` and Thyme replies with the sign-in link (D19): "Got it. To finish linking, sign in with Google and connect your calendar: …". `claimStartedLink` (the same browser's sign-in) and `claimContinuedLink` (the sign-in from that link) give the attempt to the host and call `bindReceivedAttempt`, which binds the recorded sender as an arriving code would; a sender another host linked meanwhile voids the attempt. A start whose code had not arrived yet becomes the host's pending attempt and binds on arrival. When a claim linked the conversation, the sign-in callback does not also send "You're back from Google", since the welcome says what comes next.
+A start's attempt has no host, so an arriving code records the sender as `received` and Thyme replies with the sign-in link (D19): "Got it. To finish linking, sign in with Google and connect your calendar: …". `claimStartedLink` (the same browser's sign-in) and `claimContinuedLink` (the sign-in from that link) give the attempt to the host and call `bindReceivedAttempt` with the live calendar list the callback read, which binds the recorded sender as an arriving code would; a sender another host linked meanwhile voids the attempt. A start whose code had not arrived yet becomes the host's pending attempt and binds on arrival. When a claim linked the conversation, the sign-in callback does not also send "You're back from Google", since the welcome says what comes next.
 
 ## Risks / Trade-offs
 

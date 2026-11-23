@@ -670,11 +670,13 @@ async function forwardGuest(
 // commands read it here, so the link saves the primary calendar as the default
 // roles and its welcome names it, as Confirm and link did; a failed read only
 // means the welcome asks for the roles.
-async function arrivalOptions(tx: Transaction, deps: ImessageReceiptDependencies, code: string) {
-  const [named] = await tx<{ host_account_id: string }[]>`
+// Codes that cannot link (from a group or for another channel) read nothing.
+async function arrivalOptions(tx: Transaction, deps: ImessageReceiptDependencies, code: string, receipt: OpenedReceipt) {
+  const [named] = receipt.spaceType === "dm" ? await tx<{ host_account_id: string }[]>`
     select host_account_id from app.imessage_links
     where code_hash = ${hashLinkCode(code)} and host_account_id is not null and state = 'pending' and expires_at > now()
-  `;
+      and channel = ${receipt.channel}
+  ` : [];
   const liveCalendars = named ? await readDefaultRoleCalendars(deps.db, named.host_account_id, deps.setup.calendar) : null;
   return { liveCalendars, origin: deps.origin, tokenKey: deps.tokenKey, tokenKeys: deps.tokenKeys };
 }
@@ -702,7 +704,7 @@ export async function telegramLinking(tx: Transaction, deps: ImessageReceiptDepe
   const code = findLinkCode(text);
 
   if (code) {
-    return receiveLinkCode(tx, await arrivalOptions(tx, deps, code), {
+    return receiveLinkCode(tx, await arrivalOptions(tx, deps, code, receipt), {
       channel: "telegram",
       code,
       receiptId: receipt.id,
@@ -748,7 +750,7 @@ export async function processReceipt(
   const code = receipt.text ? findLinkCode(receipt.text) : null;
 
   if (code) {
-    return receiveLinkCode(tx, await arrivalOptions(tx, deps, code), {
+    return receiveLinkCode(tx, await arrivalOptions(tx, deps, code, receipt), {
       channel: receipt.channel,
       code,
       receiptId: receipt.id,

@@ -281,6 +281,14 @@ export function bindingRecipient(keys: readonly TokenKey[], binding: Pick<Active
   return { address: open(binding.sender_ciphertext), spaceId: binding.space_ciphertext ? open(binding.space_ciphertext) : null };
 }
 
+// The sender is another host's: nothing was written, and the caller refuses.
+export class SenderHeldError extends CommandError {
+  constructor() {
+    super("invalid_input");
+    this.name = "SenderHeldError";
+  }
+}
+
 // What binding a sender needs: the keys, the origin its welcome links to, and the
 // live calendar list where the caller could read one outside the transaction.
 export type BindOptions = Pick<LinkOptions, "tokenKey" | "tokenKeys" | "origin" | "liveCalendars">;
@@ -305,7 +313,7 @@ async function bind(
   await tx`set local lock_timeout = '5s'`;
   await tx`select pg_advisory_xact_lock(hashtextextended(${`app.imessage_sender:${senderHash}`}, 0))`;
   const owner = await activeBindingOfSender(tx, senderHash);
-  if (owner && owner.host_account_id !== hostAccountId) throw new CommandError("invalid_input");
+  if (owner && owner.host_account_id !== hostAccountId) throw new SenderHeldError();
 
   // The host's earlier binding ends, on any channel (D5), and nothing still
   // queued for it goes out.
@@ -871,9 +879,9 @@ export type LinkArrival = {
 
 export type LinkArrivalOutcome = "link_received" | "link_refused";
 
-// What an arriving code needs to bind its sender; the receipt job reads no live
-// calendar list inside its transaction, so a host without saved calendar roles
-// is asked for them in the welcome.
+// What an arriving code needs to bind its sender. The receipt job reads a host's
+// live calendar list first (arrivalOptions in imessage-receipts.ts), so the link
+// can save the default calendar roles and the welcome name them.
 export type ArrivalOptions = Pick<LinkOptions, "tokenKey" | "tokenKeys" | "linkLimits" | "origin" | "liveCalendars">;
 
 // One fixed refusal per sender per day, whether for a bad code or an unlinked
@@ -912,6 +920,14 @@ export async function receiveLinkCode(tx: Transaction, options: ArrivalOptions, 
 
   if (named) {
     let ownerOpen = await lockArrivalOwner(tx, named);
+    // A start's attempt a sign-in claimed while this waited for its lock now has
+    // a host, whose locks come before the attempt's row, as in every command.
+    if (!named.host_account_id && !named.request_id) {
+      const [claimed] = await tx<{ host_account_id: string | null }[]>`
+        select host_account_id from app.imessage_links where code_hash = ${hashLinkCode(arrival.code)}
+      `;
+      if (claimed?.host_account_id) ownerOpen = await lockArrivalOwner(tx, { ...named, host_account_id: claimed.host_account_id });
+    }
     const [link] = await tx<
       {
         id: string;
@@ -935,9 +951,6 @@ export async function receiveLinkCode(tx: Transaction, options: ArrivalOptions, 
     if (link?.received_by_receipt_id === arrival.receiptId) return "link_received";
     if ((link?.state === "received" || link?.state === "linked") && link.sender_hash === arrival.senderHash) return "link_received";
 
-    // A start's attempt claimed by a sign-in while this waited for its lock.
-    if (link?.host_account_id && !named.host_account_id) ownerOpen = await lockArrivalOwner(tx, link);
-
     const owner = link?.host_account_id ? await activeBindingOfSender(tx, arrival.senderHash) : null;
     // Only the channel the attempt was made for completes it (D6).
     const usable =
@@ -956,7 +969,17 @@ export async function receiveLinkCode(tx: Transaction, options: ArrivalOptions, 
         where id = ${link.id}
       `;
       if (link.host_account_id) {
-        await bind(tx, options, link.host_account_id, link.id, arrival.sender, arrival.spaceId, link.channel, arrival.senderName ?? null);
+        try {
+          await bind(tx, options, link.host_account_id, link.id, arrival.sender, arrival.spaceId, link.channel, arrival.senderName ?? null);
+        } catch (error) {
+          // Another host linked this sender between the check above and the
+          // sender's lock: refused like any held sender, not a failed job.
+          if (!(error instanceof SenderHeldError)) throw error;
+          await voidAttempt(tx, link.id);
+          return refuse(tx, options, arrival);
+        }
+        // bind's bounded lock wait is for the binding rows only.
+        await tx`set local lock_timeout to default`;
         return "link_received";
       }
       if (link.request_id) {
@@ -995,7 +1018,11 @@ export async function receiveLinkCode(tx: Transaction, options: ArrivalOptions, 
 
     if (link) await voidAttempt(tx, link.id);
   }
+  return refuse(tx, options, arrival);
+}
 
+// At most one fixed refusal a day per sender, and never into a group.
+async function refuse(tx: Transaction, options: ArrivalOptions, arrival: LinkArrival): Promise<LinkArrivalOutcome> {
   if (arrival.spaceType === "dm" && !(await refusalSentRecently(tx, arrival.senderHash, arrival.channel))) {
     await recordOutbound(tx, {
       channel: arrival.channel,
