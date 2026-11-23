@@ -1,0 +1,40 @@
+{
+  "branch": "test/host-setup-eval",
+  "user": "dodo41142727@gmail.com",
+  "sessions": {
+    "claude:4d30e3ca-35e0-46cf-a6e7-fb8f9114ff3a": {
+      "agent": "claude-code",
+      "client": "claude-desktop",
+      "agent_ms": 0,
+      "models": {
+        "claude-opus-5-5": {
+          "input": 24,
+          "cache_read": 3841415,
+          "cache_write_5m": 0,
+          "cache_write_1h": 11070,
+          "output": 5938,
+          "reasoning": 0
+        }
+      },
+      "first": "2026-11-23T10:48:14.373Z",
+      "last": "2026-11-23T10:49:47.174Z"
+    },
+    "claude:4d30e3ca-35e0-46cf-a6e7-fb8f9114ff3a/agent-a8f62a8ec9b96877b": {
+      "agent": "claude-code",
+      "client": "claude-desktop",
+      "agent_ms": 0,
+      "models": {
+        "claude-sonnet-5-5": {
+          "input": 8,
+          "cache_read": 253221,
+          "cache_write_5m": 58583,
+          "cache_write_1h": 0,
+          "output": 2136,
+          "reasoning": 0
+        }
+      },
+      "first": "2026-11-23T10:49:20.925Z",
+      "last": "2026-11-23T10:49:33.789Z"
+    }
+  }
+}
