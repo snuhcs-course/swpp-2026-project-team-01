@@ -69,3 +69,7 @@ Read the [reference repository files for Phase 1](../../../../documentations/tec
 - [x] 5.2 Link the Vercel project, set Production and Preview variables separately, set the function region to `cle1`, and attach `release.findmeatime.com` following domain guidance; verify `vercel domains inspect`, a DNS lookup, an HTTPS request reaching `/app`, and a signed-in production turn that streams a Thyme reply with its provider call reserved.
 - [x] 5.3 Create `documentations/technical_specification/07_acceptance_record.md`, add it to the documentation index, and record the Phase 1 evidence there: two-host isolation, unauthorized raw runtime routes, cancelled and replayed sign-in, reconnect versus terminal recovery, model limit exhaustion, preview messaging and worker denial, and AC-26's first half. Verify each entry names its command, date, revision and environment.
 - [x] 5.4 Update frontend architecture with the pinned versions actually installed, tick Phase 1 in the implementation plan, update the links that point into `openspec/changes/application-foundation/` before archiving moves it, and regenerate the Korean mirrors of changed English documents; verify `npm run check` passes.
+
+## Archive note
+
+Archived on 2026-11-24 with the code on `main` (pull request #440). The unticked tasks above stay open: each needs a person (a teammate review, a real device or messenger, a console, deployment or production check, or a paid model run) or a run of the local integration and browser suites, which this archive did not do. Their issues stay open with `Part of`.

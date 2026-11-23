@@ -29,3 +29,7 @@
 
 - [x] Update the page list, the operator runbook and the decision log, and regenerate their Korean mirrors.
 - [ ] Agree the open decisions on #228, review with the team, then archive the change into `openspec/specs/host-account-deletion/spec.md` and close #228.
+
+## Archive note
+
+Archived on 2026-11-24 with the code on `main` (pull request #440). The unticked tasks above stay open: each needs a person (a teammate review, a real device or messenger, a console, deployment or production check, or a paid model run) or a run of the local integration and browser suites, which this archive did not do. Their issues stay open with `Part of`.

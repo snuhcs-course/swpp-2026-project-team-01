@@ -1,0 +1,23 @@
+{
+  "branch": "fix/deploy-vault-confirm",
+  "user": "dodo41142727@gmail.com",
+  "sessions": {
+    "claude:2378189b-a354-417f-8f23-53f5b4e67a9b": {
+      "agent": "claude-code",
+      "client": "claude-desktop",
+      "agent_ms": 0,
+      "models": {
+        "claude-opus-5-5": {
+          "input": 46,
+          "cache_read": 3650640,
+          "cache_write_5m": 0,
+          "cache_write_1h": 24957,
+          "output": 10873,
+          "reasoning": 0
+        }
+      },
+      "first": "2026-11-23T19:09:23.702Z",
+      "last": "2026-11-23T19:12:17.251Z"
+    }
+  }
+}

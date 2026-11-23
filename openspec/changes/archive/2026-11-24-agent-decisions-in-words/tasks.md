@@ -26,3 +26,7 @@
 - [ ] 5.3 With a real MCP client connected to production, ask it in words to approve a team request and record the result in the acceptance record.
 
   Open: needs a person with a real MCP client connected to production; kept unarchived on 2026-11-23.
+
+## Archive note
+
+Archived on 2026-11-24 with the code on `main` (pull request #440). The unticked tasks above stay open: each needs a person (a teammate review, a real device or messenger, a console, deployment or production check, or a paid model run) or a run of the local integration and browser suites, which this archive did not do. Their issues stay open with `Part of`.

@@ -12,3 +12,7 @@
 ## 3. Archive
 
 - [ ] 3.1 After `guest-assistant-story-fixes` is archived into `meeting-requests`, archive this change.
+
+## Archive note
+
+Archived on 2026-11-24 with the code on `main` (pull request #440). The unticked tasks above stay open: each needs a person (a teammate review, a real device or messenger, a console, deployment or production check, or a paid model run) or a run of the local integration and browser suites, which this archive did not do. Their issues stay open with `Part of`.

@@ -19,3 +19,7 @@
 
 - [x] 4.1 Update DESIGN.md and the page list, and regenerate `ko/DESIGN.md`.
 - [ ] 4.2 Run the guest and host browser journeys (`tests/e2e/requester-intake.test.ts`, `requester-google.test.ts`, `host-review.test.ts`) against the local stack.
+
+## Archive note
+
+Archived on 2026-11-24 with the code on `main` (pull request #440). The unticked tasks above stay open: each needs a person (a teammate review, a real device or messenger, a console, deployment or production check, or a paid model run) or a run of the local integration and browser suites, which this archive did not do. Their issues stay open with `Part of`.

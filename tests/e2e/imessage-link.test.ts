@@ -178,7 +178,7 @@ for (const width of [390, 1280]) {
 async function linkFromStep(page: Page, db: Database) {
   await page.goto("/app");
   await expect(page.getByRole("heading", { level: 1, name: "Connect a messaging app" })).toBeVisible({ timeout: 45_000 });
-  await expect(page.getByRole("button", { name: "Set up here in web chat" })).toHaveCount(0);
+  await expect(page.getByRole("button", { name: "Go to your workspace" })).toHaveCount(0);
   await page.getByRole("button", { name: "iMessage" }).click();
   // The step asks for the number, then shows the message, QR code and expiry.
   await expect(page.getByRole("heading", { level: 1, name: "Which number do you use for iMessage?" })).toBeVisible({ timeout: 45_000 });
@@ -230,7 +230,7 @@ test("a new host cannot defer messaging into web setup", async ({ baseURL, conte
   await signedInHost(db, context, baseURL!, { imessageStep: true });
   await page.goto("/app");
   await expect(page.getByRole("heading", { level: 1, name: "Connect a messaging app" })).toBeVisible({ timeout: 45_000 });
-  await expect(page.getByRole("button", { name: "Set up here in web chat" })).toHaveCount(0);
+  await expect(page.getByRole("button", { name: "Go to your workspace" })).toHaveCount(0);
   await expect(page.getByRole("textbox", { name: "Message Thyme" })).toHaveCount(0);
   await page.reload();
   await expect(page.getByRole("heading", { level: 1, name: "Connect a messaging app" })).toBeVisible({ timeout: 45_000 });

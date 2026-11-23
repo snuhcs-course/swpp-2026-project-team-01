@@ -576,10 +576,11 @@ async function inputOutcome(db: Database, inputId: string): Promise<MessageOutco
   return { inputId, status: row?.state === "accepted" ? "queued" : "sent" };
 }
 
-// POST /api/chat/messages: authenticate (by the caller), check eligibility,
-// record the accepted input, create the session on first use, then send. With a
-// request ID, the input goes to the host's private review discussion of that
-// request instead of setup.
+// A host message from a linked messenger (authenticated by the caller): check
+// eligibility, record the accepted input, create the session on first use, then
+// send. With a request ID, the input goes to the host's private review
+// discussion of that request instead of setup. The web has no host chat
+// (remove-host-web-chat).
 export async function acceptHostMessage(
   deps: ConversationDependencies,
   authUserId: string,

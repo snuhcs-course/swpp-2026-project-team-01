@@ -41,3 +41,7 @@ Before each group, read the [Phase 8 reference repository files](../../../../doc
 
 - [ ] 7.1 The release checklist in the [decision log](../../../../documentations/technical_specification/08_decision_log.md#phase-8--operations-and-release), in order: empty and link the release project, set its secrets, run the release workflow, configure providers, deploy, and run the production acceptance checks.
 - [ ] 7.2 Teammate review of D1–D14, then `openspec archive operations-and-release`.
+
+## Archive note
+
+Archived on 2026-11-24 with the code on `main` (pull request #440). The unticked tasks above stay open: each needs a person (a teammate review, a real device or messenger, a console, deployment or production check, or a paid model run) or a run of the local integration and browser suites, which this archive did not do. Their issues stay open with `Part of`.

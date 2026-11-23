@@ -80,9 +80,24 @@ Recovery SHALL preserve accepted input identities, exact retry fingerprints, pri
 A host-private request discussion SHALL be its own discussion and runtime session per host and request, authorized only for that request's active host, with `read_request` and `evaluate_candidates` returning the host projection, plus `list_host_requests`, `propose_shared_changes` and `read_booking_status`, and no setup or requester tool. A decision tool (approving, declining, sharing or dismissing a suggestion) SHALL act only on a message from the host's linked messenger; on the web only the host's own cards decide. Exceptions SHALL NOT be tools in any assistant audience.
 
 #### Scenario: Host asks the assistant to approve
-- **WHEN** the host writes "approve it" in the private discussion
-- **THEN** nothing is approved or recorded, and the assistant points to **Approve this proposal**
+- **WHEN** a host-review turn that did not come from the host's linked messenger, such as the local host-approval evaluation, asks to approve
+- **THEN** nothing is approved or recorded, and the host decides with **Approve** on the web or in their own words in the messenger
 
 #### Scenario: Host review session of another request
 - **WHEN** a host-review session's tool names a request other than the session's own
 - **THEN** the call is denied without revealing whether that request exists
+
+### Requirement: Host discussions only in the messenger
+The host's setup discussion and the host-private discussion of a request SHALL be opened and continued only from the host's linked messenger, or, for a request, from the local host-approval evaluation entry. The website SHALL mount no route that sends a host message, reads a host discussion's state or history, or recovers a host discussion. The conversation functions and their HTTP adapter MAY remain as server code; a host request scope given to that adapter SHALL be refused before any discussion is read, created, sent to or recovered, and SHALL NOT be answered from the setup discussion.
+
+#### Scenario: Browser calls a host chat route
+- **WHEN** a signed-in host's browser posts a message to, or reads the state, history or recovery of, a host discussion on the website
+- **THEN** no such route exists, so nothing is sent, read or recovered
+
+#### Scenario: Adapter names a request
+- **WHEN** a request to the host chat adapter names a request, even the host's own
+- **THEN** it answers `400 request_scope_unsupported`, no request discussion is created or read, and nothing reaches the setup discussion
+
+#### Scenario: Messenger message about setup or a request
+- **WHEN** a linked host writes in their messenger about setup or about a request
+- **THEN** the message goes to the setup discussion or to that request's host-private discussion with that audience's tools, as before

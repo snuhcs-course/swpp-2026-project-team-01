@@ -28,3 +28,7 @@
 - [ ] 5.3 With a working WhatsApp Business line, link a real guest phone and record whether Photon's users API registration was needed for the WhatsApp sender.
 
   Open: needs a person with a working WhatsApp Business line and a real guest phone; kept unarchived on 2026-11-23.
+
+## Archive note
+
+Archived on 2026-11-24 with the code on `main` (pull request #440). The unticked tasks above stay open: each needs a person (a teammate review, a real device or messenger, a console, deployment or production check, or a paid model run) or a run of the local integration and browser suites, which this archive did not do. Their issues stay open with `Part of`.

@@ -74,3 +74,6 @@ Before each group, read the [Phase 6 reference repository files](../../../../doc
 - [x] 12.1 Add `switch_conversation` to the host setup and host review tools, and the instruction to use it. Verify integration tests for a requester name, a reference, setup, an ambiguous or unknown name and a web message, and the tool lists.
 - [ ] 12.2 With the live model, switching phrases in English and Korean, recorded in the frozen evaluation set once it exists.
 
+## Archive note
+
+Archived on 2026-11-24 with the code on `main` (pull request #440). The unticked tasks above stay open: each needs a person (a teammate review, a real device or messenger, a console, deployment or production check, or a paid model run) or a run of the local integration and browser suites, which this archive did not do. Their issues stay open with `Part of`.

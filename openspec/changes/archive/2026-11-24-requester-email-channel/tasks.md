@@ -34,3 +34,7 @@ Before each group, read the [Phase 7 reference repository files](../../../../doc
 - [ ] 6.1 Create `findmeatime@agentmail.to` (blocked by the three-inbox limit), create the webhook at AgentMail for `message.received`, register the receiver with the operator CLI, and set `AGENTMAIL_API_KEY`, `AGENTMAIL_INBOX_ID` and `AGENTMAIL_WEBHOOK_SECRET` in Production.
 - [ ] 6.2 Push the migration to `anelszynxtvxoxqvzgqt` after a shown dry run, deploy, and record real multi-turn delivery with a team-controlled address.
 - [ ] 6.3 Teammate review of D1–D11, then `openspec archive requester-email-channel`.
+
+## Archive note
+
+Archived on 2026-11-24 with the code on `main` (pull request #440). The unticked tasks above stay open: each needs a person (a teammate review, a real device or messenger, a console, deployment or production check, or a paid model run) or a run of the local integration and browser suites, which this archive did not do. Their issues stay open with `Part of`.

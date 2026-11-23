@@ -42,3 +42,7 @@ Before each group, read the [Phase 4 reference repository files](../../../../doc
 - [x] 7.1 Show the shared project's dry run and push the migration through the deploy workflow or, with the user's explicit approval, `supabase db push --linked`, then deploy to production.
 - [ ] 7.2 With the user's go-ahead, run the controlled checks on `https://findmeatime.com`: a confirmed event in a team-controlled Google Calendar and the confirmation, with its calendar part, in a team-controlled inbox, with consistent details. Record them in the acceptance record.
 - [ ] 7.3 Teammate review of D1–D12, then `openspec archive` after verification.
+
+## Archive note
+
+Archived on 2026-11-24 with the code on `main` (pull request #440). The unticked tasks above stay open: each needs a person (a teammate review, a real device or messenger, a console, deployment or production check, or a paid model run) or a run of the local integration and browser suites, which this archive did not do. Their issues stay open with `Part of`.

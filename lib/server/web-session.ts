@@ -6,10 +6,10 @@ import { supabaseAuthConfigFromEnvironment } from "./supabase-auth";
 
 export type HostWorkspace = HostStanding & {
   // Opens the eligible host's authorized empty setup session through the
-  // application, so the conversation exists before the first message. Only the
-  // pages that show the setup conversation call it; the notes page and the
-  // dashboard do not wait for it. If the agent service is unreachable the page
-  // still renders; the message route opens the session on first use instead.
+  // application, so the conversation exists before the host's first messenger
+  // message. Only the workspace page waits for it; the notes page and the
+  // dashboard do not. If the agent service is unreachable the page
+  // still renders; the first message opens the session instead.
   readonly openSetupSession: () => Promise<void>;
 };
 

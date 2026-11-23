@@ -46,3 +46,6 @@ Before each group, read the [Phase 9 reference files](../../../../documentations
 - [x] 7.4 Add buttons to decision summaries inside the window, the long-summary split, button-reply parsing in `inboundWhatsAppMessage` and the `WHATSAPP_BUTTONS` switch. Verify tests for an approval from a button, a stale tap, a tap from another sender, a template with no buttons and the switch off.
 - [ ] 7.5 On the production line, capture one button reply to confirm the payload carries the button ID, then run AC-29 with a button approval on a controlled Android phone.
 
+## Archive note
+
+Archived on 2026-11-24 with the code on `main` (pull request #440). The unticked tasks above stay open: each needs a person (a teammate review, a real device or messenger, a console, deployment or production check, or a paid model run) or a run of the local integration and browser suites, which this archive did not do. Their issues stay open with `Part of`.

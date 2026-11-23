@@ -54,3 +54,7 @@ Before each group, read the [Phase 2 reference repository files](../../../../doc
 
 - [ ] 7.1 Show `supabase db push --linked --dry-run` for the shared project, push the migrations, set `GOOGLE_CLIENT_ID` and `GOOGLE_CLIENT_SECRET` on the Vercel project, and deploy to production. Verify on `https://findmeatime.com` and `https://release.findmeatime.com` that a signed-in host completes setup and gets a working `/{handle}` and `/{handle}/SKILL.md`.
 - [x] 7.2 Update the owning documents (page list, provider setup, agent configuration's revision source, backend architecture where it leaves numbers open, the plan's decision table and Phase 2 evidence wording), tick Phase 2 in the implementation plan and regenerate the Korean mirrors of changed English documents. Verify `npm run check` passes.
+
+## Archive note
+
+Archived on 2026-11-24 with the code on `main` (pull request #440). The unticked tasks above stay open: each needs a person (a teammate review, a real device or messenger, a console, deployment or production check, or a paid model run) or a run of the local integration and browser suites, which this archive did not do. Their issues stay open with `Part of`.
