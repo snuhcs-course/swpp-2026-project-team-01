@@ -8,8 +8,8 @@ A read-only comparison of the production rows (only booleans and lengths were pr
 
 ## What Changes
 
-- A rejected or server-error send outcome keeps Cloudflare's `errors[].code` and `errors[].message` as `providerErrors`, at most five, messages capped at 200 characters with email addresses masked. The delivery job writes them into the existing `app.email_deliveries.evidence` JSON; no schema change.
-- The adapter sends a From header whose display name is outside printable ASCII as RFC 2047 encoded-words (`=?UTF-8?B?…?=`, each word at most 75 characters), so the header Cloudflare receives is ASCII like the accepted ones. ASCII names and the stored, frozen `sender` are unchanged; already queued deliveries are encoded when they are sent.
+- A rejected or server-error send outcome keeps Cloudflare's `errors[].code` and `errors[].message` as `providerErrors`, at most five, messages kept as Cloudflare returned them, cut at 200 characters by code point, with email addresses masked. The delivery job writes them into the existing `app.email_deliveries.evidence` JSON; no schema change.
+- The adapter sends a From header whose display name is outside printable ASCII as RFC 2047 encoded-words (`=?UTF-8?B?…?=`, each word at most 75 characters), so the header Cloudflare receives is ASCII like the accepted ones. An ASCII name holding RFC 5322 specials (`Park, Dohyeon`) is sent as a quoted string. Other ASCII names and the stored, frozen `sender` are unchanged; already queued deliveries are encoded when they are sent.
 
 ## Capabilities
 

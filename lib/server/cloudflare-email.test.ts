@@ -139,6 +139,11 @@ describe("Cloudflare sender header", () => {
     expect(encodedSenderHeader("no-reply@findmeatime.com")).toBe("no-reply@findmeatime.com");
   });
 
+  it("quotes an ASCII display name that holds specials", () => {
+    expect(encodedSenderHeader("Park, Dohyeon <no-reply@findmeatime.com>")).toBe('"Park, Dohyeon" <no-reply@findmeatime.com>');
+    expect(encodedSenderHeader("J. Doe (PM) <no-reply@findmeatime.com>")).toBe('"J. Doe (PM)" <no-reply@findmeatime.com>');
+  });
+
   it("splits a long non-ASCII name into encoded-words of whole characters within 75 characters", () => {
     const name = "가".repeat(40);
     const header = encodedSenderHeader(`${name} <no-reply@findmeatime.com>`);
@@ -168,6 +173,7 @@ describe("Cloudflare provider errors", () => {
     ]);
     expect(providerErrorsOf({ errors: Array.from({ length: 9 }, (_, code) => ({ code })) })).toHaveLength(5);
     expect(providerErrorsOf({ errors: [{ code: 1, message: "x".repeat(500) }] })[0]?.message).toHaveLength(200);
+    expect(providerErrorsOf({ errors: [{ code: 1, message: `${"x".repeat(199)}😀😀` }] })[0]?.message).toBe(`${"x".repeat(199)}😀`);
     expect(providerErrorsOf(null)).toEqual([]);
   });
 

@@ -65,7 +65,13 @@ export function encodedSenderHeader(header: string) {
 
   const name = match[1]!;
   const address = match[2]!;
-  if (/^[\x20-\x7e]*$/.test(name)) return header;
+  if (/^[\x20-\x7e]*$/.test(name)) {
+    // An ASCII name with RFC 5322 specials ("Park, Dohyeon") is a quoted string,
+    // so a parser cannot read it as two addresses.
+    return /[()<>[\]:;@\\,."]/.test(name) && !/^".*"$/.test(name)
+      ? `"${name.replace(/[\\"]/g, "\\$&")}" <${address}>`
+      : header;
+  }
 
   const words: string[] = [];
   let current = "";
@@ -152,6 +158,11 @@ function normalized(list: readonly string[]) {
   return new Set(list.map((address) => address.trim().toLowerCase()));
 }
 
+// Cut by code points, so no half surrogate pair reaches the jsonb evidence.
+function bounded(value: string, limit: number) {
+  return Array.from(value).slice(0, limit).join("");
+}
+
 // The code and message of each error a response names, bounded and with email
 // addresses masked; nothing else from the body is kept.
 export function providerErrorsOf(body: unknown): readonly ProviderError[] {
@@ -163,10 +174,10 @@ export function providerErrorsOf(body: unknown): readonly ProviderError[] {
     if (!entry || typeof entry !== "object") return [];
     const { code, message } = entry as { code?: unknown; message?: unknown };
     const kept: ProviderError = {
-      code: typeof code === "number" && Number.isFinite(code) ? code : typeof code === "string" ? code.slice(0, 64) : null,
+      code: typeof code === "number" && Number.isFinite(code) ? code : typeof code === "string" ? bounded(code, 64) : null,
       message:
         typeof message === "string"
-          ? message.replace(/[^\s<>"'(),;:]+@[^\s<>"'(),;:]+/g, "[address]").slice(0, PROVIDER_MESSAGE_LIMIT)
+          ? bounded(message.replace(/[^\s<>"'(),;:]+@[^\s<>"'(),;:]+/g, "[address]"), PROVIDER_MESSAGE_LIMIT)
           : null,
     };
     return kept.code === null && kept.message === null ? [] : [kept];
