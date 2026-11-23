@@ -8,8 +8,14 @@ The repository owner decided on 2026-11-23 that a host talks about a request onl
 
 The owner's principle for this epic is that everything a host can do on the web must also be possible in the host's messenger.
 
+A later update the same day widened the decision: the host web keeps no chat with Thyme at all. Setup happens only in conversation in the messenger (iMessage, Telegram). The web keeps the settings screens, the dashboard and the request view, and a host with no linked messenger is led to link one first, as [#190](https://github.com/snuhcs-course/swpp-2026-project-team-01/issues/190) already requires after Google sign-in.
+
 ## What Changes
 
+- The setup conversation leaves `/app`: no authored messages, composer, history, streamed reply, receipts timeline or **Restart Thyme**. A ready host's workspace shows the share links, the sample request offer and the messaging card as cards. A host whose setup is incomplete, who normally stops at the link step (#190), sees only "Finish setup with Thyme in your messaging app" and the messaging card, with no setup questions.
+- The web app mounts no `/api/chat` route. `useHostDiscussion`, the host functions of `apps/web/lib/chat/discussion.ts` and the setup receipt and tool-label modules are deleted. The link step's **Set up here in web chat** becomes **Go to your workspace**.
+- `lib/server/chat-routes.ts` keeps its handlers, unmounted, as the HTTP adapter the conversation integration suites drive; `recoverDiscussion` keeps a server-only `requestId`.
+- The browser tests of the web chat (`streaming`, `first-reply`, the composer and recovery cases of `workspace`, and the setup wizard in `host-setup`) are removed or rewritten, and the opt-in live-model browser run (`E2E_LIVE_MODEL=1`), which ran only the first-reply journey, is removed.
 - `/api/chat/messages`, `/api/chat/state`, `/api/chat/events` and `/api/chat/recover` serve only the host's setup discussion. A route that names a request answers `400 request_scope_unsupported` before anything is read, sent or created. It is never answered from setup.
 - The browser client (`apps/web/lib/chat/discussion.ts`, `use-host-discussion.ts`) and the recovery helpers no longer take a request.
 - The host-private request discussion (audience `host_review`) is unchanged for the linked messenger, which opens it through `acceptHostMessage` with the request, and for the local host-approval evaluation entry.
@@ -29,10 +35,20 @@ The owner's principle for this epic is that everything a host can do on the web 
 
 Two gaps remain, and this change does not fill them: the messenger has no weekly-limit waiver or trip estimate, and no host notice for a weekly-limit hold (H03 M-8). Issue #327 builds them.
 
+## Paths without a messenger equivalent yet
+
+Removing the setup chat leaves these with no messenger counterpart. This change records them rather than inventing a replacement:
+
+- **Restart Thyme.** Terminal recovery of a failed host discussion (setup or a request) ran only from the web (`POST /api/chat/recover`). A messenger receipt that meets `recovery_required` records the input and waits, so a failed discussion stays stuck until server-side recovery exists.
+- **Messenger texts that send the host to `/app` for setup.** "Open /app to set up", "Still needed: … or open /app", "Your settings review is too long for a message. Review and confirm it at /app", "I couldn't save that here. Open /app", and `get_setup`'s "connect Google Calendar at /app". The web has no setup questions to finish there now. The Calendar consent itself still works through `/auth/sign-in?consent=calendar`, and the settings dialog keeps hours, the weekly limit, the preferred place and accepting requests.
+- **A live-model browser check.** The only browser journey against the real model was the web first reply; none runs against a messenger.
+
+
 ## Impact
 
-- Code: `lib/server/chat-routes.ts`, `lib/server/recovery.ts`, `apps/web/lib/chat/discussion.ts`, `apps/web/lib/chat/use-host-discussion.ts`.
-- Tests: `lib/server/chat-routes.test.ts` (new), `tests/integration/host-review.test.ts`.
+- Code: `lib/server/chat-routes.ts`, `lib/server/recovery.ts`, `apps/web/lib/chat/discussion.ts`, `apps/web/lib/chat/use-host-discussion.ts` (deleted), `apps/web/app/api/chat/*` (deleted), `apps/web/app/_components/host-workspace.tsx`, `playwright.config.ts`.
+- Open changes that still describe a host setup conversation on the web ([`request-page-accordion`](../../request-page-accordion/proposal.md), [`message-first-web-onboarding`](../../message-first-web-onboarding/proposal.md) and [`host-review-and-booking`](../../host-review-and-booking/proposal.md) modify `chat-workspaces`' **Conversation-first entry**) need their deltas reconciled with **No host chat on the web** before they archive.
+- Tests: `lib/server/chat-routes.test.ts` (new), `tests/integration/host-review.test.ts`, `tests/e2e/host-setup.test.ts`, `workspace.test.ts`, `imessage-link.test.ts`, `support/connected-apps.ts` and `support/setup-host.ts`; `streaming.test.ts` and `first-reply.test.ts` deleted.
 - Specs: `conversation-access` and `chat-workspaces` deltas.
 - Docs: the testing baseline rows H03 (W-2, W-5, W-6) and M01 (W-H1), the agent configuration, the decision log, the acceptance record, the page list and the interfaces overview.
 - No schema change. Existing `host_review` discussions opened from the web stay in the database. A messenger can continue them, and the account deletion removes them as before.

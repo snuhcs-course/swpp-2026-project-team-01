@@ -196,7 +196,7 @@ const en = {
     ledePhone: "Send Thyme one message. It's already written for you, and sending it links this account.",
     altDesktop: "No iPhone, or rather not now?",
     altPhone: "On Android, or rather not now?",
-    skip: "Set up here in web chat",
+    skip: "Go to your workspace",
     confirmTitle: "Is this you?",
     confirmLede: "We got your message. Link it only if it came from your iPhone.",
     sentFrom: "Sent from",

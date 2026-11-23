@@ -15,9 +15,15 @@ import { conversationStatus, discussionEvents, recoverDiscussion } from "./recov
 import { type AppOrigins, appOriginsFromEnvironment, crossSiteRefusal } from "./same-origin";
 import { type SupabaseAuthConfig, supabaseAuthConfigFromEnvironment, verifiedUserId } from "./supabase-auth";
 
-// Web routes for the /app conversation. Each authenticates the Supabase session
-// itself and returns audience-safe JSON; nothing here trusts a client-supplied
-// actor, session ID or generation.
+// The HTTP adapter of the host's setup discussion. The web app mounts none of
+// these handlers since the host web chat was removed (remove-host-web-chat): a
+// host talks to Thyme only in their linked messenger. They stay as the request
+// boundary the conversation integration suites drive (admission, cross-site
+// refusal, recovery), until those suites move to the conversation functions.
+// Each authenticates the Supabase session itself and returns audience-safe JSON;
+// nothing here trusts a client-supplied actor, session ID or generation.
+// `json`, `authenticatedUserId`, `chatError` and `ndjsonResponse` serve other
+// mounted routes.
 
 export type ChatRouteDependencies = ConversationDependencies &
   AppOrigins & {

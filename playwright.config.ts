@@ -1,7 +1,5 @@
 import { execFileSync } from "node:child_process";
 import { generateKeyPairSync } from "node:crypto";
-import { existsSync, readFileSync } from "node:fs";
-import { parseEnv } from "node:util";
 import { defineConfig, devices } from "@playwright/test";
 import { E2E_TOKEN_ENCRYPTION_KEY } from "./tests/e2e/support/token-key";
 
@@ -10,10 +8,9 @@ import { E2E_TOKEN_ENCRYPTION_KEY } from "./tests/e2e/support/token-key";
 // `supabase start`. Every variable is set here, so the root .env (which may name
 // a hosted project) is never used.
 //
-// E2E_LIVE_MODEL=1 is the opt-in live run: it runs only the first-reply journey,
-// and the agent service calls the real gpt-5.6-terra with OPENAI_API_KEY from the
-// environment, .env.local or .env (nothing else is read from those files). It
-// spends real money, so CI never sets it.
+// The opt-in live-model run (E2E_LIVE_MODEL=1) ran the host's sign-in-to-first-
+// reply journey in the web chat, which was removed with the host web chat
+// (remove-host-web-chat); the model is always the local stand-in here.
 
 const PORT = process.env.PORT ?? "3100";
 const EVE_PORT = "3101";
@@ -23,20 +20,8 @@ const FAKE_CLOUDFLARE_PORT = "3104";
 const FAKE_ROUTES_PORT = "3105";
 const FAKE_PHOTON_PORT = "3106";
 const baseURL = `http://localhost:${PORT}`;
-const live = process.env.E2E_LIVE_MODEL === "1";
 
-function liveOpenAIKey() {
-  const files = [".env.local", ".env"].filter((file) => existsSync(file));
-  const key =
-    process.env.OPENAI_API_KEY || files.map((file) => parseEnv(readFileSync(file, "utf8")).OPENAI_API_KEY).find(Boolean);
-
-  if (!key) throw new Error("E2E_LIVE_MODEL=1 needs OPENAI_API_KEY.");
-  return key;
-}
-
-const model: Record<string, string> = live
-  ? { OPENAI_API_KEY: liveOpenAIKey() }
-  : { OPENAI_API_KEY: "sk-test-not-a-real-key", OPENAI_BASE_URL: `http://127.0.0.1:${FAKE_OPENAI_PORT}/v1` };
+const model: Record<string, string> = { OPENAI_API_KEY: "sk-test-not-a-real-key", OPENAI_BASE_URL: `http://127.0.0.1:${FAKE_OPENAI_PORT}/v1` };
 
 const stack = JSON.parse(execFileSync("supabase", ["status", "-o", "json"], { encoding: "utf8" })) as {
   API_URL: string;
@@ -93,7 +78,7 @@ const shared = {
 export default defineConfig({
   testDir: "./tests/e2e",
   globalSetup: "./tests/e2e/support/global-setup.ts",
-  testMatch: live ? "**/first-reply.test.ts" : "**/*.test.ts",
+  testMatch: "**/*.test.ts",
   fullyParallel: true,
   forbidOnly: Boolean(process.env.CI),
   retries: process.env.CI ? 2 : 0,
@@ -137,16 +122,12 @@ export default defineConfig({
       reuseExistingServer: false,
       url: `http://127.0.0.1:${FAKE_ROUTES_PORT}/health`,
     },
-    ...(live
-      ? []
-      : [
-          {
-            command: "npx tsx tests/e2e/support/fake-openai-server.ts",
-            env: { FAKE_OPENAI_PORT },
-            reuseExistingServer: false,
-            url: `http://127.0.0.1:${FAKE_OPENAI_PORT}/health`,
-          },
-        ]),
+    {
+      command: "npx tsx tests/e2e/support/fake-openai-server.ts",
+      env: { FAKE_OPENAI_PORT },
+      reuseExistingServer: false,
+      url: `http://127.0.0.1:${FAKE_OPENAI_PORT}/health`,
+    },
     {
       command: `npx eve dev --no-ui --host 127.0.0.1 --port ${EVE_PORT}`,
       env: {

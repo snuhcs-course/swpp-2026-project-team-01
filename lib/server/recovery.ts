@@ -322,7 +322,7 @@ export function settled(latest: SessionRow | null, observedGeneration: number): 
   return null;
 }
 
-// POST /api/chat/recover: replaces a confirmed failed generation with at most one
+// Terminal recovery: replaces a confirmed failed generation with at most one
 // successor for the same discussion. The recovery identity is the discussion and
 // the observed generation, so an exact retry returns the transition's status.
 export async function recoverDiscussion(
@@ -330,10 +330,13 @@ export async function recoverDiscussion(
   authUserId: string,
   cookie: string,
   observedGeneration: number,
-  options: { readonly inspectTimeoutMs?: number } = {},
+  options: { readonly inspectTimeoutMs?: number; readonly requestId?: string | null } = {},
 ): Promise<RecoveryOutcome> {
   const hostAccountId = await eligibleHost(deps.db, authUserId);
-  const discussionId = await findHostDiscussion(deps.db, hostAccountId);
+  // A request's discussion is recovered only from server code; no web route
+  // names a request (remove-host-web-chat).
+  const requestId = options.requestId ?? null;
+  const discussionId = await findHostDiscussion(deps.db, hostAccountId, requestId);
   const observed = discussionId ? await latestSession(deps.db, discussionId) : null;
   const early = settled(observed, observedGeneration);
 
@@ -381,7 +384,7 @@ export async function recoverDiscussion(
   // One transition wins: authority, the discussion and its current generation are
   // rechecked under their locks after the asynchronous reads above.
   const transition = await withEligibleHost(deps.db, authUserId, async (tx, lockedHostId): Promise<Settled> => {
-    await lockHostDiscussion(tx, lockedHostId);
+    await lockHostDiscussion(tx, lockedHostId, requestId);
     const latest = await latestSession(tx, discussionId!);
     const decided = settled(latest, observedGeneration);
 

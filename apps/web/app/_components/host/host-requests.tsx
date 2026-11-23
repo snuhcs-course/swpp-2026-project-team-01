@@ -14,7 +14,7 @@ import { HostSettingsDialog } from "@/app/_components/host-settings-dialog";
 import { Button } from "@/components/ui/button";
 import { postHostCommand, readHostRequest, readWorkspaceRequests } from "@/lib/chat/host-requests";
 import { announceRequestsChanged } from "@/lib/chat/pending-decisions";
-import { errorMessage } from "@/lib/chat/use-host-discussion";
+import { errorMessage } from "@/lib/chat/discussion";
 import {
   BookingCard,
   type HostCardContext,
