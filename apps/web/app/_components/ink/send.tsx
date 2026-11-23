@@ -1,7 +1,7 @@
 "use client";
 
 import { deepLinkFor, type MessagesPlatform, messagesPlatform, qrDeepLink } from "@lib/contracts/imessage";
-import { displayWhatsAppNumber, type MessagingChannel, telegramLinkFor, whatsAppLinkFor } from "@lib/contracts/messaging-channel";
+import { appLinkTarget, displayWhatsAppNumber, type MessagingChannel, telegramLinkFor, whatsAppLinkFor } from "@lib/contracts/messaging-channel";
 import { type ReactNode, type RefObject, useEffect, useMemo, useRef, useState } from "react";
 import { renderSVG } from "uqr";
 import { CopyButton } from "./chrome";
@@ -17,7 +17,8 @@ import { AppGlyph, CloseIcon } from "./icons";
 // WhatsApp Web or the desktop app on any computer, and the number shows with its plus.
 // For a Telegram code (host-telegram-channel D6) the code's lineNumber is the bot's username and its message
 // the bare code: the QR code and the middle way carry the telegram.me start link (Telegram Desktop or Telegram Web on
-// any computer), the preview shows the /start the Start button sends, and Copy offers the link and the code.
+// any computer, in a new tab so this page stays to show Confirm and link), the preview shows the /start the
+// Start button sends, and Copy offers the link and the code.
 
 export type SendCode = {
   readonly channel: MessagingChannel;
@@ -130,7 +131,8 @@ function Ways({ code, gone, labels, here, t }: { readonly code: SendCode; readon
                 {t.open}
               </button>
             ) : (
-              <a className="primary-btn" href={link}>
+              // Telegram's start link opens in a new tab, so this page stays to show Confirm and link (#369).
+              <a className="primary-btn" href={link} {...appLinkTarget(code.channel, false)}>
                 <AppGlyph channel={code.channel} />
                 {t.open}
               </a>

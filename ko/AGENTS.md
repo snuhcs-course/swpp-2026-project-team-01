@@ -8,7 +8,7 @@
 
 구현은 [`application-foundation`](openspec/changes/application-foundation/proposal.md) 변경으로 시작되었으며, 그 [설계](openspec/changes/application-foundation/design.md)가 런타임 스택을 기록합니다. Phase 1(로그인, `/app` 작업 공간, Supabase 스키마 기준선, 플랫폼 메커니즘)과 Phase 2([`host-onboarding`](openspec/changes/host-onboarding/proposal.md): 호스트 설정, 공개 호스트 페이지와 스킬 문서, 핸들과 가입 한도, 관리자 CLI)는 구현과 배포를 마쳤고 [인수 기록](documentations/technical_specification/07_acceptance_record.md)에 기록되어 있습니다. 요청자 및 예약 기능은 이후 변경과 함께 들어옵니다. 열린 OpenSpec 변경 안에서만 구현하십시오.
 
-공유 Supabase 프로젝트는 `anelszynxtvxoxqvzgqt`이며, 2026-10-19와 2026-10-20에 적용된 Phase 1 및 Phase 2 마이그레이션을 담고 있습니다([환경과 협업](documentations/technical_specification/03_provider_setup.md#environments-and-collaboration) 참고). 네임스페이스, 기본 권한, RLS는 스키마 기준선이 선언한 대로 유지하며, [제공자 설정](documentations/technical_specification/03_provider_setup.md#supabase-project)의 설명을 따르십시오. 상태를 확인하지 않은 프로젝트에 마이그레이션 체인을 푸시하지 마십시오.
+공유 Supabase 프로젝트는 `anelszynxtvxoxqvzgqt`이며, `main`의 마이그레이션 체인을 담고 있습니다. `findmeatime-release`의 Vercel Production 배포는 `main`에서 배포됩니다. `Deploy production` 워크플로가 `main`에 푸시될 때마다 마이그레이션을 푸시한 뒤 배포합니다(절차와 기록된 수동 예외는 [공유 환경에 배포하기](documentations/technical_specification/03_provider_setup.md#deploying-to-the-shared-environment) 참고). 네임스페이스, 기본 권한, RLS는 스키마 기준선이 선언한 대로 유지하며, [제공자 설정](documentations/technical_specification/03_provider_setup.md#supabase-project)의 설명을 따르십시오. 상태를 확인하지 않은 프로젝트에 마이그레이션 체인을 푸시하지 마십시오.
 
 ## 저장소 구조
 
@@ -36,7 +36,7 @@ npm test             # Vitest unit tests
 
 GitHub CLI(`gh`), Vercel CLI(`vercel`), Supabase CLI(`supabase`)가 설치되어 `PATH`에서 사용할 수 있다고 가정합니다.
 
-이 저장소에서는 Supabase CLI **2.119.0**을 사용하고, `supabase --version`으로 확인합니다. CLI 업그레이드는 팀과 조율하고, 업그레이드할 때마다 스키마 워크플로를 다시 확인합니다.
+이 저장소에서는 Supabase CLI **3.2.0**을 사용하고, `supabase --version`으로 확인합니다. CLI 업그레이드는 팀과 조율하고, 업그레이드할 때마다 스키마 워크플로를 다시 확인합니다.
 
 OpenSpec CLI **1.14.0**은 core 프로필과 Codex 통합과 함께 사용합니다. macOS에서는 `brew install openspec`으로, Node.js 20.19.0 이상에서는 `npm install -g @fission-ai/openspec@1.14.0`으로 설치합니다. 그다음 `openspec --version`으로 확인합니다. 새 체크아웃은 `openspec init --tools codex --profile core`로 초기화합니다. 조율된 CLI 업그레이드 후에는 이 저장소에서 `openspec update`를 실행하고, 생성된 스킬 변경 사항을 검토합니다.
 
@@ -176,6 +176,7 @@ Not-tested: <known gaps in verification>
 - `motion`: Motion과 CSS 애니메이션(모범 사례, 문서 검색, CSS 스프링, 성능 감사). Motion AI Kit(`npx motion-ai`, 프로젝트 범위, Claude Code와 Codex)으로 설치했습니다. Claude Code는 `.claude/skills/motion/`의 사본과 `.claude/agents/`의 `motion-reviewer` 에이전트를 사용합니다. 두 에이전트 모두 `.mcp.json`과 `.codex/config.toml`에서 Motion의 호스팅 MCP 서버(`motion`, `motion-plus`)를 받으며, Motion+ 기능은 각자 자신의 에이전트에서 로그인해야 합니다. 업데이트하려면 설치 프로그램을 다시 실행하며, 이 파일들을 덮어씁니다.
 - `openspec-*`: 동작 변경을 탐색, 제안, 적용, 보관하기 위해 생성된 핵심 워크플로.
 - `agent-ready-batch`: `agent-ready` 라벨이 붙은 열린 이슈를 풀 리퀘스트로 바꿉니다. 한 풀 리퀘스트에 담을 이슈를 묶고, 묶음마다 `origin/main`에서 만든 그 묶음 전용 워크트리에서 Claude Code 세션 하나를 시작하므로 AI 사용량 기록이 그 묶음의 브랜치에 남습니다. 각 세션은 구현하고 테스트하고 풀 리퀘스트를 연 뒤 리뷰어 서브에이전트에게 검토를 맡깁니다. Claude Code는 `.claude/skills/agent-ready-batch` 링크로 이 스킬에 접근합니다. 코딩 에이전트가 저장소만으로 처리할 수 있는 이슈에는 `agent-ready`를, 팀의 결정, 실기기나 콘솔 작업, 조사 또는 검토가 필요한 이슈에는 `needs-human`을 붙입니다.
+- `browser-qa`: Claude Code나 Codex 세션이 병합 전후에 스스로 실행하는 전체 로컬 QA입니다. `origin/main`의 새 워크트리에서 로컬 스택을 초기화하고 pgTAP, 통합 테스트, Playwright 테스트를 실행하며(실패한 테스트는 한 번 다시 실행해 불안정한 테스트와 구분합니다), 이어서 `npm run qa:stack`을 대상으로 실제 브라우저에서 테스트 기준선의 흐름을 직접 따라가 봅니다. `npm run qa:stack`은 브라우저 테스트가 쓰는 서비스와 대역을 띄우고, 테스트 호스트를 로그인시키는 제어 페이지를 함께 제공합니다. 날짜가 붙은 보고서를 Git에서 제외된 `output/` 폴더에 쓰고 버그 이슈 초안을 작성하되, 사용자가 확인한 뒤에만 이슈를 엽니다. 실기기와 메신저, 실제 Google, AgentMail, 유료 모델의 판단은 다루지 못하는 범위로 명시합니다. Claude Code는 `.claude/skills/browser-qa` 링크로, Codex는 `.agents/skills/browser-qa/SKILL.md`를 읽어 이 스킬에 접근합니다.
 
 ## Supabase 스키마 변경
 

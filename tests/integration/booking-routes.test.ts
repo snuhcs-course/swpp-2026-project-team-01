@@ -98,6 +98,39 @@ describe("booking routes", () => {
     expect(await command.json()).toMatchObject({ error: { category: "request_closed" }, status: "withdrawn" });
   });
 
+  it("keeps a booked meeting's conversation open, with the closed view's status and its conversation (#329)", async () => {
+    const request = await createTestRequest(db);
+    await db`update app.requests set state = 'booked', closed_at = now() where id = ${request.requestId}`;
+
+    const state = await routes.state(request.bookingId);
+    expect(state.status).toBe(200);
+    expect(await state.json()).toMatchObject({ conversation: { generation: null, state: "none" }, open: false, request: { state: "booked" } });
+
+    const message = await routes.messages(request.bookingId);
+    expect(message.status).toBe(202);
+    const [recorded] = await db<{ count: number }[]>`
+      select count(i.id)::int as count
+      from app.discussions d join app.conversation_inputs i on i.discussion_id = d.id
+      where d.principal_type = 'requester_request' and d.principal_id = ${request.requestId}
+    `;
+    expect(recorded!.count).toBe(1);
+
+    for (const route of [routes.events, routes.intake]) expect((await route(request.bookingId)).status).toBe(200);
+    // The request's own data stays closed.
+    expect((await routes.calendars(request.bookingId)).status).toBe(404);
+  });
+
+  it("says a request was handed over to Thyme once the guest has written, even with the Calendar step open again (#373)", async () => {
+    const request = await createTestRequest(db);
+    await db`update app.requests set calendar_settled_at = null, details = details - 'purpose' where id = ${request.requestId}`;
+    const before = (await (await routes.state(request.bookingId)).json()) as { handedOver: boolean };
+    expect(before.handedOver).toBe(false);
+
+    expect((await routes.messages(request.bookingId)).status).toBe(202);
+    const after = (await (await routes.state(request.bookingId)).json()) as { handedOver: boolean };
+    expect(after.handedOver).toBe(true);
+  });
+
   it("serves an open request's view, with its contact and connection state but nothing of the host's", async () => {
     const request = await createTestRequest(db);
     const response = await routes.state(request.bookingId.toUpperCase());

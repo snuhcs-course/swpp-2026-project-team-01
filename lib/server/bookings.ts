@@ -792,8 +792,9 @@ export function createBookingHandler(load: () => BookingDependencies = bookingDe
   };
 }
 
-// The 15-minute pending notice (D2): sent once, only while the booking is still
-// dispatching.
+// The 15-minute pending notice (D2): sent once to the guest, only while the
+// booking is still dispatching. The host gets none (#173): booking_confirmed
+// or booking_failed follows once the write resolves.
 export function createBookingPendingHandler(load: () => NoticeDependencies = noticeDependenciesFromEnvironment): JobHandler {
   return async (tx: Transaction, job: ClaimedJob) => {
     const bookingId = typeof job.payload.bookingId === "string" ? job.payload.bookingId : null;
@@ -805,8 +806,6 @@ export function createBookingPendingHandler(load: () => NoticeDependencies = not
       where b.id = ${bookingId}
     `;
     if (booking?.state !== "dispatching") return { sent: false };
-
-    await enqueueHostNotice(tx, booking.request_id, { bookingId, kind: "booking_pending" });
 
     await enqueueStatusNotice(tx, load(), booking.request_id, {
       bookingId,

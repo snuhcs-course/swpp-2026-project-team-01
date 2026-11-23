@@ -830,7 +830,15 @@ export function CandidatesCard({ context }: { readonly context: RequesterCardCon
         <ul aria-label="Candidate times" className="flex flex-col gap-2">
           {offered.slice(page * TIMES_SHOWN, (page + 1) * TIMES_SHOWN).map((candidate) => (
             <li className="flex flex-wrap items-center justify-between gap-2 rounded-2xl bg-secondary p-3" key={candidate.id}>
-              <CandidateTime candidate={candidate} timeZone={context.timezone} />
+              {candidate.notes?.length ? (
+                <div className="flex flex-col gap-0.5">
+                  <CandidateTime candidate={candidate} timeZone={context.timezone} />
+                  {/* A guest who is a host: why this time comes where it does in their own week (#60). */}
+                  <p className="text-sm text-muted-foreground">{candidate.notes.join(" ")}</p>
+                </div>
+              ) : (
+                <CandidateTime candidate={candidate} timeZone={context.timezone} />
+              )}
               <Button
                 aria-label={`Choose this time: ${timeRange(candidate, context.timezone)}`}
                 className="min-h-11"

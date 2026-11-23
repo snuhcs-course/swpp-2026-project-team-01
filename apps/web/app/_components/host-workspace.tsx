@@ -11,6 +11,7 @@ import { focusCard } from "@/app/_components/setup/card";
 import { WorkspaceMenu } from "@/app/_components/workspace-menu";
 import { HostSettingsDialog } from "@/app/_components/host-settings-dialog";
 import { Button } from "@/components/ui/button";
+import { HostWordmark } from "@/app/_components/host-wordmark";
 
 // The host workspace at /app: a centered column and a compact menu, with no
 // sidebar and no chat with Thyme. The host talks to Thyme only in their linked
@@ -67,7 +68,7 @@ function SetupWorkspace({ initialImessageOpen, onOpenDashboard, onOpenRequests }
   return (
     <div className="flex h-dvh min-h-0 flex-col bg-background text-foreground">
       <header className="flex shrink-0 items-center justify-between gap-3 px-5 py-3 sm:px-8">
-        <h1 className="wordmark-lockup min-w-0">Find Me a Time</h1>
+        <HostWordmark className="min-w-0" />
         <div className="flex items-center"><HostSettingsDialog /><WorkspaceMenu onSelectDashboard={onOpenDashboard} onSelectRequests={onOpenRequests} /></div>
       </header>
 

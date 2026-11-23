@@ -332,3 +332,84 @@ export async function readConfirmationStatus(
     retryAt: retryAt?.toISOString() ?? null,
   };
 }
+
+// ---------------------------------------------------------------------------
+// contact.change_email (guest-email-and-agree-notices design 1)
+
+export const CHANGE_EMAIL_OPERATION = "contact.change_email";
+
+const EMAIL_ADDRESS = /^[^\s@<>,"]+@[^\s@<>,"]+\.[^\s@<>,"]+$/;
+const changeEmailInput = z.object({ email: z.string().trim().min(3).max(320).regex(EMAIL_ADDRESS) }).strict();
+
+export type ChangeEmailResult =
+  | { readonly status: "queued"; readonly deliveryId: string }
+  | { readonly status: "limited"; readonly retryAt: string };
+
+// Whether the request's contact may be replaced on the booking page: it is not
+// confirmed, and the latest creation email to it bounced or was suppressed, so
+// the guest never received their link there.
+export async function contactChangeAllowed(db: Queryable, requestId: string) {
+  const [row] = await db<{ allowed: boolean }[]>`
+    select coalesce(lower(r.contact_confirmed_email) = lower(r.contact_email), false) is false
+      and (
+        select d.state from app.email_deliveries d
+        where d.request_id = r.id and d.kind = 'request_creation' and lower(d.recipients[1]) = lower(r.contact_email)
+        order by d.created_at desc limit 1
+      ) in ('rejected', 'suppressed') as allowed
+    from app.requests r
+    where r.id = ${requestId} and r.contact_email is not null
+  `;
+  return row?.allowed ?? false;
+}
+
+// **Change email** after a bounce: the guest replaces an unconfirmed contact
+// whose creation email bounced, and the new address gets the creation email
+// with the booking link and its own confirmation link, under the same bounds
+// as every creation email. Nothing else about the request changes: no
+// revision, agreement or booking. The earlier confirmation links are voided.
+// A contact that was delivered or confirmed is not changed here.
+export function changeEmailCommand(options: {
+  readonly origin: string;
+  readonly tokenKey: TokenKey;
+  readonly limits?: Partial<ConfirmationLimits>;
+}): CommandDefinition<z.infer<typeof changeEmailInput>, ChangeEmailResult> {
+  const limits = { ...CONFIRMATION_LIMITS, ...options.limits };
+
+  return {
+    input: changeEmailInput,
+    operation: CHANGE_EMAIL_OPERATION,
+    async run(tx, context) {
+      if (context.actor.kind !== "requester_request" || context.actor.id !== context.resourceId) {
+        throw new CommandError("forbidden");
+      }
+
+      const requestId = context.actor.id;
+      const request = await lockOpenRequest(tx, requestId);
+      if (!request.contact_email) throw new CommandError("identity_required");
+
+      const email = context.input.email.trim();
+      if (email.toLowerCase() === request.contact_email.toLowerCase()) throw new CommandError("invalid_input");
+      if (!(await contactChangeAllowed(tx, requestId))) throw new CommandError("invalid_input");
+
+      // Request lock first (above), then the new recipient's, then the service's.
+      const retryAt = await lockConfirmationBounds(tx, requestId, email, limits);
+      if (retryAt) return { retryAt: retryAt.toISOString(), status: "limited" };
+
+      // An address confirmed earlier on this request stays confirmed if it returns.
+      await tx`
+        update app.requests
+        set contact_email = ${email},
+            contact_confirmed_email = case when lower(contact_confirmed_email) = lower(${email}) then ${email} else null end,
+            updated_at = now()
+        where id = ${requestId}
+      `;
+      const issued = await issueContactConfirmation(tx, {
+        dedupeKey: `change:${requestId}:${context.correlationId}`,
+        origin: options.origin,
+        requestId,
+        tokenKey: options.tokenKey,
+      });
+      return { deliveryId: issued.deliveryId, status: "queued" };
+    },
+  };
+}

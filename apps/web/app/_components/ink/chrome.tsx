@@ -16,9 +16,11 @@ export function InkStage({ children, locale }: { readonly children: ReactNode; r
   );
 }
 
-export function Brand() {
+// The logo leads to the public landing; on a signed-in host's screens it leads
+// to the workspace at /app instead.
+export function Brand({ href = "/" }: { readonly href?: "/" | "/app" }) {
   return (
-    <Link aria-label="Home" className="brand" href="/">
+    <Link aria-label="Home" className="brand" href={href}>
       <span aria-hidden="true" className="mark" />
       <span className="wordmark">Find Me a Time</span>
     </Link>

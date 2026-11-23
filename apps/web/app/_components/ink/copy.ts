@@ -206,6 +206,9 @@ const en = {
     linking: "Linking…",
     connected: "Your iMessage is connected.",
     connectedLede: "You can onboard with Thyme in iMessage. Thyme just sent you a hello there.",
+    // Back from Google consent started at Thyme's Calendar link (host-imessage-channel D19).
+    calendarConnected: "Google Calendar is connected.",
+    calendarConnectedLede: "Setup continues in iMessage. Thyme just sent you the next step there.",
     linkedTo: "Linked to",
     goHome: "Go to Home",
     chatWeb: "Or chat with Thyme on the web",
@@ -262,6 +265,7 @@ const en = {
       confirmLede: "We got your message. Link it only if it came from your WhatsApp.",
       connected: "Your WhatsApp is connected.",
       connectedLede: "You can onboard with Thyme in WhatsApp. Thyme just sent you a hello there.",
+      calendarConnectedLede: "Setup continues in WhatsApp. Thyme just sent you the next step there.",
     },
   },
   // The words that differ for Telegram, laid over the iMessage ones by channelCopy.
@@ -298,6 +302,7 @@ const en = {
       confirmLede: "We got your Start. Link it only if it came from your Telegram.",
       connected: "Your Telegram is connected.",
       connectedLede: "You can onboard with Thyme in Telegram. Thyme just sent you a hello there.",
+      calendarConnectedLede: "Setup continues in Telegram. Thyme just sent you the next step there.",
     },
   },
 };

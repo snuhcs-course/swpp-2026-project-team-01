@@ -87,7 +87,7 @@ Order of precedence, as the [backend architecture](../../../documentations/techn
 | Weekly meeting limit | The upper end of the weekly counts | None (no limit) |
 | What counts toward the limit | — | Find Me a Time bookings only; the host can choose every meeting with guests |
 | Note-like exclusions | Candidate entries listed for confirmation | None excluded |
-| Duration | Median length of counted meetings, rounded to 15 minutes | 30 minutes |
+| Duration | Median length of counted meetings, rounded to 15 minutes | 60 minutes (30 until [`default-meeting-60`](../archive/2026-11-23-default-meeting-60/proposal.md), #376) |
 | Buffers | None observed | 10 minutes before and 10 after |
 | Preferred area and venue | Most frequent in-person location | None; the host answers |
 | Extra travel buffer | None observed | 15 minutes |

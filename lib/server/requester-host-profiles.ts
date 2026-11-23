@@ -150,6 +150,9 @@ export type GuestHostSource = {
   readonly hostAccountId: string;
   readonly email: string | null;
   readonly conflictCalendars: ConfirmedSettings["conflictCalendars"];
+  // The guest-host's own weekly windows and weekly limit, which order this
+  // request's candidates as soft preferences (#60, design 7).
+  readonly preferences: Pick<ConfirmedSettings, "timezone" | "weeklyWindows" | "weeklyLimit" | "weeklyLimitCounts" | "location">;
 };
 
 export async function readGuestHostSource(q: Queryable, requestId: string): Promise<GuestHostSource | null> {
@@ -161,7 +164,20 @@ export async function readGuestHostSource(q: Queryable, requestId: string): Prom
     join app.host_settings s on s.host_account_id = p.host_account_id
     where p.request_id = ${requestId} and p.decided_at is not null and 'calendars' = any(p.items)
   `;
-  return row ? { conflictCalendars: row.settings.conflictCalendars, email: row.email, hostAccountId: row.host_account_id } : null;
+  return row
+    ? {
+        conflictCalendars: row.settings.conflictCalendars,
+        email: row.email,
+        hostAccountId: row.host_account_id,
+        preferences: {
+          location: row.settings.location,
+          timezone: row.settings.timezone,
+          weeklyLimit: row.settings.weeklyLimit,
+          weeklyLimitCounts: row.settings.weeklyLimitCounts,
+          weeklyWindows: row.settings.weeklyWindows,
+        },
+      }
+    : null;
 }
 
 // A failed or revoked guest-host grant clears the calendar item and reopens the
