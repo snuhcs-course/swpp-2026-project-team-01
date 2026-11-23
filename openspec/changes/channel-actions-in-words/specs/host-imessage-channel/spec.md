@@ -23,6 +23,17 @@ In the linked iMessage, WhatsApp or Telegram conversation, the assistant SHALL b
 - **WHEN** the assistant acts on a proposal version, suggestion or settings review that is no longer current
 - **THEN** nothing changes and the assistant names the current one
 
+### Requirement: Saved settings changed in words from a request's conversation
+In the linked iMessage, WhatsApp or Telegram conversation, a host whose settings are saved SHALL be able to change a setting for all their meetings, such as the preferred meeting location, in their own words while the conversation is about a request, without switching it back to setup. The change SHALL run through the same draft and save as a change in setup, SHALL be saved at once under the same checks, and the assistant SHALL say it is saved only when it was. A place or time for the request alone SHALL stay a change to that request. It SHALL NOT act for a message typed on the web.
+
+#### Scenario: Preferred place changed during a request
+- **WHEN** a linked host whose conversation is about a request writes "change my preferred meeting location to Gangnam"
+- **THEN** the saved preferred location becomes Gangnam, **Settings → Meeting preferences** shows it, and the reply says it is saved
+
+#### Scenario: Same words on the web
+- **WHEN** the host types the same words in a request's discussion in `/app`
+- **THEN** nothing changes and the host is pointed to **Settings**
+
 ### Requirement: Questions answered in words
 In the linked conversation, the host SHALL be able to ask in words for the current proposal, the suggested changes, their settings and their requests, and the assistant SHALL answer from the application records. In setup, on the web and in the linked conversation, the host SHALL be able to ask about their requests and get each request's requester, purpose, status and reference.
 
