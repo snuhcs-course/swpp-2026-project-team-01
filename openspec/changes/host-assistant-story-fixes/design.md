@@ -2,7 +2,7 @@
 
 ## 1. Merging the pending suggestion
 
-`suggestChangesCommand("assistant")` supersedes the pending suggestion with `update … returning changes` inside the same transaction that inserts the new one, so the changes it merges are the ones it supersedes. `replacementChanges(pending, next)` lays `next` over `pending`; when `next.mode` is `online` it drops `pending.location`, and when it is `in_person` it drops `pending.linkPlan`. At most one suggestion per request is open (`shared_change_drafts_one_open_idx`), so there is one pending suggestion to merge or none.
+`suggestChangesCommand("assistant")` supersedes the pending suggestion with `update … returning changes` inside the same transaction that inserts the new one, so the changes it merges are the ones it supersedes. `replacementChanges(pending, next)` lays `next` over `pending`; when `next.mode` is `online` it drops `pending.location`, and when it is `in_person` it drops `pending.linkPlan`. Without `next.mode`, a `next.location` counts as `in_person` and a `next.linkPlan` as `online`: it drops the other mode's pending field and stores that mode, because sharing takes the mode from the suggestion, or else from the proposal, and would otherwise discard the place or link the host just gave. At most one suggestion per request is open (`shared_change_drafts_one_open_idx`), so there is one pending suggestion to merge or none.
 
 `suggestChangesCommand("host")`, which the editor and the host MCP tool run, stores its input unchanged: the editor starts from the current proposal's values and sends what differs from them, so a field it leaves out means the proposal's value, not the pending suggestion's.
 

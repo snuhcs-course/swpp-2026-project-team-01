@@ -19,7 +19,7 @@ Taken on 2026-11-23 from the issue's expected behavior; no teammate review yet.
 | # | Decision | Choice |
 |---|---|---|
 | D1 | Where the pending changes are kept | In `suggestChangesCommand` for the assistant's source, so no prompt wording can lose them. Rejected: only telling the assistant to restate what stays, which the model may still forget; merging for every source, which would make the editor's fields that match the proposal silently keep the pending suggestion's value |
-| D2 | A new mode | Drops the pending place for online and the pending link for in person. Sharing already ignores the other mode's field; dropping it keeps the stored suggestion and its card honest |
+| D2 | A new mode, place or link | A new mode drops the pending place for online and the pending link for in person. A new place without a mode makes the suggestion in person and a new link without a mode makes it online, dropping the other mode's pending field. Sharing ignores the other mode's field, so a stored suggestion that kept both would silently lose what the host just asked for; dropping them keeps the stored suggestion and its card honest |
 
 ## Capabilities
 

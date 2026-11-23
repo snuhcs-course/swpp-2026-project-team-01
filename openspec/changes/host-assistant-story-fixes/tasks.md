@@ -20,4 +20,4 @@
 
 - [ ] 4.1 Teammate review.
 - [ ] 4.2 Run the host review story set (`FMAT_EVAL_AUDIENCE=host_review npx eve eval host-review/story`) for RV-02, RV-05, RV-06, RV-07, RV-22, RV-P5, RV-X10, RV-X14 and the appended cases, and record the result in documentation 13.
-- [ ] 4.3 Archive this change, closing #275.
+- [ ] 4.3 Archive this change, closing #275 and the related #272, #274 and #276.

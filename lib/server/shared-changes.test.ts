@@ -31,6 +31,27 @@ describe("replacementChanges", () => {
     ).toEqual({ location: "강남역", mode: "in_person" });
   });
 
+  it("treats a new place without a mode as in person and a new link without a mode as online", () => {
+    const link = { kind: "requester_link", url: "https://meet.example/abc" } as const;
+    expect(replacementChanges({ linkPlan: link, mode: "online", start: wednesday }, { location: "강남역" })).toEqual({
+      location: "강남역",
+      mode: "in_person",
+      start: wednesday,
+    });
+    expect(replacementChanges({ location: "강남역", mode: "in_person", start: wednesday }, { linkPlan: link })).toEqual({
+      linkPlan: link,
+      mode: "online",
+      start: wednesday,
+    });
+  });
+
+  it("keeps a pending mode that a new place or link agrees with", () => {
+    expect(replacementChanges({ location: "역삼역", mode: "in_person" }, { location: "강남역" })).toEqual({
+      location: "강남역",
+      mode: "in_person",
+    });
+  });
+
   it("stores the new suggestion as it is when nothing is pending", () => {
     expect(replacementChanges(null, { durationMinutes: 60 })).toEqual({ durationMinutes: 60 });
   });

@@ -48,13 +48,18 @@ const suggestInput = z.object({ changes: sharedChangesSchema }).strict();
 
 // The changes a new suggestion stores when it replaces a pending one: the
 // pending suggestion's changes with the new ones laid over them. A new mode
-// drops the pending place or link that the other mode would not use.
+// drops the pending place or link that the other mode would not use. A new
+// place without a mode means in person and a new link without a mode means
+// online: the stored suggestion then names that mode, so sharing neither keeps
+// a contradicting pending mode nor falls back to the proposal's mode and drops
+// what the host just asked for.
 export function replacementChanges(pending: SharedChanges | null, next: SharedChanges): SharedChanges {
   if (!pending) return next;
   const kept: SharedChanges = { ...pending };
-  if (next.mode === "online") delete kept.location;
-  if (next.mode === "in_person") delete kept.linkPlan;
-  return { ...kept, ...next };
+  const mode = next.mode ?? (next.location ? "in_person" : next.linkPlan ? "online" : undefined);
+  if (mode === "online") delete kept.location;
+  if (mode === "in_person") delete kept.linkPlan;
+  return { ...kept, ...next, ...(mode ? { mode } : {}) };
 }
 
 export function suggestChangesCommand(source: "assistant" | "host"): CommandDefinition<z.infer<typeof suggestInput>, SuggestResult> {
