@@ -1,0 +1,23 @@
+{
+  "branch": "feat/calendar-views",
+  "user": "dodo41142727@gmail.com",
+  "sessions": {
+    "claude:9ff21dbb-c5ed-48b4-9da5-fd1a4ba4961c": {
+      "agent": "claude-code",
+      "client": "claude-desktop",
+      "agent_ms": 0,
+      "models": {
+        "claude-opus-5-5": {
+          "input": 154,
+          "cache_read": 14357309,
+          "cache_write_5m": 0,
+          "cache_write_1h": 351465,
+          "output": 74248,
+          "reasoning": 0
+        }
+      },
+      "first": "2026-11-23T06:38:07.363Z",
+      "last": "2026-11-23T10:44:25.434Z"
+    }
+  }
+}

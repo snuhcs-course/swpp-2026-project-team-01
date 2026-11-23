@@ -6,7 +6,7 @@ import type { HostCandidate, HostRequestOperation, HostRequestView, HostSuggesti
 import type { LinkPlan } from "@lib/contracts/request";
 import { isCalendarDate, MAX_DECLINED_DATES } from "@lib/contracts/declined-dates";
 import { displayTime, instantFromLocal, localDate, zoneLabel } from "@lib/contracts/timezone";
-import { type FormEvent, type ReactNode, useId, useState } from "react";
+import { type FormEvent, type ReactNode, useEffect, useId, useState } from "react";
 import { Receipt } from "@/app/_components/booking-receipt";
 import { GuestCard, GuestCardActions } from "@/app/_components/guest/guest-card";
 import { Button } from "@/components/ui/button";
@@ -252,12 +252,36 @@ function localParts(instant: string | undefined, timeZone: string) {
   return { date: `${parts.year}-${parts.month}-${parts.day}`, time: `${parts.hour}:${parts.minute}` };
 }
 
-export function SuggestionEditor({ context, onClose }: { readonly context: HostCardContext; readonly onClose: () => void }) {
+export function SuggestionEditor({
+  context,
+  onClose,
+  onDraft,
+  picked = null,
+}: {
+  readonly context: HostCardContext;
+  readonly onClose: () => void;
+  // Reports the start the form holds, so the calendar beside it can mark it.
+  readonly onDraft?: (start: string | null) => void;
+  // A time picked on the calendar (calendar-views design 2), filled in as the start.
+  readonly picked?: string | null;
+}) {
   const { view } = context;
   const base = view.proposal;
-  const initial = localParts(base?.start, view.hostTimezone);
+  const initial = localParts(picked ?? base?.start, view.hostTimezone);
   const [date, setDate] = useState(initial.date);
   const [time, setTime] = useState(initial.time);
+
+  // A later pick on the calendar replaces the date and time.
+  useEffect(() => {
+    if (!picked) return;
+    const next = localParts(picked, view.hostTimezone);
+    setDate(next.date);
+    setTime(next.time);
+  }, [picked, view.hostTimezone]);
+
+  useEffect(() => {
+    onDraft?.(date && time ? instantFromLocal(date, time, view.hostTimezone) : null);
+  }, [date, time, onDraft, view.hostTimezone]);
   const [duration, setDuration] = useState(String(base?.durationMinutes ?? view.details.durationMinutes ?? 30));
   const [mode, setMode] = useState<"online" | "in_person">(base?.mode ?? (view.details.mode === "in_person" ? "in_person" : "online"));
   const [place, setPlace] = useState(base?.location ?? view.details.location ?? "");

@@ -25,6 +25,7 @@ import {
   SuggestionCard,
   SuggestionEditor,
 } from "./host-request-cards";
+import { HostDecisionCalendar, showsDecisionCalendar } from "./host-decision-calendar";
 
 // The host's requests in /app (host-review-and-booking design 2 and 3;
 // chat-workspaces: host request inbox). With no request selected, the inbox
@@ -132,7 +133,7 @@ function Inbox({ initialRequest, onNotice }: { readonly initialRequest: string |
 
   return (
     <main aria-labelledby="inbox-heading" className="min-h-0 flex-1 overflow-y-auto">
-      <div className="mx-auto flex w-full max-w-2xl flex-col px-4 pb-8 sm:px-6">
+      <div className={`mx-auto flex w-full max-w-2xl flex-col px-4 pb-8 sm:px-6${openId ? " lg:max-w-6xl" : ""}`}>
         <h2 className="pt-4 text-[clamp(36px,3.5vw,50px)] leading-[1.12] font-bold tracking-[-0.045em] [font-family:var(--font-open-sans),var(--font-geist-sans),Arial,sans-serif]" id="inbox-heading">
           Requests
         </h2>
@@ -223,6 +224,9 @@ function RequestListCard({ item, onChanged, onNotice, onToggle, open }: { readon
 function RequestPanel({ onChanged, onUnavailable, requestId }: { readonly onChanged: (tutorialCompletion?: TutorialCompletion) => void; readonly onUnavailable: () => void; readonly requestId: string }) {
   const [view, setView] = useState<HostRequestView | null>(null);
   const [editing, setEditing] = useState(false);
+  // A time picked on the calendar, and the start the open editor holds.
+  const [picked, setPicked] = useState<string | null>(null);
+  const [draftStart, setDraftStart] = useState<string | null>(null);
   const retryKeys = useRef(new Map<string, string>());
 
   const reload = useCallback(async () => {
@@ -271,18 +275,48 @@ function RequestPanel({ onChanged, onUnavailable, requestId }: { readonly onChan
           {revisedFromText(view.revisedFrom)}
         </p>
       ) : null}
-      {view ? <OpenCard context={{ run, view }} editing={editing} setEditing={setEditing} /> : <p className="pt-5 text-sm text-muted-foreground" role="status">Loading request details...</p>}
+      {view ? (
+        <div className={showsDecisionCalendar(view, editing) ? "lg:grid lg:grid-cols-[minmax(0,1fr)_minmax(0,1.25fr)] lg:items-start lg:gap-6" : undefined}>
+          <OpenCard
+            context={{ run, view }}
+            editing={editing}
+            onDraft={setDraftStart}
+            picked={picked}
+            setEditing={(value) => {
+              setEditing(value);
+              if (!value) {
+                setPicked(null);
+                setDraftStart(null);
+              }
+            }}
+          />
+          {showsDecisionCalendar(view, editing) ? (
+            <div className="pt-5">
+              <HostDecisionCalendar
+                draftStart={editing ? draftStart : null}
+                onPick={CLOSED_STATES.includes(view.state) && !editing ? undefined : (start) => {
+                  setPicked(start);
+                  setEditing(true);
+                }}
+                view={view}
+              />
+            </div>
+          ) : null}
+        </div>
+      ) : <p className="pt-5 text-sm text-muted-foreground" role="status">Loading request details...</p>}
     </div>
   );
 }
 
-function OpenCard({ context, editing, setEditing }: { readonly context: HostCardContext; readonly editing: boolean; readonly setEditing: (value: boolean) => void }) {
+const CLOSED_STATES: readonly RequestState[] = ["booked", "declined", "withdrawn", "expired", "cancelled"];
+
+function OpenCard({ context, editing, onDraft, picked, setEditing }: { readonly context: HostCardContext; readonly editing: boolean; readonly onDraft: (start: string | null) => void; readonly picked: string | null; readonly setEditing: (value: boolean) => void }) {
   if (context.view.sample && context.view.state !== "awaiting_host_approval") {
     return <GuestCard id="tutorial-complete" title={tutorialFeedback.complete} description={tutorialFeedback.practice} />;
   }
   const step = nextHostStep(context.view, editing);
   const requestChanges = () => setEditing(true);
-  const card = stepCard(step, context, requestChanges, () => setEditing(false));
+  const card = stepCard(step, context, requestChanges, () => setEditing(false), picked, onDraft);
   if (!isChangingBooking(context.view) || step === "booking") return card;
 
   // A change after booking: the booked meeting stands until a new version is approved.
@@ -298,10 +332,10 @@ function OpenCard({ context, editing, setEditing }: { readonly context: HostCard
   );
 }
 
-function stepCard(step: ReturnType<typeof nextHostStep>, context: HostCardContext, requestChanges: () => void, closeEditor: () => void) {
+function stepCard(step: ReturnType<typeof nextHostStep>, context: HostCardContext, requestChanges: () => void, closeEditor: () => void, picked: string | null, onDraft: (start: string | null) => void) {
   switch (step) {
     case "editor":
-      return <SuggestionEditor context={context} onClose={closeEditor} />;
+      return <SuggestionEditor context={context} onClose={closeEditor} onDraft={onDraft} picked={picked} />;
     case "suggestion":
       return <SuggestionCard context={context} onRequestChanges={requestChanges} />;
     case "booking":

@@ -1,0 +1,62 @@
+/* The shared week calendar (calendar-views design 1). Colours follow the host
+   Dashboard's Week view (host-dashboard.css): Google events in slate on pale
+   blue, Find Me a Time meetings in ink blue, sent requests outlined. Marked
+   times sit above the events; one that covers an event is inset so the event
+   stays visible beside it. */
+.cw{--cw-axis:44px;min-width:0;color:var(--foreground)}
+.cw-toolbar{display:flex;flex-wrap:wrap;align-items:center;gap:8px 12px;margin-bottom:10px}
+.cw-title{margin:0;font-size:15px;font-weight:600;font-variant-numeric:tabular-nums;flex:1 1 auto;min-width:0}
+.cw-nav{display:flex;gap:4px}
+.cw-nav button{width:44px;height:44px;display:grid;place-items:center;border:0;border-radius:9999px;background:var(--secondary);color:var(--foreground);transition:background-color 150ms}
+.cw-nav button:hover{background:color-mix(in srgb,var(--primary) 12%,var(--secondary))}
+.cw-nav svg{width:18px;height:18px}
+.cw button:focus-visible{outline:2px solid var(--ring);outline-offset:3px}
+.cw-strip{display:grid;grid-template-columns:repeat(7,minmax(0,1fr));gap:4px;margin-bottom:10px}
+.cw-strip button{min-height:52px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:1px;border:0;border-radius:12px;background:var(--secondary);color:var(--foreground);font-variant-numeric:tabular-nums;transition:background-color 150ms}
+.cw-strip button span{font-size:11px;color:var(--muted-foreground);font-weight:600}
+.cw-strip button strong{font-size:15px}
+.cw-strip button[aria-pressed=true]{background:var(--primary);color:var(--primary-foreground)}
+.cw-strip button[aria-pressed=true] span{color:inherit}
+.cw-strip button[aria-current=date] strong{text-decoration:underline;text-underline-offset:3px}
+.cw-dot{width:5px;height:5px;border-radius:50%;background:currentColor}
+.cw-dot.cw-none{visibility:hidden}
+.cw-grid{display:grid;align-items:start;background:var(--card);border-radius:16px;overflow:hidden}
+.cw-corner{height:44px}
+.cw-day-head{height:44px;display:flex;flex-direction:column;align-items:center;justify-content:center;border-left:1px solid #eef1f5;font-variant-numeric:tabular-nums}
+.cw-day-head span{font-size:11px;font-weight:600;color:var(--muted-foreground)}
+.cw-day-head strong{font-size:15px;line-height:1.2}
+.cw-day-head[aria-current=date] strong{background:var(--primary);color:var(--primary-foreground);border-radius:9999px;padding:0 7px}
+.cw-axis{display:flex;flex-direction:column;border-top:1px solid #eef1f5}
+.cw-axis span{height:48px;flex:none;padding-right:6px;text-align:right;font-size:10px;color:#6b7482;font-variant-numeric:tabular-nums;transform:translateY(-6px)}
+.cw-axis span:first-child{transform:none}
+.cw-body{position:relative;border-top:1px solid #eef1f5}
+.cw-column{position:absolute;top:0;bottom:0;border-left:1px solid #eef1f5;background-image:linear-gradient(to bottom,#eef1f5 1px,transparent 1px);background-repeat:repeat-y}
+.cw-column.cw-today{background-color:#f8fafd}
+.cw-column.cw-pickable{cursor:pointer}
+.cw-column.cw-pickable:hover{background-color:color-mix(in srgb,var(--primary) 4%,transparent)}
+.cw-layer{position:absolute;inset:0;margin:0;padding:0;list-style:none;pointer-events:none}
+.cw-item,.cw-mark{position:absolute;box-sizing:border-box;padding:0 3px;min-width:0}
+.cw-item>.cw-item-text,.cw-item.cw-all-day>span[aria-hidden]{display:block;height:100%;overflow:hidden;border-left:3px solid;border-radius:7px;padding:3px 5px;font-size:11px;line-height:1.25;font-weight:600}
+.cw-item strong{font-weight:600;font-size:10px;margin-right:2px;font-variant-numeric:tabular-nums}
+.cw-item.cw-short>.cw-item-text,.cw-item.cw-all-day>span[aria-hidden]{white-space:nowrap;text-overflow:ellipsis;padding-top:1px;padding-bottom:1px}
+.cw-google>span[aria-hidden],.cw-busy>span[aria-hidden],.cw-received>span[aria-hidden]{background:#e8ecf3;border-color:#8a9bb6;color:#263955}
+.cw-thyme>span[aria-hidden]{background:#2c3e63;border-color:#8398bd;color:#fff}
+.cw-sent>span[aria-hidden]{background:#f7f9fc;border:1px solid #2c3e63;border-left-width:3px;color:#2c3e63}
+.cw-busy>span[aria-hidden]{background:repeating-linear-gradient(135deg,#eef1f5 0 6px,#e3e8ef 6px 12px);border-color:#7b8ba8;color:#3e444e}
+.cw-marks{z-index:3}
+.cw-mark{pointer-events:auto}
+.cw-mark.cw-inset{padding-left:34%}
+.cw-mark-body{display:flex;flex-direction:column;justify-content:flex-start;gap:1px;width:100%;height:100%;overflow:hidden;box-sizing:border-box;border:2px solid var(--primary);border-radius:8px;padding:2px 5px;background:var(--card);color:var(--primary);text-align:left;font-size:11px;line-height:1.2;font-variant-numeric:tabular-nums}
+.cw-mark-body strong{font-size:11px;font-weight:700;white-space:nowrap}
+.cw-tag{font-size:10px;font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.cw-short .cw-mark-body{flex-direction:row;align-items:center;gap:4px;padding-top:0;padding-bottom:0}
+button.cw-mark-body{cursor:pointer;transition:background-color 150ms,color 150ms}
+button.cw-mark-body:disabled{cursor:not-allowed;opacity:.55}
+.cw-option .cw-mark-body{background:var(--primary);color:var(--primary-foreground)}
+.cw-option button.cw-mark-body:hover:not(:disabled){background:#243453}
+.cw-proposed .cw-mark-body{box-shadow:inset 0 0 0 1px var(--primary)}
+.cw-draft .cw-mark-body{border-style:dashed}
+.cw-trip .cw-mark-body{border-style:dashed;border-color:var(--warning);background:color-mix(in srgb,var(--warning) 10%,var(--card));color:var(--warning)}
+.cw-hint{margin:8px 0 0;font-size:13px;color:var(--muted-foreground)}
+.cw[data-narrow] .cw-grid{grid-template-rows:auto}
+@media (prefers-reduced-motion:reduce){.cw *{transition:none!important}}

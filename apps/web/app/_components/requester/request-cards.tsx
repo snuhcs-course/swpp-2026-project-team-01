@@ -1,6 +1,6 @@
 "use client";
 
-import { EVALUATION_FAILURE_MESSAGES, nearestTimesMessage, noMatchMessage, TIMES_SHOWN } from "@lib/contracts/feasibility";
+import { EVALUATION_FAILURE_MESSAGES, nearestTimesMessage, noMatchMessage } from "@lib/contracts/feasibility";
 import type { LinkPlan, RequesterCandidate, RequestLanguage, RequestWindow, ReviewPatch } from "@lib/contracts/request";
 import { displayTime, zoneLabel } from "@lib/contracts/timezone";
 import { type FormEvent, type ReactNode, useEffect, useId, useState } from "react";
@@ -9,6 +9,7 @@ import { groupWindows } from "@/app/_components/setup/format";
 import { WeeklyWindowsEditor } from "@/app/_components/setup/weekly-windows-editor";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { CandidateCalendar } from "./candidate-calendar";
 import type { CommandOutcome, RequesterCardContext } from "./cards";
 
 // The guest's scheduling cards (design decision 12; DESIGN.md: conversation
@@ -709,12 +710,12 @@ export function CandidatesCard({ context }: { readonly context: RequesterCardCon
   const { evaluation, request } = context.view;
   const { act, busy, error } = useAction(context);
   const [notice, setNotice] = useState<string | null>(null);
-  const [page, setPage] = useState(0);
-  const [tripRevealed, setTripRevealed] = useState<{ evaluationId: string; count: number } | null>(null);
+  // The trip-dependent time whose estimate is open, chosen on the grid.
+  const [tripId, setTripId] = useState<string | null>(null);
   const missing = missingLabels(context);
   const lang = language(context);
 
-  useEffect(() => setPage(0), [evaluation?.id]);
+  useEffect(() => setTripId(null), [evaluation?.id]);
 
   useEffect(() => {
     if (evaluation?.state !== "pending") return;
@@ -722,14 +723,10 @@ export function CandidatesCard({ context }: { readonly context: RequesterCardCon
     return () => clearInterval(timer);
   }, [evaluation?.state, context.refresh]);
 
-  const offeredCount = evaluation?.candidates.filter((candidate) => !candidate.unresolvedRequesterLeg).length ?? 0;
-
+  // Every offered time is on the grid at once (calendar-views design 3), so
+  // Find other times searches again.
   const findTimes = async () => {
     setNotice(null);
-    if ((page + 1) * TIMES_SHOWN < offeredCount) {
-      setPage(page + 1);
-      return;
-    }
     await act("request.evaluate", {}, null);
   };
 
@@ -771,8 +768,7 @@ export function CandidatesCard({ context }: { readonly context: RequesterCardCon
 
   const offered = evaluation.candidates.filter((candidate) => !candidate.unresolvedRequesterLeg);
   const trips = evaluation.candidates.filter((candidate) => candidate.unresolvedRequesterLeg);
-  const tripVisibleCount = tripRevealed?.evaluationId === evaluation.id ? tripRevealed.count : Math.max(0, 5 - Math.min(offered.length, 5));
-  const remainingTrips = Math.max(0, trips.length - tripVisibleCount);
+  const openTrip = trips.find((candidate) => candidate.id === tripId) ?? null;
   // An online time with neither a Google Meet plan nor the requester's own link
   // cannot become a proposal (design decision 11).
   const linkMissing = (candidate: RequesterCandidate) =>
@@ -806,7 +802,7 @@ export function CandidatesCard({ context }: { readonly context: RequesterCardCon
 
   return (
     <GuestCard
-      className="mx-auto w-[94%] max-w-xl"
+      className="mx-auto w-[94%] max-w-2xl"
       id="candidates"
       label="Times"
       title={offered.length > 0 ? "Choose a time" : trips.length > 0 ? "These times depend on your trip" : nearestTimes.length > 0 ? "Nearest open times" : "No times found yet"}
@@ -826,32 +822,23 @@ export function CandidatesCard({ context }: { readonly context: RequesterCardCon
         </>
       ) : null}
       {needsLink && offered.length > 0 ? <p>The host cannot create a Google Meet link, so add your own meeting link to choose a time.</p> : null}
-      {offered.length > 0 ? (
-        <ul aria-label="Candidate times" className="flex flex-col gap-2">
-          {offered.slice(page * TIMES_SHOWN, (page + 1) * TIMES_SHOWN).map((candidate) => (
-            <li className="flex flex-wrap items-center justify-between gap-2 rounded-2xl bg-secondary p-3" key={candidate.id}>
-              <CandidateTime candidate={candidate} timeZone={context.timezone} />
-              <Button
-                aria-label={`Choose this time: ${timeRange(candidate, context.timezone)}`}
-                className="min-h-11"
-                disabled={busy || linkMissing(candidate)}
-                onClick={() => void choose(candidate)}
-                type="button"
-              >
-                Choose this time
-              </Button>
-            </li>
-          ))}
+      {offered.length > 0 || trips.length > 0 ? (
+        <CandidateCalendar
+          bookingId={context.bookingId}
+          busy={busy}
+          linkMissing={linkMissing}
+          offered={offered}
+          onChoose={(candidate) => void choose(candidate)}
+          onTrip={(candidate) => setTripId(candidate.id)}
+          timeZone={context.timezone}
+          trips={trips}
+        />
+      ) : null}
+      {openTrip ? (
+        <ul aria-label="Time that depends on your trip" className="flex flex-col gap-2">
+          <TripAllowance candidate={openTrip} context={context} evaluationId={evaluation.id} key={openTrip.id} />
         </ul>
       ) : null}
-      {trips.length > 0 ? (
-        <ul aria-label="Times that depend on your trip" className="flex flex-col gap-2">
-          {trips.slice(0, tripVisibleCount).map((candidate) => (
-            <TripAllowance candidate={candidate} context={context} evaluationId={evaluation.id} key={candidate.id} />
-          ))}
-        </ul>
-      ) : null}
-      {remainingTrips > 0 ? <Button className="min-h-11 self-start" onClick={() => setTripRevealed({ evaluationId: evaluation.id, count: tripVisibleCount + 5 })} type="button" variant="outline">Show {Math.min(5, remainingTrips)} more trip-dependent times ({remainingTrips} remaining)</Button> : null}
       <GuestCardActions>
         {findButton("Find other times")}
         <DetailsButton context={context} label={needsLink ? "Add a meeting link" : "Edit details"} />
