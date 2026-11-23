@@ -125,7 +125,7 @@ test("a new host completes setup one card at a time, from the authored messages 
   await expectOnlyCard(page, "Which time zone do you meet in?");
   const timezone = card(page, "Which time zone do you meet in?");
   await expect(timezone.getByRole("heading", { name: "Which time zone do you meet in?" })).toBeFocused();
-  await expect(timezone.getByText("1 of 7")).toBeVisible();
+  await expect(timezone.getByText("1 of 8")).toBeVisible();
   // No stepper chrome: answered steps are receipts, and Edit replaces Back.
   await expect(timezone.getByRole("button", { name: "Back" })).toHaveCount(0);
   await expectCardFits(page);

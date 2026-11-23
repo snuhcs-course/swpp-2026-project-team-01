@@ -10,8 +10,9 @@ export default defineEval({
   tags: ["requester", "live-model", "host-notes"],
   async test(t) {
     const projection = withHostNotes("투자 상담 미팅은 30분으로 해 주세요.", { durationMinutes: 60, meetingMode: "online", places: null }, {
-      details: { ...withHostNotes("", {}).details, durationMinutes: 60, language: "ko", mode: "online" },
-      missing: ["purpose"],
+      // The host's 60 minutes is only in host.offer: nothing has applied a length yet.
+      details: { ...withHostNotes("", {}).details, durationMinutes: null, language: "ko", mode: "online" },
+      missing: ["purpose", "durationMinutes"],
     });
     const stubs = requesterStubs(projection, [{
       id: "notes-length",

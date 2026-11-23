@@ -7,7 +7,7 @@ Let a host give the guest's assistant free-text notes on their meeting preferenc
 
 ### Requirement: Host notes for the guest's assistant
 
-The service SHALL let a host keep one optional free-text note for the guest's assistant, **Notes for Thyme**, of at most 1000 characters, holding meeting preferences such as a length for one kind of meeting or a form for a first meeting. The service SHALL save the notes at once, outside the setup draft and its confirmation, and SHALL NOT use them as scheduling policy: feasibility SHALL NOT read them. Saving SHALL remove control, zero-width and bidirectional-override characters, and SHALL treat empty notes as none. A suspended or deleted host SHALL NOT save notes, and a deleted host's notes SHALL be removed.
+The service SHALL let a host keep one optional free-text note for the guest's assistant, **Notes for Thyme**, of at most 1000 characters, holding meeting preferences such as a length for one kind of meeting or a form for a first meeting. The service SHALL save the notes at once, outside the setup draft and its confirmation, and SHALL NOT use them as scheduling policy: feasibility SHALL NOT read them. Saving SHALL remove control, zero-width and bidirectional-override characters, and SHALL treat empty notes as none. A suspended or deleted host SHALL NOT save notes, and a deleted host's stored notes SHALL be removed; copies in recorded assistant session events follow those events' own retention.
 
 #### Scenario: Notes are saved without a confirmation
 
@@ -43,7 +43,7 @@ The service SHALL ask for the notes as the last, optional step of host setup, wh
 
 ### Requirement: The guest's assistant shapes proposals with the notes
 
-The guest's assistant SHALL receive the notes, when the host has any, only in the requester `read_request`, as quoted data with how it may use them. It SHALL use them only to choose among what the host offers and the tools allow, such as the length to propose for the meeting's purpose, the form to suggest first when the host offers either, or which of the host's places to suggest, and SHALL propose them as its own suggestions that the guest may change. It SHALL NOT quote, paraphrase, summarise or mention the notes, SHALL NOT say that the host prefers or asked for something, and SHALL NOT reveal more than its proposals show. When a note conflicts with the host's offer, the tools or the times found, the offer, the tools and the times SHALL win. The notes SHALL NOT reach the guest's cards, emails or notices, the host-review assistant, or agents through MCP or the CLI.
+The guest's assistant SHALL receive the notes, when the host has any, only in the requester `read_request`, as quoted data with how it may use them. It SHALL use them only to choose among what the host offers and the tools allow, such as the length to propose for the meeting's purpose, the form to suggest first when the host offers either, or which of the host's places to suggest, and SHALL propose them as its own suggestions that the guest may change. It SHALL NOT quote, paraphrase, summarise or mention the notes, SHALL NOT say that the host prefers or asked for something, and SHALL NOT reveal more than its proposals show. When a note conflicts with the host's offer, the tools or the times found, the offer, the tools and the times SHALL win. The notes SHALL NOT reach the guest's cards, emails or notices, the guest's browser (the discussion events it replays SHALL carry them redacted), the host-review assistant, or agents through MCP or the CLI, including the host's own agent's setup state.
 
 #### Scenario: A length for this kind of meeting
 
@@ -55,6 +55,11 @@ The guest's assistant SHALL receive the notes, when the host has any, only in th
 
 - **WHEN** the host offers only online meetings and the notes say to meet in person at an office
 - **THEN** the assistant offers only an online meeting and does not mention the office
+
+#### Scenario: The booking page replays the conversation
+
+- **WHEN** the guest's browser reads the discussion's events, including the assistant's `read_request` results
+- **THEN** the host's notes appear only as a redaction marker
 
 #### Scenario: The guest asks for the notes
 

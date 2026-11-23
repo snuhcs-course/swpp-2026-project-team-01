@@ -5,7 +5,7 @@ begin;
 
 create extension if not exists pgtap with schema extensions;
 
-select plan(5);
+select plan(6);
 
 insert into app.host_accounts (id) values ('00000000-0000-4000-8000-0000000000d1');
 
@@ -24,6 +24,11 @@ select lives_ok(
 select throws_ok(
   $$ update app.host_accounts set assistant_notes = repeat('x', 1001) where id = '00000000-0000-4000-8000-0000000000d1' $$,
   '23514', null, 'notes are at most 1000 characters'
+);
+
+select throws_ok(
+  $$ update app.host_accounts set assistant_notes_updated_at = null where id = '00000000-0000-4000-8000-0000000000d1' $$,
+  '23514', null, 'saved notes keep when they were saved'
 );
 
 update app.host_accounts

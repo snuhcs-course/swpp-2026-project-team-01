@@ -24,7 +24,8 @@ CREATE TABLE "app"."host_accounts" (
   "assistant_notes_updated_at" timestamptz,
   CONSTRAINT "host_accounts_deleted_suspended" CHECK ("deleted_at" IS NULL OR ("status" = 'suspended' AND "display_name" IS NULL)),
   CONSTRAINT "host_accounts_deleted_unscheduled" CHECK ("deleted_at" IS NULL OR "deletion_due_at" IS NULL),
-  CONSTRAINT "host_accounts_deleted_no_notes" CHECK ("deleted_at" IS NULL OR "assistant_notes" IS NULL)
+  CONSTRAINT "host_accounts_deleted_no_notes" CHECK ("deleted_at" IS NULL OR "assistant_notes" IS NULL),
+  CONSTRAINT "host_accounts_notes_saved_at" CHECK (("assistant_notes" IS NULL) = ("assistant_notes_updated_at" IS NULL))
 );
 
 ALTER TABLE "app"."host_accounts" ENABLE ROW LEVEL SECURITY;

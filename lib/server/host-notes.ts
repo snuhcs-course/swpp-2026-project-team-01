@@ -1,5 +1,4 @@
 import { type HostNotesView, type SaveHostNotesInput, saveHostNotesInput } from "../contracts/host-notes";
-import { lockActiveHost } from "./analysis";
 import { type CommandDefinition, CommandError } from "./commands";
 import type { Queryable } from "./database";
 
@@ -18,11 +17,12 @@ export function saveHostNotesCommand(): CommandDefinition<SaveHostNotesInput, { 
     operation: SAVE_HOST_NOTES_OPERATION,
     async run(tx, { actor, input }) {
       if (actor.kind !== "host_account") throw new CommandError("forbidden");
-      await lockActiveHost(tx, actor.id);
+      // One row lock and the standing check in the same statement: a share lock
+      // first (lockActiveHost) would let two concurrent saves deadlock on the upgrade.
       const [row] = await tx<{ assistant_notes: string; assistant_notes_updated_at: Date }[]>`
         update app.host_accounts
         set assistant_notes = ${input.notes}, assistant_notes_updated_at = now(), updated_at = now()
-        where id = ${actor.id}
+        where id = ${actor.id} and status = 'active' and deleted_at is null
         returning assistant_notes, assistant_notes_updated_at
       `;
       if (!row) throw new CommandError("forbidden");
@@ -36,7 +36,8 @@ export async function readHostNotes(q: Queryable, hostAccountId: string): Promis
     select assistant_notes, assistant_notes_updated_at from app.host_accounts where id = ${hostAccountId}
   `;
   if (!row || row.assistant_notes === null) return null;
-  return { text: row.assistant_notes, updatedAt: (row.assistant_notes_updated_at ?? new Date(0)).toISOString() };
+  if (!row.assistant_notes_updated_at) throw new Error("Host notes have no saved time.");
+  return { text: row.assistant_notes, updatedAt: row.assistant_notes_updated_at.toISOString() };
 }
 
 // What the guest's assistant reads (read_request host.notes): the host's notes
@@ -48,4 +49,30 @@ export const HOST_NOTES_USE =
 export function guestNotesView(notes: string | null | undefined) {
   const text = notes?.trim() ?? "";
   return text.length > 0 ? { quoted: text, use: HOST_NOTES_USE } : null;
+}
+
+// The guest's booking page replays the discussion's recorded events, tool
+// results included, so read_request's host.notes would reach the guest's
+// browser. Every event leaving for a browser passes through this: a value
+// carrying HOST_NOTES_USE (the notes' marker) is replaced, whether the tool
+// output is an object or its JSON text. The model's own copy is untouched.
+export const REDACTED_HOST_NOTES = "[private to the host]";
+
+function isGuestNotes(value: unknown): boolean {
+  return typeof value === "object" && value !== null && (value as { use?: unknown }).use === HOST_NOTES_USE;
+}
+
+export function redactHostNotes<T>(value: T): T {
+  if (typeof value === "string") {
+    if (!value.includes(HOST_NOTES_USE.slice(0, 40))) return value;
+    try {
+      return JSON.stringify(redactHostNotes(JSON.parse(value) as unknown)) as T;
+    } catch {
+      return REDACTED_HOST_NOTES as T;
+    }
+  }
+  if (Array.isArray(value)) return value.map((entry) => redactHostNotes(entry)) as T;
+  if (typeof value !== "object" || value === null) return value;
+  if (isGuestNotes(value)) return REDACTED_HOST_NOTES as T;
+  return Object.fromEntries(Object.entries(value).map(([key, entry]) => [key, redactHostNotes(entry)])) as T;
 }

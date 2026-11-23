@@ -35,6 +35,9 @@ EXECUTE FUNCTION "app"."clear_assistant_notes"();
 ALTER TABLE "app"."host_accounts"
   ADD CONSTRAINT "host_accounts_deleted_no_notes" CHECK ("deleted_at" IS NULL OR "assistant_notes" IS NULL);
 
+ALTER TABLE "app"."host_accounts"
+  ADD CONSTRAINT "host_accounts_notes_saved_at" CHECK (("assistant_notes" IS NULL) = ("assistant_notes_updated_at" IS NULL));
+
 -- The same function privileges pg-delta gives app.clear_sender_name.
 REVOKE ALL ON FUNCTION "app"."clear_assistant_notes"() FROM PUBLIC;
 

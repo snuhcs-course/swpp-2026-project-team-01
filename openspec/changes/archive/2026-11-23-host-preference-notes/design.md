@@ -20,7 +20,9 @@ Only the requester `read_request` (`readRequestForTool`) carries the notes, as `
 
 The guard against prompt injection is layered: the notes are host-written text bounded in length and cleaned of hidden characters; they arrive as a JSON string value under a field that names them as data; the instruction and `use` make them inert; and no tool the guest's assistant has can do more because of them. Every decision still goes through the same tools, the host's offer and the feasibility check, and the host approves every booking.
 
-The guest-facing contracts never carry the notes: the booking page's state, emails and notices are built from other projections, and the MCP and CLI tools for agents (`agent-requester-tools.ts`, `agent-host-tools.ts`) do not read the column.
+The guest-facing contracts never carry the notes: the booking page's state, emails and notices are built from other projections. The booking page also replays the discussion's recorded events, and those include each `read_request` result, so `audienceSafe` (`lib/server/recovery.ts`) passes every event leaving for a browser through `redactHostNotes`, which replaces any value carrying the `use` marker, as an object or as JSON text. The MCP and CLI tools for agents do not carry them either: `agent-requester-tools.ts` never reads the column, and `get_setup` in `agent-host-tools.ts` returns the setup state through `mcpSetupView`, without `assistantNotes`.
+
+The save command checks the host's standing in its own `UPDATE … where status = 'active'` rather than through `lockActiveHost`, whose share lock followed by the update would let two concurrent saves deadlock. A check keeps `assistant_notes` and `assistant_notes_updated_at` both null or both set. Copies of the notes in recorded session events (the guest's `read_request` results, the host's `save_assistant_notes` inputs) follow those events' own retention; deleting the account clears only the column.
 
 ## 4. The setup step
 

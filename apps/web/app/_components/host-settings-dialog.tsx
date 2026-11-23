@@ -61,7 +61,8 @@ export function HostSettingsDialog() {
     setOpen(true);
   }, []);
 
-  async function refresh() {
+  // Notes the host is typing survive a refresh after another setting's save.
+  async function refresh(resetNotes = false) {
     const [nextSetup, response] = await Promise.all([
       readSetupState(browserTimeZone()),
       fetch("/api/host/settings", { cache: "no-store" }),
@@ -73,12 +74,12 @@ export function HostSettingsDialog() {
     const location = editableLocation(nextSetup.fields.location.proposed?.value);
     setLocationRaw(location);
     setInitialLocation(location);
-    setNotesRaw(nextSetup.assistantNotes?.text ?? "");
+    if (resetNotes) setNotesRaw(nextSetup.assistantNotes?.text ?? "");
   }
 
   useEffect(() => {
     if (!open) return;
-    void refresh().catch(() => setNotice("Settings could not be loaded. Close and try again."));
+    void refresh(true).catch(() => setNotice("Settings could not be loaded. Close and try again."));
   }, [open]);
 
   async function saveWindows(windows: WeeklyWindow[]) {
@@ -171,7 +172,7 @@ export function HostSettingsDialog() {
     });
     setBusy(false);
     setNotice(result.kind === "ok" ? (notes.length > 0 ? "Saved. Thyme keeps these notes in mind with your guests." : "Saved. Thyme has no notes now.") : result.message);
-    await refresh();
+    await refresh(result.kind === "ok");
   }
 
   async function setAccepting(accepting: boolean) {

@@ -67,7 +67,7 @@ eve는 경로에서 이름을 도출합니다(`tools/<name>.ts`는 `<name>` 도�
 
 | 논의 | Principal(주체) | 시작 계기 | 지침 | 도구 |
 |---|---|---|---|---|
-| 호스트 설정 | `host:{hostId}` | 활성 호스트의 첫 `/app` 방문; 호스트당 하나 | base + host-setup (+ host-imessage) | `read_setup_state`, `draft_settings`, `list_host_requests`, `set_calendar_roles`, `preview_next_week`, `confirm_settings`, `choose_note_items`, `confirm_note_items`, `switch_conversation` |
+| 호스트 설정 | `host:{hostId}` | 활성 호스트의 첫 `/app` 방문; 호스트당 하나 | base + host-setup (+ host-imessage) | `read_setup_state`, `draft_settings`, `save_assistant_notes`, `list_host_requests`, `set_calendar_roles`, `preview_next_week`, `confirm_settings`, `choose_note_items`, `confirm_note_items`, `switch_conversation` |
 | 호스트 비공개 요청 논의 | `requestId` 속성과 `host_review` 대상이 있는 `host:{hostId}`; 호스트와 요청마다 논의 하나 | 호스트가 `/app`에서 요청을 선택(`/app?request={requestId}`)하거나, 정확한 `request <reference>` iMessage 명령을 보냄 | base + host-review | `read_request`(호스트 프로젝션), `list_host_requests`, `evaluate_candidates`, `propose_shared_changes`, `approve_proposal`, `decline_request`, `share_changes`, `dismiss_changes`, `switch_conversation`, `read_booking_status` |
 | 공유 요청자 논의 | `request:{requestId}` | 고정 단계(신원 확인, 캘린더 단계, 만남에 관한 페이지의 질문; [`guest-flow-completion` U8, U13](../../openspec/changes/guest-flow-completion/proposal.md#decisions)) 뒤에 예약 페이지에서 게스트가 보낸 첫 메시지, 또는 이메일로 시작된 요청의 첫 이메일; 같은 세션이 이후의 웹, 이메일, iMessage 메시지로 이어짐 | base + requester | `read_request`(요청자 프로젝션), `draft_request_review`, `evaluate_candidates`, `read_booking_status`, 그리고 말로 내리는 결정 `apply_request_review`, `choose_time`, `agree_to_proposal`, `change_agreement`, `withdraw_request` |
 
@@ -95,7 +95,8 @@ eve principal은 사람의 신원이 아니라 대상입니다. 요청자에게�
 |---|---|---|---|
 | `read_setup_state` | 호스트 설정 | 현재 초안, 저장된 역할, 분석 근거, 다음 행동; 캘린더 이름과 그 인덱스, 그리고 `placeCandidates`(자주 나온 이벤트 장소 최대 다섯 개와 그 횟수, [`host-onboarding-in-chat` 설계 4](../../openspec/changes/host-onboarding-in-chat/design.md#4-the-place-question))는 인용된 데이터로만. 연동된 채팅이 있는 호스트에게는 `chatOnboarding`이 온보딩 메모 단계(`noteReview`: `waiting`, `done` 또는 없음)와 그 채팅에 마지막으로 보낸 슬롯 이미지(`slotPreview`: 그 `reviewRef`, 현재 검토의 것인지 여부, `sending`, `delivered` 또는 `not_delivered`)를 알려 줌. 작업이 어시스턴트의 마지막 도구 결과 뒤에 그 이미지를 보낼 수 있기 때문임([`calendar-note-review` 설계 8](../../openspec/changes/calendar-note-review/design.md#8-the-note-step-in-chat-onboarding)) | never |
 | `draft_settings` | 호스트 설정 | 리비전과 함께 초안 값을 기록하고 각 값을 명시됨 또는 추론됨으로 표시함(시작 기본값은 서비스 자체의 것); 정책은 절대 아니며, 방식, 장소, 이동 수단은 호스트가 카드에서 수락하거나 그것을 보여 주는 슬롯 이미지에 동의한 뒤에만 인정됨 | never |
-| `read_request` | 호스트 또는 요청자 | 현재 요청, 제안 버전, 결정, 허용된 대화를 대상별로 프로젝션하여 제공하며, 읽는 사람의 시간대로 오늘 날짜를 함께 줌(호스트에게는 시각과 이번 주, 다음 주도 함께, #273); 초안의 경우 `identified: false`와 연락처 존재 여부 `absent` | never |
+| `save_assistant_notes` | 호스트 설정 | 호스트의 말을 바탕으로, 웹이나 연동된 대화에서, Thyme에게 남기는 호스트의 메모 전체를 초안과 별개로 즉시 저장함; `read_setup_state`가 현재 `assistantNotes`를 제공함([`host-preference-notes`](../../openspec/changes/archive/2026-11-23-host-preference-notes/design.md)) | never |
+| `read_request` | 호스트 또는 요청자 | 현재 요청, 제안 버전, 결정, 허용된 대화를 대상별로 프로젝션하여 제공하며, 읽는 사람의 시간대로 오늘 날짜를 함께 줌(호스트에게는 시각과 이번 주, 다음 주도 함께, #273); 초안의 경우 `identified: false`와 연락처 존재 여부 `absent`. 요청자 프로젝션에만 `host.notes`가 추가되며, 이는 Thyme에게 남기는 호스트의 메모를 용도와 함께 인용된 데이터로 담고 있고, 브라우저의 이벤트 스트림에서는 가려짐(`audienceSafe`의 `redactHostNotes`) | never |
 | `list_host_requests` | 호스트 설정 또는 호스트 검토 | 참조, 상태, 결정이 필요한지 여부, 예약되었거나 제안된 시간과 그 시간이 속한 주와 함께 호스트의 요청, 그리고 호스트 시간대의 현재 날짜와 시각, 이번 주와 다음 주(월요일부터 일요일까지)(#300); 프로젝션을 넘어서는 요청자의 비공개 데이터는 없음. 설정에서는 #138부터 | never |
 | `approve_proposal`, `decline_request`, `share_changes`, `dismiss_changes` | 호스트 검토 | 연동된 대화에서 호스트가 말로 내리는 결정([`host-imessage-channel` D23](../../openspec/changes/host-imessage-channel/proposal.md#decisions), [`channel-actions-in-words`](../../openspec/changes/channel-actions-in-words/proposal.md#decisions) D1): 각각 채널 접두사가 붙은 메시지에 답하는 턴이 아니거나, 현재 제안 버전 또는 대기 중인 제안을 명시하지 않으면 거부하며, 웹 버튼의 명령을 재시도 키 `tool:{callId}`로 한 번 실행 | never |
 | `set_calendar_roles` | 호스트 설정 | 호스트가 말로 지정한 충돌 확인 캘린더와 예약 대상 캘린더를 인덱스와 인용된 이름으로 받아 캘린더 카드와 같은 확인(실시간 목록에 있을 것, 쓰기 가능한 대상)을 거쳐 저장하고 새 분석을 게시함; 연동된 대화에서 온 턴에서만 동작함([`host-onboarding-in-chat` 설계 2](../../openspec/changes/host-onboarding-in-chat/design.md#2-default-calendar-roles)) | never |
@@ -137,7 +138,7 @@ eve의 승인 정책(`once`, `always`, 사용자 정의)은 도구 실행을 제
 | 도구 | 호스트 설정 | 호스트 검토 | 요청자(초안 포함) |
 |---|---|---|---|
 | `read_setup_state` | 있음 | 없음 | 없음 |
-| `draft_settings` | 있음 | 없음 | 없음 |
+| `draft_settings`, `save_assistant_notes` | 있음 | 없음 | 없음 |
 | `set_calendar_roles`, `preview_next_week`, `confirm_settings`, `choose_note_items`, `confirm_note_items` | 있음, 연동된 대화의 턴에서만 | 없음 | 없음 |
 | `read_request` | 없음 | 있음, 호스트 프로젝션 | 있음, 요청자 프로젝션 |
 | `list_host_requests` | 없음 | 있음 | 없음 |

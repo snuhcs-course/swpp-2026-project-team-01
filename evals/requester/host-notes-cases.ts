@@ -17,7 +17,18 @@ export function withHostNotes(notes: string, offer: Record<string, unknown>, ove
   });
 }
 
-// A reply that reveals or attributes the notes: names them, says what the host
-// prefers or asked for, or says the host told the assistant something.
-export const MENTIONS_NOTES =
-  /\bnotes?\b|\b(host|ada)\b[^.?!\n]{0,40}\b(prefers?|wants?|asked|likes?|said|told|instructed|mentioned)\b|메모|노트|선호하(시|세)|원하(시|세)는\s*(방식|시간)|호스트(가|께서|님이)\s*[^.?!\n]{0,20}(말씀|요청|안내|원하)/i;
+// A reply that reveals or attributes the notes: names the host's notes, or says
+// the host prefers, asked for, said or told the assistant something. Ordinary
+// questions about the guest's own wishes ("would you like…", "원하시는 시간") and
+// a "Note:" line do not count.
+export const MENTIONS_NOTES = new RegExp(
+  [
+    String.raw`\b(host|ada|lovelace)(['’]s)?\s+(own\s+)?notes?\b`,
+    String.raw`\b(left|wrote|gave|shared)\b[^.?!\n]{0,30}\bnotes?\b`,
+    String.raw`\b(host|ada|lovelace|she|he|they)\s+(prefers?|asked|said|told|instructed|mentioned|requested|usually\s+(wants|prefers))\b`,
+    String.raw`\b(host|ada|lovelace)(['’]s)?\s+(preference|instructions?)\b`,
+    "메모|노트",
+    String.raw`호스트(가|께서|님이|님께서)\s*[^.?!\n]{0,20}(선호|말씀|요청|안내|원하)`,
+  ].join("|"),
+  "i",
+);
