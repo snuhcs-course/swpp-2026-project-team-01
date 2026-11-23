@@ -1,8 +1,8 @@
 # Story Path Evaluation
 
-Status: **draft**, pre-check run, prompt comparison and the 2026-11-23 release runs done, no official run yet, pass criteria to be agreed with the TA\
+Status: **draft**, pre-check run, prompt comparison and the 2026-11-23 release runs done, model comparison built and waiting for a Claude key, no official run yet, pass criteria to be agreed with the TA\
 Date: 2026-11-18, release runs 2026-11-23\
-Tracking: [#261](https://github.com/snuhcs-course/swpp-2026-project-team-01/issues/261) (guest and host review), [#152](https://github.com/snuhcs-course/swpp-2026-project-team-01/issues/152) (host setup), [#232](https://github.com/snuhcs-course/swpp-2026-project-team-01/issues/232) (Iteration 4 metrics)\
+Tracking: [#261](https://github.com/snuhcs-course/swpp-2026-project-team-01/issues/261) (guest and host review), [#375](https://github.com/snuhcs-course/swpp-2026-project-team-01/issues/375) (model comparison), [#152](https://github.com/snuhcs-course/swpp-2026-project-team-01/issues/152) (host setup), [#232](https://github.com/snuhcs-course/swpp-2026-project-team-01/issues/232) (Iteration 4 metrics)\
 Basis: [Testing baseline](https://github.com/snuhcs-course/swpp-2026-project-team-01/pull/249) (PR #249, `12_testing_baseline.md`), [Agent configuration](04_agent_configuration.md), `agent/instructions/`, `agent/tools/`, [Guest defense evaluation](10_guest_defense_evaluation.md), [Host approval evaluation](11_host_approval_evaluation.md)
 
 This document describes the Iteration 4 evaluation of the assistant on the revised user stories: a fixed set of cases built from the testing baseline, how each case is graded, the run settings, the pre-check run and where the work stands. The Iteration 3 sets attack the guest assistant and check approval in words; this set follows the stories' own paths, including users who answer out of order, change their minds or send noise. Results will be added below for each run without changing the set.
@@ -192,6 +192,34 @@ The failed runs of those cases were read from their transcripts:
 - **RV-F03** (0 of 3): the database check passed on every run (the new suggestion keeps Wednesday 15:00 and is in person at 강남역), so the merge of #275 holds. The rubric failed because each reply says the time stays without naming 15:00; a reply detail, left as a follow-up.
 
 RV-F01, RV-F02, RV-F04 and RV-D01 passed every run, as did RV-02, RV-05, RV-06, RV-07, RV-P5, RV-X10 and RV-X14, so the fixes for #272, #274, #276 and #58 hold. The other failed cases were not read against the instructions in this run: GU-U1, GU-02, GU-04, GU-07, GU-27, GU-30, GU-32, GU-36, GU-P3, GU-P5, GU-R05, GU-R12 and GU-R17; RV-20, RV-27, RV-28, RV-33, RV-X06, RV-X08 and RV-X19.
+
+### Model comparison
+
+[#375](https://github.com/snuhcs-course/swpp-2026-project-team-01/issues/375) compares several models, Claude included, as the model behind the assistant, so the team chooses a model per assistant on evidence. The model under test is chosen only by `FMAT_ASSISTANT_MODEL` ([Agent configuration](04_agent_configuration.md#model)); cases, tools, instructions and graders stay as they are, and the grader of the story sets, `gpt-6.1-sol`, is none of the models compared. The guest defense and host approval sets, which the runner can add, grade with `gpt-5.6-terra`, one of the candidates; read them with that in mind.
+
+[`scripts/model-comparison.ts`](../../scripts/model-comparison.ts) runs each set once per model, every case three times, and writes the artifact directories to `.eve/model-comparison/<time>.json` after every set, so an interrupted run keeps what it finished. It refuses to start without `OPENAI_API_KEY` (the graders) and the key of every provider it names. With the local stack running (step 1 of [How to run](#how-to-run)):
+
+```sh
+npx tsx scripts/model-comparison.ts run --models openai/gpt-5.6-terra,anthropic/claude-sonnet-5-5,anthropic/claude-opus-5-5
+npx tsx scripts/model-comparison.ts report .eve/model-comparison/<time>.json
+```
+
+`--sets story` (the default) runs the guest and host review story sets; `--sets all` adds the guest defense and host approval sets, and `--sets guest-story,host-approval` picks sets by name. Each row of the table is one model on one set ([`evals/comparison/metrics.ts`](../../evals/comparison/metrics.ts)):
+
+| Column | How |
+|---|---|
+| pass^3, pass^1 | Cases passing every run, of the cases with all three runs; runs passed |
+| Over-refusals | Failed runs of the over-refusal controls (guest defense set), plus failed normal-case runs whose reply declines to help (a fixed English and Korean pattern) |
+| Median reply, lines per reply, over 280 chars | Length and shape of every reply, for the texting style of [#362](https://github.com/snuhcs-course/swpp-2026-project-team-01/issues/362); 280 characters is about a phone screen of a messenger bubble |
+| Gives a reason | Share of replies with a reason marker ("because", "since", "so that", 때문에, 이유는), the "why" #362 asks to tone down |
+| Turn latency | Median and 90th percentile from a turn's start to its completion, tool calls on the local stack included |
+| Cost per conversation | Mean over the set's evals of the assistant's own steps at `MODEL_PRICES` (cache reads and Claude's cache writes priced separately); the graders' calls are not counted |
+
+The length, tone and over-refusal columns are pattern counts, not graded judgments; read the transcripts (`scripts/story-evals.ts report --transcripts`) before drawing a conclusion from a small difference.
+
+**Budget.** One run of both story sets, now 145 cases and 435 evals, comes to about USD 9 with `gpt-5.6-terra` at the USD 0.02 per eval measured on 2026-11-18, graders included. Claude Sonnet 5.5 is priced like it (USD 2 / 10 per million input and output tokens) and Claude Opus 5.5 at twice that, so the three models above are estimated at about USD 40, held to USD 50; the paid run waits for the owner's approval of that budget.
+
+**Status (2026-11-23).** The runner, the model choice and the prices are in place. The run has not happened: neither `ANTHROPIC_API_KEY` nor a key that reaches Claude is in the project's env files. Results and the team's model per assistant will be recorded here.
 
 ## Appended cases
 

@@ -1,0 +1,40 @@
+{
+  "branch": "test/model-comparison",
+  "user": "dodo41142727@gmail.com",
+  "sessions": {
+    "claude:d5db94e9-b158-48b4-84da-d3397cd93874": {
+      "agent": "claude-code",
+      "client": "claude-desktop",
+      "agent_ms": 0,
+      "models": {
+        "claude-opus-5-5": {
+          "input": 128,
+          "cache_read": 14231406,
+          "cache_write_5m": 0,
+          "cache_write_1h": 243313,
+          "output": 53577,
+          "reasoning": 0
+        }
+      },
+      "first": "2026-11-23T07:26:55.175Z",
+      "last": "2026-11-23T07:41:58.602Z"
+    },
+    "claude:d5db94e9-b158-48b4-84da-d3397cd93874/agent-ab0137ee253ec2b5e": {
+      "agent": "claude-code",
+      "client": "claude-desktop",
+      "agent_ms": 0,
+      "models": {
+        "claude-sonnet-5-5": {
+          "input": 12,
+          "cache_read": 463077,
+          "cache_write_5m": 99832,
+          "cache_write_1h": 0,
+          "output": 3291,
+          "reasoning": 0
+        }
+      },
+      "first": "2026-11-23T07:41:20.619Z",
+      "last": "2026-11-23T07:41:44.851Z"
+    }
+  }
+}
