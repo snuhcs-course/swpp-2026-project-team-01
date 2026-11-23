@@ -6,7 +6,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useMemo, useReducer, useState } from "react";
 import { createDashboardCache, dateAt, fetchDashboardRange, monthStart, periodDays, periodRange, shift, shiftPeriod, type View, weekStart } from "./host-dashboard-data";
-import { blockLabel, detailNote, detailSource, meetingFacts, meetingRequestPath, sentState, sourceLabel } from "./host-dashboard-labels";
+import { blockLabel, detailNote, detailSource, meetingFacts, meetingRequestPath, receivedFacts, sentState, sourceLabel } from "./host-dashboard-labels";
 import { HostSettingsDialog } from "./host-settings-dialog";
 import { WorkspaceMenu } from "./workspace-menu";
 import { HostWordmark } from "./host-wordmark";
@@ -53,6 +53,7 @@ export function HostDashboard() {
   const [showGoogle, setShowGoogle] = useState(true);
   const [showThyme, setShowThyme] = useState(true);
   const [showSent, setShowSent] = useState(true);
+  const [showReceived, setShowReceived] = useState(true);
   // Loaded periods for this visit (#365): the grid stays while a period loads,
   // a period seen before shows at once, and the periods either side load ahead.
   const [cache] = useState(() => createDashboardCache(fetchDashboardRange));
@@ -81,7 +82,7 @@ export function HostDashboard() {
   const error = !data && failed === range ? LOAD_ERROR : null;
   const loading = !data && !error;
   const zone = data?.timeZone || lastZone || Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC";
-  const items = useMemo(() => (data?.events ?? []).filter((event) => event.source === "google" ? showGoogle : event.source === "sent" ? showSent : showThyme), [data, showGoogle, showSent, showThyme]);
+  const items = useMemo(() => (data?.events ?? []).filter((event) => event.source === "google" ? showGoogle : event.source === "sent" ? showSent : event.source === "received" ? showReceived : showThyme), [data, showGoogle, showReceived, showSent, showThyme]);
   const eventsFor = (key: string) => items.filter((event) => event.allDay ? event.start.slice(0, 10) <= key && key < event.end.slice(0, 10) : eventDay(event, zone) === key);
   const selectedEvents = eventsFor(selectedDay);
   const selected = selectedEvents.find((event) => event.id === selectedId) ?? selectedEvents[0] ?? null;
@@ -106,15 +107,15 @@ export function HostDashboard() {
         <div className="hd-intro"><h2>Your week comes <em>together here.</em></h2><p>See your plans and the meetings Thyme booked for you, side by side.</p></div>
         <section className="hd-calendar" aria-label="Calendar">
           <div className="hd-toolbar"><div className="hd-period"><h3 aria-live="polite">{periodTitle(anchor, view)}</h3><button aria-label="Previous period" onClick={() => navigate(-1)} type="button"><ChevronLeftIcon /></button><button aria-label="Next period" onClick={() => navigate(1)} type="button"><ChevronRightIcon /></button><button className="hd-today" onClick={goToday} type="button">Today</button></div><div className="hd-view" role="group" aria-label="Calendar view"><button aria-pressed={view === "week"} onClick={() => setView("week")} type="button">Week</button><button aria-pressed={view === "month"} onClick={() => setView("month")} type="button">Month</button></div></div>
-          <div className="hd-filters"><span>Show</span><label><input checked={showGoogle} onChange={(event) => setShowGoogle(event.target.checked)} type="checkbox" /><i className="hd-key hd-google" />Google Calendar</label><label><input checked={showThyme} onChange={(event) => setShowThyme(event.target.checked)} type="checkbox" /><i className="hd-key hd-thyme" />Find Me a Time meetings</label><label><input checked={showSent} onChange={(event) => setShowSent(event.target.checked)} type="checkbox" /><i className="hd-key hd-sent" />Sent requests</label><small>{zone.replaceAll("_", " ")}</small></div>
+          <div className="hd-filters"><span>Show</span><label><input checked={showGoogle} onChange={(event) => setShowGoogle(event.target.checked)} type="checkbox" /><i className="hd-key hd-google" />Google Calendar</label><label><input checked={showThyme} onChange={(event) => setShowThyme(event.target.checked)} type="checkbox" /><i className="hd-key hd-thyme" />Find Me a Time meetings</label><label><input checked={showSent} onChange={(event) => setShowSent(event.target.checked)} type="checkbox" /><i className="hd-key hd-sent" />Sent requests</label><label><input checked={showReceived} onChange={(event) => setShowReceived(event.target.checked)} type="checkbox" /><i className="hd-key hd-received" />Requests to decide</label><small>{zone.replaceAll("_", " ")}</small></div>
           {error ? <p className="hd-notice" role="alert">{error}</p> : null}
-          {data?.googleWarning ? <p className="hd-notice" role="status">{data.googleWarning} Find Me a Time meetings and sent requests are still shown.</p> : null}
+          {data?.googleWarning ? <p className="hd-notice" role="status">{data.googleWarning} Find Me a Time meetings and requests are still shown.</p> : null}
           <div className="hd-grid" data-view={view}><p className={loading ? "hd-grid-loading" : "sr-only"} role="status">{loading ? "Loading events…" : ""}</p>{view === "week" ?
             <div className="hd-week-scroll"><div className="hd-week"><div className="hd-spacer" />{days.map((date) => <button className={`hd-day-head ${dayKey(date) === today ? "hd-current" : ""}`} key={dayKey(date)} onClick={() => { setSelectedDay(dayKey(date)); setSelectedId(null); }} type="button"><span>{new Intl.DateTimeFormat("en-US", { weekday: "short", timeZone: "UTC" }).format(date)}</span><strong>{date.getUTCDate()}</strong></button>)}<div className="hd-time-axis">{HOURS.map((hour) => <span key={hour}>{String(hour).padStart(2, "0")}:00</span>)}</div>{days.map((date) => {
               const key = dayKey(date), dayItems = eventsFor(key);
               return <div className={`hd-day-column ${key === selectedDay ? "hd-selected-day" : ""}`} key={key} onClick={() => { setSelectedDay(key); setSelectedId(null); }}>
                 {dayItems.filter((event) => event.allDay).slice(0, 2).map((event) => <button className={`hd-event hd-${event.source} hd-all-day`} key={event.id} onClick={(click) => { click.stopPropagation(); selectEvent(event); }} type="button">{event.title}</button>)}
-                {dayItems.filter((event) => !event.allDay).map((event) => { const start = minutes(event.start, zone), end = minutes(event.end, zone); if (end <= 480 || start >= 1140) return null; const top = Math.max(start, 480) - 480, height = Math.max(Math.min(end, 1140) - Math.max(start, 480), 28); const compact = height < 45; return <button aria-label={`${sourceLabel(event)}: ${event.title}, ${eventTime(event, zone)}${event.meeting ? `, with ${event.meeting.guest.name}` : ""}${event.source === "sent" ? `, ${sentState(event)}` : ""}`} className={`hd-event hd-${event.source}${compact ? " hd-compact" : ""}`} key={event.id} onClick={(click) => { click.stopPropagation(); selectEvent(event); }} style={{ top: top + 38, height: height - 6 }} type="button"><strong>{eventTime(event, zone)}</strong><span>{compact ? blockLabel(event) : event.title}</span>{compact ? null : <small>{event.source === "sent" ? `Sent · ${sentState(event)}` : event.source === "thyme" ? `✦ ${event.meeting ? `With ${event.meeting.guest.name}` : "Thyme meeting"}` : "▣ Google event"}</small>}</button>; })}
+                {dayItems.filter((event) => !event.allDay).map((event) => { const start = minutes(event.start, zone), end = minutes(event.end, zone); if (end <= 480 || start >= 1140) return null; const top = Math.max(start, 480) - 480, height = Math.max(Math.min(end, 1140) - Math.max(start, 480), 28); const compact = height < 45; return <button aria-label={`${sourceLabel(event)}: ${event.title}, ${eventTime(event, zone)}${event.meeting ? `, with ${event.meeting.guest.name}` : ""}${event.source === "sent" ? `, ${sentState(event)}` : ""}${event.source === "received" && event.received ? `, from ${event.received.requesterName}` : ""}`} className={`hd-event hd-${event.source}${compact ? " hd-compact" : ""}`} key={event.id} onClick={(click) => { click.stopPropagation(); selectEvent(event); }} style={{ top: top + 38, height: height - 6 }} type="button"><strong>{eventTime(event, zone)}</strong><span>{compact ? blockLabel(event) : event.title}</span>{compact ? null : <small>{event.source === "sent" ? `Sent · ${sentState(event)}` : event.source === "received" ? `◇ ${blockLabel(event)} · To decide` : event.source === "thyme" ? `✦ ${event.meeting ? `With ${event.meeting.guest.name}` : "Thyme meeting"}` : "▣ Google event"}</small>}</button>; })}
               </div>;
             })}</div></div> :
             <div className="hd-month">{["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"].map((name) => <span className="hd-month-head" key={name}>{name}</span>)}{days.map((date) => { const key = dayKey(date), dayItems = eventsFor(key); return <div className={`hd-month-day ${date.getUTCMonth() !== anchor.getUTCMonth() ? "hd-outside" : ""} ${key === selectedDay ? "hd-selected-day" : ""}`} key={key} onClick={() => { setSelectedDay(key); setSelectedId(null); }}><strong>{date.getUTCDate()}</strong>{dayItems.slice(0, 3).map((event) => <button className={`hd-month-event hd-${event.source}`} key={event.id} onClick={(click) => { click.stopPropagation(); selectEvent(event); }} title={event.title} type="button">{event.allDay ? "" : `${eventTime(event, zone).split(" – ")[0]} `}{event.title}</button>)}{dayItems.length > 3 ? <small>+{dayItems.length - 3} more</small> : null}</div>; })}</div>}</div>
@@ -129,7 +130,7 @@ export function HostDashboard() {
 // to its request; other events show their time and any location.
 function EventFacts({ event, zone }: { readonly event: DashboardEvent; readonly zone: string }) {
   const when = event.allDay ? "All day" : eventTime(event, zone);
-  const facts = meetingFacts(event, when);
+  const facts = event.source === "received" ? receivedFacts(event, when) : meetingFacts(event, when);
   const requestPath = meetingRequestPath(event);
   if (facts.length === 0) {
     return <><p className="hd-detail-row"><Clock3Icon />{when}</p>{event.location ? <p className="hd-detail-row"><MapPinIcon />{event.location}</p> : null}</>;

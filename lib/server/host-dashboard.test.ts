@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { type BookingRow, bookedEvent } from "./host-dashboard";
+import { type BookingRow, bookedEvent, receivedEvent } from "./host-dashboard";
 
 function row(overrides: Partial<BookingRow> = {}): BookingRow {
   return {
@@ -50,5 +50,36 @@ describe("host dashboard booked meetings", () => {
     expect(event.title).toBe("Meeting booked by Thyme");
     expect(event.meeting?.guest.emailConfirmed).toBe(false);
     expect(event.meeting?.purpose).toBeNull();
+  });
+});
+
+describe("host dashboard received requests", () => {
+  it("draws a request awaiting a decision at its proposed time, never as a booking", () => {
+    const event = receivedEvent({
+      end_at: new Date("2026-11-25T06:00:00.000Z"),
+      id: "request-9",
+      purpose: "  Thesis feedback ",
+      requester_name: "Ada Lovelace",
+      start_at: new Date("2026-11-25T05:30:00.000Z"),
+      state: "awaiting_host_approval",
+    });
+    expect(event).toEqual({
+      allDay: false,
+      end: "2026-11-25T06:00:00.000Z",
+      id: "received:request-9",
+      location: null,
+      received: { purpose: "Thesis feedback", requestId: "request-9", requesterName: "Ada Lovelace" },
+      source: "received",
+      start: "2026-11-25T05:30:00.000Z",
+      state: "awaiting_host_approval",
+      title: "Request from Ada Lovelace",
+    });
+    expect(event.meeting).toBeUndefined();
+  });
+
+  it("names a requester without a name as Guest and drops an empty purpose", () => {
+    const event = receivedEvent({ end_at: new Date(1), id: "r", purpose: " ", requester_name: null, start_at: new Date(0), state: "negotiating" });
+    expect(event.title).toBe("Request from Guest");
+    expect(event.received).toEqual({ purpose: null, requestId: "r", requesterName: "Guest" });
   });
 });

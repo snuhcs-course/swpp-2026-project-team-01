@@ -1,6 +1,6 @@
 import type { DashboardEvent } from "@lib/server/host-dashboard";
 import { describe, expect, it } from "vitest";
-import { blockLabel, detailNote, detailSource, meetingFacts, meetingRequestPath, sentState, sourceLabel } from "./host-dashboard-labels";
+import { blockLabel, detailNote, detailSource, meetingFacts, meetingRequestPath, receivedFacts, sentState, sourceLabel } from "./host-dashboard-labels";
 
 function event(overrides: Partial<DashboardEvent>): DashboardEvent {
   return { allDay: false, end: "2026-11-20T02:00:00.000Z", id: "x", location: null, source: "google", start: "2026-11-20T01:00:00.000Z", title: "Meeting", ...overrides };
@@ -75,5 +75,26 @@ describe("host dashboard detail labels", () => {
     expect(meetingRequestPath(google)).toBeNull();
     expect(blockLabel(google)).toBe("Lunch");
   });
-});
 
+  it("labels a received request as awaiting the host's decision, not booked, with a way to open it", () => {
+    const received = event({
+      received: { purpose: "Thesis feedback", requestId: "request-9", requesterName: "Ada Lovelace" },
+      source: "received",
+      state: "awaiting_host_approval",
+      title: "Request from Ada Lovelace",
+    });
+    expect(sourceLabel(received)).toBe("Request awaiting your decision");
+    expect(detailSource(received)).toBe("Received request · Needs your decision");
+    expect(detailNote(received)).toContain("not booked until you approve it");
+    expect(detailNote(received)).not.toContain("Google Calendar");
+    expect(blockLabel(received)).toBe("From Ada Lovelace");
+    expect(meetingRequestPath(received)).toBe("/app?request=request-9");
+    expect(receivedFacts(received, "1:30 PM – 2:00 PM")).toEqual([
+      { label: "Proposed time", value: "1:30 PM – 2:00 PM" },
+      { label: "From", value: "Ada Lovelace" },
+      { label: "Purpose", value: "Thesis feedback" },
+    ]);
+    expect(meetingFacts(received, "x")).toEqual([]);
+    expect(receivedFacts(event({ source: "google" }), "x")).toEqual([]);
+  });
+});

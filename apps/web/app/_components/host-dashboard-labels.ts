@@ -3,6 +3,7 @@ import type { DashboardEvent } from "@lib/server/host-dashboard";
 /** The full source name, used in accessible event labels. */
 export function sourceLabel(event: DashboardEvent) {
   if (event.source === "sent") return "Sent request";
+  if (event.source === "received") return "Request awaiting your decision";
   return event.source === "thyme" ? "Find Me a Time meeting" : "Google Calendar event";
 }
 
@@ -18,11 +19,15 @@ export function sentState(event: DashboardEvent) {
 /** The short source name shown in the detail panel's agenda and badge. */
 export function detailSource(event: DashboardEvent) {
   if (event.source === "sent") return `Sent request · ${sentState(event)}`;
+  if (event.source === "received") return "Received request · Needs your decision";
   return event.source === "thyme" ? "Thyme meeting" : "Google Calendar";
 }
 
 /** The note under an event's details, explaining where it comes from. */
 export function detailNote(event: DashboardEvent) {
+  if (event.source === "received") {
+    return "A request someone sent you, shown at its proposed time. It is not booked until you approve it.";
+  }
   if (event.source === "sent") {
     return event.state === "booked"
       ? "A request you sent to another host through Find Me a Time. The meeting is booked."
@@ -63,10 +68,24 @@ export function meetingFacts(event: DashboardEvent, when: string): MeetingFact[]
 
 /** The host's own view of the request behind a Find Me a Time meeting. */
 export function meetingRequestPath(event: DashboardEvent) {
-  return event.source === "thyme" && event.meeting ? `/app?request=${encodeURIComponent(event.meeting.requestId)}` : null;
+  const requestId = event.source === "thyme" ? event.meeting?.requestId : event.source === "received" ? event.received?.requestId : undefined;
+  return requestId ? `/app?request=${encodeURIComponent(requestId)}` : null;
+}
+
+/** A received request's facts in its details: When · From · Purpose. Empty for other sources. */
+export function receivedFacts(event: DashboardEvent, when: string): MeetingFact[] {
+  const received = event.received;
+  if (event.source !== "received" || !received) return [];
+  const facts: MeetingFact[] = [
+    { label: "Proposed time", value: when },
+    { label: "From", value: received.requesterName },
+  ];
+  if (received.purpose) facts.push({ label: "Purpose", value: received.purpose });
+  return facts;
 }
 
 /** Who or what a calendar block is about, shown next to its time. */
 export function blockLabel(event: DashboardEvent) {
+  if (event.source === "received" && event.received) return `From ${event.received.requesterName}`;
   return event.source === "thyme" && event.meeting ? `With ${event.meeting.guest.name}` : event.title;
 }
