@@ -229,7 +229,7 @@ As a host, I want to see my current schedule, the requests I received and sent, 
 
 - The dashboard calendar shows Google Calendar events, meetings booked through Find Me a Time, requests the host sent to others, and received requests awaiting the host's decision at their proposed time ([`host-schedule-views`](../../openspec/changes/archive/2026-11-23-host-schedule-views/proposal.md), #330).
 - The week view draws 08:00–19:00 only; events outside it appear only in the day's details. At most two all-day events show per day.
-- The messenger (read_schedule) and MCP (get_schedule) read the host's schedule for a period: booked meetings, other Google Calendar events, requests to decide and sent requests, each labeled. In the linked messenger, send_schedule_image also sends up to a week of the same entries as one picture (M-5, [`messenger-schedule-image`](../../openspec/changes/messenger-schedule-image/proposal.md)). A weekly report is out of scope (owner decision on #330, 2026-11-23).
+- The messenger (read_schedule) and MCP (get_schedule) read the host's schedule for a period: booked meetings, other Google Calendar events, requests to decide and sent requests, each labeled. In the linked messenger, send_schedule_image also sends up to a week of the same entries as one picture (M-5, [`messenger-schedule-image`](../../openspec/changes/archive/2026-11-24-messenger-schedule-image/proposal.md)). A weekly report is out of scope (owner decision on #330, 2026-11-23).
 
 ### Web · dashboard
 

@@ -231,7 +231,7 @@ host:read · host:write · host:decide
 
 - 대시보드 캘린더에는 Google Calendar 일정, Find Me a Time으로 확정된 미팅, 호스트가 다른 사람에게 보낸 요청, 그리고 호스트의 결정을 기다리는 받은 요청이 제안된 시간에 나옵니다([`host-schedule-views`](../../openspec/changes/archive/2026-11-23-host-schedule-views/proposal.md), #330).
 - 주간 보기는 08:00~19:00만 그립니다. 그 밖의 시간 일정은 주간 칸에 안 보이고, 날짜를 눌러 오른쪽 상세에서만 보입니다. 종일 일정은 칸마다 2개까지만 보입니다.
-- 메신저(read_schedule)와 MCP(get_schedule)는 호스트의 일정을 기간 단위로 읽어 줍니다: 확정된 미팅, Google Calendar의 다른 일정, 결정할 요청, 보낸 요청이 각각 라벨과 함께 나옵니다. 연결된 메신저에서는 send_schedule_image가 같은 항목을 최대 일주일치 그림 한 장으로도 보냅니다(M-5, [`messenger-schedule-image`](../../openspec/changes/messenger-schedule-image/proposal.md)). 주간 보고는 범위 밖입니다(#330의 소유자 결정, 2026-11-23).
+- 메신저(read_schedule)와 MCP(get_schedule)는 호스트의 일정을 기간 단위로 읽어 줍니다: 확정된 미팅, Google Calendar의 다른 일정, 결정할 요청, 보낸 요청이 각각 라벨과 함께 나옵니다. 연결된 메신저에서는 send_schedule_image가 같은 항목을 최대 일주일치 그림 한 장으로도 보냅니다(M-5, [`messenger-schedule-image`](../../openspec/changes/archive/2026-11-24-messenger-schedule-image/proposal.md)). 주간 보고는 범위 밖입니다(#330의 소유자 결정, 2026-11-23).
 
 ### Web · 대시보드
 
