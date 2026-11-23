@@ -14,5 +14,7 @@
 ## Documents and review
 
 - [x] Update the guest booking flow (G3 and G6).
-- [ ] Regenerate the Korean mirror of the guest booking flow.
+- [x] Regenerate the Korean mirror of the guest booking flow.
+  No mirror to regenerate: `ko/` has no `documentations/user_experience/`, whose documents are kept in English only (`ko/documentations/README.md`).
 - [ ] Review with the team, then archive the change into `openspec/specs/meeting-feasibility/spec.md` and close #241 and #242.
+  Skipped: merged and archived without a teammate review at the repository owner's request on 2026-11-23.

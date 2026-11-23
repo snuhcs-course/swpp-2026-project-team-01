@@ -16,3 +16,4 @@
 - [x] Record RV-D01 in the story path evaluation's appended cases.
 - [ ] Run the integration tests, the browser tests and the host review story eval (RV-D01) against the local stack.
 - [ ] Review with the team, then archive the change into `openspec/specs/meeting-requests/spec.md` and close #58.
+  Skipped: merged and archived without a teammate review at the repository owner's request on 2026-11-23.
