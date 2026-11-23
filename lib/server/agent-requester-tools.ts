@@ -230,7 +230,7 @@ export const REQUESTER_TOOLS: readonly AgentTool[] = [
   },
   requestCommandTool({
     description:
-      "Change the meeting details (purpose, durationMinutes, mode, location or meetingLink, windows in local time, travelMode). input.timezone names the zone the windows are in. Changing details after a proposal returns the request to choosing a time.",
+      "Change the meeting details (purpose, durationMinutes, mode, location or meetingLink, windows in local time, travelMode). It applies at once: pass what the person stated, and confirm with them first anything you inferred (such as afternoon read as 12:00-18:00, or in person from a place they named) or a value that differs from what the request holds. input.timezone names the zone the windows are in. Changing details after a proposal returns the request to choosing a time.",
     name: "update_request_details",
     command: (context) => loose(updateDetailsCommand({ origin: context.deps.origin, tokenKey: context.deps.tokenKey() })),
     commandInput: z.object({ details: localPatchSchema.omit({ contactEmail: true, contactName: true }), timezone: z.string().min(1).max(64).refine(isValidTimeZone, "Not an IANA timezone.") }).strict(),
