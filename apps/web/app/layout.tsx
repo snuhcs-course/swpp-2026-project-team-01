@@ -1,7 +1,9 @@
 import type { Metadata } from "next";
 import { Geist, Geist_Mono, Hahmlet, Instrument_Serif, Open_Sans } from "next/font/google";
-import type { ReactNode } from "react";
+import { type ReactNode, Suspense } from "react";
 import { TooltipProvider } from "@/components/ui/tooltip";
+import { analyticsMeasurementId } from "@/lib/analytics";
+import { Analytics } from "./_components/analytics";
 import "./globals.css";
 
 const title = "Find Me a Time";
@@ -68,10 +70,19 @@ export const metadata: Metadata = {
 };
 
 export default function RootLayout({ children }: { readonly children: ReactNode }) {
+  // Production with GOOGLE_ANALYTICS_MEASUREMENT_ID only (web-analytics D3); the
+  // Content Security Policy in next.config.ts widens on the same condition.
+  const measurementId = analyticsMeasurementId();
+
   return (
     <html className={`${geistSans.variable} ${geistMono.variable} ${instrumentSerif.variable} ${hahmlet.variable} ${openSans.variable}`} lang="en" suppressHydrationWarning>
       <body className="antialiased">
         <TooltipProvider>{children}</TooltipProvider>
+        {measurementId ? (
+          <Suspense fallback={null}>
+            <Analytics measurementId={measurementId} />
+          </Suspense>
+        ) : null}
       </body>
     </html>
   );
