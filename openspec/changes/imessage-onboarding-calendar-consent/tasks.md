@@ -12,7 +12,7 @@
 
 ## 3. Documents
 
-- [x] 3.1 Update provider setup, the page list and the decision log, with their `ko/` mirrors.
+- [x] 3.1 Update provider setup, the page list, the decision log and the testing baseline, with their `ko/` mirrors.
 
 ## 4. Release
 

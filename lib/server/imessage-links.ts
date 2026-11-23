@@ -136,12 +136,13 @@ export function fallbackDailyLimit(env: Readonly<Record<string, string | undefin
 
 // Why the welcome asks for Calendar although the host signed in with Google,
 // read from the stored grant (imessage-onboarding-calendar-consent D2, #407):
-// the Calendar boxes were unticked, Google gave no refresh token, or Google
+// Google reported no Calendar permission (unticked boxes, or scopes that could
+// not be read, which the row cannot tell apart), gave no refresh token, or
 // rejected the stored one.
 export type CalendarAskCause = "not_granted" | "no_lasting_access" | "ended";
 
 export const CALENDAR_ASK_CAUSES: Readonly<Record<CalendarAskCause, string>> = {
-  not_granted: "Calendar permission wasn't granted when you signed in, so I can't see your calendar yet.",
+  not_granted: "Google didn't confirm Calendar permission when you signed in, so I can't see your calendar yet.",
   no_lasting_access: "Google didn't give lasting Calendar access when you signed in, so it needs one more consent.",
   ended: "Your Google Calendar access has ended, so it needs connecting again.",
 };

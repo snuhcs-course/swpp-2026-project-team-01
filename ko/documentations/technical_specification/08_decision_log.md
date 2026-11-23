@@ -878,7 +878,7 @@ D1과 D3과 함께 감수하는 남은 위험: 코드의 주인이 보내기 전
 | # | 선택 | 대안 | 기록 위치 | 바꾸려면 |
 |---|---|---|---|---|
 | D1 | iMessage 대화를 연결하는 Google 로그인(iMessage 시작 쿠키, Thyme의 로그인 링크에서 온 이어가기 쿠키 또는 `return=imessage`)은 `prompt=consent`와 `include_granted_scopes=true`를 보내므로, 이전에 클라이언트를 승인한 계정에도 Google이 리프레시 토큰을 반환합니다. 이미 사용할 수 있는 권한 부여가 있던 호스트는 동의 화면을 한 번 더 보게 됩니다 | 콜백에서 환영 메시지 전에 두 번째 Calendar 동의로 리디렉션하기(바인딩이 미뤄지고 두 번째 왕복 동안 시작 쿠키를 유지해야 함); 콜백 전에는 알 수 없는, 사용할 수 있는 권한 부여가 없는 호스트로만 프롬프트 한정하기 | 제안서 D1; `host-imessage-channel` "Calendar consent on the onboarding sign-in" | `lib/server/google-sign-in.ts`의 `createGoogleSignInHandler` |
-| D2 | Google 권한 부여가 있는 호스트에게 Calendar 링크를 보내는 환영 메시지는 저장된 권한 부여를 바탕으로 이유를 밝힙니다. 종료됨(`invalidated_at`), 지속적인 접근 없음(리프레시 토큰 없음), 허용되지 않음(Calendar 스코프 누락) 중 하나입니다. 권한 부여가 없는 호스트에게는 이유 줄이 없습니다 | 하나의 일반적인 이유 | 제안서 D2 | `lib/server/imessage-links.ts`의 `linkedText`와 `CALENDAR_ASK_CAUSES` |
+| D2 | Google 권한 부여가 있는 호스트에게 Calendar 링크를 보내는 환영 메시지는 저장된 권한 부여를 바탕으로 이유를 밝힙니다. 종료됨(`invalidated_at`), 지속적인 접근 없음(리프레시 토큰 없음), Google이 권한을 확인하지 않음(Calendar 스코프 누락 또는 읽을 수 없음) 중 하나입니다. 권한 부여가 없는 호스트에게는 이유 줄이 없습니다 | 하나의 일반적인 이유 | 제안서 D2 | `lib/server/imessage-links.ts`의 `linkedText`와 `CALENDAR_ASK_CAUSES` |
 
 ## `place-settles-in-person`
 

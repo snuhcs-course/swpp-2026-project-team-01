@@ -879,7 +879,7 @@ The [proposal](../../openspec/changes/imessage-onboarding-calendar-consent/propo
 | # | Choice | Alternatives | Recorded in | To change it |
 |---|---|---|---|---|
 | D1 | A Google sign-in that links an iMessage conversation (the iMessage start cookie, the continuation cookie from Thyme's sign-in link, or `return=imessage`) sends `prompt=consent` and `include_granted_scopes=true`, so Google returns a refresh token even for an account that authorized the client before; a host who already had a usable grant sees the consent screen once more | Redirecting from the callback to a second Calendar consent before the welcome, which defers the binding and keeps the start cookies across a second round trip; limiting the prompt to hosts without a usable grant, who are unknown until the callback | Proposal D1; `host-imessage-channel` "Calendar consent on the onboarding sign-in" | `createGoogleSignInHandler` in `lib/server/google-sign-in.ts` |
-| D2 | The welcome that sends the Calendar link to a host with a Google grant names the cause from the stored grant: ended (`invalidated_at`), no lasting access (no refresh token), or not granted (Calendar scopes missing); a host with no grant gets no cause line | One generic reason | Proposal D2 | `linkedText` and `CALENDAR_ASK_CAUSES` in `lib/server/imessage-links.ts` |
+| D2 | The welcome that sends the Calendar link to a host with a Google grant names the cause from the stored grant: ended (`invalidated_at`), no lasting access (no refresh token), or Google did not confirm the permission (Calendar scopes missing or unreadable); a host with no grant gets no cause line | One generic reason | Proposal D2 | `linkedText` and `CALENDAR_ASK_CAUSES` in `lib/server/imessage-links.ts` |
 
 ## `place-settles-in-person`
 
