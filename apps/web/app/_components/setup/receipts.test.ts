@@ -28,6 +28,7 @@ function stateWith(drafts: Partial<Record<SetupFieldName, DraftEntry>>, extra: P
   return {
     analysis: null,
     analysisSkipped: false,
+    assistantNotes: null,
     confirmedAt: null,
     fields,
     missingFields: [],
@@ -43,6 +44,20 @@ const accepted = (value: unknown, at: string, extra: Partial<DraftEntry> = {}) =
 const brief = (receipts: readonly Receipt[]) => receipts.map((receipt) => `${receipt.label}: ${receipt.value}`);
 
 describe("setup receipts", () => {
+  it("makes one receipt for the notes for Thyme, from when they were saved", () => {
+    const receipts = deriveReceipts(stateWith({}, { assistantNotes: { text: "Investment advisory meetings are 30 minutes.\nA first meeting is online.", updatedAt: T(30) } }));
+    expect(brief(receipts)).toEqual(["Notes for Thyme: Investment advisory meetings are 30 minutes."]);
+    expect(receipts[0]).toMatchObject({ at: T(30), kind: "step", step: "assistantNotes" });
+    expect(brief(deriveReceipts(stateWith({}, { assistantNotes: { text: "", updatedAt: T(30) } })))).toEqual(["Notes for Thyme: None"]);
+    expect(deriveReceipts(stateWith({}))).toEqual([]);
+  });
+
+  it("shortens a long first line of the notes", () => {
+    const value = deriveReceipts(stateWith({}, { assistantNotes: { text: "x".repeat(200), updatedAt: T(30) } }))[0]!.value;
+    expect(value).toHaveLength(60);
+    expect(value.endsWith("…")).toBe(true);
+  });
+
   it("makes one receipt per accepted answer, with its value and source", () => {
     const receipts = deriveReceipts(stateWith({ timezone: accepted("Asia/Seoul", T(10)) }));
 

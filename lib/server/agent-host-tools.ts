@@ -11,7 +11,7 @@ import type { CommandDefinition } from "./commands";
 import { CalendarAccessError, openHostCalendar } from "./google-calendar";
 import { hostRequestCommands, listHostRequests, readHostRequest } from "./host-requests";
 import { readReadiness } from "./readiness";
-import { readSetupState, setupLinks } from "./setup";
+import { readSetupState, type SetupStateView, setupLinks } from "./setup";
 import { confirmSettingsCommand, updateDraftCommand } from "./setup-commands";
 import {
   type AgentTool,
@@ -46,6 +46,13 @@ const hostInstructionSchema = z
 
 function ok(result: unknown): ToolResult {
   return { ok: true, result };
+}
+
+// What get_setup returns to the host's agent: the setup state without the notes
+// for Thyme, which only Thyme's own assistants read (host-preference-notes).
+export function mcpSetupView(state: SetupStateView) {
+  const { assistantNotes: _notes, ...rest } = state;
+  return rest;
 }
 
 function hostOf(context: AgentToolContext) {
@@ -166,7 +173,7 @@ export const HOST_TOOLS: readonly AgentTool[] = [
     role: "host",
     async run(context) {
       const state = await readSetupState(context.deps.setup, hostOf(context), { includeCalendars: false });
-      return state ? ok({ ...state, nextStep: setupNextStep(state.nextAction, context.deps.origin) }) : unavailable();
+      return state ? ok({ ...mcpSetupView(state), nextStep: setupNextStep(state.nextAction, context.deps.origin) }) : unavailable();
     },
     scope: "host:read",
     title: "Get setup",

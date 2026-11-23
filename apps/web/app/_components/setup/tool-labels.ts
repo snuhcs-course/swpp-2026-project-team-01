@@ -26,6 +26,8 @@ export function describeSetupTool(part: EveDynamicToolPart): string | undefined 
       const what = fields.length > 0 ? `your ${joinLabels(fields.map((field) => FIELD_LABELS[field].toLowerCase()))}` : "your settings";
       return failed ? `Couldn't draft ${what}` : `Drafted ${what}`;
     }
+    case "save_assistant_notes":
+      return failed ? "Couldn't save your notes for Thyme" : "Saved your notes for Thyme";
     default:
       return undefined;
   }

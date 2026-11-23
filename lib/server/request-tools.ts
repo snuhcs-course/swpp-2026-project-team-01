@@ -21,6 +21,7 @@ import { readBookingStatus } from "./bookings";
 import { type Actor, type CommandDefinition, runCommand } from "./commands";
 import type { Database, Queryable, Transaction } from "./database";
 import { encodeDisplayName } from "./entry-documents";
+import { guestNotesView } from "./host-notes";
 import { awaitEvaluation } from "./evaluation";
 import { REQUESTER_AUDIENCE } from "./eve-auth";
 import { detailsComplete, readyForTimes, standingBookingOf, withdrawRequestCommand } from "./request-lifecycle";
@@ -264,6 +265,9 @@ type RequestRow = {
   contact_email: string | null;
   details: Partial<RequestDetails>;
   display_name: string | null;
+  // The host's notes for Thyme (host-preference-notes); only the requester
+  // read_request below gives them to the guest's assistant.
+  assistant_notes: string | null;
   offer: { durationMinutes?: number; meetingMode?: MeetingMode; location?: LocationAnswer | null } | null;
   expires_at: Date;
   revision: number;
@@ -273,6 +277,7 @@ type RequestRow = {
 async function requestRow(q: Queryable, id: string) {
   const [row] = await q<RequestRow[]>`
     select r.details, r.state, r.revision, r.expires_at, r.contact_email, s.settings ->> 'displayName' as display_name,
+           (select a.assistant_notes from app.host_accounts a where a.id = r.host_account_id) as assistant_notes,
            jsonb_build_object('durationMinutes', s.settings -> 'durationMinutes', 'meetingMode', s.settings -> 'meetingMode',
                               'location', s.settings -> 'location') as offer
     from app.requests r left join app.host_settings s on s.host_account_id = r.host_account_id
@@ -346,7 +351,7 @@ export async function readRequestForTool(db: Database, call: RequestToolCall) {
       lessPreferredWindows: (details.lessPreferredWindows ?? []).map((entry) => window(entry, timezone)),
       preferredWeeklyWindows: details.preferredWeeklyWindows ?? [],
     },
-    host: { displayName: encodeDisplayName(row.display_name ?? "Your host"), offer: hostOffer(row.offer) },
+    host: { displayName: encodeDisplayName(row.display_name ?? "Your host"), notes: guestNotesView(row.assistant_notes), offer: hostOffer(row.offer) },
     missing: missingFields(details, hostListsPlaces(row.offer)),
     next: nextSteps(row.state, phase, changing),
     pendingReview: review ? minimizedReview(storedReview(review, language), timezone) : null,
@@ -399,7 +404,7 @@ export const draftRequestReviewToolInput = z.object({
   details: localPatchSchema
     .optional()
     .describe(
-      "Omit for question and unknown. windows are required availability; preferredWindows and lessPreferredWindows are date-specific soft preferences; preferredWeeklyWindows are recurring weekday/start/end soft preferences for this request. Preferences never remove other times. Date-specific windows use local dates (YYYY-MM-DD); weekly windows use weekdays. All start/end clock times use HH:MM in the requester's timezone. Set inferredTime when using newly assumed morning or afternoon bounds. Omit durationMinutes unless stated.",
+      "Omit for question and unknown. windows are required availability; preferredWindows and lessPreferredWindows are date-specific soft preferences; preferredWeeklyWindows are recurring weekday/start/end soft preferences for this request. Preferences never remove other times. Date-specific windows use local dates (YYYY-MM-DD); weekly windows use weekdays. All start/end clock times use HH:MM in the requester's timezone. Set inferredTime when using newly assumed morning or afternoon bounds. Omit durationMinutes unless the guest stated one or host.notes give a length for this kind of meeting.",
     ),
   inferredTime: z.boolean().optional().describe("True if a time-of-day boundary was inferred, so the guest must review it before it is applied."),
   clarifications: z
