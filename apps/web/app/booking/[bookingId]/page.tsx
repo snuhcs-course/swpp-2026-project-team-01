@@ -10,6 +10,8 @@ import { cookies } from "next/headers";
 import { connection } from "next/server";
 import { Suspense } from "react";
 import { Receipt } from "@/app/_components/booking-receipt";
+import { BookedWorkspace } from "@/app/_components/guest/booked-workspace";
+import { CLOSED_TEXT } from "@/app/_components/guest/composer-state";
 import { GuestWorkspace } from "@/app/_components/guest/guest-workspace";
 import { ClosedImessageUpdates } from "@/app/_components/requester/cards";
 import { ResendLinkForm } from "@/app/_components/requester/resend-link-form";
@@ -19,8 +21,10 @@ import { ResendLinkForm } from "@/app/_components/requester/resend-link-form";
 // looked up by hash, and a malformed, unknown or expired one gets the generic
 // unavailable view with **Resend my booking link** and nothing else, as does a
 // draft, whose thread lives only in the tab that started it on the public page
-// until the guest is identified. A closed request with an unexpired link shows
-// only its status and, once booked, the confirmed receipt. Otherwise it is the guest thread, the same one the public
+// until the guest is identified. A booked meeting keeps its conversation with
+// the confirmed receipt, so a guest who linked no messenger can cancel or start a
+// change in words on the web (post-booking-changes, #329); any other closed
+// request with an unexpired link shows only its status. Otherwise it is the guest thread, the same one the public
 // page began, loaded from its stored events. next.config.ts sends noindex and
 // no-store for every /booking path, and nothing here logs the path. The
 // referrer is same-origin, not no-referrer: with no-referrer Chrome sends
@@ -53,6 +57,21 @@ async function Booking({ params }: { readonly params: Params }) {
   const view = link && !link.expired ? await readRequesterView(db, link.requestId) : null;
 
   if (!link || !view || (view.open && view.request.state === "draft")) return <Unavailable />;
+  // A signed-in account on its own linked request gets the way back to /app;
+  // the session adds no authority here, the link stays the credential.
+  const workspaceLink = async () => (await signedInGuestAccount(await cookies(), { requestId: link.requestId }))?.linked ?? false;
+
+  if (!view.open && view.request.state === "booked" && view.conversation) {
+    return (
+      <BookedWorkspace
+        bookingId={bookingId.toLowerCase()}
+        host={view.host}
+        receipt={view.booking?.receipt ?? null}
+        timezone={view.timezone}
+        workspaceLink={await workspaceLink()}
+      />
+    );
+  }
   if (!view.open) {
     return <Closed bookingId={bookingId.toLowerCase()} booking={view.booking} hostName={view.host.displayName} state={view.request.state} timezone={view.timezone} />;
   }
@@ -66,11 +85,7 @@ async function Booking({ params }: { readonly params: Params }) {
     console.error(JSON.stringify({ error: error instanceof Error ? error.name : typeof error, event: "requester_session_unavailable" }));
   }
 
-  // A signed-in account on its own linked request gets the way back to /app;
-  // the session adds no authority here, the link stays the credential.
-  const account = await signedInGuestAccount(await cookies(), { requestId: link.requestId });
-
-  return <GuestWorkspace bookingId={bookingId.toLowerCase()} host={view.host} initialView={view} workspaceLink={account?.linked ?? false} />;
+  return <GuestWorkspace bookingId={bookingId.toLowerCase()} host={view.host} initialView={view} workspaceLink={await workspaceLink()} />;
 }
 
 function Unavailable() {
@@ -86,14 +101,6 @@ function Unavailable() {
     </main>
   );
 }
-
-const CLOSED_TEXT: Readonly<Partial<Record<RequestState, string>>> = {
-  booked: "This meeting is booked. Check your calendar for the details.",
-  cancelled: "This meeting was cancelled.",
-  declined: "The host declined this request.",
-  expired: "This request expired before a time was agreed and booked.",
-  withdrawn: "You withdrew this request.",
-};
 
 function Closed({
   bookingId,

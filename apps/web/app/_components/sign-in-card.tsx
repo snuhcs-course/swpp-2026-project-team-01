@@ -37,17 +37,6 @@ function SignInShell({ children }: { readonly children: ReactNode }) {
   );
 }
 
-export function WorkspaceLoading() {
-  return (
-    <SignInShell>
-      <div className="ld-sign" role="status">
-        <p className="ld-sign-title">Welcome to Thyme</p>
-        <p className="ld-lede">Loading your workspace…</p>
-      </div>
-    </SignInShell>
-  );
-}
-
 // Google is the only sign-in method (chat-workspaces: Google-only MVP host login).
 // The notice reports why the last sign-in returned without a session.
 export function SignInCard({

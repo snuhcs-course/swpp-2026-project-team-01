@@ -334,6 +334,24 @@ describe("model limit middleware", () => {
     expect(await amounts(session.inputId!)).toEqual(["0.007280"]);
   });
 
+  it("settles written cache tokens at the write price of a model that has one, and as input otherwise", async () => {
+    const usage = {
+      inputTokens: { cacheRead: 400, cacheWrite: 200, noCache: 400, total: 1000 },
+      outputTokens: { reasoning: 120, text: 380, total: 500 },
+    };
+    const claude = await indexedSession();
+    await wrap(
+      new MockLanguageModelV4({ doGenerate: async () => ({ ...reply, usage }), modelId: "claude-sonnet-5-5", provider: "anthropic.messages" }),
+    ).doGenerate(call(claude.key));
+    // 400 * 2.00 + 200 * 2.50 + 400 * 0.10 + 500 * 10.00 = 6,340 millionths.
+    expect(await amounts(claude.inputId!)).toEqual(["0.006340"]);
+
+    const terra = await indexedSession();
+    await wrap(fakeOpenAI(async () => ({ ...reply, usage }))).doGenerate(call(terra.key));
+    // 600 * 2.00 + 400 * 0.20 + 500 * 12.00 = 7,280 millionths.
+    expect(await amounts(terra.inputId!)).toEqual(["0.007280"]);
+  });
+
   it("rounds a settled cost up to a whole millionth and never to zero", async () => {
     const session = await indexedSession();
     const tiny = fakeOpenAI(async () => ({

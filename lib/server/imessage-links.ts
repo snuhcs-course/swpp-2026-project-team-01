@@ -2,6 +2,7 @@ import { createHmac, randomInt } from "node:crypto";
 import { z } from "zod";
 import {
   displaySender,
+  maskedSender,
   type ImessageDeliveryState,
   type ImessageStatus,
   type LinkChannels,
@@ -10,6 +11,7 @@ import {
 } from "../contracts/imessage";
 import { configuredChannels, type MessagingChannel } from "../contracts/messaging-channel";
 import { defaultCalendarRoles, readDefaultRoleCalendars } from "./calendar-roles";
+import { SETUP_OVERVIEW, withoutSetupStep, withSetupStep } from "../contracts/setup-progress";
 import { hostConversationLanguage } from "./channel-language";
 import { channelReplies } from "./channel-texts";
 import { googleCalendarConfigFromEnvironment, type GoogleCalendarDependencies, type CalendarListEntry } from "./google-calendar";
@@ -19,11 +21,12 @@ import type { Database, Queryable, Transaction } from "./database";
 import { generateLinkCode, hashLinkCode } from "./email-links";
 import { recordOutbound } from "./imessage-outbox";
 import { PERMISSION_REASONS } from "../contracts/permission-reasons";
-import { REQUESTER_LINK_TEXTS } from "./requester-imessage-bindings";
+import { bindRequester } from "./requester-imessage-bindings";
+import { lockOpenRequest } from "./request-guard";
 import { imessageContinuationUrl } from "./imessage-continuation";
 import { photonRegistrar, type PhotonRegistrar } from "./photon";
 import { channelHash, imessageHash } from "./photon-receiver";
-import { calendarUsable, readReadiness } from "./readiness";
+import { calendarUsable, readReadiness, savedSettingsOnce } from "./readiness";
 import { openToken, sealToken, type TokenKey } from "./token-encryption";
 
 // Linking a host's iMessage (host-imessage-channel design 4, 6 and 11; D3, D5,
@@ -33,10 +36,10 @@ import { openToken, sealToken, type TokenKey } from "./token-encryption";
 //     reload shows it again), valid 15 minutes, at most 5 an hour; the card opens
 //     Messages with linkMessage(code) and the line's number;
 //   - receiveLinkCode is the receipt job's side: a pending code arriving from a
-//     direct conversation records the sender for confirmation and replies in
-//     that conversation; any other arrival voids the attempt;
-//   - imessage.link.confirm binds the recorded sender after the host saw it
-//     masked; nothing is bound before;
+//     direct conversation binds its sender at once and queues the linked
+//     message there (link-on-code D1); any other arrival voids the attempt.
+//     The card, which polls while the code is pending, then shows the binding
+//     with Not my number, which is imessage.unlink (D2);
 //   - imessage.link.send_code and imessage.link.verify_code are the fallback: a
 //     six-digit code the line sends to an entered number, typed back here;
 //   - imessage.unlink ends the binding in the database only, so it works while
@@ -51,16 +54,23 @@ import { openToken, sealToken, type TokenKey } from "./token-encryption";
 // still queued for it. The fallback code and the contact card are iMessage only.
 // Telegram links the same way (host-telegram-channel design 5 and 6, D5, D6): the
 // card opens telegram.me/<bot>?start=<code>, and /start <code> (or the code as text)
-// from the host's private chat with the bot completes a Telegram attempt. No
-// reply goes out then, so the bot's first message is the welcome after Confirm
-// and link. The sender's first name and @username are sealed beside the sender
-// (sender_name_ciphertext) and shown for confirmation instead of a user ID.
+// from the host's private chat with the bot completes a Telegram attempt, so the
+// bot's first message is the linked welcome. The sender's first name and
+// @username are sealed beside the sender (sender_name_ciphertext) and shown on
+// the card instead of a user ID.
+// What stands in for the confirmation step that link-on-code removed (D3): the
+// code is single-use (a used, voided or replaced code never links again), valid
+// 15 minutes, owned by the signed-in account, the booking page's request or the
+// start's browser that showed it, at most 5 an hour per owner, and refused from
+// a group or another channel. A code that leaks before it is used links whoever
+// sends it first; Not my number (unlink) and a new code are the recovery.
 
 export const IMESSAGE_LINK_LIMITS = {
   // Link codes a host may create per hour.
   perHostHour: 5,
   validMinutes: 15,
-  // How long the host has to confirm after the code's message arrived.
+  // How long a code that arrived from the iMessage start waits for the
+  // browser's Google sign-in, which binds its sender (link-on-code D3).
   confirmMinutes: 15,
 } as const;
 
@@ -125,18 +135,18 @@ export function fallbackDailyLimit(env: Readonly<Record<string, string | undefin
 }
 
 export const LINK_TEXTS = {
-  received: "Got it. Go back to Find Me a Time in your browser and tap Confirm and link to finish.",
   // An attempt from the iMessage start has no host until a browser signs in (D15);
-  // the link lets the sender sign in from this thread (D19).
+  // the link lets the sender sign in from this thread (D19), and the sign-in
+  // links this conversation (link-on-code D3).
   receivedBeforeSignIn: (url: string) =>
-    `Got it. To finish, sign in with Google and connect your calendar: ${url}\n${PERMISSION_REASONS.en.googleSignIn}\nThen tap Confirm and link on the page.`,
+    `Got it. To finish linking, sign in with Google and connect your calendar: ${url}\n${PERMISSION_REASONS.en.googleSignIn}`,
   refused: "That link code is not valid any more. Start again from Connect iMessage in Find Me a Time.",
   refusedWhatsApp: "That link code is not valid any more. Start again from Connect WhatsApp in Find Me a Time.",
   refusedTelegram: "That link code is not valid any more. Start again from Connect Telegram in Find Me a Time.",
   // A ready host gets this; one still setting up gets a welcome into setup here (D19).
   linked: "Linked. Send help for what I can do here.",
   welcomeCalendar: (url: string) =>
-    `You're connected! I'm Thyme, and we can set up your meetings right here. First, connect Google Calendar: ${url}\n${PERMISSION_REASONS.en.googleSignIn}`,
+    `You're connected! I'm Thyme, and we can set up your meetings right here. ${SETUP_OVERVIEW.en}\n${withSetupStep("en", "calendar", `First, connect Google Calendar: ${url}`)}\n${PERMISSION_REASONS.en.googleSignIn}`,
   backFromGoogle: "You're back from Google. Let's keep going here: tell me your meeting preferences, or send setup to see what's next.",
   fallbackCode: (code: string, minutes: number) => `Your Find Me a Time code is ${code}. It expires in ${minutes} minutes.`,
 } as const;
@@ -272,12 +282,24 @@ export function bindingRecipient(keys: readonly TokenKey[], binding: Pick<Active
   return { address: open(binding.sender_ciphertext), spaceId: binding.space_ciphertext ? open(binding.space_ciphertext) : null };
 }
 
+// The sender is another host's: nothing was written, and the caller refuses.
+export class SenderHeldError extends CommandError {
+  constructor() {
+    super("invalid_input");
+    this.name = "SenderHeldError";
+  }
+}
+
+// What binding a sender needs: the keys, the origin its welcome links to, and the
+// live calendar list where the caller could read one outside the transaction.
+export type BindOptions = Pick<LinkOptions, "tokenKey" | "tokenKeys" | "origin" | "liveCalendars">;
+
 // Binds a sender to the host, ending the host's earlier binding, and queues the
 // linked message. The caller holds the host's link lock. A Telegram sender's
 // display name is sealed with it.
 async function bind(
   tx: Transaction,
-  options: LinkOptions,
+  options: BindOptions,
   hostAccountId: string,
   linkId: string,
   sender: string,
@@ -292,7 +314,7 @@ async function bind(
   await tx`set local lock_timeout = '5s'`;
   await tx`select pg_advisory_xact_lock(hashtextextended(${`app.imessage_sender:${senderHash}`}, 0))`;
   const owner = await activeBindingOfSender(tx, senderHash);
-  if (owner && owner.host_account_id !== hostAccountId) throw new CommandError("invalid_input");
+  if (owner && owner.host_account_id !== hostAccountId) throw new SenderHeldError();
 
   // The host's earlier binding ends, on any channel (D5), and nothing still
   // queued for it goes out.
@@ -377,15 +399,19 @@ export function calendarConnectUrl(origin: string) {
 // The linked message (D19): a ready host is told what Thyme can do; a host still
 // setting up is welcomed into setup in this conversation, with Calendar first when
 // it is not usable yet, since setup cannot go further without it.
-async function linkedText(tx: Transaction, hostAccountId: string, options: LinkOptions) {
+async function linkedText(tx: Transaction, hostAccountId: string, options: BindOptions) {
   if ((await readReadiness(tx, hostAccountId)).ready) return LINK_TEXTS.linked;
   const [grant] = await tx<{ usable: boolean }[]>`
     select ${calendarUsable(tx)} as usable from app.provider_grants g where g.host_account_id = ${hostAccountId}
   `;
   if (!grant?.usable) return LINK_TEXTS.welcomeCalendar(calendarConnectUrl(options.origin));
-  const name = await defaultCalendarRoles(tx, hostAccountId, options.liveCalendars ?? null);
-  const texts = channelReplies(await hostConversationLanguage(tx, hostAccountId)).onboarding;
-  return name ? texts.rolesDefault(name) : texts.rolesNeeded;
+  const roles = await defaultCalendarRoles(tx, hostAccountId, options.liveCalendars ?? null);
+  const language = await hostConversationLanguage(tx, hostAccountId);
+  const texts = channelReplies(language).onboarding;
+  const text = roles ? texts.rolesDefault(roles.calendar, roles.others) : texts.rolesNeeded;
+  // Setup starts here, so the message first says what it covers (issue #368);
+  // a host who saved settings before is not starting setup over.
+  return (await savedSettingsOnce(tx, hostAccountId)) ? withoutSetupStep(text) : `${SETUP_OVERVIEW[language]}\n${text}`;
 }
 
 const noInput = z.object({}).strict() as unknown as z.ZodType<Record<string, never>>;
@@ -433,42 +459,55 @@ export function createImessageLinkCommand(
   };
 }
 
-export function confirmImessageLinkCommand(options: LinkOptions): CommandDefinition<{ linkId: string }, { bindingId: string }> {
-  return {
-    input: z.object({ linkId: z.uuid() }).strict(),
-    operation: "imessage.link.confirm",
-    async run(tx, context) {
-      const hostAccountId = assertSelf(context);
-      await lockHostLinking(tx, hostAccountId);
+// A code from the iMessage start that arrived before sign-in, now claimed by the
+// host who signed in in its browser or from Thyme's sign-in link (D15, D19):
+// its recorded sender is bound as an arriving code's would be (link-on-code
+// D3). A sender another host holds meanwhile voids the attempt instead. The
+// caller holds the host's link lock and the attempt's starter lock. Returns the
+// binding, "voided", or null when no sender had arrived yet.
+export async function bindReceivedAttempt(tx: Transaction, options: BindOptions, hostAccountId: string, linkId: string) {
+  const [link] = await tx<
+    {
+      id: string;
+      channel: MessagingChannel;
+      sender_hash: string | null;
+      sender_ciphertext: string | null;
+      sender_name_ciphertext: string | null;
+      space_ciphertext: string | null;
+      sender_key_id: string | null;
+    }[]
+  >`
+    select id, channel, sender_hash, sender_ciphertext, sender_name_ciphertext, space_ciphertext, sender_key_id
+    from app.imessage_links
+    where id = ${linkId} and host_account_id = ${hostAccountId} and state = 'received' and confirm_by > now()
+    for update
+  `;
+  if (!link?.sender_hash || !link.sender_ciphertext || !link.sender_key_id) return null;
 
-      const [link] = await tx<
-        {
-          id: string;
-          channel: MessagingChannel;
-          state: string;
-          open: boolean;
-          sender_ciphertext: string | null;
-          sender_name_ciphertext: string | null;
-          space_ciphertext: string | null;
-          sender_key_id: string | null;
-        }[]
-      >`
-        select id, channel, state, confirm_by > now() as open, sender_ciphertext, sender_name_ciphertext, space_ciphertext, sender_key_id
-        from app.imessage_links where id = ${context.input.linkId} and host_account_id = ${hostAccountId}
-        for update
-      `;
-      if (!link || link.state !== "received" || !link.open || !link.sender_ciphertext || !link.sender_key_id) {
-        throw new CommandError("stale_revision");
-      }
+  const owner = await activeBindingOfSender(tx, link.sender_hash);
+  if (owner && owner.host_account_id !== hostAccountId) {
+    await voidAttempt(tx, link.id);
+    return "voided" as const;
+  }
+  const open = (ciphertext: string) => openToken(options.tokenKeys, { ciphertext, keyId: link.sender_key_id! }, senderContext(link.id));
+  return bind(
+    tx,
+    options,
+    hostAccountId,
+    link.id,
+    open(link.sender_ciphertext),
+    link.space_ciphertext ? open(link.space_ciphertext) : null,
+    link.channel,
+    link.sender_name_ciphertext ? open(link.sender_name_ciphertext) : null,
+  );
+}
 
-      const sealed = (ciphertext: string) => openToken(options.tokenKeys, { ciphertext, keyId: link.sender_key_id! }, senderContext(link.id));
-      const sender = sealed(link.sender_ciphertext);
-      const spaceId = link.space_ciphertext ? sealed(link.space_ciphertext) : null;
-      const senderName = link.sender_name_ciphertext ? sealed(link.sender_name_ciphertext) : null;
-
-      return { bindingId: await bind(tx, options, hostAccountId, link.id, sender, spaceId, link.channel, senderName) };
-    },
-  };
+async function voidAttempt(tx: Transaction, linkId: string) {
+  await tx`
+    update app.imessage_links
+    set state = 'voided', ended_at = now(), code_ciphertext = null, sender_ciphertext = null, space_ciphertext = null
+    where id = ${linkId} and state in ('pending', 'received')
+  `;
 }
 
 export const cancelImessageLinkCommand: CommandDefinition<Record<string, never>, { cancelled: true }> = {
@@ -672,7 +711,6 @@ export function imessageCommands(options: LinkOptions & { readonly lineDayLimit?
   return {
     "imessage.contact_card.share": shareContactCardCommand(options),
     "imessage.link.cancel": cancelImessageLinkCommand,
-    "imessage.link.confirm": confirmImessageLinkCommand(options),
     "imessage.link.create": createImessageLinkCommand(options),
     "imessage.link.send_code": sendImessageCodeCommand(options),
     "imessage.link.verify_code": verifyImessageCodeCommand(options),
@@ -701,15 +739,16 @@ export async function readImessageStatus(
 
   const binding = await activeBindingOfHost(db, hostAccountId);
 
-  // An open attempt shows first, also while a sender is linked: finishing it
+  // An open attempt shows first, also while a sender is linked: its code arriving
   // moves the link to the new sender.
-  const open = await openAttemptStatus(db, keys, hostAccountId, channels, binding?.channel ?? null, limits);
+  const open = await openAttemptStatus(db, keys, hostAccountId, channels, limits);
   if (open) return open;
 
   if (binding) {
     let sender = binding.channel === "telegram" ? telegramDisplayName(null, null) : "••••";
     try {
-      sender = shownSender(keys, binding, bindingContext(binding.id), bindingRecipient(keys, binding).address);
+      // The last four digits, the Apple ID or the Telegram name (link-on-code D4).
+      sender = shownSender(keys, binding, bindingContext(binding.id), bindingRecipient(keys, binding).address, maskedSender);
     } catch {
       // Sealed under a key the service no longer holds: still linked.
     }
@@ -751,7 +790,6 @@ async function openAttemptStatus(
   keys: readonly TokenKey[],
   hostAccountId: string,
   channels: LinkChannels,
-  linkedChannel: MessagingChannel | null,
   limits: typeof IMESSAGE_FALLBACK_LIMITS,
 ): Promise<ImessageStatus | null> {
   const [link] = await db<
@@ -759,26 +797,20 @@ async function openAttemptStatus(
       id: string;
       channel: MessagingChannel;
       method: "code" | "fallback";
-      state: "pending" | "received";
       code_ciphertext: string | null;
       phone_ciphertext: string | null;
       sealed_key_id: string | null;
-      sender_ciphertext: string | null;
-      sender_name_ciphertext: string | null;
-      sender_key_id: string | null;
       expires_at: Date;
-      confirm_by: Date | null;
       fallback_expires_at: Date | null;
       last_sent_at: Date | null;
       sends: number;
       line_number: string | null;
     }[]
   >`
-    select id, channel, method, state, code_ciphertext, phone_ciphertext, sealed_key_id, sender_ciphertext, sender_name_ciphertext,
-           sender_key_id, expires_at, confirm_by, fallback_expires_at, last_sent_at, sends, line_number
+    select id, channel, method, code_ciphertext, phone_ciphertext, sealed_key_id, expires_at, fallback_expires_at, last_sent_at, sends,
+           line_number
     from app.imessage_links
-    where host_account_id = ${hostAccountId}
-      and ((state = 'pending' and expires_at > now()) or (state = 'received' and confirm_by > now()))
+    where host_account_id = ${hostAccountId} and state = 'pending' and expires_at > now()
   `;
 
   if (!link) return null;
@@ -787,18 +819,6 @@ async function openAttemptStatus(
   const shared = { channel: link.channel, channels, lineNumber };
 
   try {
-    if (link.state === "received") {
-      const sender = openToken(keys, { ciphertext: link.sender_ciphertext!, keyId: link.sender_key_id! }, senderContext(link.id));
-      return {
-        ...shared,
-        confirmBy: link.confirm_by!.toISOString(),
-        linkId: link.id,
-        replaces: linkedChannel && linkedChannel !== link.channel ? linkedChannel : null,
-        sender: shownSender(keys, { ...link, sealed_key_id: link.sender_key_id! }, senderContext(link.id), sender),
-        state: "received",
-      };
-    }
-
     if (link.method === "code") {
       const code = openToken(keys, { ciphertext: link.code_ciphertext!, keyId: link.sealed_key_id! }, codeContext(link.id));
       return { ...shared, code, expiresAt: link.expires_at.toISOString(), message: attemptMessage(link.channel, code), state: "pending" };
@@ -833,15 +853,16 @@ export function attemptMessage(channel: MessagingChannel, code: string) {
   return channel === "telegram" ? code : linkMessage(code);
 }
 
-// A sender as the card shows it: a Telegram sender by their sealed name, any
-// other as displaySender shows it.
+// A sender as a screen shows it: a Telegram sender by their sealed name, any
+// other as display shows it (in full by default, masked once linked).
 export function shownSender(
   keys: readonly TokenKey[],
   row: { readonly channel: MessagingChannel; readonly sender_name_ciphertext: string | null; readonly sealed_key_id: string },
   context: string,
   sender: string,
+  display: (sender: string) => string = displaySender,
 ) {
-  if (row.channel !== "telegram") return displaySender(sender);
+  if (row.channel !== "telegram") return display(sender);
   const name = row.sender_name_ciphertext ? openToken(keys, { ciphertext: row.sender_name_ciphertext, keyId: row.sealed_key_id }, context) : null;
   return name ?? telegramDisplayName(null, null);
 }
@@ -857,11 +878,16 @@ export type LinkArrival = {
   readonly senderHash: string;
   readonly spaceId: string;
   readonly spaceType: "dm" | "group";
-  // A Telegram sender's display name (design 3), sealed for Confirm and link.
+  // A Telegram sender's display name (design 3), sealed with the binding.
   readonly senderName?: string | null;
 };
 
 export type LinkArrivalOutcome = "link_received" | "link_refused";
+
+// What an arriving code needs to bind its sender. The receipt job reads a host's
+// live calendar list first (arrivalOptions in imessage-receipts.ts), so the link
+// can save the default calendar roles and the welcome name them.
+export type ArrivalOptions = Pick<LinkOptions, "tokenKey" | "tokenKeys" | "linkLimits" | "origin" | "liveCalendars">;
 
 // One fixed refusal per sender per day, whether for a bad code or an unlinked
 // sender, and at most LINE_REFUSALS_PER_DAY per line, counted per channel.
@@ -873,36 +899,54 @@ export async function refusalSentRecently(q: Queryable, recipientHash: string, c
   return Boolean(row?.sender) || (row?.line ?? 0) >= LINE_REFUSALS_PER_DAY;
 }
 
-// A message carrying a link code. A pending, unexpired code from a direct
-// conversation, from a sender no other host has linked, records the sender for
-// the host's confirmation and replies in that conversation; anything else voids
-// the attempt the code names and gets at most one refusal a day. Never forwarded.
-// An attempt from the iMessage start has no host yet (D15): it takes its
-// starter's lock instead, and any sender may arrive, since the bind on Confirm
-// and link refuses a sender another host holds. An attempt a guest's booking
-// page made (guest-flow-completion design 1) takes its request's lock, and any
-// sender may arrive too, a host included: a guest binding is separate.
-export async function receiveLinkCode(tx: Transaction, options: Pick<LinkOptions, "tokenKey" | "linkLimits" | "origin">, arrival: LinkArrival): Promise<LinkArrivalOutcome> {
+// A message carrying a link code (link-on-code D1). A pending, unexpired code
+// from a direct conversation on the attempt's channel, from a sender no other
+// host has linked, links that sender at once:
+//   - a host's attempt binds the sender to the host and queues the linked
+//     message, which is the welcome into setup for a host still setting up;
+//   - a guest's attempt (guest-flow-completion design 1) binds the sender to the
+//     open request and queues the guest's welcome; any sender may link a guest
+//     request, a host included, since a guest binding is separate;
+//   - an attempt from the iMessage start has no host yet (D15): the sender is
+//     recorded, Thyme replies with the sign-in link (D19), and the browser's
+//     Google sign-in binds it (bindReceivedAttempt).
+// Anything else (a used, voided or expired code, another channel, a group, a
+// sender another host holds, a host who is no longer active, a closed request)
+// voids the attempt the code names and gets at most one refusal a day. The
+// code's message is never forwarded.
+// Lock order, as the commands that change the same rows take it: a host's
+// account share lock before the host's link lock; a request's row before its
+// link lock; a start's starter lock alone.
+export async function receiveLinkCode(tx: Transaction, options: ArrivalOptions, arrival: LinkArrival): Promise<LinkArrivalOutcome> {
   const limits = { ...IMESSAGE_LINK_LIMITS, ...options.linkLimits };
   const [named] = await tx<{ host_account_id: string | null; request_id: string | null; starter_hash: string | null }[]>`
     select host_account_id, request_id, starter_hash from app.imessage_links where code_hash = ${hashLinkCode(arrival.code)}
   `;
 
   if (named) {
-    await tx`select pg_advisory_xact_lock(hashtextextended(${linkLockKey(named)}, 0))`;
+    let ownerOpen = await lockArrivalOwner(tx, named);
+    // A start's attempt a sign-in claimed while this waited for its lock now has
+    // a host, whose locks come before the attempt's row, as in every command.
+    if (!named.host_account_id && !named.request_id) {
+      const [claimed] = await tx<{ host_account_id: string | null }[]>`
+        select host_account_id from app.imessage_links where code_hash = ${hashLinkCode(arrival.code)}
+      `;
+      if (claimed?.host_account_id) ownerOpen = await lockArrivalOwner(tx, { ...named, host_account_id: claimed.host_account_id });
+    }
     const [link] = await tx<
       {
         id: string;
         channel: MessagingChannel;
         host_account_id: string | null;
         request_id: string | null;
+        starter_hash: string | null;
         state: string;
         live: boolean;
         received_by_receipt_id: string | null;
         sender_hash: string | null;
       }[]
     >`
-      select id, channel, host_account_id, request_id, state, expires_at > now() as live, received_by_receipt_id, sender_hash
+      select id, channel, host_account_id, request_id, starter_hash, state, expires_at > now() as live, received_by_receipt_id, sender_hash
       from app.imessage_links where code_hash = ${hashLinkCode(arrival.code)}
       for update
     `;
@@ -910,11 +954,12 @@ export async function receiveLinkCode(tx: Transaction, options: Pick<LinkOptions
     // A retried job finds what this message already did, and the same sender
     // sending the code again (a double tap) changes nothing.
     if (link?.received_by_receipt_id === arrival.receiptId) return "link_received";
-    if (link?.state === "received" && link.sender_hash === arrival.senderHash) return "link_received";
+    if ((link?.state === "received" || link?.state === "linked") && link.sender_hash === arrival.senderHash) return "link_received";
 
     const owner = link?.host_account_id ? await activeBindingOfSender(tx, arrival.senderHash) : null;
     // Only the channel the attempt was made for completes it (D6).
     const usable =
+      ownerOpen &&
       link?.state === "pending" &&
       link.live &&
       link.channel === arrival.channel &&
@@ -922,49 +967,67 @@ export async function receiveLinkCode(tx: Transaction, options: Pick<LinkOptions
       (!owner || owner.host_account_id === link.host_account_id);
 
     if (usable) {
+      // The arrival is recorded on the attempt first: the binding's WhatsApp
+      // window starts at this message (design 7).
+      await tx`
+        update app.imessage_links set sender_hash = ${arrival.senderHash}, received_by_receipt_id = ${arrival.receiptId}
+        where id = ${link.id}
+      `;
+      if (link.host_account_id) {
+        try {
+          await bind(tx, options, link.host_account_id, link.id, arrival.sender, arrival.spaceId, link.channel, arrival.senderName ?? null);
+        } catch (error) {
+          // Another host linked this sender between the check above and the
+          // sender's lock: refused like any held sender, not a failed job.
+          if (!(error instanceof SenderHeldError)) throw error;
+          await voidAttempt(tx, link.id);
+          return refuse(tx, options, arrival);
+        }
+        // bind's bounded lock wait is for the binding rows only.
+        await tx`set local lock_timeout to default`;
+        return "link_received";
+      }
+      if (link.request_id) {
+        await bindGuest(tx, options.tokenKey, link.request_id, link.id, arrival);
+        return "link_received";
+      }
+
       const context = senderContext(link.id);
       const sender = sealToken(options.tokenKey, arrival.sender, context);
       const space = sealToken(options.tokenKey, arrival.spaceId, context);
       const name = arrival.senderName ? sealToken(options.tokenKey, arrival.senderName, context) : null;
       await tx`
         update app.imessage_links
-        set state = 'received', sender_hash = ${arrival.senderHash}, sender_ciphertext = ${sender.ciphertext},
-            sender_name_ciphertext = ${name?.ciphertext ?? null}, space_ciphertext = ${space.ciphertext},
-            sender_key_id = ${options.tokenKey.id}, code_ciphertext = null,
-            received_by_receipt_id = ${arrival.receiptId}, confirm_by = now() + make_interval(mins => ${limits.confirmMinutes})
+        set state = 'received', sender_ciphertext = ${sender.ciphertext}, sender_name_ciphertext = ${name?.ciphertext ?? null},
+            space_ciphertext = ${space.ciphertext}, sender_key_id = ${options.tokenKey.id}, code_ciphertext = null,
+            confirm_by = now() + make_interval(mins => ${limits.confirmMinutes})
         where id = ${link.id}
       `;
       // Telegram gets no reply here: the bot's first message is the welcome
-      // after Confirm and link (design 6).
+      // once the sign-in links it (design 6).
       if (arrival.channel === "telegram") return "link_received";
       await recordOutbound(tx, {
         channel: arrival.channel,
         dedupeKey: `receipt:${arrival.receiptId}`,
-        hostAccountId: link.host_account_id,
+        hostAccountId: null,
         kind: "link_received",
         linkId: link.id,
         recipient: { address: arrival.sender, spaceId: arrival.spaceId },
         recipientHash: arrival.senderHash,
-        requestId: link.request_id,
-        text: link.request_id
-          ? REQUESTER_LINK_TEXTS.received
-          : link.host_account_id
-          ? LINK_TEXTS.received
-          : LINK_TEXTS.receivedBeforeSignIn(imessageContinuationUrl(options.origin, options.tokenKey, link.id, arrival.senderHash)),
+        requestId: null,
+        text: LINK_TEXTS.receivedBeforeSignIn(imessageContinuationUrl(options.origin, options.tokenKey, link.id, arrival.senderHash)),
         tokenKey: options.tokenKey,
       });
       return "link_received";
     }
 
-    if (link && (link.state === "pending" || link.state === "received")) {
-      await tx`
-        update app.imessage_links
-        set state = 'voided', ended_at = now(), code_ciphertext = null, sender_ciphertext = null, space_ciphertext = null
-        where id = ${link.id}
-      `;
-    }
+    if (link) await voidAttempt(tx, link.id);
   }
+  return refuse(tx, options, arrival);
+}
 
+// At most one fixed refusal a day per sender, and never into a group.
+async function refuse(tx: Transaction, options: ArrivalOptions, arrival: LinkArrival): Promise<LinkArrivalOutcome> {
   if (arrival.spaceType === "dm" && !(await refusalSentRecently(tx, arrival.senderHash, arrival.channel))) {
     await recordOutbound(tx, {
       channel: arrival.channel,
@@ -977,6 +1040,52 @@ export async function receiveLinkCode(tx: Transaction, options: Pick<LinkOptions
     });
   }
   return "link_refused";
+}
+
+// Takes the locks an arriving code's attempt needs, in the commands' order, and
+// says whether its owner can still link: an active host, an open request, or a
+// start (which has no owner yet).
+async function lockArrivalOwner(
+  tx: Transaction,
+  owner: { readonly host_account_id: string | null; readonly request_id: string | null; readonly starter_hash: string | null },
+) {
+  let open = true;
+  try {
+    if (owner.host_account_id) await lockActiveHost(tx, owner.host_account_id);
+    else if (owner.request_id) await lockOpenRequest(tx, owner.request_id);
+  } catch (error) {
+    if (!(error instanceof CommandError)) throw error;
+    open = false;
+  }
+  await tx`select pg_advisory_xact_lock(hashtextextended(${linkLockKey(owner)}, 0))`;
+  return open;
+}
+
+// Binds an arriving sender to the guest's request (guest-flow-completion design
+// 2) and ends the attempt; bindRequester queues the welcome.
+async function bindGuest(tx: Transaction, tokenKey: TokenKey, requestId: string, linkId: string, arrival: LinkArrival) {
+  const [host] = await tx<{ display_name: string | null }[]>`
+    select s.settings ->> 'displayName' as display_name
+    from app.requests r left join app.host_settings s on s.host_account_id = r.host_account_id
+    where r.id = ${requestId}
+  `;
+  const bindingId = await bindRequester(tx, tokenKey, {
+    channel: arrival.channel,
+    hostName: host?.display_name ?? "your host",
+    linkId,
+    requestId,
+    sender: arrival.sender,
+    senderHash: arrival.senderHash,
+    senderName: arrival.senderName ?? null,
+    spaceId: arrival.spaceId,
+  });
+  await tx`
+    update app.imessage_links
+    set state = 'linked', binding_id = ${bindingId}, ended_at = now(), code_ciphertext = null,
+        sender_ciphertext = null, space_ciphertext = null
+    where id = ${linkId}
+  `;
+  return bindingId;
 }
 
 // A Google sign-in started from Thyme's Calendar link (D19) tells the linked
@@ -995,9 +1104,10 @@ export async function resumeImessageOnboarding(db: Database, key: TokenKey, host
     const [grant] = await tx<{ usable: boolean }[]>`select ${calendarUsable(tx)} as usable from app.provider_grants g where g.host_account_id = ${hostAccountId}`;
     let text: string = LINK_TEXTS.backFromGoogle;
     if (grant?.usable && !(await readReadiness(tx, hostAccountId)).ready) {
-      const name = await defaultCalendarRoles(tx, hostAccountId, live);
+      const roles = await defaultCalendarRoles(tx, hostAccountId, live);
       const texts = channelReplies(await hostConversationLanguage(tx, hostAccountId)).onboarding;
-      text = name ? texts.rolesDefault(name) : texts.rolesNeeded;
+      const roleText = roles ? texts.rolesDefault(roles.calendar, roles.others) : texts.rolesNeeded;
+      text = (await savedSettingsOnce(tx, hostAccountId)) ? withoutSetupStep(roleText) : roleText;
     }
     await recordOutbound(tx, {
       bindingId: binding.id,

@@ -30,8 +30,10 @@ export type CommandErrorCategory = keyof typeof COMMAND_ERROR_MESSAGES;
 // act on differently: the booking destination can no longer take events, so the
 // host must choose a writable one; a newer proposal version replaced the one
 // named; a proposed or reviewed time has already started; a cancellation named
-// a request with no booked meeting.
-export const COMMAND_ERROR_REASONS = ["destination_not_writable", "proposal_superseded", "start_passed", "not_booked"] as const;
+// a request with no booked meeting; an approval of a proposal of several times
+// named none of them, or the one it named is no longer free on the host's
+// calendar (multiple-candidate-times).
+export const COMMAND_ERROR_REASONS = ["destination_not_writable", "proposal_superseded", "start_passed", "not_booked", "time_choice_required", "time_unavailable"] as const;
 export type CommandErrorReason = (typeof COMMAND_ERROR_REASONS)[number];
 
 export type CommandFailure = {

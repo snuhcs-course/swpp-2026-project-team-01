@@ -1,4 +1,5 @@
 import { getChatMessageLengthError } from "../contracts/chat-message";
+import { handleFromText } from "./host-conversation-bindings";
 import { IMESSAGE_PREFIX, type StoredChannel, TELEGRAM_PREFIX, WHATSAPP_PREFIX } from "../contracts/messaging-channel";
 import { type NoticeDependencies, noticeDependenciesFromEnvironment } from "./booking-notices";
 import { AdmissionLimitError } from "./conversation-admission";
@@ -12,7 +13,8 @@ import {
   HostRequestNotFoundError,
 } from "./conversations";
 import { database, type Database, type Transaction } from "./database";
-import { findLinkCode } from "./email-links";
+import { findLinkCode, hashLinkCode } from "./email-links";
+import { readDefaultRoleCalendars } from "./calendar-roles";
 import { acceptGuestMessage, DraftMessageLimitError } from "./guest-conversations";
 import { HostIneligibleError } from "./host-eligibility";
 import { internalSigningKey } from "./internal-bearer";
@@ -370,9 +372,12 @@ type GuestBinding = {
   readonly sealed_key_id: string | null;
 };
 
+// link_id is null for a guest conversation bound to the sender's own host
+// conversation (host-as-guest-messenger, #61).
 async function activeGuestBindings(tx: Transaction, senderHash: string) {
-  return tx<(GuestBinding & { host_name: string | null })[]>`
-    select b.id, b.request_id, b.state, b.moved_to_request_id, b.sealed_key_id, s.settings ->> 'displayName' as host_name
+  return tx<(GuestBinding & { host_name: string | null; link_id: string | null; channel: string })[]>`
+    select b.id, b.request_id, b.state, b.moved_to_request_id, b.sealed_key_id, b.link_id, b.channel,
+           s.settings ->> 'displayName' as host_name
     from app.requester_imessage_bindings b
     join app.requests r on r.id = b.request_id
     left join app.host_settings s on s.host_account_id = r.host_account_id
@@ -427,10 +432,94 @@ export function namedConversation<Binding extends { readonly request_id: string;
 
 type GuestRoute = { readonly binding: GuestBinding; readonly switched: boolean; readonly forward?: boolean };
 
-async function guestRoute(tx: Transaction, receipt: OpenedReceipt): Promise<GuestRoute | "ambiguous" | null> {
+type HereBinding = GuestBinding & { readonly host_name: string | null };
+
+// A guest conversation bound to the sender's host conversation (R01, #61)
+// follows the host binding's selection, as a received request does: no picker.
+//   - `request <ref>` naming one of them selects it there; a reference one of
+//     the host's own requests shares stays the host's;
+//   - another host's booking link or @handle goes to the host role quietly, so
+//     start_request runs there ("host_link");
+//   - a message that says the sender is the host goes to setup ("host");
+//   - while setup or a sent request is selected, a message that names another
+//     sent request (its reference, or its host's full name) selects it and
+//     goes on; while a received request is selected, only a reference does, so
+//     the host's words about their own guests never move to another host's
+//     request;
+//   - otherwise the selected one, when the selection is one of them.
+// Undefined leaves the message to the other routes.
+async function hostConversationRoute(
+  tx: Transaction,
+  receipt: OpenedReceipt,
+  origin: string,
+  command: ReturnType<typeof parseCommand>,
+  host: { readonly id: string; readonly host_account_id: string; readonly selected_request_id: string | null },
+  here: readonly HereBinding[],
+): Promise<GuestRoute | "ambiguous" | "host" | "host_link" | undefined> {
+  const select = (binding: HereBinding) =>
+    tx`update app.imessage_bindings set selected_request_id = ${binding.request_id} where id = ${host.id} and state = 'active'`;
+  const ownRefs = async () =>
+    new Set(
+      (await tx<{ id: string }[]>`select id from app.requests where host_account_id = ${host.host_account_id} and state <> 'draft'`).map((request) =>
+        requestRef(request.id),
+      ),
+    );
+
+  if (command?.name === "request") {
+    const named = here.find((binding) => requestRef(binding.request_id) === command.ref);
+    if (!named || (await ownRefs()).has(command.ref)) return undefined;
+    await select(named);
+    return { binding: named, switched: true };
+  }
+  if (command) return undefined;
+
+  const text = receipt.text ?? "";
+  const selected = here.find((binding) => binding.request_id === host.selected_request_id);
+  if (selected) {
+    const handle = handleFromText(text, origin);
+    if (handle && /[/@＠]/.test(text)) return "host_link";
+  }
+  const named = namedSentRequest(text, here, host.selected_request_id === null || Boolean(selected));
+  if (named === "host") return selected ? "host" : undefined;
+  if (named && named !== selected) {
+    await select(named);
+    return { binding: named, forward: true, switched: true };
+  }
+  return selected ? { binding: selected, switched: false } : undefined;
+}
+
+// Which sent request a message names: the host role in words, a request by its
+// reference, or (when byName) by its host's full name, or a Korean name by the
+// #137 rules. Null when it names none or more than one.
+export function namedSentRequest<Binding extends { readonly request_id: string; readonly host_name: string | null }>(
+  text: string,
+  here: readonly Binding[],
+  byName: boolean,
+): "host" | Binding | null {
+  if (HOST_SELF.test(text)) return "host";
+  const upper = text.toUpperCase();
+  const lower = text.normalize("NFKC").toLowerCase();
+  const matches = here.filter((binding) => {
+    if (new RegExp(`\\b${requestRef(binding.request_id)}\\b`).test(upper)) return true;
+    if (!byName) return false;
+    const name = (binding.host_name ?? "").normalize("NFKC").trim();
+    if (!name) return false;
+    return /^[가-힣]{2,4}$/.test(name) ? namesHost(text, name) : name.length >= 3 && lower.includes(name.toLowerCase());
+  });
+  return matches.length === 1 ? matches[0]! : null;
+}
+
+async function guestRoute(tx: Transaction, receipt: OpenedReceipt, origin: string): Promise<GuestRoute | "ambiguous" | "host" | "host_link" | null> {
   const command = receipt.text ? parseCommand(receipt.text) : null;
-  const guests = await activeGuestBindings(tx, receipt.senderHash);
+  const all = await activeGuestBindings(tx, receipt.senderHash);
   const host = await activeBindingOfSender(tx, receipt.senderHash);
+  const here = host ? all.filter((binding) => binding.link_id === null && binding.channel === host.channel) : [];
+  const guests = all.filter((binding) => !here.includes(binding));
+
+  if (host && here.length) {
+    const route = await hostConversationRoute(tx, receipt, origin, command, host, here);
+    if (route !== undefined) return route;
+  }
 
   if (command?.name === "request") {
     const named = guests.filter((binding) => requestRef(binding.request_id) === command.ref);
@@ -558,6 +647,12 @@ async function guestMessage(
       update app.requester_imessage_bindings set space_ciphertext = ${space.ciphertext}, last_inbound_at = now()
       where id = ${binding.id} and state = 'active'
     `;
+    // One chat with the host conversation: its WhatsApp window is the same.
+    await tx`
+      update app.imessage_bindings set last_inbound_at = now()
+      where sender_hash = ${receipt.senderHash} and state = 'active'
+        and exists (select 1 from app.requester_imessage_bindings where id = ${binding.id} and link_id is null)
+    `;
   }
 
   const texts = channelReplies(senderLanguage(receipt));
@@ -601,6 +696,11 @@ async function revise(tx: Transaction, deps: ImessageReceiptDependencies, receip
     ),
   );
   if (outcome.kind === "refused" || !outcome.bindingId) return closedNotice(tx, deps, receipt, binding);
+  // In the sender's host conversation the revised request stays the selected one.
+  await tx`
+    update app.imessage_bindings set selected_request_id = ${outcome.requestId}
+    where sender_hash = ${receipt.senderHash} and state = 'active' and selected_request_id = ${binding.request_id}
+  `;
 
   const accepted = await acceptRevisedSummary(deps, outcome.requestId, (await readRevisedSummary(tx, binding.request_id))!);
   if (accepted !== "accepted") return accepted;
@@ -664,6 +764,22 @@ async function forwardGuest(
   return "forwarded";
 }
 
+// What an arriving code needs to bind its sender (link-on-code design 1). A
+// host's pending code also gets the live calendar list, read as the setup
+// commands read it here, so the link saves the primary calendar as the default
+// roles and its welcome names it, as Confirm and link did; a failed read only
+// means the welcome asks for the roles.
+// Codes that cannot link (from a group or for another channel) read nothing.
+async function arrivalOptions(tx: Transaction, deps: ImessageReceiptDependencies, code: string, receipt: OpenedReceipt) {
+  const [named] = receipt.spaceType === "dm" ? await tx<{ host_account_id: string }[]>`
+    select host_account_id from app.imessage_links
+    where code_hash = ${hashLinkCode(code)} and host_account_id is not null and state = 'pending' and expires_at > now()
+      and channel = ${receipt.channel}
+  ` : [];
+  const liveCalendars = named ? await readDefaultRoleCalendars(deps.db, named.host_account_id, deps.setup.calendar) : null;
+  return { liveCalendars, origin: deps.origin, tokenKey: deps.tokenKey, tokenKeys: deps.tokenKeys };
+}
+
 // ---------------------------------------------------------------------------
 // Telegram (host-telegram-channel design 6)
 
@@ -687,7 +803,7 @@ export async function telegramLinking(tx: Transaction, deps: ImessageReceiptDepe
   const code = findLinkCode(text);
 
   if (code) {
-    return receiveLinkCode(tx, { origin: deps.origin, tokenKey: deps.tokenKey }, {
+    return receiveLinkCode(tx, await arrivalOptions(tx, deps, code, receipt), {
       channel: "telegram",
       code,
       receiptId: receipt.id,
@@ -733,7 +849,7 @@ export async function processReceipt(
   const code = receipt.text ? findLinkCode(receipt.text) : null;
 
   if (code) {
-    return receiveLinkCode(tx, { origin: deps.origin, tokenKey: deps.tokenKey }, {
+    return receiveLinkCode(tx, await arrivalOptions(tx, deps, code, receipt), {
       channel: receipt.channel,
       code,
       receiptId: receipt.id,
@@ -755,14 +871,25 @@ export async function processReceipt(
   // Guests write from any channel (guest-whatsapp-link, guest-telegram-link
   // design 4); a Telegram button tap or block is never a guest's message.
   const guestContent = receipt.channel !== "telegram" || receipt.contentType === "text" || receipt.contentType === "command";
-  let guest = guestContent ? await guestRoute(tx, receipt) : null;
+  let guest = guestContent ? await guestRoute(tx, receipt, deps.origin) : null;
   // A sender with several conversations and no current choice (#137): a
   // message that names one in words goes there; otherwise the choice is asked
   // in the message's language, answerable in words.
   let hostByWords = false;
+  let hostByLink = false;
+  if (guest === "host") {
+    guest = null;
+    hostByWords = true;
+  } else if (guest === "host_link") {
+    guest = null;
+    hostByLink = true;
+  }
   if (guest === "ambiguous") {
-    const guests = await activeGuestBindings(tx, receipt.senderHash);
     const host = await activeBindingOfSender(tx, receipt.senderHash);
+    // Conversations bound to the host conversation are never in the picker.
+    const guests = (await activeGuestBindings(tx, receipt.senderHash)).filter(
+      (binding) => !(host && binding.link_id === null && binding.channel === host.channel),
+    );
     const named = receipt.text && !parseCommand(receipt.text) ? namedConversation(receipt.text, guests, Boolean(host)) : null;
     if (named === "host") {
       guest = null;
@@ -836,6 +963,16 @@ export async function processReceipt(
     update app.imessage_bindings set space_ciphertext = ${space.ciphertext}, last_inbound_at = now()
     where id = ${binding.id} and state = 'active'
   `;
+  // The request conversations bound to this one share its WhatsApp window.
+  await tx`
+    update app.requester_imessage_bindings set last_inbound_at = now()
+    where sender_hash = ${receipt.senderHash} and state = 'active' and link_id is null and channel = ${receipt.channel}
+  `;
+  // Another host's link while a sent request was selected (R01 M-1): back to
+  // the host role, so start_request reads it.
+  if (hostByLink) {
+    await tx`update app.imessage_bindings set selected_request_id = null where id = ${binding.id} and state = 'active'`;
+  }
   // The window is open again: a weekly note list held back by it follows
   // (calendar-note-review design 10).
   if (receipt.channel === "whatsapp") await reopenWeeklyNoteList(tx, binding.host_account_id, binding.id);
@@ -846,7 +983,7 @@ export async function processReceipt(
     hostAccountId: binding.host_account_id,
     receipt,
     recipient,
-    selectedRequestId: binding.selected_request_id,
+    selectedRequestId: hostByLink ? null : binding.selected_request_id,
   };
 
   // A button tap runs the command its data names, never its label (D8); data

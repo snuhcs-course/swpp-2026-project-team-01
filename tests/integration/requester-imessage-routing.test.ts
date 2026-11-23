@@ -9,7 +9,6 @@ import { enqueueHostNotice, guestNoticeKey, IMESSAGE_NOTICE_JOB } from "../../li
 import { GUEST_TEXTS } from "../../lib/server/imessage-receipts";
 import { imessageHash } from "../../lib/server/photon-receiver";
 import {
-  confirmRequesterImessageLinkCommand,
   createRequesterImessageLinkCommand,
   readRequesterImessageStatus,
   unlinkRequesterImessageCommand,
@@ -38,7 +37,7 @@ let photon: FakePhoton;
 const im = imessageHarness(db, () => photon);
 const options = { lineNumber: TEST_LINE, registrar: im.registrar, tokenKey: testTokenKey, tokenKeys: [testTokenKey] };
 const commands: Readonly<Record<string, CommandDefinition<unknown, unknown>>> = Object.fromEntries(
-  [createRequesterImessageLinkCommand(options), confirmRequesterImessageLinkCommand(options), unlinkRequesterImessageCommand].map(
+  [createRequesterImessageLinkCommand(options), unlinkRequesterImessageCommand].map(
     (command) => [command.operation, command as unknown as CommandDefinition<unknown, unknown>],
   ),
 );
@@ -70,10 +69,9 @@ async function linkGuest(sender: string, requestId: string) {
   expect((await asGuest(requestId, REQUESTER_IMESSAGE_OPERATIONS.create, { number: "+15557654321" })).ok).toBe(true);
   const pending = await readRequesterImessageStatus(db, [testTokenKey], requestId, TEST_LINE);
   if (pending.state !== "pending") throw new Error("Expected a pending code.");
-  await im.deliver({ sender, text: pending.message });
-  const received = await readRequesterImessageStatus(db, [testTokenKey], requestId, TEST_LINE);
-  if (received.state !== "received") throw new Error("Expected a received code.");
-  expect((await asGuest(requestId, REQUESTER_IMESSAGE_OPERATIONS.confirm, { linkId: received.linkId })).ok).toBe(true);
+  // The code links on arrival (link-on-code D1).
+  expect((await im.deliver({ sender, text: pending.message })).outcome).toBe("link_received");
+  expect(await readRequesterImessageStatus(db, [testTokenKey], requestId, TEST_LINE)).toMatchObject({ state: "linked" });
 }
 
 // A request of a ready host named hostName, with the sender linked as its guest.

@@ -15,7 +15,7 @@ import { runJob, testTokenKey } from "./requests";
 import { newTelegramUser, telegramDelivery, TEST_TELEGRAM_SECRET } from "./telegram";
 
 // The Telegram suites' harness (host-telegram-channel Lane C): binds a Telegram
-// account to a host as **Confirm and link** leaves it (linking itself is Lane
+// account to a host as an arriving code leaves it (linking itself is Lane
 // B's), delivers updates through the real webhook receiver and runs their receipt
 // job, runs Telegram's follow-up jobs, and sends outbox rows through the Bot API
 // stand-in. The one-second chat spacing is covered by the outbox suite, so sends
@@ -42,7 +42,7 @@ export function telegramHarness(db: Database, im: ImessageHarness, telegram: () 
   return {
     sendDeps,
     hash: (userId: number | string) => channelHash(testTokenKey, "telegram", "sender", String(userId)),
-    // An active Telegram binding for the host, as confirmation leaves it.
+    // An active Telegram binding for the host, as linking leaves it.
     async bind(hostAccountId: string, userId: number = newTelegramUser()) {
       const chatId = String(userId);
       const id = randomUUID();

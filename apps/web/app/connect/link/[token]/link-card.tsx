@@ -2,12 +2,15 @@
 import { useEffect, useState } from "react";
 import { deepLinkFor } from "@lib/contracts/imessage";
 import type { ConnectLinkView } from "@lib/server/connect-link-routes";
-import { PendingCode, TELEGRAM_PRIVACY, WHATSAPP_OPT_IN, useMessagesPlatform } from "@/app/_components/imessage/imessage-card";
+import { PendingCode, useMessagesPlatform } from "@/app/_components/imessage/imessage-card";
 import { Button } from "@/components/ui/button";
 
 const CLOSED = "This link is no longer open. Ask your agent to start again.";
+// The code links as soon as its message arrives (link-on-code D1): the page polls the open code and moves to
+// Linked by itself. Nothing is confirmed here; the code's own card says what WhatsApp and Telegram send, and
+// Not my number lives in /app or on the booking page (link-on-code D2).
 export function LinkCard({ initial, token }: { readonly initial: ConnectLinkView; readonly token: string }) {
-  const [view, setView] = useState<ConnectLinkView | { state: "linked" }>(initial);
+  const [view, setView] = useState<ConnectLinkView>(initial);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const platform = useMessagesPlatform();
@@ -32,7 +35,7 @@ export function LinkCard({ initial, token }: { readonly initial: ConnectLinkView
     }, 3000);
     return () => { controller.abort(); window.clearInterval(timer); };
   }, [token, view.state]);
-  async function act(action: "confirm" | "cancel") {
+  async function act(action: "cancel") {
     setBusy(true);
     setError(null);
     try {
@@ -47,16 +50,13 @@ export function LinkCard({ initial, token }: { readonly initial: ConnectLinkView
   if (view.state === "linked") return <p role="status">Linked. You can go back to your agent.</p>;
   if (view.state === "sign_in") return <><h1>Sign in to link your chat</h1><Button asChild><a href={`/auth/sign-in?return=link&token=${encodeURIComponent(token)}`}>Sign in with Google</a></Button></>;
   const notice = error ? <p role="alert">{error}</p> : null;
-  if (view.status.state === "pending") {
-    if (!mounted) return <p role="status">Loading the link…</p>;
-    // The /app card leaves this out; this page offers it on a Mac, as the requester card does (host-imessage-channel D17).
-    const macLink = view.status.channel === "imessage" && platform === "mac" ? deepLinkFor("mac", view.status.lineNumber, view.status.message) : null;
-    return (
-      <>
-        <PendingCode busy={busy} notice={notice} onCancel={() => void act("cancel")} platform={platform} status={{ ...view.status, channels: { imessage: null, whatsapp: null, telegram: null } }} switchers={null} />
-        {macLink ? <Button asChild variant="outline"><a href={macLink}>Open Messages on this Mac</a></Button> : null}
-      </>
-    );
-  }
-  return <section className="flex flex-col gap-4"><h1>Is this you?</h1>{notice}<p>Sent from <strong>{view.status.sender}</strong></p>{"replaces" in view.status && view.status.replaces ? <p>This replaces your {view.status.replaces} link.</p> : null}{view.status.channel === "whatsapp" ? <p>{WHATSAPP_OPT_IN}</p> : null}{view.status.channel === "telegram" ? <p>{TELEGRAM_PRIVACY}</p> : null}<Button disabled={busy} onClick={() => void act("confirm")}>Confirm and link</Button><Button disabled={busy} variant="outline" onClick={() => void act("cancel")}>Cancel</Button></section>;
+  if (!mounted) return <p role="status">Loading the link…</p>;
+  // The /app card leaves this out; this page offers it on a Mac, as the requester card does (host-imessage-channel D17).
+  const macLink = view.status.channel === "imessage" && platform === "mac" ? deepLinkFor("mac", view.status.lineNumber, view.status.message) : null;
+  return (
+    <>
+      <PendingCode busy={busy} notice={notice} onCancel={() => void act("cancel")} platform={platform} status={{ ...view.status, channels: { imessage: null, whatsapp: null, telegram: null } }} switchers={null} />
+      {macLink ? <Button asChild variant="outline"><a href={macLink}>Open Messages on this Mac</a></Button> : null}
+    </>
+  );
 }
