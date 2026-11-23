@@ -446,6 +446,26 @@ describe("draft_request_review applies what the guest stated (#411)", () => {
     expect(await evaluations(r.requestId)).toBe(0);
   });
 
+  it("replays a split draft on retry from what the first attempt recorded", async () => {
+    const r = await requester({ details: { mode: null, purpose: null } });
+    const date = new Date(Date.now() + 3 * 86_400_000).toISOString().slice(0, 10);
+    const call = r.call();
+    const input = {
+      details: { mode: "online" as const, purpose: "Investment advice", windows: [{ date, end: "18:00", start: "12:00" }] },
+      inferredTime: true,
+      intent: "details" as const,
+    };
+
+    const first = await draftRequestReviewForTool(db, call, input, { waitMs: 50 });
+    expect(first).toMatchObject({ appliedFields: expect.arrayContaining(["purpose"]), recorded: true, review: { patch: { windows: expect.any(Array) } } });
+    expect(await states(r.requestId)).toEqual(["superseded", "applied", "pending"]);
+
+    // The request now holds the purpose and form; the retry must not re-split.
+    expect(await draftRequestReviewForTool(db, call, input, { waitMs: 50 })).toEqual(first);
+    expect(await states(r.requestId)).toEqual(["superseded", "applied", "pending"]);
+    expect(await evaluations(r.requestId)).toBe(0);
+  });
+
   it("keeps a length that differs from the request's on the card, with nothing applied", async () => {
     const r = await requester();
     const result = await draftRequestReviewForTool(db, r.call(), { details: { durationMinutes: 60 }, intent: "details" }, { waitMs: 50 });

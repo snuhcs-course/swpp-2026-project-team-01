@@ -17,7 +17,7 @@ import type { LocationAnswer, MeetingMode } from "../contracts/setup";
 import { displayTime, isValidTimeZone } from "../contracts/timezone";
 import type { CommandErrorCategory } from "../contracts/command-errors";
 import { readBookingStatus } from "./bookings";
-import { type Actor, type CommandDefinition, runCommand } from "./commands";
+import { type Actor, type CommandDefinition, runCommand, savedCommandResult } from "./commands";
 import type { Database, Queryable, Transaction } from "./database";
 import { encodeDisplayName } from "./entry-documents";
 import { awaitEvaluation } from "./evaluation";
@@ -45,7 +45,9 @@ import {
   localPatchSchema,
   type PatchProblem,
   requestLanguage,
+  type InferredParts,
   splitStatedPatch,
+  type StatedSplit,
   type StoredReview,
   storedPatch,
   storedReview,
@@ -433,7 +435,12 @@ type Applied = Awaited<ReturnType<typeof applyAndEvaluate>>;
 
 export type DraftRequestReviewToolResult =
   | { readonly recorded: true; readonly review: ReturnType<typeof minimizedReview> }
-  | ({ readonly review: ReturnType<typeof minimizedReview> | null; readonly appliedFields: readonly string[] } & Applied)
+  | ({
+      readonly review: ReturnType<typeof minimizedReview> | null;
+      readonly appliedFields: readonly string[];
+      // Why the part that would wait on the card could not be drafted.
+      readonly heldProblem?: PatchProblem;
+    } & Applied)
   | { readonly recorded: false; readonly problem: PatchProblem; readonly question: string };
 
 function rejected(problem: PatchProblem, language: RequestLanguage): DraftRequestReviewToolResult {
@@ -444,8 +451,7 @@ function rejected(problem: PatchProblem, language: RequestLanguage): DraftReques
   };
 }
 
-// What the guest is told was applied: the fields as the review receipt names
-// them (lib/server/guest-thread.ts).
+// What the guest is told was applied, in words the assistant can repeat.
 const APPLIED_LABELS: Readonly<Record<string, string>> = {
   durationMinutes: "length",
   lessPreferredWindows: "less preferred times",
@@ -507,7 +513,8 @@ export async function draftRequestReviewForTool(
 
   // The whole draft is validated first, as one review, so nothing is applied
   // from a draft that would be rejected; it is also the card if nothing applies.
-  const result = await draft(commandInput as DraftReviewInput, `tool:${call.callId}`);
+  const tool = `tool:${call.callId}`;
+  const result = await draft(commandInput as DraftReviewInput, tool);
   if (!result.recorded) return rejected(result.problem, language);
   if (!patch) return { recorded: true, review: minimizedReview(result.review, timezone) };
 
@@ -515,12 +522,14 @@ export async function draftRequestReviewForTool(
   // (apply-stated-details, #411; guest-flow-completion U21 for times). What the
   // assistant inferred, a change to a value the request holds, and contact
   // details stay on the review card.
-  const { applied, changes, held } = splitStatedPatch(row.details, patch, { mode: input.inferredMode, time: input.inferredTime });
+  const split = await statedSplit(db, id, result.review, patch, row.details, { mode: input.inferredMode, time: input.inferredTime }, tool);
+  if (split === "settled") return { recorded: true, review: minimizedReview(result.review, timezone) };
+  const { applied, changes, held } = split;
   // With something on the card, a stated part that changes nothing stays on it.
   if (!applied || (held && !changes)) return { recorded: true, review: minimizedReview(result.review, timezone) };
 
   if (!held) {
-    const done = await applyAndEvaluate(db, call, result.review.id, `tool:${call.callId}:apply`, options);
+    const done = await applyAndEvaluate(db, call, result.review.id, `${tool}:apply`, options);
     if (!done.recorded) return { ...done, appliedFields: [], review: minimizedReview(result.review, timezone) };
     return { ...done, appliedFields: appliedLabels(applied), message: `${done.message} ${APPLIED_NOTE}`, review: null };
   }
@@ -528,15 +537,20 @@ export async function draftRequestReviewForTool(
   // Both: the stated part becomes its own review and is applied, then the rest
   // is drafted again for the card. Times are found once the card is settled, so
   // they never ignore what the guest is still confirming.
-  const stated = await draft({ ...commandInput, patch: applied } as DraftReviewInput, `tool:${call.callId}:stated`);
+  const stated = await draft({ ...commandInput, patch: applied } as DraftReviewInput, `${tool}:stated`);
   if (!stated.recorded) return { recorded: true, review: minimizedReview(result.review, timezone) };
-  const done = await applyAndEvaluate(db, call, stated.review.id, `tool:${call.callId}:apply`, { ...options, findTimes: false });
-  if (!done.recorded) return { ...done, appliedFields: [], review: minimizedReview(stated.review, timezone) };
+  const done = await applyAndEvaluate(db, call, stated.review.id, `${tool}:apply`, { ...options, findTimes: false });
+  if (!done.recorded) {
+    // Nothing was applied: the whole draft goes back on the card, so the held
+    // part is not lost with the stated one.
+    const restored = await draft(commandInput as DraftReviewInput, `${tool}:restore`);
+    return { ...done, appliedFields: [], review: restored.recorded ? minimizedReview(restored.review, timezone) : null };
+  }
 
-  const rest = await draft({ ...commandInput, patch: held } as DraftReviewInput, `tool:${call.callId}:held`);
+  const rest = await draft({ ...commandInput, patch: held } as DraftReviewInput, `${tool}:held`);
   if (!rest.recorded) {
-    const problem = rejected(rest.problem, language);
-    return { ...done, appliedFields: appliedLabels(applied), message: `Applied. ${APPLIED_NOTE} The rest was not recorded: ${"question" in problem ? problem.question : ""}`, review: null };
+    const problem = rest.problem === "ambiguous_local_time" ? clarificationQuestion("ambiguous_local_time", language) : PROBLEM_MESSAGES[rest.problem];
+    return { ...done, appliedFields: appliedLabels(applied), heldProblem: rest.problem, message: `Applied. ${APPLIED_NOTE} The rest is not on a card: ${problem}`, review: null };
   }
   return {
     ...done,
@@ -544,6 +558,34 @@ export async function draftRequestReviewForTool(
     message: `Applied. ${APPLIED_NOTE} ${HELD_NOTE}`,
     review: minimizedReview(rest.review, timezone),
   };
+}
+
+// The split of a draft into what applies at once and what waits on the card.
+// A retried call decides from what its first attempt recorded, never from the
+// request as that attempt (or the guest, since) left it: the stated review
+// names the stated part, an apply of the whole draft means nothing was held,
+// and a whole draft resolved with neither was settled by the guest.
+async function statedSplit(
+  db: Database,
+  id: string,
+  review: StoredReview,
+  patch: ReviewPatch,
+  details: Partial<RequestDetails>,
+  inferred: InferredParts,
+  tool: string,
+): Promise<StatedSplit | "settled"> {
+  const actor = actorOf(id);
+  const stated = await savedCommandResult<DraftReviewResult>(db, actor, `${tool}:stated`);
+  if (stated?.recorded && stated.review.patch) {
+    const applied = stated.review.patch;
+    const rest = Object.entries(patch).filter(([key, value]) => value !== undefined && !(key in applied));
+    return { applied, changes: true, held: rest.length > 0 ? (Object.fromEntries(rest) as ReviewPatch) : null };
+  }
+  if (await savedCommandResult(db, actor, `${tool}:apply`)) return { applied: patch, changes: true, held: null };
+
+  const [current] = await db<{ state: string }[]>`select state from app.request_reviews where id = ${review.id}`;
+  if (current?.state !== "pending") return "settled";
+  return splitStatedPatch(details, patch, inferred);
 }
 
 // ---------------------------------------------------------------------------

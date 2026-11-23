@@ -15,7 +15,7 @@ import {
 } from "../contracts/request";
 import { MEETING_MODES, weeklyWindowSchema } from "../contracts/setup";
 import { isValidTimeZone } from "../contracts/timezone";
-import { assertRevision, type CommandDefinition, CommandError } from "./commands";
+import { assertRevision, canonicalJson, type CommandDefinition, CommandError } from "./commands";
 import { CONFIRMATION_LIMITS, type ConfirmationLimits, issueContactConfirmation, lockConfirmationBounds } from "./contact-confirmation";
 import type { Transaction } from "./database";
 import { invalidateExceptions } from "./request-exceptions";
@@ -245,6 +245,11 @@ const TIME_FIELDS = ["windows", "preferredWindows", "lessPreferredWindows", "pre
 // protected review.
 const STATED_FIELDS: readonly string[] = [...SETTLED_FIELDS, ...TIME_FIELDS];
 
+// Stored jsonb comes back with its keys in another order than a fresh patch.
+function sameValue(a: unknown, b: unknown) {
+  return canonicalJson(a ?? null) === canonicalJson(b ?? null);
+}
+
 // applied: the stated part; changes: whether it changes anything the request
 // holds; held: the part that waits on the card.
 export type StatedSplit = { readonly applied: ReviewPatch | null; readonly changes: boolean; readonly held: ReviewPatch | null };
@@ -263,8 +268,11 @@ export function splitStatedPatch(details: Partial<RequestDetails>, patch: Review
   }
   for (const key of SETTLED_FIELDS) {
     const current = details[key];
-    if (patch[key] !== undefined && current !== undefined && current !== null && !sameJson(current, patch[key])) held.add(key);
+    if (patch[key] !== undefined && current !== undefined && current !== null && !sameValue(current, patch[key])) held.add(key);
   }
+  // A change of form waits with the place, link and travel that go with it, so
+  // dismissing the card never leaves one form with the other's details.
+  if (held.has("mode")) for (const key of ["location", "linkPlan", "travelMode"]) held.add(key);
   // Windows that must fit a length still waiting on the card wait with it, so
   // they are never checked against the length the guest is changing.
   if (held.has("durationMinutes")) for (const key of TIME_FIELDS) held.add(key);
@@ -274,7 +282,7 @@ export function splitStatedPatch(details: Partial<RequestDetails>, patch: Review
     return entries.length > 0 ? (Object.fromEntries(entries) as ReviewPatch) : null;
   };
   const applied = pick((key) => !held.has(key));
-  const changes = applied !== null && Object.entries(applied).some(([key, value]) => !sameJson(details[key as keyof RequestDetails], value));
+  const changes = applied !== null && Object.entries(applied).some(([key, value]) => !sameValue(details[key as keyof RequestDetails], value));
   return { applied, changes, held: pick((key) => held.has(key)) };
 }
 

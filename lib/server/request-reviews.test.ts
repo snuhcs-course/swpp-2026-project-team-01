@@ -140,4 +140,18 @@ describe("splitStatedPatch (#411)", () => {
     const earlier = { windows: [{ end: "2099-03-01T03:00:00.000Z", start: "2099-03-01T01:00:00.000Z" }] };
     expect(splitStatedPatch(earlier, { windows: [window] })).toMatchObject({ applied: { windows: [window] }, held: null });
   });
+
+  it("holds the place, link and travel with a change of form", () => {
+    expect(splitStatedPatch({ mode: "online" }, { location: "성수", mode: "in_person", purpose: "Coffee" })).toEqual({
+      applied: { purpose: "Coffee" },
+      changes: true,
+      held: { location: "성수", mode: "in_person" },
+    });
+  });
+
+  it("compares stored values regardless of key order", () => {
+    const stored = { linkPlan: { url: "https://meet.example.test/x", kind: "requester_link" as const } };
+    const restated = { linkPlan: { kind: "requester_link" as const, url: "https://meet.example.test/x" } };
+    expect(splitStatedPatch(stored, restated)).toEqual({ applied: restated, changes: false, held: null });
+  });
 });
