@@ -11,7 +11,7 @@ import {
 import { cn } from "@/lib/utils";
 import { CardNotice, CardProgress, cardHeadingId, HEADING_CLASS, QuietButton } from "./card";
 import { useStepper } from "./setup-context";
-import { STEP_CARD_IDS, type StepId } from "./steps";
+import { STEP_CARD_IDS, STEP_LABELS, type StepId } from "./steps";
 
 // A step of setup, on the shadcn/ui Questionnaire: the open step is its one
 // item, rendered as one question with a quiet progress hint in its eyebrow. There is no Back: an answered step collapses into a
@@ -66,7 +66,7 @@ export function StepCard({
         <div className="flex min-h-6 items-center justify-between gap-2">
           {position > 0 ? (
             <QuestionnaireProgress aria-label="Setup progress" className="min-w-0">
-              {stepper.editing ? "Changing an answer" : `${position} of ${total}`}
+              {stepper.editing ? "Changing an answer" : `${position} of ${total} · ${STEP_LABELS[step]}`}
             </QuestionnaireProgress>
           ) : (
             <span />

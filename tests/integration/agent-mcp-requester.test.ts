@@ -235,6 +235,8 @@ describe("an existing request within delegation", () => {
       retryKey: "choose-0001",
     });
     expect(chosen.isError).toBe(false);
+    expect(chosen.structuredContent.next).toContain("nothing is agreed and the host has not been asked");
+    expect(chosen.structuredContent.request).toMatchObject({ state: "negotiating" });
     const version = (chosen.structuredContent.outcome as { version: number }).version;
     const revision = (chosen.structuredContent.request as { revision: number }).revision;
 
@@ -247,6 +249,40 @@ describe("an existing request within delegation", () => {
     expect(agreed.structuredContent.request).toMatchObject({ state: "awaiting_host_approval" });
     const [{ count }] = Array.from(await db<{ count: number }[]>`select count(*)::int as count from app.approvals where request_id = ${request.requestId}`);
     expect(count).toBe(0);
+  });
+
+  // #331: the agent reopens a pending agreement as the web's Change does.
+  it("reopens a pending agreement with change_agreement, then changes the details", async () => {
+    const { agent, handle, tokens } = await connectedRequest();
+    const token = tokens.access_token;
+    const found = await call(agent, token, handle, "find_times", { retryKey: "times-0101" });
+    await runEvaluation(db, evaluationDeps(db, google), (found.structuredContent.outcome as { evaluationId: string }).evaluationId);
+    const read = await call(agent, token, handle, "get_request");
+    const evaluation = read.structuredContent.evaluation as { id: string; candidates: { id: string }[] };
+    const chosen = await call(agent, token, handle, "choose_time", {
+      expectedRevision: read.structuredContent.revision,
+      input: { candidateId: evaluation.candidates[0]!.id, evaluationId: evaluation.id },
+      retryKey: "choose-0101",
+    });
+    const version = (chosen.structuredContent.outcome as { version: number }).version;
+    const agreed = await call(agent, token, handle, "agree_to_proposal", { expectedRevision: (chosen.structuredContent.request as { revision: number }).revision, input: { version }, retryKey: "agree-0101" });
+    expect(agreed.structuredContent.request).toMatchObject({ state: "awaiting_host_approval" });
+    const waitingRevision = (agreed.structuredContent.request as { revision: number }).revision;
+
+    const locked = await call(agent, token, handle, "update_request_details", { input: { details: { purpose: "A longer chat" }, timezone: "Asia/Seoul" }, retryKey: "details-0101" });
+    expect(locked.isError).toBe(true);
+    expect(locked.structuredContent.error?.nextAction).toContain("call change_agreement first");
+
+    const reopened = await call(agent, token, handle, "change_agreement", { expectedRevision: waitingRevision, retryKey: "change-0101" });
+    expect(reopened.isError).toBe(false);
+    expect(reopened.structuredContent.request).toMatchObject({ revision: waitingRevision + 1, state: "negotiating" });
+
+    const changed = await call(agent, token, handle, "update_request_details", { input: { details: { purpose: "A longer chat" }, timezone: "Asia/Seoul" }, retryKey: "details-0102" });
+    expect(changed.isError).toBe(false);
+    expect(changed.structuredContent.request).toMatchObject({ details: expect.objectContaining({ purpose: "A longer chat" }) });
+
+    const again = await call(agent, token, handle, "change_agreement", { retryKey: "change-0102" });
+    expect(again.structuredContent.error?.nextAction).toContain("nothing to reopen");
   });
 
   it("after withdrawal reads only the closed status and still refreshes", async () => {

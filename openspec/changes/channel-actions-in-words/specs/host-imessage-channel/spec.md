@@ -23,6 +23,17 @@ In the linked iMessage, WhatsApp or Telegram conversation, the assistant SHALL b
 - **WHEN** the assistant acts on a proposal version, suggestion or settings review that is no longer current
 - **THEN** nothing changes and the assistant names the current one
 
+### Requirement: Saved settings changed in words from a request's conversation
+In the linked iMessage, WhatsApp or Telegram conversation, a host whose settings are saved SHALL be able to change a setting for all their meetings, such as the preferred meeting location, in their own words while the conversation is about a request, without switching it back to setup. The change SHALL run through the same draft and save as a change in setup, SHALL be saved at once under the same checks, and the assistant SHALL say it is saved only when it was. A place or time for the request alone SHALL stay a change to that request. It SHALL NOT act for a message typed on the web.
+
+#### Scenario: Preferred place changed during a request
+- **WHEN** a linked host whose conversation is about a request writes "change my preferred meeting location to Gangnam"
+- **THEN** the saved preferred location becomes Gangnam, **Settings → Meeting preferences** shows it, and the reply says it is saved
+
+#### Scenario: Same words on the web
+- **WHEN** the host types the same words in a request's discussion in `/app`
+- **THEN** nothing changes and the host is pointed to **Settings**
+
 ### Requirement: Questions answered in words
 In the linked conversation, the host SHALL be able to ask in words for the current proposal, the suggested changes, their settings and their requests, and the assistant SHALL answer from the application records. In setup, on the web and in the linked conversation, the host SHALL be able to ask about their requests and get each request's requester, purpose, status and reference.
 
@@ -70,7 +81,7 @@ In the linked iMessage, WhatsApp or Telegram conversation, the assistant SHALL b
 - **THEN** nothing is switched and the assistant asks which one, naming each
 
 ### Requirement: Summaries and outcomes
-A host with an active binding SHALL receive in the linked conversation one summary per event when a proposal awaits approval (saying the host may approve or decline in their own words, with decision buttons where the channel has them) and when a booking is confirmed, not confirmed or still pending. A request's arrival SHALL NOT be announced: the guest is offered times first, and the awaiting-approval summary, the host's first message about the request, SHALL name the requester, the purpose and any earlier request it follows. Each summary SHALL be recorded in the transaction of the change it reports and frozen from that event's own records; a summary for a proposal version that is no longer the latest SHALL NOT be sent.
+A host with an active binding SHALL receive in the linked conversation one summary per event when a proposal awaits approval (saying the host may approve or decline in their own words, with decision buttons where the channel has them) and when a booking is confirmed or not confirmed. A booking still pending SHALL NOT be announced to the host: its confirmation or failure follows once the write resolves (#173). A request's arrival SHALL NOT be announced: the guest is offered times first, and the awaiting-approval summary, the host's first message about the request, SHALL name the requester, the purpose and any earlier request it follows. Each summary SHALL be recorded in the transaction of the change it reports and frozen from that event's own records; a summary for a proposal version that is no longer the latest SHALL NOT be sent.
 
 #### Scenario: Guest starts a request
 - **WHEN** a guest of a host with an active binding starts or revises a request
@@ -79,6 +90,10 @@ A host with an active binding SHALL receive in the linked conversation one summa
 #### Scenario: Proposal awaits approval
 - **WHEN** the requester agrees to a proposal of a host with an active binding
 - **THEN** one summary with the time, mode and place, saying the host may approve or decline in their own words and naming no command, is queued for the linked conversation
+
+#### Scenario: Booking still pending
+- **WHEN** a linked host's booking is still unconfirmed 15 minutes after dispatch
+- **THEN** the guest is told it is still in progress and nothing is sent to the host's linked conversation; the host's next summary is the booking's confirmation or failure once the write resolves
 
 ### Requirement: Setup over iMessage
 A linked host SHALL be able to enter the shared setup discussion with `setup` or in words and answer setup questions in plain text that update the same draft as the web workspace. Sign-in, Google consent and protected fields SHALL stay browser steps; Thyme SHALL send a link for connecting Google Calendar that returns the host to the conversation. Linking SHALL send a welcome by where the host stands: a ready host is told what Thyme can do, a host without a usable Calendar gets the Calendar link, and any other host gets the first setup question. Settings SHALL be saved only for the current settings review, by the host's clear words to the assistant or the exact `confirm <ref>` command, under the same checks as the web confirmation.

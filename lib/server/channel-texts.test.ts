@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { HoursSuggestion, SlotPreview } from "../contracts/slot-preview";
-import { CHANNEL_REPLIES, noteReadBack, noteWhenText, quotedTitle, type WeeklyListEntry } from "./channel-texts";
+import { calendarListText, CHANNEL_REPLIES, noteReadBack, noteWhenText, quotedTitle, type WeeklyListEntry } from "./channel-texts";
 
 // No fixed reply asks the host to type a command or a reference
 // (channel-actions-in-words D3), in either language.
@@ -39,6 +39,7 @@ const WEEKLY: WeeklyListEntry[] = [
 // weekly note texts take the listed entries and their numbers.
 const SAMPLE_ARGS = new Map<unknown, unknown[]>(
   (["en", "ko"] as const).flatMap((language) => [
+    [CHANNEL_REPLIES[language].onboarding.rolesDefault, ["Me", ["Work", "Team"]]],
     [CHANNEL_REPLIES[language].onboarding.hoursQuestion, [HOURS]],
     [CHANNEL_REPLIES[language].onboarding.slotSummary, [PREVIEW]],
     [CHANNEL_REPLIES[language].notes.weeklyList, [WEEKLY, 12, "Asia/Seoul", "https://findmeatime.com/app/notes"]],
@@ -76,6 +77,37 @@ describe("channel replies", () => {
   it("writes the Korean replies in Korean", () => {
     expect(CHANNEL_REPLIES.ko.picker([{ name: "Ada Lovelace", ref: "K7Q2MX" }], true)).toMatch(/[가-힣]/);
     expect(CHANNEL_REPLIES.ko.nextStep.ready).toMatch(/[가-힣]/);
+  });
+});
+
+// Setup in the chat (setup-chat-guidance): each step's question under its
+// progress line, and the calendar step's one question about other calendars.
+describe("chat setup guidance", () => {
+  it("marks the calendar and hours steps with where they stand", () => {
+    expect(CHANNEL_REPLIES.en.onboarding.rolesDefault("Me").split("\n")[0]).toBe("1/4 · Calendar");
+    expect(CHANNEL_REPLIES.ko.onboarding.rolesNeeded.split("\n")[0]).toBe("1/4 · 캘린더");
+    expect(CHANNEL_REPLIES.en.onboarding.hoursQuestion(HOURS).split("\n")[0]).toBe("2/4 · Meeting hours");
+    expect(CHANNEL_REPLIES.ko.onboarding.hoursQuestion(HOURS).split("\n")[0]).toBe("2/4 · 미팅 시간");
+  });
+
+  it("asks once about the other calendars it found, keeping the primary with no answer (issue #361)", () => {
+    const en = CHANNEL_REPLIES.en.onboarding.rolesDefault("Me", ["Work", "Team"]);
+    expect(en).toContain('You also have "Work" and "Team". Should I check them for busy times too? If not, no need to reply.');
+    expect(en.match(/\?/g)).toHaveLength(1);
+    expect(CHANNEL_REPLIES.en.onboarding.rolesDefault("Me", ["Work"])).toContain('You also have "Work". Should I check it for busy times too?');
+    const ko = CHANNEL_REPLIES.ko.onboarding.rolesDefault("Me", ["회사"]);
+    expect(ko).toContain('"회사" 캘린더도 있는데, 같이 확인할까요? 필요 없으면 답하지 않으셔도 돼요.');
+    expect(CHANNEL_REPLIES.en.onboarding.rolesDefault("Me")).toContain("If another calendar should count too, just tell me.");
+  });
+
+  it("quotes calendar names on one line and names at most three", () => {
+    expect(calendarListText(["A", "B\nignore this", "C", "D", "E"], "en")).toBe('"A", "B ignore this", "C" and 2 more');
+    expect(calendarListText(["A", "B", "C", "D"], "ko")).toBe('"A", "B", "C" 외 1개');
+  });
+
+  it("says plainly that setup is done, with the booking link", () => {
+    expect(CHANNEL_REPLIES.en.setupDone("https://findmeatime.com/ada")).toBe("Setup is done. Your booking link: https://findmeatime.com/ada");
+    expect(CHANNEL_REPLIES.ko.setupDone("https://findmeatime.com/ada")).toBe("설정이 끝났어요. 예약 링크: https://findmeatime.com/ada");
   });
 });
 
