@@ -20,6 +20,7 @@ import {
   localParts,
   normalizeBusy,
   requesterProjection,
+  type RequesterPreferences,
   resolveMeetingMode,
   startOfLocalDay,
   type TravelAllowance,
@@ -44,7 +45,7 @@ import {
   readRequesterEvents,
   requesterCalendarConfigFromEnvironment,
 } from "./requester-calendar";
-import { dropGuestHostCalendars, readGuestHostSource } from "./requester-host-profiles";
+import { dropGuestHostCalendars, type GuestHostSource, readGuestHostSource } from "./requester-host-profiles";
 import { endpointHasher, estimateTravel, type RouteEstimate, type RoutesConfig, routesConfigFromEnvironment } from "./routes-client";
 import { type TokenKey, tokenKeyFromEnvironment } from "./token-encryption";
 
@@ -515,7 +516,7 @@ function readRange(windows: readonly { start: Date; end: Date }[], timezone: str
 type Nearest = { readonly before: EvaluatedCandidate | null; readonly after: EvaluatedCandidate | null };
 
 type Outcome =
-  | { readonly kind: "result"; readonly input: FeasibilityInput; readonly candidates: StoredCandidate[]; readonly ordered: EvaluatedCandidate[]; readonly ranking: string[] | null; readonly meetAvailable: boolean | null; readonly failure: "needs_details" | null; readonly nearest: Nearest }
+  | { readonly kind: "result"; readonly input: FeasibilityInput; readonly candidates: StoredCandidate[]; readonly ordered: EvaluatedCandidate[]; readonly requesterNotes: FeasibilityResult["requesterNotes"]; readonly ranking: string[] | null; readonly meetAvailable: boolean | null; readonly failure: "needs_details" | null; readonly nearest: Nearest }
   | { readonly kind: "failed"; readonly category: EvaluationFailureCategory }
   | { readonly kind: "incomplete"; readonly category: EvaluationFailureCategory };
 
@@ -571,9 +572,36 @@ function excludedBusy(details: RequestDetails): BusyInterval[] {
 // The preferred area the same-day trip rank measures from (same-day-trips
 // design 1): the first named area, else the venue, when the host groups trips.
 function preferredArea(settings: ConfirmedSettings, hash: (text: string) => string) {
-  if (!groupTripsOf(settings) || settings.location?.kind !== "places") return null;
+  if (!groupTripsOf(settings)) return null;
+  return usualPlace(settings, hash);
+}
+
+// The host's usual place, which a host commitment with no location is taken to
+// happen at (#324): the first named area, else the venue.
+export function usualPlace(settings: Pick<ConfirmedSettings, "location">, hash: (text: string) => string) {
+  if (settings.location?.kind !== "places") return null;
   const text = settings.location.areas[0] ?? settings.location.venue;
   return text ? { key: hash(text), text } : null;
+}
+
+// A guest-host's soft preferences (#60): their weekly windows and limit, and
+// each of their weeks' load in their own timezone, counted like the host's.
+export function guestHostPreferences(
+  settings: GuestHostSource["preferences"],
+  bookedStarts: readonly number[],
+  busy: readonly BusyInterval[],
+): RequesterPreferences {
+  const counted = [
+    ...bookedStarts,
+    ...(weeklyLimitCountsOf(settings) === "all_meetings" ? busy.filter((interval) => interval.meeting).map((interval) => interval.start) : []),
+  ];
+  const weekCounts: Record<string, number> = {};
+  for (const start of counted) {
+    const local = localParts(start, settings.timezone);
+    const week = addDays(local.date, -WEEKDAYS.indexOf(local.weekday));
+    weekCounts[week] = (weekCounts[week] ?? 0) + 1;
+  }
+  return { timezone: settings.timezone, weekCounts, weeklyLimit: settings.weeklyLimit, weeklyWindows: settings.weeklyWindows };
 }
 
 // The host's confirmed places a request without a place is paired with
@@ -640,6 +668,7 @@ async function evaluate(
     nearest: NO_NEAREST,
     ordered: [],
     ranking: null,
+    requesterNotes: new Map(),
   });
   // The requester's own search over their windows looks around them too when
   // nothing fits (nearest-open-times design 1); a fixed interval, the default
@@ -655,6 +684,7 @@ async function evaluate(
       timezone: settings.timezone,
       travelBufferMinutes: settings.travelBufferMinutes,
       travelMode: settings.travelMode,
+      usualPlace: usualPlace(settings, hash),
       weeklyLimit: settings.weeklyLimit,
       weeklyLimitCounts: weeklyLimitCountsOf(settings),
       weeklyWindows: settings.weeklyWindows,
@@ -735,6 +765,11 @@ async function evaluate(
   // the item and reopens the Calendar step, never free time.
   const guestHost = options.requesterCalendar === false ? null : await readGuestHostSource(tx, evaluation.requestId);
 
+  // Their own weekly windows and weekly limit order the candidates as soft
+  // preferences (#60, design 7), the limit counting their Find Me a Time
+  // bookings, and their other meetings too when they count every meeting.
+  let requesterPreferences: RequesterPreferences | null = null;
+
   if (guestHost) {
     try {
       const calendar = await openHostCalendar({ config: deps.calendar, db: tx, tokenKeys: deps.tokenKeys }, guestHost.hostAccountId);
@@ -742,10 +777,21 @@ async function evaluate(
       for (const entry of guestHost.conflictCalendars) {
         events.push(...(await deadline.run((signal) => calendar.listEvents(entry.id, range, { signal }))));
       }
-      requesterBusy = [
-        ...(requesterBusy ?? []),
-        ...normalizeBusy(events, { endpointKey: hash, selfEmail: guestHost.email, timezone: requesterZone }),
-      ];
+      const ownBookings = await tx<{ event_id: string; start_at: Date }[]>`
+        select event_id, start_at
+        from app.bookings
+        where host_account_id = ${guestHost.hostAccountId} and request_id <> ${evaluation.requestId}
+          and state in ('reserved', 'dispatching', 'confirmed')
+          and end_at > ${range.start} and start_at < ${range.end}
+      `;
+      const own = normalizeBusy(events, {
+        bookedEventIds: new Set(ownBookings.map((row) => row.event_id)),
+        endpointKey: hash,
+        selfEmail: guestHost.email,
+        timezone: requesterZone,
+      });
+      requesterBusy = [...(requesterBusy ?? []), ...own];
+      requesterPreferences = guestHostPreferences(guestHost.preferences, ownBookings.map((row) => row.start_at.getTime()), own);
     } catch (error) {
       if (error instanceof EvaluationDeadlineError) throw error;
       await dropGuestHostCalendars(tx, evaluation.requestId);
@@ -806,6 +852,7 @@ async function evaluate(
     ].sort((a, b) => a.start - b.start),
     meetAvailable: meetAvailable ?? false,
     requesterBusy,
+    requesterPreferences,
   };
 
   const estimate = (queries: readonly LegQuery[]) =>
@@ -845,7 +892,7 @@ async function evaluate(
 
   // The default two-week search is the fixed slot step, before any model call
   // (guest-flow-completion U9): it keeps the deterministic order, spread across days.
-  if (deps.model && valid.length > 1 && options.rank !== false && !searchDefault && !(details.preferredWindows?.length) && !(details.lessPreferredWindows?.length) && !(details.preferredWeeklyWindows?.length)) {
+  if (deps.model && valid.length > 1 && options.rank !== false && !searchDefault && !(details.preferredWindows?.length) && !(details.lessPreferredWindows?.length) && !(details.preferredWeeklyWindows?.length) && !requesterPreferences) {
     const principal: Principal =
       audience === "host"
         ? { id: loaded.request.hostAccountId, type: "host_account" }
@@ -877,6 +924,7 @@ async function evaluate(
     nearest,
     ordered,
     ranking,
+    requesterNotes: result.requesterNotes,
   };
 }
 
@@ -912,6 +960,7 @@ async function nearestOpenTimes(
     const day: FeasibilityInput = {
       ...input,
       request: { ...input.request, lessPreferredWindows: [], preferredWeeklyWindows: [], preferredWindows: [], windows: [window] },
+      requesterPreferences: null,
     };
     try {
       const missing = travelQueries({ ...day, estimate: lookup }).filter((query) => !routes.known.has(legQueryKey(query)));
@@ -1148,6 +1197,7 @@ export function createEvaluationHandler(
     const shown = requesterProjection(offered, {
       displayTimezone: outcome.input.request.timezone,
       id: evaluationId!,
+      notes: outcome.requesterNotes,
       state: "completed",
     });
     const projection: RequesterEvaluationView = {
