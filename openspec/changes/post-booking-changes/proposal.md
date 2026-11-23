@@ -32,6 +32,12 @@ Taken on 2026-11-16 by the session that wrote this change, for the user's decisi
 | D5 | Changes reuse the proposal and host-approval flow and update the event in place | A separate reschedule flow; cancelling and booking again |
 | D6 | A change reopens the request to `negotiating` with its confirmed booking standing; a second booking row replaces it on approval and patches the same event | A new `rebooking` request state; changing the confirmed booking row in place |
 
+Taken on 2026-11-24 by the session that finished this change, with no teammate review yet:
+
+| # | Choice | Alternatives |
+|---|---|---|
+| D7 | A change that no longer uses Google Meet removes the event's Meet (`conferenceData: null`), a change without a place clears the event's location, and a meeting on the guest's own link always shows that link | Leaving the Meet on the event; deleting and recreating the event |
+
 ## Capabilities
 
 ### Modified Capabilities

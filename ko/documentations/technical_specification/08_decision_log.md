@@ -810,7 +810,7 @@ Dohyeon Park이 2026-11-16에 결정했으며, 2026-11-14 UAT 회의가 [이슈 
 
 ## `post-booking-changes`
 
-[제안서](../../openspec/changes/post-booking-changes/proposal.md#decisions)와 [설계](../../openspec/changes/post-booking-changes/design.md)는 이슈 #234(예약 후 재협상, #169)에 대한 이 선택들을 기록합니다. 사용자는 2026-11-16에 제품이 예약된 미팅의 취소와 변경을 지원하기로, 취소를 먼저 하기로 정했으며, 이 변경을 작성한 세션이 같은 날 D1–D6을 정했고 아직 팀원의 검토를 받지 않았습니다. PRD의 비목표 "예약 후 자동 일정 변경 및 취소"는 FR-43으로 대체됩니다.
+[제안서](../../openspec/changes/post-booking-changes/proposal.md#decisions)와 [설계](../../openspec/changes/post-booking-changes/design.md)는 이슈 #234(예약 후 재협상, #169)에 대한 이 선택들을 기록합니다. 사용자는 2026-11-16에 제품이 예약된 미팅의 취소와 변경을 지원하기로, 취소를 먼저 하기로 정했으며, 이 변경을 작성한 세션이 같은 날 D1–D6을, 이 변경을 마무리한 세션이 2026-11-24에 D7을 정했으며, 아직 팀원의 검토를 받지 않았습니다. PRD의 비목표 "예약 후 자동 일정 변경 및 취소"는 FR-43으로 대체됩니다.
 
 | # | 선택 | 대안 | 기록 위치 | 바꾸려면 |
 |---|---|---|---|---|
@@ -820,6 +820,7 @@ Dohyeon Park이 2026-11-16에 결정했으며, 2026-11-14 UAT 회의가 [이슈 
 | D4 | 취소하지 않은 쪽만 우리의 알림을 받습니다. 게스트는 `status_cancelled` 이메일과 채팅 메시지, 호스트는 `booking_cancelled` 이메일과 채팅 메시지를 받으며, Google의 취소 알림은 어느 쪽이든 게스트에게 닿습니다. 게스트가 이메일이나 iMessage로 다시 쓰면 취소된 요청은 새 요청으로 이어집니다 | 양쪽 모두에게 알림 | 설계 4; `email-delivery` 델타 | `lib/server/booking-notices.ts`, `booking-emails.ts`, `imessage-notice-job.ts`; `revised-requests.ts`의 `isRevisable` |
 | D5 | 예약 후 변경은 예약된 미팅이 유지된 채로 제안 흐름을 다시 열고, 승인되면 같은 이벤트를 패치합니다 | 취소 후 다시 예약; 별도의 일정 변경 흐름 | 설계 5; `meeting-requests` 델타 "Changing a booked meeting" | `lib/server/booking-cancellation.ts`의 `changeBookingCommand`; `lib/server/bookings.ts`의 `patchChange`와 `confirm` |
 | D6 | 변경은 요청을 `negotiating`으로 다시 열며(기한: 7일 또는 미팅 시작 중 먼저 오는 쪽), 남아 있는 확정 예약으로 식별합니다. `replaces_booking_id`를 가진 두 번째 예약 행이 이벤트 ID를 공유하고, 미팅 자신의 이벤트는 바쁜 시간으로 치지 않으며, 철회, 거절, 만료 시에는 미팅이 유지됩니다 | `rebooking` 요청 상태; 확정된 예약 행 수정 | 설계 5 | `lib/server/request-lifecycle.ts`의 `standingBookingOf`와 `dropChange`; `lib/server/evaluation.ts`의 `notOwnEvent`; `bookings.sql` |
+| D7 | 더 이상 Google Meet을 쓰지 않는 변경(대면, 또는 게스트 자신의 링크)은 이벤트를 `conferenceData: null`로 패치해 Meet을 없애고, 장소가 없는 변경은 이벤트의 위치를 비웁니다. Meet을 계속 쓰는 변경은 기존 Meet을 유지합니다. 게스트 자신의 링크를 쓰는 미팅은 항상 그 링크를 보여 줍니다 | 이벤트에 Meet을 남겨 두기(첫 구현); 이벤트를 지우고 다시 만들기 | 제안서; 설계 5; `meeting-requests` 델타 "Online meeting changes to in person" | `lib/server/bookings.ts`의 `changePatchBody`; `lib/contracts/booking.ts`의 `bookingJoinUrl` |
 
 ## `self-service-account-deletion`
 

@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { createBookingPendingHandler } from "./bookings";
+import { changePatchBody, createBookingPendingHandler } from "./bookings";
+import { buildEventPayload } from "./calendar-events";
 import type { ClaimedJob } from "./jobs";
 
 // The 15-minute pending check tells the guest and no longer the host (#173):
@@ -35,5 +36,42 @@ describe("the booking pending check", () => {
     const { queries, tx } = recordingTransaction("confirmed");
     await expect(createBookingPendingHandler(deps)(tx, job)).resolves.toEqual({ sent: false });
     expect(queries).toHaveLength(1);
+  });
+});
+
+// A change patches the booked event (post-booking-changes design 5). The bodies
+// come from the same insert payload a booking freezes.
+describe("the change patch body", () => {
+  const source = {
+    bookingId: "11111111-1111-4111-8111-111111111111",
+    end: "2099-01-05T06:00:00Z",
+    hostTimezone: "Asia/Seoul",
+    purpose: "Coffee",
+    requester: { email: "guest@example.com", name: "Guest" },
+    start: "2099-01-05T05:00:00Z",
+  };
+  const meet = buildEventPayload({ ...source, linkPlan: { kind: "google_meet" }, location: null, mode: "online" } as never);
+  const inPerson = buildEventPayload({ ...source, linkPlan: null, location: "Cafe Seoul", mode: "in_person" } as never);
+  const guestLink = buildEventPayload({ ...source, linkPlan: { kind: "requester_link", url: "https://zoom.example/j/1" }, location: null, mode: "online" } as never);
+
+  it("removes the Meet when a booked online meeting changes to in person", () => {
+    const body = changePatchBody(inPerson, true);
+    expect(body).toMatchObject({ conferenceData: null, location: "Cafe Seoul" });
+    expect(body).not.toHaveProperty("id");
+    expect(body).not.toHaveProperty("attendees");
+  });
+
+  it("removes the Meet when the change uses the guest's own link", () => {
+    expect(changePatchBody(guestLink, true)).toMatchObject({ conferenceData: null, location: "https://zoom.example/j/1" });
+  });
+
+  it("keeps an existing Meet and clears an old place when the change stays on Meet", () => {
+    const body = changePatchBody(meet, true);
+    expect(body).not.toHaveProperty("conferenceData");
+    expect(body.location).toBeNull();
+  });
+
+  it("creates a Meet when the event has none", () => {
+    expect(changePatchBody(meet, false)).toMatchObject({ conferenceData: { createRequest: { conferenceSolutionKey: { type: "hangoutsMeet" } } }, location: null });
   });
 });

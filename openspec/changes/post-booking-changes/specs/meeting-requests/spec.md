@@ -59,6 +59,10 @@ The requester and the host SHALL each be able to reopen a booked meeting for a c
 - **WHEN** the guest withdraws the change, the host declines it, or it reaches its deadline (seven days or the meeting's start, whichever is earlier)
 - **THEN** the request is booked again with the meeting as it was, and for a decline or a deadline the guest is told
 
+#### Scenario: Online meeting changes to in person
+- **WHEN** an approved change moves a booked Google Meet meeting to in person, or to the guest's own meeting link
+- **THEN** the same event loses its Meet link and shows the new place or link
+
 #### Scenario: Change fails in the calendar
 - **WHEN** Google refuses the update or the event is gone
 - **THEN** the booked meeting stays as it was and the host sees the failure and can approve again
