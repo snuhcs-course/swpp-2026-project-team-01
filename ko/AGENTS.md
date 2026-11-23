@@ -36,7 +36,7 @@ npm test             # Vitest unit tests
 
 GitHub CLI(`gh`), Vercel CLI(`vercel`), Supabase CLI(`supabase`)가 설치되어 `PATH`에서 사용할 수 있다고 가정합니다.
 
-이 저장소에서는 Supabase CLI **2.119.0**을 사용하고, `supabase --version`으로 확인합니다. CLI 업그레이드는 팀과 조율하고, 업그레이드할 때마다 스키마 워크플로를 다시 확인합니다.
+이 저장소에서는 Supabase CLI **3.2.0**을 사용하고, `supabase --version`으로 확인합니다. CLI 업그레이드는 팀과 조율하고, 업그레이드할 때마다 스키마 워크플로를 다시 확인합니다.
 
 OpenSpec CLI **1.14.0**은 core 프로필과 Codex 통합과 함께 사용합니다. macOS에서는 `brew install openspec`으로, Node.js 20.19.0 이상에서는 `npm install -g @fission-ai/openspec@1.14.0`으로 설치합니다. 그다음 `openspec --version`으로 확인합니다. 새 체크아웃은 `openspec init --tools codex --profile core`로 초기화합니다. 조율된 CLI 업그레이드 후에는 이 저장소에서 `openspec update`를 실행하고, 생성된 스킬 변경 사항을 검토합니다.
 
