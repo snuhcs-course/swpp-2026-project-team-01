@@ -1,0 +1,23 @@
+{
+  "branch": "docs/shared-deploy-procedure",
+  "user": "dodo41142727@gmail.com",
+  "sessions": {
+    "claude:99e11c41-0b7b-4a32-afb4-2a18f12dfbe7": {
+      "agent": "claude-code",
+      "client": "claude-desktop",
+      "agent_ms": 0,
+      "models": {
+        "claude-opus-5-5": {
+          "input": 46,
+          "cache_read": 2988630,
+          "cache_write_5m": 0,
+          "cache_write_1h": 68659,
+          "output": 17812,
+          "reasoning": 0
+        }
+      },
+      "first": "2026-11-23T06:22:28.894Z",
+      "last": "2026-11-23T06:28:51.557Z"
+    }
+  }
+}
