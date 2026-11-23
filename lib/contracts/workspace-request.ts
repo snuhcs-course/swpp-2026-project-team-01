@@ -14,4 +14,7 @@ export type WorkspaceRequestItem = {
   readonly updatedAt: string;
   // Only a matched sent request with a still-live private link has this path.
   readonly bookingPath: string | null;
+  // A sent request still open for conversation; a received one is always false.
+  // An inactive sent request shows its conversation read-only in the list.
+  readonly active: boolean;
 };

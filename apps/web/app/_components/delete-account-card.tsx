@@ -62,9 +62,10 @@ export function DeleteAccountCard({ handle, focus = false }: { readonly handle: 
           <div className="rounded-2xl bg-[color-mix(in_srgb,var(--destructive)_9%,white)] p-4 text-sm text-destructive">
             <p className="font-semibold">Your account will be deleted in 7 days.</p>
             <ul className="mt-2 list-disc space-y-1 pl-5">
-              <li>Your settings, requests, conversations and Google connection are deleted, and this cannot be undone.</li>
-              <li>Open requests are closed and their guests told by email.</li>
-              <li>Meetings already in a calendar stay there; cancel any you no longer want first.</li>
+              <li>Your settings, requests and their history, conversations and Google connection are deleted, and this cannot be undone.</li>
+              <li>Open requests you received are closed and their guests told by email.</li>
+              <li>Meetings you host stay in your calendar; cancel any you no longer want first.</li>
+              <li>Open requests you sent to other hosts are withdrawn, and meetings you booked with them are cancelled and their hosts told.</li>
               <li>You will be signed out. Signing in again within 7 days cancels the deletion.</li>
             </ul>
           </div>

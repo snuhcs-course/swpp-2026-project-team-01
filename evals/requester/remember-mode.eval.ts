@@ -3,7 +3,7 @@ import { satisfies } from "eve/evals/expect";
 import { readRequestProjection, requesterSession, requesterStubs } from "./support";
 
 export default defineEval({
-  tags: ["requester", "live-model"],
+  tags: ["requester", "live-model", "capability"],
   async test(t) {
     const projection = readRequestProjection({
       details: { ...readRequestProjection().details, language: "ko", mode: null, purpose: null, windows: [] },

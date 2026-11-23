@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { isValidTimeZone, type LocationAnswer, type MeetingMode } from "../contracts/setup";
+import { DEFAULT_MEETING_MINUTES, isValidTimeZone, type LocationAnswer, type MeetingMode } from "../contracts/setup";
 import { revokeGrantCommand } from "./agent-grants";
 import { checkBookingCommand, readBookingStatus } from "./bookings";
 import { isUsableHandle, normalizeHandle } from "../contracts/handles";
@@ -19,6 +19,7 @@ import {
   type ConfirmationLimits,
   readConfirmationStatus,
   resendConfirmationCommand,
+  changeEmailCommand,
 } from "./contact-confirmation";
 import { ADMISSION_LIMITED_MESSAGE, AdmissionLimitError } from "./conversation-admission";
 import {
@@ -82,7 +83,6 @@ import { IDENTIFY_ACCOUNT_OPERATION, identifyAccountCommand } from "./guest-acco
 import { decideHostProfileCommand, readHostProfileView, recordHostSessionMatch } from "./requester-host-profiles";
 import { supabaseAuthConfigFromEnvironment, type SupabaseAuthConfig, verifiedUserId } from "./supabase-auth";
 import {
-  confirmRequesterImessageLinkCommand,
   createRequesterImessageLinkCommand,
   emailOnlyRequesterCommand,
   readRequesterImessageStatus,
@@ -93,6 +93,9 @@ import { offeredWhatsappNumber, photonConfig } from "./photon";
 import { telegramConfig } from "./telegram";
 import { type AppOrigins, appOriginsFromEnvironment, crossSiteRefusal } from "./same-origin";
 import { sourceHash } from "./signup-limits";
+import { busyRange, MAX_BUSY_DAYS, readRequesterBusy, RequesterBusyUnavailableError } from "./requester-busy";
+import { requesterCalendarConfigFromEnvironment } from "./requester-calendar";
+import { googleCalendarConfigFromEnvironment } from "./google-calendar";
 import { type TokenKey, tokenKeyFromEnvironment } from "./token-encryption";
 
 // The guest's application routes (design decision 2). POST /api/requests/start
@@ -161,6 +164,24 @@ export async function openRequester(db: Database, bookingId: string): Promise<Gu
   return request?.open ? { id: link.requestId, type: "requester_request" } : null;
 }
 
+// The request whose conversation the identifier opens: an open request, or a
+// booked one, which stays open to its guest's words while its link lasts so a
+// guest who linked no messenger can ask about, cancel or change the meeting on
+// the web (post-booking-changes; guest-flow-completion U18). The conversation
+// layer and the agent admit the same requests (withPrincipalAuthority,
+// eve-auth guestMayUse); the request's own commands still answer
+// request_closed for a booked request except its booking commands.
+export async function conversingRequester(db: Database, bookingId: string): Promise<GuestPrincipal | null> {
+  const link = await findRequestByBookingId(db, bookingId);
+
+  if (!link || link.expired) return null;
+
+  const [request] = await db<{ open: boolean }[]>`
+    select (closed_at is null and expires_at > now()) or state = 'booked' as open from app.requests where id = ${link.requestId}
+  `;
+  return request?.open ? { id: link.requestId, type: "requester_request" } : null;
+}
+
 // ---------------------------------------------------------------------------
 // The requester view
 
@@ -214,6 +235,7 @@ export async function readRequesterView(
       details: Partial<RequestDetails>;
       display_name: string | null;
       expires_at: Date;
+      handed_over: boolean;
       handle: string | null;
       has_intake: boolean;
       meeting: { durationMinutes?: number; meetingMode?: MeetingMode; location?: LocationAnswer | null } | null;
@@ -228,7 +250,10 @@ export async function readRequesterView(
            s.settings ->> 'displayName' as display_name, h.handle,
            jsonb_build_object('durationMinutes', s.settings -> 'durationMinutes', 'meetingMode', s.settings -> 'meetingMode',
                               'location', s.settings -> 'location') as meeting,
-           exists (select 1 from app.intakes i where i.request_id = r.id) as has_intake
+           exists (select 1 from app.intakes i where i.request_id = r.id) as has_intake,
+           (r.calendar_settled_at is not null or r.details ->> 'purpose' is not null
+            or exists (select 1 from app.discussions d join app.conversation_inputs ci on ci.discussion_id = d.id
+                       where d.principal_type = 'requester_request' and d.principal_id = r.id and d.audience = 'requester')) as handed_over
     from app.requests r
     left join app.host_settings s on s.host_account_id = r.host_account_id
     left join app.host_handles h on h.host_account_id = r.host_account_id and h.released_at is null
@@ -249,6 +274,8 @@ export async function readRequesterView(
       host,
       open: false,
       request: { ...(row.state === "booked" ? { revision: row.revision } : {}), state: isActionableRequestState(row.state) ? "expired" : row.state },
+      // A booked meeting keeps its conversation (conversingRequester).
+      ...(row.state === "booked" ? { conversation: await guestConversationStatus(db, { id: requestId, type: "requester_request" }) } : {}),
       timezone: row.details.timezone && isValidTimeZone(row.details.timezone) ? row.details.timezone : "UTC",
     };
   }
@@ -274,10 +301,11 @@ export async function readRequesterView(
         : null,
     conversation: await guestConversationStatus(db, { id: requestId, type: "requester_request" }),
     evaluation,
+    handedOver: row.state !== "draft" && row.handed_over,
     hasIntakeTranscript: row.has_intake,
     host,
     meeting: {
-      durationMinutes: row.meeting?.durationMinutes ?? 30,
+      durationMinutes: row.meeting?.durationMinutes ?? DEFAULT_MEETING_MINUTES,
       meetingMode: row.meeting?.meetingMode ?? "online",
       venue: row.meeting?.location?.kind === "places" ? row.meeting.location.venue : null,
     },
@@ -353,7 +381,7 @@ export function createRequesterMessageHandler(load: () => RequesterRouteDependen
 
     if (refused) return refused;
 
-    const principal = await openRequester(deps.db, (await context.params).bookingId);
+    const principal = await conversingRequester(deps.db, (await context.params).bookingId);
 
     if (!principal) return requestUnavailable();
 
@@ -475,7 +503,7 @@ export async function guestEventsResponse(
 export function createRequesterEventsHandler(load: () => RequesterRouteDependencies = requesterRouteDependenciesFromEnvironment) {
   return async (request: Request, context: Context) => {
     const deps = load();
-    const principal = await openRequester(deps.db, (await context.params).bookingId);
+    const principal = await conversingRequester(deps.db, (await context.params).bookingId);
 
     if (!principal) return requestUnavailable();
     return guestEventsResponse(deps, principal, request);
@@ -487,7 +515,7 @@ export function createRequesterEventsHandler(load: () => RequesterRouteDependenc
 export function createIntakeTranscriptHandler(load: () => RequesterRouteDependencies = requesterRouteDependenciesFromEnvironment) {
   return async (request: Request, context: Context) => {
     const deps = load();
-    const principal = await openRequester(deps.db, (await context.params).bookingId);
+    const principal = await conversingRequester(deps.db, (await context.params).bookingId);
 
     if (!principal) return requestUnavailable();
 
@@ -512,7 +540,7 @@ export function createRequesterRecoverHandler(load: () => RequesterRouteDependen
 
     if (refused) return refused;
 
-    const principal = await openRequester(deps.db, (await context.params).bookingId);
+    const principal = await conversingRequester(deps.db, (await context.params).bookingId);
 
     if (!principal) return requestUnavailable();
 
@@ -566,16 +594,16 @@ export function requesterCommands(
     registered(useGoogleEmailCommand),
     registered(disconnectCalendarCommand),
     registered(setManualAvailabilityCommand),
-    registered(decideHostProfileCommand()),
+    registered(decideHostProfileCommand({ tokenKey: imessage.tokenKey, tokenKeys: imessage.tokenKeys })),
     registered(selectCalendarsCommand({ tokenKey: contact.tokenKey })),
     registered(resendConfirmationCommand(contact)),
+    registered(changeEmailCommand(contact)),
     registered(checkBookingCommand),
     registered(cancelBookingCommand()),
     registered(changeBookingCommand),
     registered(createEmailLinkCommand({ tokenKey: contact.tokenKey })),
     registered(unlinkEmailCommand()),
     registered(createRequesterImessageLinkCommand(imessage)),
-    registered(confirmRequesterImessageLinkCommand(imessage)),
     registered(unlinkRequesterImessageCommand),
     registered(emailOnlyRequesterCommand),
     registered(shareRequesterContactCardCommand(imessage)),
@@ -661,6 +689,35 @@ export function createRequesterCalendarsHandler(load: () => RequesterRouteDepend
     return calendars
       ? requesterJson({ calendars })
       : requesterJson({ code: "calendar_unavailable", error: "Your calendar list could not be read right now." }, 503);
+  };
+}
+
+// GET /api/requests/{bookingId}/busy?from&to&tz: the guest's own busy times
+// for the Choose a time grid (calendar-views design 4), read live with this
+// request's calendars only. Times only; nothing is stored.
+export function createRequesterBusyHandler(load: () => RequesterRouteDependencies = requesterRouteDependenciesFromEnvironment) {
+  return async (request: Request, context: Context) => {
+    const deps = load();
+    const principal = await openRequester(deps.db, (await context.params).bookingId);
+
+    if (!principal) return requestUnavailable();
+
+    const url = new URL(request.url);
+    const range = busyRange(url.searchParams.get("from"), url.searchParams.get("to"));
+    if (!range) return requesterJson({ code: "invalid_range", error: `Choose a period of up to ${MAX_BUSY_DAYS} days.` }, 400);
+
+    try {
+      const busy = await readRequesterBusy(
+        { db: deps.db, hostCalendar: googleCalendarConfigFromEnvironment(), requesterCalendar: requesterCalendarConfigFromEnvironment(), tokenKeys: [deps.tokenKey()] },
+        principal.id,
+        range,
+        url.searchParams.get("tz") ?? "UTC",
+      );
+      return requesterJson(busy);
+    } catch (error) {
+      if (!(error instanceof RequesterBusyUnavailableError)) throw error;
+      return requesterJson({ code: "calendar_unavailable", error: error.message }, 503);
+    }
   };
 }
 

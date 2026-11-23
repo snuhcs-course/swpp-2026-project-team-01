@@ -6,27 +6,27 @@ Provide a conversation-first workspace that keeps scheduling progress and decisi
 ## Requirements
 
 ### Requirement: Conversation-first entry
-The website SHALL open incomplete host setup and request management on the relevant conversation, with the current next action and a message composer available without navigating through structured forms. A ready host who opens `/app` without a specific request or workspace view SHALL see the calendar Dashboard. Navigation SHALL remain available through a compact, keyboard-operable control. Structured controls SHALL remain reachable from a secondary, clearly labeled surface. A protected request opened without valid authority SHALL show only the generic unavailable view with the link resend control that the meeting-request contract requires.
+The website SHALL open requester request management on the relevant conversation, with the current next action and a message composer available without navigating through structured forms. The host's web workspace SHALL have no conversation: host setup and host request discussion happen in the host's linked messenger, and an incomplete host SHALL be led to link one first. A ready host who opens `/app` without a specific request or workspace view SHALL see the calendar Dashboard. Navigation SHALL remain available through a compact, keyboard-operable control. Structured controls SHALL remain reachable from a secondary, clearly labeled surface. A protected request opened without valid authority SHALL show only the generic unavailable view with the link resend control that the meeting-request contract requires.
 
 #### Scenario: Resume host setup
-- **WHEN** an active host returns to incomplete setup
-- **THEN** the current conversation, server-derived progress, and next action appear first, the composer remains reachable in the initial phone viewport, and manual settings remain accessible
+- **WHEN** an active host returns to incomplete setup on the web
+- **THEN** the web leads them to link a messenger, or, when one is linked, to finish setup with Thyme there, with no setup questions or composer on the web
 
 #### Scenario: Return after setup
 - **WHEN** a ready host signs in and opens `/app` without a request or a workspace view
 - **THEN** the calendar Dashboard appears, with the existing Settings dialog and workspace menu reachable
 
 #### Scenario: Resume request
-- **WHEN** a requester or host opens an active meeting request
+- **WHEN** a requester opens an active meeting request
 - **THEN** the permitted conversation and current request status appear first, with structured editing in a secondary surface
 
 #### Scenario: Browse host requests
 - **WHEN** a host opens the meeting inbox
-- **THEN** request conversations appear as selectable artifacts in the conversation workspace without a permanent sidebar
+- **THEN** received and sent requests appear as selectable cards without a permanent sidebar, and a received request expands to its details and permitted decisions with no conversation
 
 #### Scenario: Switch host discussion visibility
-- **WHEN** a host reviews a request with shared and private discussions
-- **THEN** a labeled switch shows one discussion at a time and never exposes the private discussion to a requester
+- **WHEN** a host reviews a received request
+- **THEN** no discussion switch or private chat appears on the web, and the requester's conversation stays reachable only through its authorized requester path
 
 #### Scenario: Use compact navigation
 - **WHEN** a ready host opens the workspace menu by pointer or keyboard
@@ -101,11 +101,11 @@ The host workspace SHALL offer Google sign-in through Supabase Auth and SHALL NO
 
 #### Scenario: First Google sign-in
 - **WHEN** a user completes Google sign-in for the first time
-- **THEN** the service creates an active host account and the workspace opens the setup conversation with the Calendar access granted on that screen
+- **THEN** the service creates an active host account with the Calendar access granted on that screen, and `/app` asks them to link a messenger, where setup continues with Thyme
 
 #### Scenario: Calendar scopes unchecked at sign-in
 - **WHEN** the user completes Google sign-in but unchecks the Calendar scopes on the consent screen
-- **THEN** the active host account is still created and setup offers **Connect Google Calendar** before calendar analysis or booking-destination selection, without blocking unrelated settings
+- **THEN** the active host account is still created, and setup in the messenger asks for Calendar access through the browser consent link before calendar analysis or booking-destination selection, without blocking unrelated settings
 
 #### Scenario: Invalid or cancelled return
 - **WHEN** Google login is cancelled, the code is replayed or the callback arrives in another browser
@@ -116,11 +116,23 @@ The host workspace SHALL offer Google sign-in through Supabase Auth and SHALL NO
 - **THEN** the request is rejected without sending an authentication email
 
 ### Requirement: Single host workspace
-Host sign-in, setup, request selection, review and settings SHALL remain inside `/app` as authorized states, cards or dialogs. Browser authentication and consent SHALL return to that workspace with the permitted context restored.
+Host sign-in, setup, request selection, review and settings SHALL remain inside `/app` as authorized states, cards or dialogs. Browser authentication and consent SHALL return to that workspace with the permitted context restored. The wordmark on every signed-in host page SHALL link to `/app`. While the workspace reads the host's session, it SHALL show the workspace background with a loading status, not the sign-in layout. A return from Google consent begun at Thyme's Calendar link SHALL say that Google Calendar is connected only when the grant can use Calendar.
 
 #### Scenario: Return from calendar consent
 - **WHEN** an active host completes valid browser consent
 - **THEN** `/app` restores the authorized draft and server-confirmed next action without a separate setup page
+
+#### Scenario: Return from Thyme's Calendar link
+- **WHEN** a linked host who is not ready grants Calendar on the consent opened from Thyme's Calendar link
+- **THEN** `/app` says that Google Calendar is connected and that setup continues in the linked app, with its open action, instead of the link confirmation
+
+#### Scenario: Wordmark opens the workspace
+- **WHEN** a signed-in host selects the Find Me a Time wordmark on the Dashboard, the requests, the setup conversation, the notes page, the link step or the suspended-account page
+- **THEN** the workspace at `/app` opens
+
+#### Scenario: Workspace loading
+- **WHEN** a host opens `/app` or `/app/notes` and the server has not yet read the session
+- **THEN** the page shows the workspace background with a loading status announced to screen readers, and no sign-in layout
 
 ### Requirement: Stable protected requester destination
 Public `/{handle}` intake SHALL continue at `/booking/[bookingId]` after request creation. The route identifier SHALL be the random booking link defined in the [meeting-request contract](../meeting-requests/spec.md), which is the requester's only credential; it SHALL NOT imply a confirmed event. Closed access SHALL obey the booking link lifetime and minimal receipt limits.
@@ -175,7 +187,7 @@ A workspace with a confirmed failed runtime SHALL show a safe explanation and an
 - **THEN** the workspace reports that outcome without claiming recovery, exposing credentials or discarding unsent text
 
 ### Requirement: Host calendar Dashboard
-The Dashboard SHALL show confirmed Find Me a Time bookings and events from the host's selected Google calendars in the host's saved timezone. The two sources SHALL have distinct colors and text labels. A confirmed booking that is also present in Google Calendar SHALL appear only once as a Find Me a Time meeting. The Dashboard SHALL provide week and month views, previous and next period navigation, a return to today, source filters, and details for a selected day and event. Calendar details SHALL be available only to the authenticated host. A Google Calendar access error SHALL leave confirmed bookings visible with an explanation.
+The Dashboard SHALL show confirmed Find Me a Time bookings and events from the host's selected Google calendars in the host's saved timezone. The two sources SHALL have distinct colors and text labels. A confirmed booking that is also present in Google Calendar SHALL appear only once as a Find Me a Time meeting. The Dashboard SHALL provide week and month views, previous and next period navigation, a return to today, source filters, and details for a selected day and event. Calendar details SHALL be available only to the authenticated host. A Google Calendar access error SHALL leave confirmed bookings visible with an explanation. Period navigation SHALL keep the date and time grid visible, showing loading feedback in the event area while the period's events are fetched; a period loaded earlier in the visit SHALL show its events at once, the adjacent periods SHALL be fetched ahead, and the events shown SHALL always be those of the selected period.
 
 #### Scenario: Compare sources
 - **WHEN** a host opens a week containing a Google event and a confirmed Find Me a Time booking
@@ -188,3 +200,104 @@ The Dashboard SHALL show confirmed Find Me a Time bookings and events from the h
 #### Scenario: Google Calendar access fails
 - **WHEN** Google Calendar cannot be read for the host
 - **THEN** confirmed Find Me a Time bookings remain visible and a status message explains the Google Calendar problem
+
+### Requirement: Host request controls on the web
+A received request in the host's Requests list SHALL show no chat with the assistant. Besides **Approve** and **Decline**, it SHALL keep **Request changes** with the suggestion review, the rule card for a weekly-limit hold or an unresolved trip, and **Cancel meeting** and **Change meeting** for a booked meeting, each through the authorized request commands with current revisions.
+
+#### Scenario: Open a received request
+- **WHEN** a host expands a received request
+- **THEN** the details and the controls its state allows appear, with no message composer, discussion history or **Private messages** area
+
+#### Scenario: Weekly-limit hold on the web
+- **WHEN** every feasible time of a request falls in a week at the host's weekly limit
+- **THEN** the rule card offers **Allow this request beyond my weekly limit** on the web
+
+#### Scenario: Booked meeting on the web
+- **WHEN** a host expands a booked request before the meeting starts
+- **THEN** the booking card offers **Cancel meeting** and **Change meeting**
+
+### Requirement: No host chat on the web
+The host's web workspace SHALL offer no chat with the assistant: no setup conversation, message composer, discussion history, streamed reply or **Restart Thyme** control. Setup SHALL proceed only in conversation in the host's linked messenger. A host whose setup is incomplete SHALL be led to link a messenger first and, on the workspace, SHALL see only a pointer to finish setup in the messenger and the messaging card, with no setup questions. A ready host SHALL keep the settings dialog, the dashboard, the Requests list, the share links and the sample request offer.
+
+#### Scenario: Incomplete host on the workspace
+- **WHEN** a host whose setup is incomplete reaches the `/app` workspace
+- **THEN** the page says to finish setup with Thyme in the messaging app and shows the messaging card, with no setup card, composer or messages
+
+#### Scenario: Ready host on the workspace
+- **WHEN** a ready host opens the workspace instead of the Dashboard
+- **THEN** the share links and the sample request offer appear as cards, with the messaging card until the host links a messenger or chooses Maybe later, and with no composer or messages
+
+### Requirement: Guided host setup in the linked chat
+Host setup in a linked iMessage, WhatsApp or Telegram conversation SHALL show its progress: the first setup message SHALL say in one line what setup covers and roughly how long it takes; each step's question SHALL start with a line naming the step and where it stands among the four steps, Calendar, Meeting hours, Where you meet and Open times; and the first successful save SHALL say plainly that setup is done, with the booking link. The web setup SHALL use the same step names for the same steps. When the service saves the primary calendar as the default calendar roles, its message SHALL name the other calendars it would recommend checking for conflicts and ask once whether they should count too; without an answer, the primary calendar SHALL remain the only conflict calendar. Each message SHALL ask at most one question.
+
+#### Scenario: Progress through setup
+- **WHEN** a host who linked their chat goes through setup
+- **THEN** the first message says what setup covers and how long it takes
+- **AND** the calendar, hours, place and open-times questions start with "1/4 · Calendar", "2/4 · Meeting hours", "3/4 · Where you meet" and "4/4 · Open times"
+- **AND** the first save replies that setup is done, with the booking link
+
+#### Scenario: Other calendars are offered once
+- **WHEN** the service saves the primary calendar as the default and Google lists a work calendar the host can read
+- **THEN** the message names the work calendar and asks whether it should also be checked for busy times
+- **AND** a later message about the saved roles does not ask again
+
+#### Scenario: No answer keeps the primary
+- **WHEN** the host does not answer the other-calendars question
+- **THEN** the primary calendar stays the only calendar checked for conflicts and setup continues
+
+#### Scenario: The host adds a calendar
+- **WHEN** the host answers yes or names one of the listed calendars
+- **THEN** the named calendars are added to the conflict calendars through the same calendar role checks as the web
+
+#### Scenario: Changing weeks
+- **WHEN** the host moves to the next week and back in the Week view
+- **THEN** the grid stays visible throughout, the next week's events usually show without waiting, and the week returned to shows its events at once
+
+#### Scenario: Answers arrive out of order
+- **WHEN** the host moves through several weeks quickly and an earlier week's answer arrives last
+- **THEN** the Dashboard shows the selected week's events, not the earlier week's
+
+### Requirement: Pending decisions on the workspace menu
+Where the workspace menu offers the host's Requests, the menu button and its Requests item SHALL show the number of received requests that need the host's decision (awaiting approval, holding a suggestion the host has not settled, held by the weekly limit, or with every candidate needing the host), as a round count with an accessible text equivalent that shows 9+ above nine. The count SHALL exclude sample requests, SHALL be refreshed when the page regains focus, when the menu opens and whenever the Requests view in the same tab reloads its requests, and SHALL disappear when no request needs a decision. A failed read SHALL keep the last count without an error.
+
+#### Scenario: A request awaits approval
+- **WHEN** a ready host with one received request awaiting approval opens `/app`
+- **THEN** the menu button shows a count of 1, its accessible name says one request needs a decision, and the Requests item in the open menu shows the same count
+
+#### Scenario: Last decision made
+- **WHEN** the host approves or declines the only request that needed a decision
+- **THEN** the count disappears from the menu button and the Requests item
+
+#### Scenario: Only a sample request
+- **WHEN** the host's only received request is the tutorial sample
+- **THEN** no count appears
+
+### Requirement: Booked meeting details on the Dashboard
+Selecting a confirmed Find Me a Time meeting on the Dashboard SHALL show its time, length, mode, place for an in-person meeting or meeting link for an online one, and the guest's name with their email, marked when the address is not confirmed, and the purpose when it differs from the title, together with an **Open request** action that opens that request in the host's Requests view. The meeting link SHALL be the join link Google returned for the event, or the requester's own link. An online meeting with no link SHALL say the link is not set. A week block for the meeting SHALL show who it is with: next to its time in a short block, under the title in a longer one.
+
+#### Scenario: Online meeting with Google Meet
+- **WHEN** the host selects a booked online meeting whose event has a Meet link
+- **THEN** the details show When, Length, Mode **Online**, the Meet link and With {guest name <email>}, and **Open request** opens that request
+
+#### Scenario: In-person meeting
+- **WHEN** the host selects a booked in-person meeting
+- **THEN** the details show its place and no meeting link
+
+#### Scenario: Short meeting in the week view
+- **WHEN** a 30-minute booked meeting is drawn in the week grid
+- **THEN** its block shows the time and the guest's name on one line
+
+### Requirement: Received requests awaiting a decision on the Dashboard
+The Dashboard SHALL show each received request that needs the host's decision (awaiting approval, or with a pending suggestion), except sample requests, at the time of its current proposal when that time falls in the period shown. It SHALL have its own color, text label and source filter, distinct from Google events, Find Me a Time meetings and sent requests, and SHALL never be shown as booked. Selecting it SHALL show the proposed time, the requester and the purpose, say that it is not booked until the host approves it, and offer **Open request**, which opens that request in the host's Requests view. A received request without a proposal SHALL not appear on the calendar.
+
+#### Scenario: A request awaits approval this week
+- **WHEN** a host opens a week in which a received request awaiting approval proposes Wednesday 14:00
+- **THEN** the Dashboard shows a "From {requester} · To decide" block at Wednesday 14:00, and selecting it shows Proposed time, From and Purpose, a note that it is not booked until approved, and **Open request**
+
+#### Scenario: Filter requests to decide
+- **WHEN** the host turns off **Requests to decide**
+- **THEN** received requests are hidden and Google events, Find Me a Time meetings and sent requests stay
+
+#### Scenario: Request decided or only a sample
+- **WHEN** the request is booked, declined or closed, or the only request is the tutorial sample
+- **THEN** no received-request block appears for it; a booked request appears as a Find Me a Time meeting

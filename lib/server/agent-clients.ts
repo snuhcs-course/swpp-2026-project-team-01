@@ -348,7 +348,7 @@ export async function registerClient(db: Database, input: unknown, sourceHash: s
   }
 
   try {
-    await admitAttempt(db, "registration", registrationBounds(sourceHash));
+    await admitAttempt(db, "registration", registrationBounds());
   } catch (error) {
     if (error instanceof AttemptLimitError) {
       return {

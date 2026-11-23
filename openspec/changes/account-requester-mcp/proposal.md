@@ -21,4 +21,4 @@ An account connected to `/mcp` must currently add a separate MCP server to reque
 
 ## Impact
 
-MCP routing, requester creation, OAuth scope descriptions, public entry instructions and integration tests. Reuse existing command and account-link infrastructure; no schema change. Extends [agent authorization](../../specs/agent-client-authorization/spec.md) and the account-as-guest behavior described in [host-as-guest-session](../host-as-guest-session/proposal.md). No unresolved product decisions.
+MCP routing, requester creation, OAuth scope descriptions, public entry instructions and integration tests. Reuse existing command and account-link infrastructure; no schema change. Extends [agent authorization](../../specs/agent-client-authorization/spec.md) and the account-as-guest behavior described in [host-as-guest-session](../archive/2026-11-23-host-as-guest-session/proposal.md). No unresolved product decisions.

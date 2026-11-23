@@ -1,0 +1,74 @@
+{
+  "branch": "feat/host-preference-notes",
+  "user": "dodo41142727@gmail.com",
+  "sessions": {
+    "claude:94e92af6-0d4b-411e-b55a-550dc82593e1": {
+      "agent": "claude-code",
+      "client": "claude-desktop",
+      "agent_ms": 0,
+      "models": {
+        "claude-opus-5-5": {
+          "input": 292,
+          "cache_read": 34471412,
+          "cache_write_5m": 0,
+          "cache_write_1h": 448000,
+          "output": 86239,
+          "reasoning": 0
+        }
+      },
+      "first": "2026-11-23T06:38:12.894Z",
+      "last": "2026-11-23T10:57:19.471Z"
+    },
+    "claude:94e92af6-0d4b-411e-b55a-550dc82593e1/agent-a10550f92bb567e7f": {
+      "agent": "claude-code",
+      "client": "claude-desktop",
+      "agent_ms": 0,
+      "models": {
+        "claude-sonnet-5-5": {
+          "input": 8,
+          "cache_read": 256075,
+          "cache_write_5m": 60591,
+          "cache_write_1h": 0,
+          "output": 3326,
+          "reasoning": 0
+        }
+      },
+      "first": "2026-11-23T10:46:16.843Z",
+      "last": "2026-11-23T10:46:37.190Z"
+    },
+    "claude:94e92af6-0d4b-411e-b55a-550dc82593e1/agent-a46a8ddc7576c381f": {
+      "agent": "claude-code",
+      "client": "claude-desktop",
+      "agent_ms": 0,
+      "models": {
+        "claude-sonnet-5-5": {
+          "input": 8,
+          "cache_read": 260088,
+          "cache_write_5m": 59053,
+          "cache_write_1h": 0,
+          "output": 2202,
+          "reasoning": 0
+        }
+      },
+      "first": "2026-11-23T10:56:56.406Z",
+      "last": "2026-11-23T10:57:10.544Z"
+    },
+    "claude:94e92af6-0d4b-411e-b55a-550dc82593e1/agent-a5474a4bb01dd1a67": {
+      "agent": "claude-code",
+      "client": "claude-desktop",
+      "agent_ms": 0,
+      "models": {
+        "claude-opus-5-5": {
+          "input": 88,
+          "cache_read": 6418851,
+          "cache_write_5m": 148895,
+          "cache_write_1h": 0,
+          "output": 23572,
+          "reasoning": 0
+        }
+      },
+      "first": "2026-11-23T10:48:13.759Z",
+      "last": "2026-11-23T10:53:51.693Z"
+    }
+  }
+}

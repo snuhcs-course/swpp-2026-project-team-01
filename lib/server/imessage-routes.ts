@@ -119,7 +119,7 @@ export function createImessageCommandHandler(load: () => ImessageRouteDependenci
     if (!host.hostAccountId) return host.refusal!;
 
     const hostAccountId = host.hostAccountId;
-    const liveCalendars = body.data.operation === "imessage.link.confirm" || body.data.operation === "imessage.link.verify_code"
+    const liveCalendars = body.data.operation === "imessage.link.verify_code"
       ? await readDefaultRoleCalendars(deps.db, hostAccountId, { config: googleCalendarConfigFromEnvironment(), tokenKeys: deps.tokenKeys })
       : null;
     const commands = imessageCommands({

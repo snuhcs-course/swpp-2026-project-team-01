@@ -11,7 +11,6 @@ import {
   resolveClient,
 } from "./agent-clients";
 import { createGrantWithCode, parseScopes } from "./agent-grants";
-import { AGENT_LIMITS, admitAttempt, AttemptLimitError } from "./agent-limits";
 import { resolveResource } from "./agent-resources";
 import { CODE_CHALLENGE } from "./agent-tokens";
 import { findRequestByBookingId } from "./booking-links";
@@ -150,13 +149,8 @@ export function createAuthorizeHandler(load: () => AgentAuthorizeDependencies = 
     const scopes = parseScopes(params.get("scope"), resource.role);
     if (!scopes) return fail("invalid_scope", `Request one or more of: ${roleScopes(resource.role).join(" ")}.`);
 
+    // Not bounded per source address (hotfix 2026-11-23); the hash is still recorded.
     const source = sourceHash(deps.tokenKey(), request);
-    try {
-      await admitAttempt(deps.db, "authorization", [{ bound: AGENT_LIMITS.authorizationPerSource, key: source }]);
-    } catch (error) {
-      if (error instanceof AttemptLimitError) return fail("temporarily_unavailable", "Too many connection attempts. Try again later.");
-      throw error;
-    }
 
     const nonce = bindingNonce(request) ?? randomBytes(32).toString("base64url");
     const [transaction] = await deps.db<{ id: string }[]>`

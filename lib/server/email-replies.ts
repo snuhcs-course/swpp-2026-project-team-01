@@ -1,4 +1,5 @@
 import type { MessageStreamEvent } from "eve/client";
+import { stripChannelMarkers } from "../contracts/messaging-channel";
 import type { RequestLanguage } from "../contracts/request";
 import {
   AGENTMAIL_API_URL,
@@ -164,15 +165,18 @@ export function plainText(text: string) {
 
 // The turn's final assistant text: the message.completed texts that end a step
 // with something other than tool calls, among the events the input's delivery
-// owns, in order, as plain text.
+// owns, in order, as plain text without a leading channel marker (#410). Every
+// channel reply, host or guest, iMessage, WhatsApp, Telegram or email, is read
+// here.
 export function turnReplyText(events: readonly MessageStreamEvent[], deliveryIds: readonly string[]) {
   const owned = new Set(deliveryIds);
   const texts = events
     .filter((event) => event.meta.deliveryIds?.some((id) => owned.has(id)))
     .filter((event) => event.type === "message.completed")
     .map((event) => event.data as { message?: string; finishReason?: string })
-    .filter((data) => data.finishReason !== "tool-calls" && typeof data.message === "string" && data.message.trim())
-    .map((data) => plainText(data.message!.trim()));
+    .filter((data) => data.finishReason !== "tool-calls" && typeof data.message === "string")
+    .map((data) => stripChannelMarkers(plainText(data.message!.trim())).trim())
+    .filter(Boolean);
 
   return texts.length > 0 ? texts.join("\n\n") : null;
 }

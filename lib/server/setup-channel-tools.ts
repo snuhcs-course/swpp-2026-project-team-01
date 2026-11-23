@@ -1,4 +1,6 @@
+import { listSentRequests } from "./host-sent-requests";
 import { z } from "zod";
+import { readHostSchedule, type ReadScheduleInput, readScheduleToolInput } from "./host-schedule";
 import { readCalendarRoles, saveCalendarRolesCommand, recordDestinationAccess } from "./calendar-roles";
 import { channelOfTurn, linkedMessagingTurn } from "./channel-selection";
 import { CommandError, runCommand } from "./commands";
@@ -26,7 +28,9 @@ import type { ClaimedJob, JobHandler } from "./jobs";
 import { slotPreviewNoteExclusions } from "./note-decisions";
 import { readNoteReview } from "./note-review";
 import { latestSlotImage, noteReviewLinkKey, noteStepOf, queueSlotImageAfterWait, slotImageDelivery } from "./onboarding-note-step";
+import { stripChannelMarkers } from "../contracts/messaging-channel";
 import { SETUP_FIELD_SCHEMAS } from "../contracts/setup";
+import { withSetupStep } from "../contracts/setup-progress";
 import { enqueueSettingsButtonRetirement } from "./telegram-jobs";
 
 // The host's actions from setup in their own words (channel-actions-in-words
@@ -40,7 +44,13 @@ import { enqueueSettingsButtonRetirement } from "./telegram-jobs";
 
 export async function listHostRequestsForSetupTool(deps: SetupDependencies, call: SetupToolCall) {
   const actor = await authorizeSetupTool(deps.db, call.auth, call.sessionId);
-  return hostRequestsForModel(await listHostRequests(deps.db, actor.id), await readHostTimezone(deps.db, actor.id));
+  return hostRequestsForModel(await listHostRequests(deps.db, actor.id), await readHostTimezone(deps.db, actor.id), new Date(), await listSentRequests(deps.db, actor.id));
+}
+
+// The host's schedule for a period, read-only (host-schedule-views design 2).
+export async function readScheduleForSetupTool(deps: SetupDependencies, call: SetupToolCall, input: ReadScheduleInput = {}) {
+  const actor = await authorizeSetupTool(deps.db, call.auth, call.sessionId);
+  return readHostSchedule(deps.db, deps.calendar, actor.id, readScheduleToolInput.parse(input));
 }
 
 export const confirmSettingsToolInput = z
@@ -109,7 +119,10 @@ export async function confirmSettingsForTool(deps: SetupDependencies, call: Setu
     const language = await hostConversationLanguage(deps.db, actor.id);
     return {
       links: outcome.result.links,
-      message: "Saved. Share the booking link.",
+      // The first save ends setup (issue #368); a later one only saves changes.
+      message: outcome.result.tutorialOffered
+        ? "Saved, and setup is done. Say plainly in one line that setup is done, then share the booking link."
+        : "Saved. Share the booking link.",
       saved: true as const,
       tutorialOffer: outcome.result.tutorialOffered ? TUTORIAL_TEXT[language].offer : null,
     };
@@ -328,8 +341,12 @@ export async function previewNextWeekForTool(deps: SetupDependencies, call: Setu
     };
   }
   const times = channelReplies(language).onboarding.slotSummary(preview);
-  const change = input.changeSummary && redactCredentials(input.changeSummary, { bareUuids: true }).trim();
-  const summary = change ? `${change} ${times}` : times;
+  // The model's summary leads the image's text, which stands in for the turn
+  // reply, so it drops a copied channel marker too (#410).
+  const change = input.changeSummary && stripChannelMarkers(redactCredentials(input.changeSummary, { bareUuids: true })).trim();
+  const text = change ? `${change} ${times}` : times;
+  // Before the first save this is setup's last step (issue #368).
+  const summary = proposal.records.confirmed === null ? withSetupStep(language, "openTimes", text) : text;
   const outcome = await runCommand({ authenticate: async () => actor, db: deps.db }, {
     operation: "setup.preview_next_week",
     input: z.object({ proposalHash: z.string() }).strict(),
@@ -393,7 +410,8 @@ export function createOnboardingSlotImageHandler(load: () => SetupDependencies =
     // 확인 and the wait share this key, so one image goes out whichever comes first.
     const words = channelReplies(language).onboarding;
     const times = words.slotSummary(composed.preview);
-    const summary = job.payload.waited === true ? `${words.noteReviewLater(`${deps.appOrigin}/app/notes`)}\n${times}` : times;
+    const text = job.payload.waited === true ? `${words.noteReviewLater(`${deps.appOrigin}/app/notes`)}\n${times}` : times;
+    const summary = proposal.records.confirmed === null ? withSetupStep(language, "openTimes", text) : text;
     await recordOutbound(tx, {
       kind: "image", image: { preview: composed.preview, language, summary }, reviewHash: proposal.proposalHash,
       dedupeKey: `slot-preview:${binding.id}:notes:${linkId}`, hostAccountId, bindingId: binding.id,

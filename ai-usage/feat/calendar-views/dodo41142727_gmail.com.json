@@ -1,0 +1,40 @@
+{
+  "branch": "feat/calendar-views",
+  "user": "dodo41142727@gmail.com",
+  "sessions": {
+    "claude:9ff21dbb-c5ed-48b4-9da5-fd1a4ba4961c": {
+      "agent": "claude-code",
+      "client": "claude-desktop",
+      "agent_ms": 0,
+      "models": {
+        "claude-opus-5-5": {
+          "input": 220,
+          "cache_read": 22834577,
+          "cache_write_5m": 0,
+          "cache_write_1h": 402280,
+          "output": 101191,
+          "reasoning": 0
+        }
+      },
+      "first": "2026-11-23T06:38:07.363Z",
+      "last": "2026-11-23T11:24:04.766Z"
+    },
+    "claude:9ff21dbb-c5ed-48b4-9da5-fd1a4ba4961c/agent-ac8d3bd2d8a5026c0": {
+      "agent": "claude-code",
+      "client": "claude-desktop",
+      "agent_ms": 0,
+      "models": {
+        "claude-opus-5-5": {
+          "input": 72,
+          "cache_read": 4889337,
+          "cache_write_5m": 142704,
+          "cache_write_1h": 0,
+          "output": 23146,
+          "reasoning": 0
+        }
+      },
+      "first": "2026-11-23T10:45:08.203Z",
+      "last": "2026-11-23T10:50:25.225Z"
+    }
+  }
+}

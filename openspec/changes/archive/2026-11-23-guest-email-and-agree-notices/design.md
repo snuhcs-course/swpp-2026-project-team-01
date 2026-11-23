@@ -1,0 +1,19 @@
+# Design
+
+## 1. Change email after a bounce
+
+`contact.change_email` (`lib/server/contact-confirmation.ts`) takes `{ email }` from the requester holding the booking link. Under the request lock it refuses an address equal to the current one, and refuses unless `contactChangeAllowed` holds: the contact is not confirmed and the latest `request_creation` delivery to it is `rejected` or `suppressed`. It then takes the new recipient's and the service's confirmation locks and returns `limited` with the retry time past a creation-email bound, changing nothing. Otherwise it sets `contact_email`, keeps `contact_confirmed_email` only when an earlier confirmed address returns, and calls `issueContactConfirmation`, which voids earlier confirmation links and records the creation email. No revision, agreement or booking changes. The page's `SentLine` shows **Change email** for the same condition and opens a one-field form; a `limited` result shows a retry message.
+
+## 2. Replies to the booking confirmation
+
+`enqueueConfirmations` sets the guest copy's `replyTo` to the product inbox (`AGENTMAIL_INBOX_ID`) when there is one and freezes `replyToAssistant: true`, so the email's last line says a reply reaches Thyme. The host copy is unchanged.
+
+The reply arrives at AgentMail in a thread of its own, answering a message AgentMail never saw. `processReceivedMessage` now tries `confirmationReply` for an authenticated message in an unbound thread that does not start one: it looks for accepted requester `booking_confirmation` deliveries whose recipient is the sender, whose Reply-To is this inbox and whose request's contact is still the sender. In-Reply-To or References picks the delivery by provider message ID when it names one; otherwise the latest is used, which is always one of the same guest's own requests. Under the thread lock and the request's row lock, the thread is bound to the request as `started` and the message forwarded with its subject, or, when the request already has an active thread, forwarded through that binding and answered in the reply's own thread. `forward` then handles closed requests, admission limits and the turn reply as for any thread.
+
+## 3. Resend from the conversation
+
+`contact.resend_link` (`lib/server/link-resend.ts`) runs for the requester under the request lock. A request that is neither open nor booked, or whose link expired, is `request_closed`. An unconfirmed contact returns `unconfirmed`. Otherwise it takes the recipient and service locks in the `link_resend` job's order, checks `issuanceAllowed`, records one `link_resend` delivery to the confirmed address keyed by the command's correlation ID, and one `link_resend_issuances` row. The delivery's recipient recheck now also accepts a booked request for `link_resend`. `resend_booking_link` runs the command with the tool call's retry key and returns words that never contain the link or the address.
+
+## 4. Agreement notice in linked chats
+
+`GuestNotice` gains `agreement_sent { version, bindingId }`, keyed `guest-notice:agreement_sent:<request>:v<version>:<binding>`. `enqueueAgreementNotice` records the job for the active guest binding; `request.agree` calls it after the host's awaiting-approval notice, and `bindRequester` calls it after the welcome when the request awaits approval (`awaitingAgreementVersion`). The `imessage_notice` job sends it only to that binding, and only while that version is still the one awaiting approval. The text comes from `readAgreementSummary` and `agreementNoticeText` in `lib/server/agreement-notice.ts`: the people, purpose, date and time in the guest's timezone with the zone named, length, online or the place, the status, and no link. The outbox's existing WhatsApp window rule suppresses it outside the 24-hour window. The agreement email (#178) can render `readAgreementSummary` and `agreementDetailLines`.

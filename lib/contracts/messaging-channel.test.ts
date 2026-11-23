@@ -1,11 +1,13 @@
 import { describe, expect, it } from "vitest";
 import {
+  appLinkTarget,
   askChannels,
   channelName,
   deviceKind,
   displayWhatsAppNumber,
   isMessagingChannel,
   shownChannel,
+  stripChannelMarkers,
   switchChannels,
   telegramLinkFor,
   whatsAppLinkFor,
@@ -57,6 +59,18 @@ describe("whatsAppLinkFor", () => {
 
   it("shows the number with a plus", () => {
     expect(displayWhatsAppNumber("15550001111")).toBe("+15550001111");
+  });
+});
+
+describe("appLinkTarget", () => {
+  it("opens Telegram's start link in a new tab on a computer, so the page that shows Confirm and link stays (#369)", () => {
+    expect(appLinkTarget("telegram", false)).toEqual({ rel: "noopener noreferrer", target: "_blank" });
+  });
+
+  it("keeps the same tab on a phone and for WhatsApp and Messages", () => {
+    expect(appLinkTarget("telegram", true)).toEqual({});
+    expect(appLinkTarget("whatsapp", false)).toEqual({});
+    expect(appLinkTarget("imessage", false)).toEqual({});
   });
 });
 
@@ -129,5 +143,29 @@ describe("channelName", () => {
     expect(channelName("imessage")).toBe("iMessage");
     expect(channelName("whatsapp")).toBe("WhatsApp");
     expect(channelName("telegram")).toBe("Telegram");
+  });
+});
+
+// Every outgoing channel reply drops a leading channel marker the model copied (#410).
+describe("stripChannelMarkers", () => {
+  it.each([
+    ["[iMessage] Booked for Friday.", "Booked for Friday."],
+    ["[WhatsApp] Booked for Friday.", "Booked for Friday."],
+    ["[Telegram] Booked for Friday.", "Booked for Friday."],
+    ["[Email] Booked for Friday.", "Booked for Friday."],
+    ["[iMessage] [iMessage] Booked for Friday.", "Booked for Friday."],
+    ["[iMessage][Telegram]Booked for Friday.", "Booked for Friday."],
+    ["  [imessage]: Booked for Friday.", "Booked for Friday."],
+    ["**[iMessage]** Booked for Friday.", "Booked for Friday."],
+    ["[iMessage]\n금요일로 예약했어요.", "금요일로 예약했어요."],
+    ["[iMessage] ", ""],
+  ])("strips the marker from %j", (text, expected) => {
+    expect(stripChannelMarkers(text)).toBe(expected);
+  });
+
+  it("keeps a reply without a leading marker as it is", () => {
+    expect(stripChannelMarkers("Booked for Friday.")).toBe("Booked for Friday.");
+    expect(stripChannelMarkers("You wrote [iMessage] earlier.")).toBe("You wrote [iMessage] earlier.");
+    expect(stripChannelMarkers("[Note] Booked for Friday.")).toBe("[Note] Booked for Friday.");
   });
 });

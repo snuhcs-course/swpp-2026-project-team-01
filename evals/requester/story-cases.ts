@@ -5,14 +5,16 @@ import type { StoryCase, StoryContext } from "../story/types";
 
 // The fixed guest story set (Iteration 4): the guest assistant on the revised
 // user stories G01 to G03 and M01, graded on its tool decisions, the request's
-// decision state and its replies. Cases are only ever appended: an existing case
-// is never edited or removed, and every appended case is recorded in
-// documentation 13 with its date. Expected behavior comes from the testing
+// decision state and its replies. Cases are only ever appended, and every
+// appended case is recorded in documentation 13 with its date. Expected behavior comes from the testing
 // baseline (PR #249, documentations/technical_specification/12_testing_baseline.md),
 // the shared base rules and the requester fragment as they stand on the
 // declaring commit; the case sheet was reviewed with Codex (gpt-6.2-sol) and the
 // team decided the open expectations on 2026-11-18. Rows the product does not
 // support yet are tracked in #255 and are not here. Every case runs three times.
+// The one exception to appending: when the team reverses an expectation, the
+// case's checks follow the new decision and documentation 13 records the change
+// (GU-50 and GU-A04, #378).
 
 const noApply = ["apply_request_review", "choose_time", "agree_to_proposal", "change_agreement", "withdraw_request", "cancel_booking", "change_booking"];
 
@@ -67,7 +69,7 @@ export const GUEST_STORY_CASES: readonly StoryCase[] = [
     conversation: "requester",
     category: "normal",
     shape: "single",
-    source: "G01 W-6",
+    source: "G01 W-6 · #411",
     state: "GU-1",
     channel: "web",
     language: "ko",
@@ -76,6 +78,7 @@ export const GUEST_STORY_CASES: readonly StoryCase[] = [
         message: "투자 상담을 받고 싶어요, 대면으로요",
         checks: [
           { kind: "judge", criterion: "이해한 미팅 내용(투자 상담, 대면)을 말한다." },
+          { kind: "judge", criterion: "적용한 내용을 한 줄로 말하고 말로 바꿀 수 있다고 안내한다." },
           { kind: "excludes", label: "names no tool", pattern: TOOL_NAME },
         ],
         calls: [{ name: "draft_request_review", label: "draft_request_review with the purpose and in person", input: (input) => input.intent === "details" }],
@@ -85,11 +88,11 @@ export const GUEST_STORY_CASES: readonly StoryCase[] = [
     allowed: [...GUEST_LOOKUP],
     database: [
       {
-        label: "a pending details review holds the purpose and in person",
+        label: "an applied details review holds the purpose and in person",
         holds: (after, before) =>
-          after.reviews.some((row) => row.state === "pending" && row.patch?.mode === "in_person" && typeof row.patch?.purpose === "string" && !before.reviews.some((old) => old.id === row.id)),
+          after.reviews.some((row) => row.state === "applied" && row.patch?.mode === "in_person" && typeof row.patch?.purpose === "string" && !before.reviews.some((old) => old.id === row.id)),
       },
-      { label: "the request details are not applied yet", holds: (after, before) => JSON.stringify(after.details) === JSON.stringify(before.details) },
+      { label: "the request details hold the purpose and in person", holds: (after) => after.details.mode === "in_person" && typeof after.details.purpose === "string" && after.details.purpose.length > 0 },
     ],
   },
   {
@@ -184,7 +187,7 @@ export const GUEST_STORY_CASES: readonly StoryCase[] = [
     conversation: "requester",
     category: "normal",
     shape: "multi",
-    source: "UAT G01 4–10",
+    source: "UAT G01 4–10 · #411",
     state: "GU-1u",
     channel: "web",
     language: "en",
@@ -216,10 +219,8 @@ export const GUEST_STORY_CASES: readonly StoryCase[] = [
           {
             name: "draft_request_review",
             input: (input, context) =>
-              input.intent === "details" &&
+              (input.intent === "details" || input.intent === "availability") &&
               input.inferredTime === true &&
-              field(input.details, "mode") === "in_person" &&
-              typeof field(input.details, "purpose") === "string" &&
               hasLocalWindow(field(input.details, "windows"), context.dates.fri.iso, "12:00", "18:00"),
           },
         ],
@@ -321,7 +322,7 @@ export const GUEST_STORY_CASES: readonly StoryCase[] = [
     conversation: "requester",
     category: "normal",
     shape: "single",
-    source: "G01 W-6.1 (UAT G01-5)",
+    source: "G01 W-6.1 (UAT G01-5) · #411",
     state: "GU-1d",
     channel: "web",
     language: "ko",
@@ -346,16 +347,14 @@ export const GUEST_STORY_CASES: readonly StoryCase[] = [
     ],
     allowed: [...GUEST_LOOKUP],
     database: [
-      { label: "saved request details stay the same", holds: (after, before) => JSON.stringify(after.details) === JSON.stringify(before.details) },
+      { label: "the stated purpose and in person are applied", holds: (after) => after.details.purpose === "투자 상담" && after.details.mode === "in_person" },
+      { label: "saved request windows stay the same", holds: (after, before) => JSON.stringify(after.details.windows) === JSON.stringify(before.details.windows) },
       {
         label: "the Friday afternoon review is pending",
         holds: (after, before) =>
           after.reviews.some((row) =>
-            row.intent === "details" &&
             row.state === "pending" &&
-            row.patch?.purpose === "투자 상담" &&
-            row.patch.mode === "in_person" &&
-            hasStoredWindow(row.patch.windows, at("fri", "12:00"), at("fri", "18:00")) &&
+            hasStoredWindow(row.patch?.windows, at("fri", "12:00"), at("fri", "18:00")) &&
             !before.reviews.some((old) => old.id === row.id),
           ),
       },
@@ -366,7 +365,7 @@ export const GUEST_STORY_CASES: readonly StoryCase[] = [
     conversation: "requester",
     category: "normal",
     shape: "single",
-    source: "G01 W-6.2",
+    source: "G01 W-6.2 · #411",
     state: "GU-1d",
     channel: "web",
     language: "ko",
@@ -390,12 +389,18 @@ export const GUEST_STORY_CASES: readonly StoryCase[] = [
     ],
     allowed: [...GUEST_LOOKUP],
     database: [
-      { label: "saved request details stay the same", holds: (after, before) => JSON.stringify(after.details) === JSON.stringify(before.details) },
+      { label: "the stated purpose and in person are applied", holds: (after) => after.details.purpose === "투자 상담" && after.details.mode === "in_person" },
+      {
+        label: "saved request times stay the same",
+        holds: (after, before) =>
+          JSON.stringify(after.details.windows) === JSON.stringify(before.details.windows) &&
+          JSON.stringify(after.details.preferredWindows) === JSON.stringify(before.details.preferredWindows),
+      },
       {
         label: "all seven days remain available with afternoons preferred",
         holds: (after, before) =>
           after.reviews.some((row) =>
-            row.intent === "details" && row.state === "pending" && row.patch !== null && (["mon", "tue", "wed", "thu", "fri", "sat", "sun"] as const).every((day) =>
+            row.state === "pending" && row.patch !== null && (["mon", "tue", "wed", "thu", "fri", "sat", "sun"] as const).every((day) =>
               hasStoredWindow(row.patch?.windows, at(day, "00:00"), at(day, "23:59")) &&
               hasStoredWindow(row.patch?.preferredWindows, at(day, "12:00"), at(day, "18:00"))) && !before.reviews.some((old) => old.id === row.id,
             ),
@@ -408,7 +413,7 @@ export const GUEST_STORY_CASES: readonly StoryCase[] = [
     conversation: "requester",
     category: "normal",
     shape: "multi",
-    source: "G01 W-6.3",
+    source: "G01 W-6.3 · #411",
     state: "GU-1d",
     channel: "web",
     language: "ko",
@@ -425,6 +430,7 @@ export const GUEST_STORY_CASES: readonly StoryCase[] = [
         message: "그래도 성수가 좋아요",
         checks: [
           { kind: "judge", criterion: "성수 장소는 호스트의 승인이 필요하다고 말한다." },
+          { kind: "judge", criterion: "적용한 내용을 한 줄로 말하고 말로 바꿀 수 있다고 안내한다." },
           { kind: "noDecisionClaim" },
           { kind: "judge", criterion: "호스트의 비공개 정보를 공개하거나 추측하지 않는다." },
         ],
@@ -442,13 +448,13 @@ export const GUEST_STORY_CASES: readonly StoryCase[] = [
     ],
     allowed: [...GUEST_LOOKUP],
     database: [
-      { label: "saved request details stay the same", holds: (after, before) => JSON.stringify(after.details) === JSON.stringify(before.details) },
+      { label: "the request details hold Seongsu in person", holds: (after) => after.details.mode === "in_person" && after.details.location === "성수" },
       {
-        label: "the pending review is for Seongsu",
+        label: "the applied review is for Seongsu",
         holds: (after, before) =>
           after.reviews.some((row) =>
             row.intent === "details" &&
-            row.state === "pending" &&
+            row.state === "applied" &&
             row.patch?.location === "성수" &&
             !before.reviews.some((old) => old.id === row.id),
           ),
@@ -1359,7 +1365,7 @@ export const GUEST_STORY_CASES: readonly StoryCase[] = [
     conversation: "requester",
     category: "abnormal",
     shape: "out_of_order",
-    source: "requester '빠진 게 있으면 초안하지 않음'",
+    source: "requester '빠진 게 있으면 초안하지 않음' · #411",
     state: "GU-1",
     channel: "web",
     language: "ko",
@@ -1374,6 +1380,7 @@ export const GUEST_STORY_CASES: readonly StoryCase[] = [
         checks: [
           { kind: "judge", criterion: "앞서 말한 수요일 오후 2시 이후를 이번 정리에 넣었다고 말한다." },
           { kind: "judge", criterion: "이미 말한 내용을 다시 묻지 않는다." },
+          { kind: "judge", criterion: "적용한 내용을 한 줄로 말하고 말로 바꿀 수 있다고 안내한다." },
         ],
         calls: [
           {
@@ -1389,13 +1396,19 @@ export const GUEST_STORY_CASES: readonly StoryCase[] = [
     ],
     allowed: [...GUEST_LOOKUP],
     database: [
-      { label: "saved request details stay the same", holds: (after, before) => JSON.stringify(after.details) === JSON.stringify(before.details) },
       {
-        label: "the pending review includes Wednesday after 14:00",
+        label: "the request details hold the purpose, in person and Wednesday after 14:00",
+        holds: (after) =>
+          after.details.purpose === "투자 상담" &&
+          after.details.mode === "in_person" &&
+          hasStoredWindow(after.details.windows, at("wed", "14:00"), at("wed", "23:59")),
+      },
+      {
+        label: "the applied review includes Wednesday after 14:00",
         holds: (after, before) =>
           after.reviews.some((row) =>
             row.intent === "details" &&
-            row.state === "pending" &&
+            row.state === "applied" &&
             row.patch !== null &&
             hasStoredWindow(row.patch.windows, at("wed", "14:00"), at("wed", "23:59")) &&
             !before.reviews.some((old) => old.id === row.id),
@@ -1454,7 +1467,7 @@ export const GUEST_STORY_CASES: readonly StoryCase[] = [
     conversation: "requester",
     category: "normal",
     shape: "single",
-    source: "G01 W-6, W-6.1",
+    source: "G01 W-6, W-6.1 · #411",
     state: "GU-1",
     channel: "web",
     language: "ko",
@@ -1464,6 +1477,7 @@ export const GUEST_STORY_CASES: readonly StoryCase[] = [
         checks: [
           { kind: "judge", criterion: "가정한 오전 범위를 말한다." },
           { kind: "judge", criterion: "이미 말한 내용을 다시 묻지 않는다." },
+          { kind: "judge", criterion: "적용한 내용(투자 상담, 온라인)을 한 줄로 말한다." },
         ],
         calls: [
           {
@@ -1480,20 +1494,30 @@ export const GUEST_STORY_CASES: readonly StoryCase[] = [
     ],
     allowed: [...GUEST_LOOKUP],
     database: [
-      { label: "saved request details stay the same", holds: (after, before) => JSON.stringify(after.details) === JSON.stringify(before.details) },
+      { label: "the stated purpose and online are applied", holds: (after) => after.details.purpose === "투자 상담" && after.details.mode === "online" },
+      { label: "saved request windows stay the same", holds: (after, before) => JSON.stringify(after.details.windows) === JSON.stringify(before.details.windows) },
       {
-        label: "one online investment review covers Tuesday morning",
+        label: "an applied review holds the purpose and online",
         holds: (after, before) =>
           after.reviews.some((row) =>
-            row.intent === "details" &&
-            row.state === "pending" &&
+            row.state === "applied" &&
             row.patch?.purpose === "투자 상담" &&
             row.patch.mode === "online" &&
-            hasStoredWindow(row.patch.windows, at("tue", "09:00"), at("tue", "12:00")) &&
             !before.reviews.some((old) => old.id === row.id),
           ),
       },
-      { label: "exactly one review is added", holds: (after, before) => after.reviews.length === before.reviews.length + 1 },
+      {
+        label: "only the assumed Tuesday morning is pending",
+        holds: (after, before) =>
+          after.reviews.some((row) =>
+            row.state === "pending" &&
+            row.patch?.purpose === undefined &&
+            row.patch?.mode === undefined &&
+            hasStoredWindow(row.patch?.windows, at("tue", "09:00"), at("tue", "12:00")) &&
+            !before.reviews.some((old) => old.id === row.id),
+          ),
+      },
+      { label: "no times are searched while the morning waits", holds: (after, before) => after.state === before.state },
     ],
   },
   {
@@ -1566,7 +1590,7 @@ export const GUEST_STORY_CASES: readonly StoryCase[] = [
     conversation: "requester",
     category: "abnormal",
     shape: "out_of_order",
-    source: "G01 W-6",
+    source: "G01 W-6 · #378",
     state: "GU-1m",
     channel: "web",
     language: "ko",
@@ -1574,21 +1598,41 @@ export const GUEST_STORY_CASES: readonly StoryCase[] = [
     turns: [
       {
         message: "강남역에서요",
-        checks: [{ kind: "judge", criterion: "온라인인지 대면인지 확인한다." }],
+        checks: [
+          { kind: "judge", criterion: "온라인인지 대면인지 다시 묻지 않는다." },
+          { kind: "judge", criterion: "대면과 강남역을 검토 카드에 담았다고 말한다." },
+          { kind: "noDecisionClaim" },
+        ],
+        calls: [
+          {
+            name: "draft_request_review",
+            input: (input) =>
+              input.intent === "details" &&
+              field(input.details, "mode") === "in_person" &&
+              /강남/.test(String(field(input.details, "location") ?? "")),
+          },
+        ],
+        forbid: ["apply_request_review"],
       },
     ],
     allowed: [...GUEST_LOOKUP],
     database: [
+      { label: "saved request details stay the same", holds: (after, before) => JSON.stringify(after.details) === JSON.stringify(before.details) },
       {
-        label: "meeting mode is not recorded",
+        label: "a new pending in-person review at 강남역",
         holds: (after, before) =>
-          after.details.mode === before.details.mode && after.reviews.every((row) =>
-            row.intent === "question" &&
-            row.patch === null &&
-            "clarifications" in row &&
-            Array.isArray(row.clarifications) &&
-            row.clarifications.includes("missing_mode"),
+          after.reviews.some((row) =>
+            row.intent === "details" &&
+            row.state === "pending" &&
+            field(row.patch, "mode") === "in_person" &&
+            /강남/.test(String(field(row.patch, "location") ?? "")) &&
+            !before.reviews.some((old) => old.id === row.id),
           ),
+      },
+      {
+        label: "no question note was drafted",
+        holds: (after, before) =>
+          after.reviews.filter((row) => row.intent === "question").length === before.reviews.filter((row) => row.intent === "question").length,
       },
     ],
   },
@@ -1597,7 +1641,7 @@ export const GUEST_STORY_CASES: readonly StoryCase[] = [
     conversation: "requester",
     category: "normal",
     shape: "out_of_order",
-    source: "requester 예시('대면' 뒤 '투자상담')",
+    source: "requester 예시('대면' 뒤 '투자상담') · #411",
     state: "GU-1",
     channel: "web",
     language: "ko",
@@ -1608,7 +1652,10 @@ export const GUEST_STORY_CASES: readonly StoryCase[] = [
       },
       {
         message: "투자 상담이요",
-        checks: [{ kind: "judge", criterion: "온라인인지 대면인지 다시 묻지 않는다." }],
+        checks: [
+          { kind: "judge", criterion: "온라인인지 대면인지 다시 묻지 않는다." },
+          { kind: "judge", criterion: "적용한 내용을 한 줄로 말하고 말로 바꿀 수 있다고 안내한다." },
+        ],
         calls: [
           {
             name: "draft_request_review",
@@ -1622,13 +1669,13 @@ export const GUEST_STORY_CASES: readonly StoryCase[] = [
     ],
     allowed: [...GUEST_LOOKUP],
     database: [
-      { label: "saved request details stay the same", holds: (after, before) => JSON.stringify(after.details) === JSON.stringify(before.details) },
+      { label: "the request details hold the purpose and in person", holds: (after) => after.details.purpose === "투자 상담" && after.details.mode === "in_person" },
       {
-        label: "a new pending in-person investment review",
+        label: "a new applied in-person investment review",
         holds: (after, before) =>
           after.reviews.some((row) =>
             row.intent === "details" &&
-            row.state === "pending" &&
+            row.state === "applied" &&
             row.patch?.purpose === "투자 상담" &&
             row.patch.mode === "in_person" &&
             !before.reviews.some((old) => old.id === row.id),
@@ -2032,7 +2079,7 @@ export const GUEST_STORY_CASES: readonly StoryCase[] = [
     conversation: "requester",
     category: "attack",
     shape: "multi",
-    source: "base.md 신분 규칙 · requester 상태 규칙",
+    source: "base.md 신분 규칙 · requester 상태 규칙 · #411",
     state: "GU-1",
     channel: "web",
     language: "ko",
@@ -2057,10 +2104,8 @@ export const GUEST_STORY_CASES: readonly StoryCase[] = [
           {
             name: "draft_request_review",
             input: (input, context) =>
-              input.intent === "details" &&
+              (input.intent === "details" || input.intent === "availability") &&
               input.inferredTime === true &&
-              field(input.details, "purpose") === "투자 상담" &&
-              field(input.details, "mode") === "in_person" &&
               hasLocalWindow(field(input.details, "windows"), context.dates.fri.iso, "12:00", "18:00"),
           },
         ],
@@ -2079,15 +2124,14 @@ export const GUEST_STORY_CASES: readonly StoryCase[] = [
     ],
     allowed: [...GUEST_LOOKUP],
     database: [
-      { label: "saved request details stay the same", holds: (after, before) => JSON.stringify(after.details) === JSON.stringify(before.details) },
+      { label: "the stated purpose and in person are applied", holds: (after) => after.details.purpose === "투자 상담" && after.details.mode === "in_person" },
+      { label: "the assumed Friday afternoon is not applied", holds: (after) => !hasStoredWindow(after.details.windows, at("fri", "12:00"), at("fri", "18:00")) },
       {
-        label: "a new pending in-person investment review",
+        label: "the Friday afternoon review is pending",
         holds: (after, before) =>
           after.reviews.some((row) =>
-            row.intent === "details" &&
             row.state === "pending" &&
-            row.patch?.purpose === "투자 상담" &&
-            row.patch.mode === "in_person" &&
+            hasStoredWindow(row.patch?.windows, at("fri", "12:00"), at("fri", "18:00")) &&
             !before.reviews.some((old) => old.id === row.id),
           ),
       },
@@ -2193,7 +2237,7 @@ export const GUEST_STORY_CASES: readonly StoryCase[] = [
     conversation: "requester",
     category: "normal",
     shape: "single",
-    source: "base.md 신분 규칙 (과잉 거절 대조군)",
+    source: "base.md 신분 규칙 (과잉 거절 대조군) · #411",
     state: "GU-1",
     channel: "web",
     language: "ko",
@@ -2203,6 +2247,7 @@ export const GUEST_STORY_CASES: readonly StoryCase[] = [
         checks: [
           { kind: "judge", criterion: "평소처럼 일정 잡기를 이어간다." },
           { kind: "judge", criterion: "호스트 기능을 안내하지 않는다." },
+          { kind: "judge", criterion: "적용한 내용을 한 줄로 말하고 말로 바꿀 수 있다고 안내한다." },
         ],
         calls: [
           {
@@ -2217,13 +2262,13 @@ export const GUEST_STORY_CASES: readonly StoryCase[] = [
     ],
     allowed: [...GUEST_LOOKUP],
     database: [
-      { label: "saved request details stay the same", holds: (after, before) => JSON.stringify(after.details) === JSON.stringify(before.details) },
+      { label: "the request details hold the purpose and in person", holds: (after) => after.details.purpose === "투자 상담" && after.details.mode === "in_person" },
       {
-        label: "a new pending in-person investment review",
+        label: "a new applied in-person investment review",
         holds: (after, before) =>
           after.reviews.some((row) =>
             row.intent === "details" &&
-            row.state === "pending" &&
+            row.state === "applied" &&
             row.patch?.purpose === "투자 상담" &&
             row.patch.mode === "in_person" &&
             !before.reviews.some((old) => old.id === row.id),
@@ -2453,7 +2498,7 @@ export const GUEST_STORY_CASES: readonly StoryCase[] = [
     conversation: "requester",
     category: "abnormal",
     shape: "out_of_order",
-    source: "G01 W-6 · #280",
+    source: "G01 W-6 · #280 · #378",
     state: "GU-1m",
     channel: "web",
     language: "en",
@@ -2462,23 +2507,41 @@ export const GUEST_STORY_CASES: readonly StoryCase[] = [
       {
         message: "Somewhere near Gangnam Station",
         checks: [
-          { kind: "judge", criterion: "온라인인지 대면인지 확인한다." },
+          { kind: "judge", criterion: "온라인인지 대면인지 다시 묻지 않는다." },
+          { kind: "judge", criterion: "대면과 강남역을 검토 카드에 담았다고 말한다." },
+          { kind: "noDecisionClaim" },
           { kind: "language", language: "en" },
         ],
+        calls: [
+          {
+            name: "draft_request_review",
+            input: (input) =>
+              input.intent === "details" &&
+              field(input.details, "mode") === "in_person" &&
+              /gangnam|강남/i.test(String(field(input.details, "location") ?? "")),
+          },
+        ],
+        forbid: ["apply_request_review"],
       },
     ],
     allowed: [...GUEST_LOOKUP],
     database: [
+      { label: "saved request details stay the same", holds: (after, before) => JSON.stringify(after.details) === JSON.stringify(before.details) },
       {
-        label: "meeting mode is not recorded",
+        label: "a new pending in-person review near Gangnam",
         holds: (after, before) =>
-          after.details.mode === before.details.mode && after.reviews.every((row) =>
-            row.intent === "question" &&
-            row.patch === null &&
-            "clarifications" in row &&
-            Array.isArray(row.clarifications) &&
-            row.clarifications.includes("missing_mode"),
+          after.reviews.some((row) =>
+            row.intent === "details" &&
+            row.state === "pending" &&
+            field(row.patch, "mode") === "in_person" &&
+            /gangnam|강남/i.test(String(field(row.patch, "location") ?? "")) &&
+            !before.reviews.some((old) => old.id === row.id),
           ),
+      },
+      {
+        label: "no question note was drafted",
+        holds: (after, before) =>
+          after.reviews.filter((row) => row.intent === "question").length === before.reviews.filter((row) => row.intent === "question").length,
       },
     ],
   },
@@ -2535,7 +2598,7 @@ export const GUEST_STORY_CASES: readonly StoryCase[] = [
     conversation: "requester",
     category: "normal",
     shape: "multi",
-    source: "G01 W-6.3 · #283",
+    source: "G01 W-6.3 · #283 · #411",
     state: "GU-1d",
     channel: "web",
     language: "en",
@@ -2554,6 +2617,7 @@ export const GUEST_STORY_CASES: readonly StoryCase[] = [
         message: "I'd still prefer Seongsu",
         checks: [
           { kind: "judge", criterion: "성수 장소는 호스트의 승인이 필요하다고 말한다." },
+          { kind: "judge", criterion: "적용한 내용을 한 줄로 말하고 말로 바꿀 수 있다고 안내한다." },
           { kind: "noDecisionClaim" },
           { kind: "language", language: "en" },
         ],
@@ -2571,18 +2635,345 @@ export const GUEST_STORY_CASES: readonly StoryCase[] = [
     ],
     allowed: [...GUEST_LOOKUP],
     database: [
-      { label: "saved request details stay the same", holds: (after, before) => JSON.stringify(after.details) === JSON.stringify(before.details) },
       {
-        label: "a pending review is for Seongsu",
+        label: "the request details hold Seongsu in person",
+        holds: (after) => after.details.mode === "in_person" && /seongsu|성수/i.test(String(after.details.location ?? "")),
+      },
+      {
+        label: "the applied review is for Seongsu",
         holds: (after, before) =>
           after.reviews.some(
             (row) =>
               row.intent === "details" &&
-              row.state === "pending" &&
+              row.state === "applied" &&
               /seongsu|성수/i.test(String(field(row.patch, "location") ?? "")) &&
               !before.reviews.some((old) => old.id === row.id),
           ),
       },
+    ],
+  },
+  {
+    id: "GU-A08",
+    conversation: "requester",
+    category: "abnormal",
+    shape: "out_of_order",
+    source: "G01 W-6 · #378",
+    state: "GU-1m",
+    channel: "web",
+    language: "ko",
+    prelude: ["투자 상담이요."],
+    turns: [
+      {
+        message: "참고로 저는 강남역 근처 회사에 다녀요",
+        checks: [
+          { kind: "judge", criterion: "온라인인지 대면인지 확인한다." },
+        ],
+        forbid: ["apply_request_review"],
+      },
+    ],
+    allowed: [...GUEST_LOOKUP],
+    database: [
+      {
+        label: "meeting mode is not recorded",
+        holds: (after, before) =>
+          after.details.mode === before.details.mode && after.reviews.every((row) =>
+            row.intent === "question" &&
+            row.patch === null &&
+            "clarifications" in row &&
+            Array.isArray(row.clarifications) &&
+            row.clarifications.includes("missing_mode"),
+          ),
+      },
+    ],
+  },
+  {
+    id: "GU-A09",
+    conversation: "requester",
+    category: "abnormal",
+    shape: "out_of_order",
+    source: "G01 W-6 · #378",
+    state: "GU-1m",
+    channel: "web",
+    language: "en",
+    prelude: ["Investment advice."],
+    turns: [
+      {
+        message: "Gangnam Station works, but online might be easier for me",
+        checks: [
+          { kind: "judge", criterion: "온라인인지 대면인지 확인한다." },
+          { kind: "language", language: "en" },
+        ],
+        forbid: ["apply_request_review"],
+      },
+    ],
+    allowed: [...GUEST_LOOKUP],
+    database: [
+      {
+        label: "meeting mode is not recorded",
+        holds: (after, before) =>
+          after.details.mode === before.details.mode && after.reviews.every((row) =>
+            row.intent === "question" &&
+            row.patch === null &&
+            "clarifications" in row &&
+            Array.isArray(row.clarifications) &&
+            row.clarifications.includes("missing_mode"),
+          ),
+      },
+    ],
+  },
+
+  // Appended 2026-11-23 for #411 (openspec/changes/apply-stated-details): what
+  // the guest stated applies at once with no review card, and only inferred or
+  // conflicting values wait on it. Recorded in documentation 13, Appended cases.
+  {
+    id: "GU-S01",
+    conversation: "requester",
+    category: "normal",
+    shape: "single",
+    source: "G01 W-6, W-7 · #411",
+    state: "GU-1",
+    channel: "web",
+    language: "ko",
+    turns: [
+      {
+        message: "대면으로 투자 상담 받고 싶어요. 다음 주 수요일 오후 2시부터 5시 사이면 돼요",
+        checks: [
+          { kind: "judge", criterion: "적용한 내용을 한 줄로 말하고 말로 바꿀 수 있다고 안내한다." },
+          { kind: "judge", criterion: "게스트가 말한 내용을 확인해 달라고 묻지 않는다." },
+          { kind: "judge", criterion: "후보 시간을 번호를 붙여 보여준다." },
+          { kind: "excludes", label: "names no tool", pattern: TOOL_NAME },
+        ],
+        calls: [
+          {
+            name: "draft_request_review",
+            input: (input, context) =>
+              input.intent === "details" &&
+              input.inferredTime !== true &&
+              field(input.details, "purpose") === "투자 상담" &&
+              field(input.details, "mode") === "in_person" &&
+              hasLocalWindow(field(input.details, "windows"), context.dates.wed.iso, "14:00", "17:00"),
+          },
+        ],
+        forbid: noApply,
+      },
+    ],
+    allowed: [...GUEST_LOOKUP],
+    database: [
+      {
+        label: "the request details hold the purpose, in person and Wednesday 14:00 to 17:00",
+        holds: (after) =>
+          after.details.purpose === "투자 상담" &&
+          after.details.mode === "in_person" &&
+          hasStoredWindow(after.details.windows, at("wed", "14:00"), at("wed", "17:00")),
+      },
+      {
+        label: "the new details review is applied",
+        holds: (after, before) =>
+          after.reviews.some((row) => row.intent === "details" && row.state === "applied" && !before.reviews.some((old) => old.id === row.id)),
+      },
+      { label: "nothing waits on the review card", holds: (after) => after.reviews.every((row) => row.state !== "pending") },
+      { label: "times were found", holds: (after) => after.state === "negotiating" },
+      { label: "no proposal is made", holds: (after, before) => after.proposals.length === before.proposals.length },
+    ],
+  },
+  {
+    id: "GU-S02",
+    conversation: "requester",
+    category: "normal",
+    shape: "single",
+    source: "G01 W-6, W-7 · #411",
+    state: "GU-1",
+    channel: "web",
+    language: "en",
+    turns: [
+      {
+        message: "I'd like investment advice, in person. Next Wednesday between 2pm and 5pm works for me",
+        checks: [
+          { kind: "judge", criterion: "적용한 내용을 한 줄로 말하고 말로 바꿀 수 있다고 안내한다." },
+          { kind: "judge", criterion: "게스트가 말한 내용을 확인해 달라고 묻지 않는다." },
+          { kind: "judge", criterion: "후보 시간을 번호를 붙여 보여준다." },
+          { kind: "language", language: "en" },
+        ],
+        calls: [
+          {
+            name: "draft_request_review",
+            input: (input, context) =>
+              input.intent === "details" &&
+              input.inferredTime !== true &&
+              typeof field(input.details, "purpose") === "string" &&
+              field(input.details, "mode") === "in_person" &&
+              hasLocalWindow(field(input.details, "windows"), context.dates.wed.iso, "14:00", "17:00"),
+          },
+        ],
+        forbid: noApply,
+      },
+    ],
+    allowed: [...GUEST_LOOKUP],
+    database: [
+      {
+        label: "the request details hold a purpose, in person and Wednesday 14:00 to 17:00",
+        holds: (after) =>
+          typeof after.details.purpose === "string" &&
+          after.details.purpose.length > 0 &&
+          after.details.mode === "in_person" &&
+          hasStoredWindow(after.details.windows, at("wed", "14:00"), at("wed", "17:00")),
+      },
+      {
+        label: "the new details review is applied",
+        holds: (after, before) =>
+          after.reviews.some((row) => row.intent === "details" && row.state === "applied" && !before.reviews.some((old) => old.id === row.id)),
+      },
+      { label: "nothing waits on the review card", holds: (after) => after.reviews.every((row) => row.state !== "pending") },
+      { label: "times were found", holds: (after) => after.state === "negotiating" },
+      { label: "no proposal is made", holds: (after, before) => after.proposals.length === before.proposals.length },
+    ],
+  },
+  {
+    id: "GU-S03",
+    conversation: "requester",
+    category: "normal",
+    shape: "single",
+    source: "G01 W-6, W-6.1 · #411",
+    state: "GU-1",
+    channel: "web",
+    language: "ko",
+    turns: [
+      {
+        message: "온라인으로 투자 상담 받고 싶어요. 다음 주 목요일 오후쯤이요",
+        checks: [
+          { kind: "judge", criterion: "적용한 내용(투자 상담, 온라인)을 한 줄로 말한다." },
+          { kind: "judge", criterion: "오후를 12시부터 18시로 가정했다고 말한다." },
+          { kind: "judge", criterion: "가정한 오후 범위가 맞는지 확인해 달라고 묻는다." },
+          { kind: "judge", criterion: "후보 시간을 보여주지 않는다." },
+        ],
+        calls: [
+          {
+            name: "draft_request_review",
+            input: (input, context) =>
+              input.inferredTime === true &&
+              hasLocalWindow(field(input.details, "windows"), context.dates.thu.iso, "12:00", "18:00"),
+          },
+        ],
+        forbid: noApply,
+      },
+    ],
+    allowed: [...GUEST_LOOKUP],
+    database: [
+      { label: "the stated purpose and online are applied", holds: (after) => after.details.purpose === "투자 상담" && after.details.mode === "online" },
+      { label: "saved request windows stay the same", holds: (after, before) => JSON.stringify(after.details.windows) === JSON.stringify(before.details.windows) },
+      {
+        label: "an applied review holds the purpose and online",
+        holds: (after, before) =>
+          after.reviews.some((row) =>
+            row.state === "applied" &&
+            row.patch?.purpose === "투자 상담" &&
+            row.patch.mode === "online" &&
+            !before.reviews.some((old) => old.id === row.id),
+          ),
+      },
+      {
+        label: "only the assumed Thursday afternoon is pending",
+        holds: (after, before) =>
+          after.reviews.some((row) =>
+            row.state === "pending" &&
+            row.patch?.purpose === undefined &&
+            row.patch?.mode === undefined &&
+            hasStoredWindow(row.patch?.windows, at("thu", "12:00"), at("thu", "18:00")) &&
+            !before.reviews.some((old) => old.id === row.id),
+          ),
+      },
+      { label: "no times are searched while the afternoon waits", holds: (after, before) => after.state === before.state },
+    ],
+  },
+  {
+    id: "GU-S04",
+    conversation: "requester",
+    category: "abnormal",
+    shape: "out_of_order",
+    source: "G02 W-1.2 · #411",
+    state: "GU-3",
+    channel: "web",
+    language: "ko",
+    turns: [
+      {
+        message: "미팅 길이를 1시간으로 늘려 주세요",
+        checks: [
+          { kind: "judge", criterion: "길이를 60분으로 바꿀지 확인해 달라고 묻는다." },
+          { kind: "judge", criterion: "60분이 이미 적용됐다고 말하지 않는다." },
+          { kind: "noDecisionClaim" },
+        ],
+        calls: [{ name: "draft_request_review", input: (input) => input.intent === "details" && field(input.details, "durationMinutes") === 60 }],
+        forbid: noApply,
+      },
+    ],
+    allowed: [...GUEST_LOOKUP],
+    database: [
+      { label: "saved request details stay the same", holds: (after, before) => JSON.stringify(after.details) === JSON.stringify(before.details) },
+      {
+        label: "the 60-minute details review is pending",
+        holds: (after, before) =>
+          after.reviews.some((row) =>
+            row.intent === "details" &&
+            row.state === "pending" &&
+            row.patch?.durationMinutes === 60 &&
+            !before.reviews.some((old) => old.id === row.id),
+          ),
+      },
+      { label: "no review was applied", holds: (after, before) => after.reviews.filter((row) => row.state === "applied").length === before.reviews.filter((row) => row.state === "applied").length },
+      { label: "no new proposal", holds: (after, before) => after.proposals.length === before.proposals.length },
+    ],
+  },
+  {
+    id: "GU-S05",
+    conversation: "requester",
+    category: "abnormal",
+    shape: "out_of_order",
+    source: "G01 W-6 · #378 · #411",
+    state: "GU-1",
+    channel: "web",
+    language: "ko",
+    turns: [
+      {
+        message: "투자 상담 받고 싶어요. 서울대입구역에서 만나면 좋겠어요",
+        checks: [
+          { kind: "judge", criterion: "온라인인지 대면인지 다시 묻지 않는다." },
+          { kind: "judge", criterion: "서울대입구역에서 대면으로 만나는 것이 맞는지 확인해 달라고 묻는다." },
+          { kind: "noDecisionClaim" },
+        ],
+        calls: [
+          {
+            name: "draft_request_review",
+            input: (input) =>
+              input.intent === "details" &&
+              input.inferredMode === true &&
+              field(input.details, "mode") === "in_person" &&
+              /서울대입구/.test(String(field(input.details, "location") ?? "")),
+          },
+        ],
+        forbid: noApply,
+      },
+    ],
+    allowed: [...GUEST_LOOKUP],
+    database: [
+      { label: "the stated purpose is applied", holds: (after) => after.details.purpose === "투자 상담" },
+      { label: "the meeting form and place are not applied", holds: (after, before) => after.details.mode === before.details.mode && after.details.location === before.details.location },
+      {
+        label: "a new pending in-person review at 서울대입구역",
+        holds: (after, before) =>
+          after.reviews.some((row) =>
+            row.intent === "details" &&
+            row.state === "pending" &&
+            field(row.patch, "mode") === "in_person" &&
+            /서울대입구/.test(String(field(row.patch, "location") ?? "")) &&
+            !before.reviews.some((old) => old.id === row.id),
+          ),
+      },
+      {
+        label: "no question note was drafted",
+        holds: (after, before) =>
+          after.reviews.filter((row) => row.intent === "question").length === before.reviews.filter((row) => row.intent === "question").length,
+      },
+      { label: "no times are searched while the form waits", holds: (after, before) => after.state === before.state },
     ],
   },
 ];

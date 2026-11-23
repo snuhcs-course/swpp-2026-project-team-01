@@ -27,19 +27,19 @@ The WhatsApp sender SHALL be the provider's sender identifier, normalized to the
 - **THEN** the two senders have different hashes and neither one's binding applies to the other
 
 ### Requirement: Linking WhatsApp by a host-sent code
-An authenticated active host SHALL be able to create a WhatsApp link attempt whose one-time code, message, expiry and limits are those of the iMessage channel. **Connect WhatsApp** SHALL create the code and then open `https://wa.me/<number>?text=<message>` with the message percent-encoded. Where it does not navigate, it SHALL show the number, the code, a copy action and a QR code of that link. Opening WhatsApp SHALL NOT change linking state. Only a WhatsApp message carrying the pending, unexpired code SHALL record its sender for confirmation, and the sender SHALL be bound only after the host confirms the number in the authenticated browser. A code that arrives from the other channel SHALL void the attempt. The service SHALL NOT send the first message and SHALL NOT offer a service-sent fallback code on WhatsApp. A linking message SHALL never reach the model or the transcript.
+An authenticated active host SHALL be able to create a WhatsApp link attempt whose one-time code, message, expiry and limits are those of the iMessage channel. **Connect WhatsApp** SHALL create the code and then open `https://wa.me/<number>?text=<message>` with the message percent-encoded. Where it does not navigate, it SHALL show the number, the code, a copy action and a QR code of that link. Opening WhatsApp SHALL NOT change linking state. Only a WhatsApp message carrying the pending, unexpired code SHALL bind its sender to the host, as soon as it arrives and with no confirmation in the browser; the page that showed the code SHALL show **Linked** with the number's last four digits and **Not my number — unlink** (`link-on-code` D1, D2). A code that arrives from the other channel SHALL void the attempt. The service SHALL NOT send the first message and SHALL NOT offer a service-sent fallback code on WhatsApp. A linking message SHALL never reach the model or the transcript.
 
 #### Scenario: Link from an Android phone
-- **WHEN** the host taps **Connect WhatsApp** on Android, sends the prefilled message and confirms the number
-- **THEN** that number is bound to the host and Thyme's first WhatsApp message is a reply in the conversation the host started
+- **WHEN** the host taps **Connect WhatsApp** on Android and sends the prefilled message
+- **THEN** that number is bound to the host, Thyme's first WhatsApp message is a reply in the conversation the host started, and the page moves to **Linked** by itself
 
 #### Scenario: Code sent from the wrong app
 - **WHEN** the code of a WhatsApp attempt arrives in iMessage
 - **THEN** nothing is bound and the attempt is voided
 
-#### Scenario: Code arrives but is not confirmed
-- **WHEN** the code's WhatsApp message arrives and the host never confirms in the browser
-- **THEN** no binding exists and the sender has no host authority
+#### Scenario: Wrong number unlinked
+- **WHEN** the page shows a number that is not the host's and the host presses **Not my number — unlink**
+- **THEN** the binding ends, the sender has no host authority, and the host can make a new code
 
 ### Requirement: Channel offered by device
 The linking card, the link step after sign-in and the landing's start before sign-in SHALL offer WhatsApp alone on Android, offer iMessage with a choice to use WhatsApp instead on iPhone, iPad and Mac, and on other devices first ask which app the host uses on their phone.
@@ -53,10 +53,10 @@ The linking card, the link step after sign-in and the landing's start before sig
 - **THEN** it asks whether the host uses iMessage or WhatsApp before showing either channel's code
 
 ### Requirement: One messaging channel per host
-A host SHALL have at most one active messaging binding across iMessage and WhatsApp. Before confirmation, the browser SHALL say that confirming a sender on one channel replaces the host's link on the other. Confirmation SHALL end the earlier binding in the same transaction. Messages queued for the ended binding that have not been dispatched SHALL be suppressed. No summary SHALL go to both channels.
+A host SHALL have at most one active messaging binding across iMessage and WhatsApp. Linking a sender on one channel SHALL end the host's binding on the other in the same transaction. Messages queued for the ended binding that have not been dispatched SHALL be suppressed. No summary SHALL go to both channels.
 
 #### Scenario: iMessage host links WhatsApp
-- **WHEN** a host linked on iMessage confirms a WhatsApp sender
+- **WHEN** a host linked on iMessage links a WhatsApp sender
 - **THEN** the iMessage binding ends, later summaries go only to WhatsApp, and the iMessage sender gets the unlinked-sender reply if it writes again
 
 ### Requirement: The WhatsApp messaging window

@@ -122,15 +122,24 @@ function sessionAuth(principal: Principal, discussionId: string, generation: num
 // no intake session is created or sent to any more.
 async function guestMayUse(db: Database, principal: Principal, discussionId: string, kind: InternalGrant["kind"]) {
   if (principal.type === "requester_request") {
-    const [row] = await db<{ allowed: boolean }[]>`
-      select ((r.closed_at is null and r.expires_at > now()) or r.state = 'booked') and l.expires_at > now() as allowed
+    // A request a guest account owns stays readable, never writable, after it
+    // closes or its link expires, so the account's Requests list can show the
+    // conversation while the account exists (guest-account-history D2). The
+    // application mints that read bearer only after checking the account.
+    const [row] = await db<{ allowed: boolean; owned: boolean }[]>`
+      select ((r.closed_at is null and r.expires_at > now()) or r.state = 'booked') and l.expires_at > now() as allowed,
+             exists (
+               select 1 from app.requester_host_profiles p
+               join app.host_accounts a on a.id = p.host_account_id
+               where p.request_id = r.id and a.status = 'active' and a.deleted_at is null
+             ) as owned
       from app.discussions d
       join app.requests r on r.id = d.principal_id
       join app.booking_links l on l.request_id = r.id
       where d.id = ${discussionId} and d.principal_type = 'requester_request' and d.principal_id = ${principal.id}
         and d.audience = ${REQUESTER_AUDIENCE}
     `;
-    return Boolean(row?.allowed);
+    return Boolean(row?.allowed || (kind === "read" && row?.owned));
   }
 
   const [row] = await db<{ continued: boolean }[]>`
@@ -457,3 +466,67 @@ export function createEvalHostReviewAuth(
 }
 
 export const evalHostReviewAuth: AuthFn<Request> = createEvalHostReviewAuth(() => ({ db: database() }));
+
+// The header a host setup eval names its seeded host account with when it
+// creates a session; setup has no request to name.
+export const EVAL_HOST_HEADER = "x-fmat-eval-host";
+
+// Host setup evals only (evals/host-setup/), under the same limits as the
+// requester and host-review entries: FMAT_EVAL_AUDIENCE=host_setup, no Vercel
+// metadata, an `eve dev` server, and a request with no bearer and no Supabase
+// cookie. Such a request becomes the host principal of the host setup
+// discussion the eval seeded in the local database: named on create by the
+// host account ID in EVAL_HOST_HEADER, and afterwards by the session's index
+// row, which must belong to a host setup discussion. Anything else skips to
+// appAuth.
+export function createEvalHostSetupAuth(
+  load: () => Pick<AppAuthDependencies, "db">,
+  env: Readonly<Record<string, string | undefined>> = process.env,
+  // eve's synthetic local caller; tests pass their own to reach the lookups.
+  local: AuthFn<Request> = localDev(),
+): AuthFn<Request> {
+
+  return async (request) => {
+    if (env.FMAT_EVAL_AUDIENCE !== "host_setup" || deploymentEnvironment(env) !== "local") return null;
+    if (extractBearerToken(request.headers.get("authorization")) || hasSupabaseSession(request)) return null;
+    const caller = await local(request);
+    if (!caller) return null;
+
+    const path = new URL(request.url).pathname;
+    if (request.method === "GET" && /\/v1\/info\/?$/.test(path)) return caller;
+
+    const stubs = request.method === "GET" ? /\/v1\/session\/([^/]+)\/stubs\/?$/.exec(path) : null;
+    const route: Route = stubs ? { kind: "stream", sessionId: decodeURIComponent(stubs[1]!) } : routeOf(request);
+
+    const { db } = load();
+    const named = request.headers.get(EVAL_HOST_HEADER);
+    type Row = { discussion_id: string; generation: number; host_id: string };
+    const [row] =
+      route.kind === "create" && named && /^[0-9a-f-]{36}$/.test(named)
+        ? await db<Row[]>`
+            select d.id as discussion_id, 1 as generation, d.principal_id as host_id from app.discussions d
+            where d.principal_type = 'host_account' and d.audience = ${HOST_SETUP_AUDIENCE} and d.principal_id = ${named}
+          `
+        : route.kind === "send" || route.kind === "stream"
+          ? await db<Row[]>`
+              select s.discussion_id, s.generation, s.principal_id as host_id from app.agent_sessions s
+              join app.discussions d on d.id = s.discussion_id
+              where s.session_id = ${route.sessionId} and s.principal_type = 'host_account'
+                and d.principal_type = 'host_account' and d.principal_id = s.principal_id
+                and d.audience = ${HOST_SETUP_AUDIENCE}
+            `
+          : [];
+
+    if (!row) return null;
+
+    return {
+      ...sessionAuth({ id: row.host_id, type: "host_account" }, row.discussion_id, row.generation, {
+        audience: HOST_SETUP_AUDIENCE,
+        requestId: null,
+      }),
+      allowToolStubs: true,
+    };
+  };
+}
+
+export const evalHostSetupAuth: AuthFn<Request> = createEvalHostSetupAuth(() => ({ db: database() }));

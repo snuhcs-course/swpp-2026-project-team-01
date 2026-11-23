@@ -1,5 +1,12 @@
 import { describe, expect, it } from "vitest";
-import { SETUP_FIELD_SCHEMAS } from "./setup";
+import { DEFAULT_MEETING_MINUTES, SETUP_FIELD_SCHEMAS, STARTER_DEFAULTS } from "./setup";
+
+describe("default meeting length", () => {
+  it("is 60 minutes, and the setup starter default uses the same constant", () => {
+    expect(DEFAULT_MEETING_MINUTES).toBe(60);
+    expect(STARTER_DEFAULTS.durationMinutes).toBe(DEFAULT_MEETING_MINUTES);
+  });
+});
 
 // The setup field bounds the messenger and MCP setup tools check before a
 // value is drafted (testing baseline rows in the module test map).
@@ -36,4 +43,3 @@ describe("setup field bounds", () => {
     expect(SETUP_FIELD_SCHEMAS.weeklyWindows.safeParse([]).success).toBe(false);
     expect(SETUP_FIELD_SCHEMAS.weeklyWindows.safeParse([{ end: "10:00", start: "10:00", weekday: "monday" }]).success).toBe(false);
   });
-});

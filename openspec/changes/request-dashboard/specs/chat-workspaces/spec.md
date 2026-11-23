@@ -1,7 +1,7 @@
 ## MODIFIED Requirements
 
 ### Requirement: Host calendar Dashboard
-The Dashboard SHALL show confirmed Find Me a Time bookings received by the signed-in account, timed requests the account sent as a verified guest, and events from selected Google calendars in the account's saved timezone. The sources SHALL have distinct colors and text labels. A confirmed booking also present in Google Calendar SHALL appear only once. The Dashboard SHALL provide week and month views, previous and next period navigation, a return to today, source filters, and details for a selected day and event. Calendar details SHALL be available only to the authenticated account. A Google Calendar access error SHALL leave Find Me a Time bookings and sent requests visible with an explanation.
+The Dashboard SHALL show confirmed Find Me a Time bookings received by the signed-in account, timed requests the account sent as a verified guest, and events from selected Google calendars in the account's saved timezone. The sources SHALL have distinct colors and text labels. A confirmed booking also present in Google Calendar SHALL appear only once. The Dashboard SHALL provide week and month views, previous and next period navigation, a return to today, source filters, and details for a selected day and event. Calendar details SHALL be available only to the authenticated account. A Google Calendar access error SHALL leave Find Me a Time bookings and sent requests visible with an explanation. Period navigation SHALL keep the date and time grid visible, showing loading feedback in the event area while the period's events are fetched; a period loaded earlier in the visit SHALL show its events at once, the adjacent periods SHALL be fetched ahead, and the events shown SHALL always be those of the selected period.
 
 #### Scenario: Compare sources
 - **WHEN** a host opens a week containing a Google event and a confirmed Find Me a Time booking
@@ -14,6 +14,14 @@ The Dashboard SHALL show confirmed Find Me a Time bookings received by the signe
 #### Scenario: Google Calendar access fails
 - **WHEN** Google Calendar cannot be read for the host
 - **THEN** confirmed Find Me a Time bookings remain visible and a status message explains the Google Calendar problem
+
+#### Scenario: Changing weeks
+- **WHEN** the host moves to the next week and back in the Week view
+- **THEN** the grid stays visible throughout, the next week's events usually show without waiting, and the week returned to shows its events at once
+
+#### Scenario: Answers arrive out of order
+- **WHEN** the host moves through several weeks quickly and an earlier week's answer arrives last
+- **THEN** the Dashboard shows the selected week's events, not the earlier week's
 
 #### Scenario: Sent booking and Google invitation
 - **WHEN** a signed-in account has a confirmed booking made as a guest and Google Calendar returns its invitation
@@ -41,8 +49,8 @@ The Requests view SHALL combine requests received by the signed-in account with 
 - **THEN** the request is linked to that account after identification succeeds, without using the typed contact email as proof
 
 #### Scenario: Open a sent request
-- **WHEN** the account selects a sent request with a valid private link
-- **THEN** the existing guest workspace opens under that link, with its existing requester permissions
+- **WHEN** the account selects an open sent request with a valid private link
+- **THEN** the existing guest workspace opens under that link, with its existing requester permissions; a closed sent request shows its conversation read only in the list instead ([guest-account-history](../../../../specs/guest-account-history/spec.md))
 
 #### Scenario: Expired private link
 - **WHEN** the sent request's private link has expired
