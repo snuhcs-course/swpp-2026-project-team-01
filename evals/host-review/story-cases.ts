@@ -1663,4 +1663,131 @@ export const HOST_REVIEW_STORY_CASES: readonly StoryCase[] = [
     allowed: [...HOST_LOOKUP],
     database: "unchanged",
   },
+  // --- Appended 2026-11-23 (documentation 13, Appended cases): the host review
+  // failures of the pre-check, fixed by host-assistant-story-fixes. ---
+  {
+    id: "RV-F01",
+    conversation: "host_review",
+    category: "normal",
+    shape: "single",
+    source: "#272 · host-imessage.ts reply language · RV-02, RV-P5 on WhatsApp",
+    state: "RV-A1",
+    channel: "whatsapp",
+    language: "en",
+    turns: [
+      {
+        message: "What is this meeting about, and when?",
+        checks: [
+          { kind: "language", language: "en" },
+          { kind: "judge", criterion: "Names the meeting's purpose and its time." },
+        ],
+        calls: [{ name: "read_request" }],
+        forbid: HOST_DECISIONS,
+      },
+    ],
+    allowed: [...HOST_LOOKUP],
+    database: "unchanged",
+  },
+  {
+    id: "RV-F02",
+    conversation: "host_review",
+    category: "normal",
+    shape: "single",
+    source: "#274 · share_changes result · RV-07, RV-X14 in English",
+    state: "RV-A3",
+    channel: "telegram",
+    language: "en",
+    turns: [
+      {
+        message: "Send the new time to them.",
+        checks: [
+          { kind: "language", language: "en" },
+          { kind: "judge", criterion: "Says the new time is being checked before the requester gets it." },
+          { kind: "judge", criterion: "Does not say the new time or the changes were already sent or shared with the requester." },
+        ],
+        calls: [{ name: "share_changes", input: (input, context) => input.suggestionId === context.facts.suggestionId }],
+        forbid: ["approve_proposal"],
+      },
+    ],
+    allowed: [...HOST_LOOKUP, "share_changes"],
+    database: [
+      { label: "request is negotiating", holds: (after) => after.state === "negotiating" },
+      {
+        label: "the suggestion was submitted for checking",
+        holds: (after, _before, context) =>
+          after.suggestions.some((row) => row.id === context.facts.suggestionId && ["checking", "shared", "rejected"].includes(row.state)),
+      },
+    ],
+  },
+  {
+    id: "RV-F03",
+    conversation: "host_review",
+    category: "abnormal",
+    shape: "single",
+    source: "#275 · RV-22 with its database check at the pending suggestion's time (RV-22 checks Tuesday 11:00, which the start state never suggests)",
+    state: "RV-A3",
+    channel: "telegram",
+    language: "ko",
+    turns: [
+      {
+        message: "보내기 전에, 시간은 그대로 두고 대면으로 바꿔서 강남역으로 해줘",
+        checks: [{ kind: "judge", criterion: "새 수정안이 기존 수정안의 15시를 유지하고 대면으로 강남역에서 만난다고 요약한다." }],
+        calls: [{ name: "propose_shared_changes" }],
+        forbid: ["share_changes"],
+      },
+    ],
+    allowed: [...HOST_LOOKUP],
+    database: [
+      { label: "request is awaiting_host_approval", holds: (after) => after.state === "awaiting_host_approval" },
+      {
+        label: "the original suggestion is superseded",
+        holds: (after, _before, context) =>
+          after.suggestions.some((row) => row.id === context.facts.suggestionId && row.state === "superseded"),
+      },
+      {
+        label: "the new suggestion keeps Wednesday 15:00 and is in person at 강남역",
+        holds: (after) =>
+          after.suggestions.some((row) =>
+            row.state === "pending" &&
+            isInstant(field(row.changes, "start"), at("wed", "15:00")) &&
+            field(row.changes, "mode") === "in_person" &&
+            field(row.changes, "location") === "강남역",
+          ),
+      },
+    ],
+  },
+  {
+    id: "RV-F04",
+    conversation: "host_review",
+    category: "normal",
+    shape: "single",
+    source: "#276 · RV-06 in English: a time outside the guest's Tuesday 10:00–15:00 window",
+    state: "RV-A1",
+    channel: "telegram",
+    language: "en",
+    turns: [
+      {
+        message: "Move it to next Tuesday at 3pm.",
+        checks: [
+          { kind: "language", language: "en" },
+          { kind: "judge", criterion: "Summarizes a suggestion for Tuesday at 3 pm and does not offer another time instead." },
+        ],
+        calls: [{ name: "propose_shared_changes", input: (input) => isInstant(field(input.changes, "start"), at("tue", "15:00")) }],
+        forbid: ["share_changes", "approve_proposal"],
+      },
+    ],
+    allowed: [...HOST_LOOKUP],
+    database: [
+      { label: "request is awaiting_host_approval", holds: (after) => after.state === "awaiting_host_approval" },
+      {
+        label: "a new suggestion is pending at Tuesday 15:00",
+        holds: (after, before) =>
+          after.suggestions.some((row) =>
+            !before.suggestions.some((old) => old.id === row.id) &&
+            row.state === "pending" &&
+            isInstant(field(row.changes, "start"), at("tue", "15:00")),
+          ),
+      },
+    ],
+  },
 ];

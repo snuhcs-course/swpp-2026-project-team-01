@@ -187,6 +187,28 @@ describe("shared changes", () => {
     expect(await deliveriesOf(db, request.requestId)).toEqual([]);
   });
 
+  it("keeps the pending suggestion's time in the assistant's replacement, not in the editor's (#275)", async () => {
+    const request = await agreedRequest(db, google);
+    const later = seoul("10:30");
+    const pending = await asHost(db, request.hostAccountId, request.requestId, suggestChangesCommand("host"), { changes: { start: later } });
+    if (!pending.ok) throw new Error("suggest failed");
+
+    const assistant = await asHost(db, request.hostAccountId, request.requestId, suggestChangesCommand("assistant"), {
+      changes: { location: "강남역", mode: "in_person" },
+    });
+    if (!assistant.ok) throw new Error("suggest failed");
+    expect(assistant.result.changes).toEqual({ location: "강남역", mode: "in_person", start: later });
+    expect((await readHostRequest(db, request.hostAccountId, request.requestId))?.suggestion).toMatchObject({
+      changes: { location: "강남역", mode: "in_person", start: later },
+      id: assistant.result.suggestionId,
+      state: "pending",
+    });
+
+    const editor = await asHost(db, request.hostAccountId, request.requestId, suggestChangesCommand("host"), { changes: { durationMinutes: 60 } });
+    if (!editor.ok) throw new Error("suggest failed");
+    expect(editor.result.changes).toEqual({ durationMinutes: 60 });
+  });
+
   it("dismisses a suggestion without changing anything shared", async () => {
     const request = await agreedRequest(db, google);
     const revision = await revisionOf(db, request.requestId);
