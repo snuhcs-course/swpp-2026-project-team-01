@@ -311,3 +311,48 @@ describe("rejection observations", () => {
     await db`delete from app.rejection_observations where category = 'stale_action'`;
   });
 });
+
+// The channel usage report (channel-usage-report design 3) over counts dated in
+// January 1970, which no hourly count reaches.
+describe("fmat-admin diagnostics usage", () => {
+  afterAll(async () => {
+    await db`delete from app.channel_usage_days where day < '1971-01-01'`;
+  });
+
+  it("prints counts per channel and period, and only counts", async () => {
+    await db`
+      insert into app.channel_usage_days (day, channel, active_hosts, inbound_messages, guest_links, guest_bookings)
+      values ('1970-01-05', 'imessage', 2, 11, 1, 0), ('1970-01-06', 'imessage', 3, 5, 2, 1),
+             ('1970-01-05', 'whatsapp', 0, 0, 0, 0), ('1970-01-05', 'telegram', 1, 4, 0, 0)
+    `;
+
+    const daily = admin();
+    expect(await runAdmin(["diagnostics", "usage", "--periods", "3", "--until", "1970-01-06", "--operator", "dana", "--local"], daily.deps)).toBe(0);
+    expect(daily.out[0]).toBe("Environment: local");
+    expect(daily.out).toContain("imessage:");
+    expect(daily.out).toContain("  1970-01-04  active hosts 0  inbound 0  guest links 0  guest bookings 0  (not recorded)");
+    expect(daily.out).toContain("  1970-01-05  active hosts 2  inbound 11  guest links 1  guest bookings 0");
+    expect(daily.out).toContain("  1970-01-06  active hosts 3  inbound 5  guest links 2  guest bookings 1");
+
+    const weekly = admin();
+    expect(await runAdmin(["diagnostics", "usage", "--by", "week", "--periods", "1", "--until", "1970-01-08", "--json", "--operator", "dana", "--local"], weekly.deps)).toBe(0);
+    const report = JSON.parse(weekly.out[0]!) as {
+      environment: string;
+      from: string;
+      to: string;
+      channels: { name: string; periods: Record<string, unknown>[] }[];
+    };
+    expect(report).toMatchObject({ environment: "local", from: "1970-01-05", to: "1970-01-11" });
+    expect(report.channels.map((channel) => channel.name)).toEqual(["imessage", "whatsapp", "telegram"]);
+    expect(report.channels[0]!.periods).toEqual([
+      { start: "1970-01-05", recordedDays: 2, activeHosts: 3, inboundMessages: 16, guestLinks: 3, guestBookings: 1 },
+    ]);
+    expect(weekly.out[0]).not.toMatch(/[0-9a-f]{8}-[0-9a-f]{4}-|@|\+\d{6,}/);
+  });
+
+  it("refuses an out-of-range report without touching the database", async () => {
+    const run = admin();
+    expect(await runAdmin(["diagnostics", "usage", "--periods", "91", "--operator", "dana", "--local"], run.deps)).toBe(2);
+    expect(run.err[0]).toMatch(/from 1 to 90/);
+  });
+});

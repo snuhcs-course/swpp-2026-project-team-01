@@ -239,6 +239,7 @@ Dots, Muse, Instinct, ChatGPT, Codex, Claude, Claude Code를 각각 개별적으
 
 - `npm run admin -- diagnostics snapshot --operator <name> --project <ref>`는 열 가지 범주를 출력합니다. 소진된 작업, 리스가 만료된 작업, 기한이 지난 작업; 쓰기가 존재할 수 있는 예약(`bookings_uncertain`)과 15분보다 오래된 예약 확보; 불확실한 트랜잭션 이메일과 스레드 답장; 불확실하거나 실패한 iMessage 발송; 실패한 대화 세션; 10분이 지나도 답이 없는 입력입니다. 각 범주는 개수, 가장 오래된 타임스탬프, 최대 20개의 식별자를 보여 줍니다(`--samples`로 줄이고, `--json`으로 객체를 출력). 만료된 리스를 포함해 아무것도 바꾸지 않으며, 비어 있는 스냅샷이 공급자나 전달이 정상이라는 증거는 아닙니다.
 - `npm run admin -- diagnostics rejections --operator <name> --project <ref>`는 현재 시간과 직전 23개 UTC 시간의 권한 거부 및 오래된 작업 횟수를 출력합니다. 배포에 `DIAGNOSTICS_REJECTIONS=1`이 설정되어 있는 동안에만, 명령 파이프라인에 도달한 실패에 한해 기록되며, 버킷은 10,000에서 멈추고 그 사실을 알립니다. 거부가 늘면 탐색 시도나 고장 난 클라이언트를, 오래된 작업이 늘면 사람들이 오래된 제안에 따라 행동하고 있음을 가리킵니다.
+- `npm run admin -- diagnostics usage --operator <name> --project <ref>`는 iMessage, WhatsApp, Telegram 각각에 대해 연결이 활성화된 호스트 수, 수신 메시지 수, 게스트가 해당 채널을 연결한 요청 수와 그 요청에서 확정된 예약 수를 최근 14개 UTC 일자별로 출력합니다(`--periods`로 최대 90). `--by week`는 월요일부터 시작하는 ISO 주 단위로 묶어(기본 8주, 최대 52주) 일자를 합산하고 활성 호스트는 가장 많았던 날의 값을 보여 줍니다. `--until <YYYY-MM-DD>`는 보고서를 더 이른 날짜에서 끝내고, `--json`은 객체를 출력합니다. 값은 `app.channel_usage_days`에서 오며, 매시간 실행되는 `app-channel-usage` pg_cron 작업이 최근 7일을 수신 기록, 연결, 예약에서 다시 집계하므로 해당 행이 30일 후 삭제된 뒤에도 남습니다([`channel-usage-report` 설계](../../openspec/changes/channel-usage-report/design.md)). 개수와 날짜만 출력하며 아무것도 바꾸지 않습니다. 기록되지 않았거나 일부만 기록된 기간은 활동이 없던 기간이 아니라 집계가 빠진 기간(첫 집계 이전이거나 pg_cron이 멈춘 동안)입니다. 요청은 시작된 채널을 기록하지 않으므로 게스트 연결 수가 가장 가까운 척도입니다.
 
 ### 복구
 

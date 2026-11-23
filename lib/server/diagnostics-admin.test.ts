@@ -28,6 +28,13 @@ describe("fmat-admin diagnostics arguments", () => {
 
   it.each([
     [["diagnostics", ...local], /one diagnostics command/],
+    [["diagnostics", "usage", "--by", "month", ...local], /day or week/],
+    [["diagnostics", "usage", "--periods", "91", ...local], /from 1 to 90/],
+    [["diagnostics", "usage", "--by", "week", "--periods", "53", ...local], /from 1 to 52/],
+    [["diagnostics", "usage", "--until", "2026-02-30", ...local], /YYYY-MM-DD/],
+    [["diagnostics", "usage", "--until", "2026-11-01'; drop", ...local], /YYYY-MM-DD/],
+    [["diagnostics", "usage", "--samples", "3", ...local], /takes no --samples/],
+    [["diagnostics", "snapshot", "--by", "day", ...local], /takes no --by/],
     [["diagnostics", "dump", ...local], /one diagnostics command/],
     [["diagnostics", "snapshot", "--operator", "ops"], /exactly one environment/],
     [["diagnostics", "snapshot", "--operator", "ops", "--project", "ABC'; drop"], /project ref/],
@@ -49,5 +56,18 @@ describe("fmat-admin diagnostics arguments", () => {
     expect(diagnosticsSql(parseDiagnosticsArguments(["diagnostics", "rejections", ...local]))).toBe(
       "select app.operator_rejection_snapshot() as snapshot",
     );
+    expect(diagnosticsSql(parseDiagnosticsArguments(["diagnostics", "usage", ...local]))).toBe(
+      "select app.operator_channel_usage_report('day', 14, null::date) as snapshot",
+    );
+    expect(diagnosticsSql(parseDiagnosticsArguments(["diagnostics", "usage", "--by", "week", "--until", "2026-11-23", ...local]))).toBe(
+      "select app.operator_channel_usage_report('week', 8, '2026-11-23'::date) as snapshot",
+    );
+  });
+
+  it("parses a usage report with its defaults and options", () => {
+    expect(parseDiagnosticsArguments(["diagnostics", "usage", ...local]).usage).toEqual({ by: "day", periods: 14, until: null });
+    expect(
+      parseDiagnosticsArguments(["diagnostics", "usage", "--by", "week", "--periods", "52", "--until", "2024-02-29", ...local]).usage,
+    ).toEqual({ by: "week", periods: 52, until: "2024-02-29" });
   });
 });
