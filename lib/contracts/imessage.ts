@@ -6,6 +6,9 @@
 // names the numbers this deployment can link (channels), and an attempt or a
 // binding names its channel; lineNumber is that channel's number (digits for
 // WhatsApp), or the iMessage line in "none".
+// A code links as soon as its message arrives (link-on-code D1): the card goes
+// from "pending" to "linked" with no confirmation step, and a linked sender is
+// shown by its last four digits, its email or its Telegram name (maskedSender).
 // It links Telegram too (host-telegram-channel design 6): channels.telegram is
 // the bot's username; a Telegram attempt's lineNumber is that username and its
 // message the bare code, which the card turns into the telegram.me start link; a
@@ -18,7 +21,6 @@ export type LinkChannels = ConfiguredChannels;
 
 export const IMESSAGE_OPERATIONS = [
   "imessage.link.create",
-  "imessage.link.confirm",
   "imessage.link.cancel",
   "imessage.link.send_code",
   "imessage.link.verify_code",
@@ -52,19 +54,6 @@ export type ImessageStatus =
       readonly message: string;
       readonly expiresAt: string;
     }
-  // The code's message arrived; the host confirms the masked sender.
-  | {
-      readonly state: "received";
-      readonly channel: MessagingChannel;
-      readonly channels: LinkChannels;
-      readonly lineNumber: string;
-      // The channel of a binding Confirm and link would replace (D5), if any.
-      readonly replaces: MessagingChannel | null;
-      // The attempt Confirm and link names.
-      readonly linkId: string;
-      readonly sender: string;
-      readonly confirmBy: string;
-    }
   // The fallback: a code sent to the entered number, typed back here.
   | {
       readonly state: "fallback";
@@ -92,7 +81,7 @@ export type ImessageStatus =
 // The iMessage start on the public page (D15), as GET /api/imessage/start
 // answers it for this browser before sign-in: the same code and message as the
 // card, then the masked sender once it arrived. Signing in with Google in this
-// browser carries the attempt to the host's card, where Confirm and link binds it.
+// browser binds that sender to the host who signed in (link-on-code D3).
 export type ImessageStartStatus =
   | { readonly state: "unavailable" }
   | { readonly state: "none"; readonly lineNumber: string; readonly channels: LinkChannels }
@@ -120,11 +109,20 @@ export function linkMessage(code: string) {
   return `${LINK_MESSAGE_PREFIX} ${code}`;
 }
 
-// The sender the card shows, in full so the host or guest recognizes it before
-// Confirm and link (#118): an E.164 number as it is, a WhatsApp contact ID
-// (digits without "+") with its plus, or the whole Apple ID email.
+// A sender in full: an E.164 number as it is, a WhatsApp contact ID (digits
+// without "+") with its plus, or the whole Apple ID email.
 export function displaySender(sender: string) {
   return /^\d+$/.test(sender) ? `+${sender}` : sender;
+}
+
+// A linked sender as the screens show it (link-on-code D4): a number by its last
+// four digits ("•••• 5678"), an Apple ID email as the handle it is. Enough for
+// the person to recognize their own number and press Not my number, without
+// showing the whole number on every screen.
+export function maskedSender(sender: string) {
+  const shown = displaySender(sender);
+  if (!/^\+\d+$/.test(shown)) return shown;
+  return `•••• ${shown.slice(-4)}`;
 }
 
 export type MessagesPlatform = "ios" | "android" | "mac" | "other";

@@ -167,7 +167,7 @@ const en = {
     waitingStartLede: "Tap send in Messages, then come back here. Next, you sign in with Google once.",
     reopen: "Messages didn't open, or the note is gone? Open it again",
     received: "Got your message.",
-    receivedLede: "One step left: sign in with Google, then confirm it was you.",
+    receivedLede: "One step left: sign in with Google, and that links it to your account.",
     from: "From",
     finishBy: (time: string) => `Finish within ${time}`,
     unavailable: "Starting from iMessage isn't available yet.",
@@ -197,16 +197,12 @@ const en = {
     altDesktop: "No iPhone, or rather not now?",
     altPhone: "On Android, or rather not now?",
     skip: "Set up here in web chat",
-    confirmTitle: "Is this you?",
-    confirmLede: "We got your message. Link it only if it came from your iPhone.",
-    sentFrom: "Sent from",
-    confirmWithin: (time: string) => `Confirm within ${time}`,
-    confirm: "Confirm and link",
-    notMe: "This isn't me",
-    linking: "Linking…",
-    connected: "Your iMessage is connected.",
+    // The code links on arrival (link-on-code D1, D2): the linked screen names the sender and offers the way back.
+    connected: "Your iMessage is linked.",
     connectedLede: "You can onboard with Thyme in iMessage. Thyme just sent you a hello there.",
     linkedTo: "Linked to",
+    notMine: "Not my number — unlink",
+    unlinking: "Unlinking…",
     goHome: "Go to Home",
     chatWeb: "Or chat with Thyme on the web",
     expired: "Time's up.",
@@ -220,9 +216,6 @@ const en = {
     chooseAnother: "Choose a messaging app",
     openConnected: (name: string) => "Open " + name,
     switchTo: (name: string) => `Use ${name} instead`,
-    replacesImessage: "This replaces your iMessage link.",
-    replacesWhatsapp: "This replaces your WhatsApp link.",
-    replacesTelegram: "This replaces your Telegram link.",
     optIn: "Thyme will message you on WhatsApp about your requests. If you have not written for a day, it sends a short notice instead.",
     privacyTelegram: "Telegram keeps bot chats on its servers. Find Me a Time sends your request summaries here.",
   },
@@ -259,8 +252,7 @@ const en = {
       lede: "Send Thyme one message from the WhatsApp you use. It's already written, and sending it links this account.",
       altDesktop: "Rather not now?",
       altPhone: "Rather not now?",
-      confirmLede: "We got your message. Link it only if it came from your WhatsApp.",
-      connected: "Your WhatsApp is connected.",
+      connected: "Your WhatsApp is linked.",
       connectedLede: "You can onboard with Thyme in WhatsApp. Thyme just sent you a hello there.",
     },
   },
@@ -295,8 +287,8 @@ const en = {
       ledePhone: "Open Thyme's bot in Telegram and tap Start. That links this account.",
       altDesktop: "Rather not now?",
       altPhone: "Rather not now?",
-      confirmLede: "We got your Start. Link it only if it came from your Telegram.",
-      connected: "Your Telegram is connected.",
+      connected: "Your Telegram is linked.",
+      notMine: "Not my Telegram — unlink",
       connectedLede: "You can onboard with Thyme in Telegram. Thyme just sent you a hello there.",
     },
   },
@@ -312,11 +304,4 @@ export function channelCopy(t: Copy, channel: MessagingChannel): Copy {
   const over = channel === "whatsapp" ? t.wa : t.tg;
   const number = channel === "whatsapp" ? { ...t.number, ...t.wa.number } : t.number;
   return { ...t, landing: { ...t.landing, ...over.landing }, link: { ...t.link, ...over.link }, number, send: { ...t.send, ...over.send } };
-}
-
-// "This replaces your … link." for the channel a confirmation would replace (D5).
-export function replacesText(t: Copy, channel: MessagingChannel) {
-  if (channel === "whatsapp") return t.link.replacesWhatsapp;
-  if (channel === "telegram") return t.link.replacesTelegram;
-  return t.link.replacesImessage;
 }

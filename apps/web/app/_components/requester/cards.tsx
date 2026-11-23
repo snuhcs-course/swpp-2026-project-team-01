@@ -623,8 +623,8 @@ export function EmailLinkLine({ context }: { readonly context: RequesterCardCont
 // iMessage to the line; on a phone Messages opens at once with it written,
 // elsewhere a QR code opens it on an iPhone, and a Mac also gets **Open
 // Messages on this Mac** (D17). The card polls until the message
-// arrives, then shows the masked sender with **Confirm and link**; only that
-// click binds. Linked, a line names the masked sender with **Unlink iMessage**.
+// arrives, and the message itself binds (link-on-code D1): the card moves
+// straight to a line naming the masked sender with **Unlink iMessage** (D2).
 // Like email, it is never required; nothing shows when the deployment has no
 // line. The button first asks for the guest's number (imessage-number-registration
 // D1, D3): the server registers it with Photon, whose shared lines read only
@@ -663,7 +663,8 @@ export function ImessageUpdates({ context, onlyLinked = false }: { readonly cont
     void check();
   }, [check]);
 
-  // While the code waits for its message, the card checks again.
+  // While the code waits for its message, the card checks again, and so moves from the code straight to
+  // linked once the message arrives (link-on-code D1).
   useEffect(() => {
     if (status?.state !== "pending" && !(status?.state === "linked" && status.contactCard?.state === "queued")) return;
     const timer = window.setInterval(() => void check(), 3000);
@@ -833,27 +834,6 @@ export function ImessageUpdates({ context, onlyLinked = false }: { readonly cont
     );
   }
 
-  if (status.state === "received") {
-    return (
-      <InnerStep description={`Your message arrived from ${status.sender}. Link it only if that is you.`} title={`Is this your ${channelName(status.channel)}?`}>
-        {status.channel === "telegram" ? <p className="text-sm text-muted-foreground">{GUEST_TELEGRAM_PRIVACY}</p> : null}
-        <GuestCardActions>
-          <Button
-            disabled={busy}
-            onClick={() => void command(REQUESTER_IMESSAGE_OPERATIONS.confirm, { linkId: status.linkId })}
-            type="button"
-          >
-            Confirm and link
-          </Button>
-          <Button disabled={busy} onClick={() => void command(REQUESTER_IMESSAGE_OPERATIONS.unlink, { pendingOnly: true })} type="button" variant="ghost">
-            This isn't me
-          </Button>
-        </GuestCardActions>
-        <ErrorLine message={error} />
-      </InnerStep>
-    );
-  }
-
   if (telegram) {
     return (
       <InnerStep
@@ -878,6 +858,7 @@ export function ImessageUpdates({ context, onlyLinked = false }: { readonly cont
             role="img"
           />
         ) : null}
+        <p className="text-sm text-muted-foreground">{GUEST_TELEGRAM_PRIVACY}</p>
         <p className="text-sm text-muted-foreground" role="status">
           Waiting for you to tap Start. The code works until {displayTime(new Date(status.expiresAt), context.timezone)}.
         </p>
@@ -956,7 +937,8 @@ export function ImessageUpdates({ context, onlyLinked = false }: { readonly cont
   );
 }
 
-// Where Telegram keeps the chat, said before Confirm and link (guest-telegram-link design 2).
+// Where Telegram keeps the chat, said beside the code, since the code links as soon as it arrives
+// (guest-telegram-link design 2, link-on-code D1).
 export const GUEST_TELEGRAM_PRIVACY = "Telegram keeps bot chats on its servers. Find Me a Time sends your request updates here.";
 
 export function ClosedImessageUpdates({ bookingId, timezone }: { readonly bookingId: string; readonly timezone: string }) {

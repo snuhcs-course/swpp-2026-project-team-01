@@ -21,7 +21,7 @@ import { E2E_TOKEN_ENCRYPTION_KEY } from "./support/token-key";
 // device: Android gets WhatsApp with Use Telegram instead, or Telegram when WhatsApp is not configured; an
 // iPhone gets iMessage with Use Telegram instead (and Use WhatsApp instead); another computer asks among the
 // configured channels. The host's /start is driven through the real Telegram webhook and the receipt job;
-// Confirm and link, after the Telegram name and the privacy sentence, binds it. "Without WhatsApp" hides the
+// it links on arrival (link-on-code D1), with the privacy sentence beside the code. "Without WhatsApp" hides the
 // WhatsApp number from the statuses the browser reads, since the web service's configuration is fixed per run.
 
 const tokenKey = parseTokenKey(E2E_TOKEN_ENCRYPTION_KEY);
@@ -98,7 +98,7 @@ async function openCard(page: Page) {
 test.describe("on Android", () => {
   test.use({ userAgent: AGENTS.android, viewport: { height: 915, width: 412 } });
 
-  test("with WhatsApp, Use Telegram instead makes a Telegram code, and the host's Start links it on Confirm and link", async ({
+  test("with WhatsApp, Use Telegram instead makes a Telegram code, and the host's Start links it", async ({
     baseURL,
     context,
     db,
@@ -121,15 +121,11 @@ test.describe("on Android", () => {
     await expect(page.getByRole("link", { name: "Open Telegram" })).toHaveAttribute("href", startLink(code));
     await expect(page.getByText(`Thyme · @${BOT}`)).toBeVisible();
     await expect(page.getByRole("button", { name: "Use WhatsApp instead" })).toBeVisible();
+    await expect(page.getByText(PRIVACY)).toBeVisible();
 
     await hostStartsBot(db, newTelegramUser(), code);
-    await expect(page.getByRole("heading", { name: "Is this you?" })).toBeVisible({ timeout: 10_000 });
+    await expect(page.getByRole("heading", { name: "Your Telegram is connected." })).toBeVisible({ timeout: 10_000 });
     await expect(page.getByText("Dohyeon (@dohyeon)")).toBeVisible();
-    await expect(page.getByText(PRIVACY)).toBeVisible();
-    expect(await activeChannel(db, host.hostAccountId)).toHaveLength(0);
-
-    await page.getByRole("button", { name: "Confirm and link" }).click();
-    await expect(page.getByRole("heading", { name: "Your Telegram is connected." })).toBeVisible();
     expect(await activeChannel(db, host.hostAccountId)).toEqual([{ channel: "telegram" }]);
 
     await expect(page.getByRole("link", { name: "Open Telegram" })).toHaveAttribute("href", `https://telegram.me/${BOT}`);
@@ -259,14 +255,10 @@ test.describe("on a Windows computer", () => {
     await expect(card.getByTestId("imessage-qr").locator("svg")).toBeVisible();
     await expect(card.getByRole("link", { name: "Open Telegram" })).toHaveAttribute("href", startLink(code));
     await expect(card.getByRole("button", { name: "Copy the Telegram link" })).toBeVisible();
+    await expect(card.getByText(PRIVACY)).toBeVisible();
 
     await hostStartsBot(db, newTelegramUser(), code);
-    await expect(card.getByRole("heading", { name: "Is this you?" })).toBeVisible({ timeout: 10_000 });
-    await expect(card).toContainText("Dohyeon (@dohyeon)");
-    await expect(card.getByText("This replaces your iMessage link.")).toBeVisible();
-    await expect(card.getByText(PRIVACY)).toBeVisible();
-    await card.getByRole("button", { name: "Confirm and link" }).click();
-    // Opened from Connected apps, the card stays expanded once linked.
+    // It links on arrival and replaces the iMessage link; opened from Connected apps, the card stays expanded.
     await expect(card.getByRole("heading", { name: "Telegram is linked" })).toBeVisible({ timeout: 10_000 });
     await expect(card).toContainText("Dohyeon (@dohyeon)");
     expect(await activeChannel(db, host.hostAccountId)).toEqual([{ channel: "telegram" }]);

@@ -42,7 +42,7 @@ async function connect(page: Page, origin: string, resource: string, role: "host
   await expect(page.getByRole("heading", { name: role === "host" ? "Connect U08 Local Agent to your account?" : "Let U08 Local Agent request a meeting for you?" })).toBeVisible();
   await expect(page.getByRole("checkbox")).toHaveCount(3);
   for (const box of await page.getByRole("checkbox").all()) await expect(box).toBeChecked();
-  await expect(page.getByRole("checkbox", { name: role === "host" ? /start chat links for you to confirm/ : /start an updates link for you to confirm/ })).toBeChecked();
+  await expect(page.getByRole("checkbox", { name: role === "host" ? /start chat links you finish from your own phone/ : /start an updates link you finish from your own phone/ })).toBeChecked();
   const returned = page.waitForRequest(url => url.url().startsWith(redirect));
   await page.getByRole("button", { name: "Allow", exact: true }).click();
   const callback = new URL((await returned).url());
@@ -59,7 +59,7 @@ async function call(resource: string, token: string, name: string, args = {}) {
 }
 
 test.use({ userAgent: "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 Chrome/141.0.0.0 Safari/537.36" });
-for (const role of ["host", "requester"] as const) test(`${role} starts a link through HTTP MCP and confirms on its browser page`, async ({ baseURL, context, db, page }, testInfo) => {
+for (const role of ["host", "requester"] as const) test(`${role} starts a link through HTTP MCP and its browser page shows it linked`, async ({ baseURL, context, db, page }, testInfo) => {
   test.setTimeout(120_000);
   const origin = baseURL!;
   const host = role === "host" ? await signedInHost(db, context, origin) : null;
@@ -141,14 +141,14 @@ for (const role of ["host", "requester"] as const) test(`${role} starts a link t
   const message = (await page.getByTestId("imessage-link-message").textContent())!.trim();
   const sender = newSender();
   await receive(db, sender, message, origin);
-  await expect(page.getByRole("heading", { name: "Is this you?" })).toBeVisible({ timeout: 15_000 });
-  await expect(page.getByText(sender, { exact: true })).toBeVisible();
-  await page.screenshot({ path: testInfo.outputPath(`${role}-received.png`) });
-  await page.getByRole("button", { name: "Confirm and link" }).focus();
-  await page.keyboard.press("Enter");
-  await expect(page.getByRole("status")).toHaveText("Linked. You can go back to your agent.");
+  // The code links on arrival (link-on-code D1): the page, which polls, says so by
+  // itself, with nothing to confirm and no sender named.
+  await expect(page.getByRole("status")).toHaveText("Linked. You can go back to your agent.", { timeout: 15_000 });
+  await expect(page.getByRole("button", { name: "Confirm and link" })).toHaveCount(0);
+  await expect(page.getByText(sender.slice(-4))).toHaveCount(0);
+  await page.screenshot({ path: testInfo.outputPath(`${role}-linked.png`) });
   const linked = await call(resource, token, stateTool);
-  expect(linked[stateKey]).toMatchObject({ channel: "imessage", state: "linked", sender });
+  expect(linked[stateKey]).toMatchObject({ channel: "imessage", state: "linked", sender: `•••• ${sender.slice(-4)}` });
   evidence[role === "host" ? "B10" : "A8"] = started;
   evidence[role === "host" ? "B11" : "A9"] = { linked, actualSender: sender, pageText: await page.locator("main").innerText() };
   if (bookingUrl) {

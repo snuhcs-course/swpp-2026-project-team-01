@@ -227,9 +227,9 @@ export function createGoogleCallbackHandler(load: () => GoogleSignInDependencies
       return auth.redirect(caught instanceof SignUpLimitError ? `${origin}/app?sign_in=limited` : failed, clear);
     }
 
-    // An attempt from the iMessage start moves to the host, whose link step then
-    // asks for Confirm and link (D15): the one named by the sign-in link in
-    // Thyme's reply (D19), else this browser's. A sign-in begun from Thyme's
+    // An attempt from the iMessage start moves to the host, and a sender that
+    // already arrived is bound (D15, link-on-code D3): the one named by the
+    // sign-in link in Thyme's reply (D19), else this browser's. A sign-in begun from Thyme's
     // Calendar link tells the linked conversation to carry on (D19). Sign-in has
     // succeeded either way; a lost claim only means linking again from /app, and
     // a lost message only means the host writes first.
@@ -237,9 +237,15 @@ export function createGoogleCallbackHandler(load: () => GoogleSignInDependencies
       console.error(JSON.stringify({ error: error instanceof Error ? error.name : typeof error, event }));
     };
     if (account.status === "active") {
-      if (continued) await claimContinuedLink(deps.db, deps.tokenKey, account.id, continued).catch(logged("imessage_continue_claim_failed"));
-      else if (started) await claimStartedLink(deps.db, deps.tokenKey, account.id, started).catch(logged("imessage_start_claim_failed"));
-      if (recorded === RETURN_IMESSAGE) {
+      const bindOptions = { origin, tokenKey: deps.tokenKey, tokenKeys: [deps.tokenKey] };
+      const claimed = continued
+        ? await claimContinuedLink(deps.db, bindOptions, account.id, continued).catch(logged("imessage_continue_claim_failed"))
+        : started
+          ? await claimStartedLink(deps.db, bindOptions, account.id, started).catch(logged("imessage_start_claim_failed"))
+          : false;
+      // A claim that linked the conversation has queued its welcome, which
+      // already says what comes next; a second "you're back" would repeat it.
+      if (recorded === RETURN_IMESSAGE && !claimed) {
         await resumeImessageOnboarding(deps.db, deps.tokenKey, account.id, code).catch(logged("imessage_resume_failed"));
       }
     }

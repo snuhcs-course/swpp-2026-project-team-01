@@ -247,7 +247,7 @@ function messagingChannelState(status: ImessageStatus, channel: MessagingChannel
   if (status.state === "linked" && status.channel === channel) {
     return { connected: true, label: `Connected · ${status.sender}` };
   }
-  if ((status.state === "pending" || status.state === "received" || status.state === "fallback") && status.channel === channel) {
+  if ((status.state === "pending" || status.state === "fallback") && status.channel === channel) {
     return { connected: false, label: "Connection in progress" };
   }
   return {

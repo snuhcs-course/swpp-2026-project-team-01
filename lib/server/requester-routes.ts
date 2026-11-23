@@ -82,7 +82,6 @@ import { IDENTIFY_ACCOUNT_OPERATION, identifyAccountCommand } from "./guest-acco
 import { decideHostProfileCommand, readHostProfileView, recordHostSessionMatch } from "./requester-host-profiles";
 import { supabaseAuthConfigFromEnvironment, type SupabaseAuthConfig, verifiedUserId } from "./supabase-auth";
 import {
-  confirmRequesterImessageLinkCommand,
   createRequesterImessageLinkCommand,
   emailOnlyRequesterCommand,
   readRequesterImessageStatus,
@@ -575,7 +574,6 @@ export function requesterCommands(
     registered(createEmailLinkCommand({ tokenKey: contact.tokenKey })),
     registered(unlinkEmailCommand()),
     registered(createRequesterImessageLinkCommand(imessage)),
-    registered(confirmRequesterImessageLinkCommand(imessage)),
     registered(unlinkRequesterImessageCommand),
     registered(emailOnlyRequesterCommand),
     registered(shareRequesterContactCardCommand(imessage)),
