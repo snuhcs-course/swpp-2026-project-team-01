@@ -72,15 +72,31 @@ function normalize(value: string) {
   return value.normalize("NFKC").toLowerCase().replace(/\s+/g, " ").trim();
 }
 
+// A name as the host wrote it, without a possessive ("Eunwoo Lee's",
+// "이은우님 거", "이은우씨 요청").
+function bareName(value: string) {
+  return normalize(value)
+    .replace(/(?:'s|’s|'|’)?(?:\s*(?:request|one|meeting))?$/u, "")
+    .replace(/\s*(?:님|씨)?\s*(?:의)?\s*(?:거|것|건|요청|미팅)?$/u, "")
+    .trim();
+}
+
 // The host's requests a reference names, as the host wrote it: a request
 // reference such as 6ADSRV (with or without "request "), or else the
-// requester's name, either way contained in the other. An open request wins over
-// a closed one with the same name. switch_conversation and the decision tools
-// that name another request (issue #382) resolve the same way.
-export function matchHostRequests(requests: readonly HostRequestItem[], reference: string): HostRequestItem[] {
+// requester's name. To switch, either name may contain the other; a decision
+// (issue #382), which cannot be undone, takes only the exact name, so "Lee"
+// never decides Eunwoo Lee's request. An open request wins over a closed one.
+export function matchHostRequests(requests: readonly HostRequestItem[], reference: string, options: { readonly exactName?: boolean } = {}): HostRequestItem[] {
   const target = normalize(reference);
   const byRef = requests.filter((item) => requestRef(item.requestId).toLowerCase() === target.replace(/^request\s+/, ""));
-  const byName = byRef.length ? byRef : requests.filter((item) => normalize(item.requesterName).includes(target) || target.includes(normalize(item.requesterName)));
+  const bare = bareName(reference);
+  const byName = byRef.length
+    ? byRef
+    : requests.filter((item) =>
+        options.exactName
+          ? bare.length > 0 && normalize(item.requesterName) === bare
+          : normalize(item.requesterName).includes(target) || target.includes(normalize(item.requesterName)),
+      );
   const open = byName.filter((item) => OPEN_STATES.has(item.state));
   return open.length ? open : byName;
 }

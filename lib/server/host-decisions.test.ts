@@ -53,6 +53,27 @@ describe("matchHostRequests", () => {
   });
 });
 
+describe("matchHostRequests for a decision", () => {
+  const LEES = [item(EUNWOO, "Eunwoo Lee", "negotiating"), item(DOHYEON_A, "Lee", "awaiting_host_approval")];
+
+  it("takes only the exact name, without a possessive", () => {
+    for (const reference of ["Eunwoo Lee", "eunwoo lee's", "Eunwoo Lee's request"]) {
+      expect(matchHostRequests(LEES, reference, { exactName: true }).map((entry) => entry.requestId)).toEqual([EUNWOO]);
+    }
+    for (const reference of ["이은우님 거", "이은우 씨 요청", "이은우의 요청"]) {
+      expect(matchHostRequests(REQUESTS, reference, { exactName: true }).map((entry) => entry.requestId)).toEqual([EUNWOO]);
+    }
+  });
+
+  it("never lets part of a name decide another requester's request", () => {
+    expect(matchHostRequests(LEES, "Eunwoo", { exactName: true })).toEqual([]);
+    expect(chooseDecisionTarget(LEES, BOUND, "Eunwoo Lee's", "approve")).toMatchObject({ requestId: EUNWOO });
+    expect(chooseDecisionTarget(LEES, BOUND, "Lee", "approve")).toMatchObject({ requestId: DOHYEON_A });
+    // Switching keeps its looser match.
+    expect(matchHostRequests(LEES, "Lee").map((entry) => entry.requestId)).toEqual([EUNWOO, DOHYEON_A]);
+  });
+});
+
 describe("chooseDecisionTarget", () => {
   it("decides the named request and says which", () => {
     expect(chooseDecisionTarget(REQUESTS, BOUND, "이은우", "approve")).toEqual({

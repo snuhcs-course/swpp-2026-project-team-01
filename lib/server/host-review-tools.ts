@@ -297,7 +297,7 @@ export const requestReferenceInput = z
   .max(120)
   .optional()
   .describe(
-    "Only when the host's message names another request than this conversation's (\"approve Eunwoo's and decline this one\"): that request's reference or its requester's name as the host wrote it. Pass its proposalVersion from list_host_requests as version. Omit for this conversation's request.",
+    "Only when the host's message names another request than this conversation's (\"approve Eunwoo Lee's and decline this one\"): that request's ref from list_host_requests, or its requester's full name exactly as listed. Pass its proposalVersion from list_host_requests as version. Omit for this conversation's request.",
   );
 
 type DecisionTarget = { readonly requestId: string; readonly named: { readonly ref: string; readonly requester: string } | null };
@@ -310,7 +310,7 @@ export function chooseDecisionTarget(
   decision: "approve" | "decline",
 ): DecisionTarget | TargetProblem {
   // Another request's sample tutorial is never decided from here.
-  let matches = matchHostRequests(requests, reference).filter((item) => !item.sample || item.requestId === boundRequestId);
+  let matches = matchHostRequests(requests, reference, { exactName: true }).filter((item) => !item.sample || item.requestId === boundRequestId);
   // Only a request awaiting the host can be approved, so "approve Dohyeon's"
   // means the one of Dohyeon's requests that waits for approval.
   if (decision === "approve" && matches.length > 1) {
@@ -340,6 +340,11 @@ async function decisionTarget(db: Queryable, hostAccountId: string, boundRequest
   if (reference === undefined) return { named: null, requestId: boundRequestId } satisfies DecisionTarget;
   return chooseDecisionTarget(await listHostRequests(db, hostAccountId), boundRequestId, reference, decision);
 }
+
+// A request in one of these states takes no decision; it is reported before
+// the version check, since list_host_requests gives such a request no
+// proposalVersion to retry with.
+const ENDED_STATES = new Set(["declined", "withdrawn", "expired", "cancelled"]);
 
 function readAgain(target: DecisionTarget) {
   return target.named ? "Call list_host_requests for its current proposalVersion and ask the host about it." : "Read the request again and ask the host about it.";
@@ -470,6 +475,7 @@ export async function approveProposalForTool(db: Database, call: HostReviewToolC
   const { requestId } = target;
 
   const view = await readHostRequest(db, hostAccountId, requestId);
+  if (view && ENDED_STATES.has(view.state)) return { approved: false as const, ...named, problem: "The request is closed; nothing was approved." };
   if (!view?.proposal) return { approved: false as const, ...named, problem: "There is no proposal to approve yet." };
   if (view.proposal.version !== input.version) {
     return { approved: false as const, ...named, problem: `That is not the current proposal; the current one is version ${view.proposal.version}. ${readAgain(target)}` };
@@ -559,6 +565,7 @@ export async function declineRequestForTool(
   const view = await readHostRequest(db, hostAccountId, requestId);
   if (!view) throw new HostReviewToolDeniedError();
   if (view.state === "declined") return { declined: true as const, ...named, message: "The request was already declined; nothing else changed." };
+  if (ENDED_STATES.has(view.state)) return { declined: false as const, ...named, problem: "The request is already closed; nothing changed." };
   const current = view.proposal?.version ?? null;
   if (current !== input.version) {
     return {

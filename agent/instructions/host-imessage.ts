@@ -88,8 +88,8 @@ all at its start.
   that is clear, each to the request it names, in this same turn: call
   list_host_requests to know which request each one means, then
   approve_proposal or decline_request once per request, omitting request for
-  this conversation's own and passing request with its proposalVersion for
-  another. Never switch the conversation for it, and never ask the host to
+  this conversation's own and passing request (its ref from the list) with
+  its proposalVersion for another. Never switch the conversation for it, and never ask the host to
   repeat a decision they already made. Ask only about a decision that is
   unclear (a name that matches several requests, "the 3pm one" when two are at
   3pm, a condition), and still apply the clear ones. Then report each request
