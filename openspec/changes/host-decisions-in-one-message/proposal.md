@@ -4,7 +4,7 @@ Tracking issue: #382
 
 ## Why
 
-In team QA on 2026-11-23, a host had two requests awaiting approval in their linked messenger conversation and wrote one message approving request A and declining request B, using the two requesters' names. The conversation was about B, the latest summary. Thyme declined B, switched the conversation to A, and asked the host to approve A again; A stayed awaiting approval. `approve_proposal` and `decline_request` acted only on the conversation's own request ([`host-imessage-channel`](../host-imessage-channel/proposal.md#decisions) D23, [`channel-actions-in-words`](../channel-actions-in-words/proposal.md#decisions) D1), so the second decision had nowhere to go but `switch_conversation`. With the host web chat removed (#391), the owner wants everything a host decides to be doable in the messenger, and asking twice for a decision already made is the step to remove.
+In team QA on 2026-11-23, a host had two requests awaiting approval in their linked messenger conversation and wrote one message approving request A and declining request B, using the two requesters' names. The conversation was about B, the latest summary. Thyme declined B, switched the conversation to A, and asked the host to approve A again; A stayed awaiting approval. `approve_proposal` and `decline_request` acted only on the conversation's own request ([`host-imessage-channel`](../archive/2026-11-24-host-imessage-channel/proposal.md#decisions) D23, [`channel-actions-in-words`](../channel-actions-in-words/proposal.md#decisions) D1), so the second decision had nowhere to go but `switch_conversation`. With the host web chat removed (#391), the owner wants everything a host decides to be doable in the messenger, and asking twice for a decision already made is the step to remove.
 
 ## What Changes
 
@@ -31,7 +31,7 @@ None.
 
 ### Modified Capabilities
 
-- `host-imessage-channel` (unarchived, in [`host-imessage-channel`](../host-imessage-channel/proposal.md)): a host message in the linked conversation can carry several decisions, each applied to the request it names.
+- `host-imessage-channel` (unarchived, in [`host-imessage-channel`](../archive/2026-11-24-host-imessage-channel/proposal.md)): a host message in the linked conversation can carry several decisions, each applied to the request it names.
 
 ## Impact
 
