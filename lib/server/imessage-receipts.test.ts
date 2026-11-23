@@ -73,12 +73,11 @@ describe("impliesOwnSetup", () => {
     "Change my settings to 45 minutes",
     "can you update my setup so meetings are online only",
     "Set all my meetings to 45 minutes",
-    "every meeting from now on? no, I mean for all my guests, 45 minutes",
+    "For all my guests, meetings should be online",
     "내 미팅은 전부 45분으로 해줘",
-    "내 미팅은 45분으로 해줘",
     "제 설정에서 미팅 길이를 45분으로 바꿔주세요",
     "모든 미팅을 45분으로 바꿔줘",
-    "앞으로 다 온라인으로 할게요",
+    "앞으로 모든 미팅은 온라인으로 할게요",
   ])("reads %j as the host's own setup", (text) => {
     expect(impliesOwnSetup(text)).toBe(true);
   });
@@ -90,9 +89,21 @@ describe("impliesOwnSetup", () => {
     "Don't check my work calendar for this one",
     "Only check my personal calendar",
     "My availability is Tuesday afternoon",
+    "I have my meetings in the morning, so afternoon works better",
+    "Can you resend my booking link? I lost it",
+    "제 예약 링크 다시 보내주세요",
+    "Thursday after all meetings end works",
+    "Can you make my meetings with him online?",
     "45분으로 해줘",
     "이번 미팅은 45분으로 해주세요",
     "제 캘린더는 이번엔 빼주세요",
+    "내 미팅을 다음 주로 옮겨줘",
+    "제 미팅 다시 잡아주세요",
+    "내 미팅은 언제로 잡혔어?",
+    "제 회의는 오전에 있어서 오후로 해주세요",
+    "전체 회의가 있어서 목요일은 안 돼요",
+    "모든 회의 끝나고 5시 이후 가능해요",
+    "앞으로 다음 주 화요일이 좋아요",
     "Thursday at 3 works for me",
   ])("keeps %j with the request", (text) => {
     expect(impliesOwnSetup(text)).toBe(false);

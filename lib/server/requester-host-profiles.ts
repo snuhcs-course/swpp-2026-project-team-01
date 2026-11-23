@@ -80,6 +80,7 @@ export async function readHostCalendarsView(q: Queryable, requestId: string) {
   const [row] = await q<{ items: HostProfileItem[]; decided: boolean; settings: ConfirmedSettings }[]>`
     select p.items, p.decided_at is not null as decided, s.settings
     from app.requester_host_profiles p
+    join app.host_accounts a on a.id = p.host_account_id and a.status = 'active'
     join app.host_settings s on s.host_account_id = p.host_account_id
     where p.request_id = ${requestId}
   `;
@@ -184,17 +185,18 @@ export function decideHostProfileCommand(
 // and settings never do. The item names every host conflict calendar or none;
 // leaving out only some of them for one request has nowhere to be recorded
 // (requester_host_profiles.items holds the item, not a calendar list), so it is
-// not offered. The decision time is kept once set, so a request the account
-// sent (decided_at = created_at) keeps its no-card handling of a failed grant
-// (dropGuestHostCalendars). Times found before the change are not changed: the
-// assistant finds times again.
+// not offered. While the web card is undecided, the card decides. The decision
+// time is kept, so a request the account sent (decided_at = created_at) keeps
+// its no-card handling of a failed grant (dropGuestHostCalendars). A change
+// moves the request to a new revision, so earlier times and a proposal found
+// with the other choice are no longer current; the assistant finds times again.
 export const HOST_CALENDARS_STATES = ["gathering", "negotiating"] as const;
 
 export type HostCalendarsOutcome =
   | { readonly outcome: "used" | "not_used" | "unchanged"; readonly use: boolean; readonly calendars: readonly string[] }
-  // No host account is linked to this request, or its host settings name no
-  // conflict calendar to use.
-  | { readonly outcome: "not_linked" | "no_host_calendars" }
+  // No host account is linked to this request, its host settings name no
+  // conflict calendar to use, or the web card is still open.
+  | { readonly outcome: "not_linked" | "no_host_calendars" | "card_open" }
   // After agreement the request waits for the host or is booked: change_agreement
   // or change_booking reopens it first.
   | { readonly outcome: "not_now"; readonly state: string };
@@ -217,6 +219,8 @@ export function hostCalendarsMessage(result: HostCalendarsOutcome, find: string)
       return "This request is not linked to a host account, so there are no host calendars to use or leave out.";
     case "no_host_calendars":
       return "Their host settings name no calendar to check for conflicts, so there is nothing to use.";
+    case "card_open":
+      return "The Use your host settings for this request card is still open on the page: the person chooses Calendars there. Nothing changed.";
     case "not_now":
       return `The calendars cannot change now (status ${result.state}): they matter only while times are being chosen. Reopen first only if the person wants another time.`;
   }
@@ -246,16 +250,17 @@ export const hostCalendarsCommand: CommandDefinition<z.infer<typeof hostCalendar
     const use = context.input.use;
     if (use && calendars.length === 0) return { outcome: "no_host_calendars" };
 
+    // While the card is still open, the card decides: one sentence about
+    // calendars must not answer its other choices too.
+    if (profile.decided_at === null) return { outcome: "card_open" };
     const using = profile.items.includes("calendars");
-    if (using === use && profile.decided_at !== null) return { calendars, outcome: "unchanged", use };
+    if (using === use) return { calendars, outcome: "unchanged", use };
 
     const items = HOST_PROFILE_ITEMS.filter((item) => (item === "calendars" ? use : profile.items.includes(item)));
-    await tx`
-      update app.requester_host_profiles set items = ${items}, decided_at = coalesce(decided_at, now()) where request_id = ${request.id}
-    `;
-    // As the card does: using the calendars settles the Calendar step; taking
-    // them back reopens it on the web, unless a calendar was connected for the
-    // request. A request the account sent has no Calendar card, so its step
+    await tx`update app.requester_host_profiles set items = ${items} where request_id = ${request.id}`;
+    // As the card does, when no calendar was connected for the request: using
+    // the calendars settles the Calendar step, and taking them back reopens it
+    // on the web. A request the account sent has no Calendar card, so its step
     // stays settled and times are found without busy time from the account.
     const [grant] = await tx<{ id: string }[]>`
       select id from app.requester_grants where request_id = ${request.id} and kind = 'calendar' and revoked_at is null
@@ -263,11 +268,19 @@ export const hostCalendarsCommand: CommandDefinition<z.infer<typeof hostCalendar
     const [linked] = await tx<{ account: boolean }[]>`
       select decided_at = created_at as account from app.requester_host_profiles where request_id = ${request.id}
     `;
-    if (use) {
+    if (use && !grant) {
       await tx`update app.requests set calendar_settled_at = coalesce(calendar_settled_at, now()) where id = ${request.id}`;
-    } else if (!grant && !linked?.account) {
+    } else if (!use && !grant && !linked?.account) {
       await tx`update app.requests set calendar_settled_at = null where id = ${request.id}`;
     }
+    // Times and a proposal found with the earlier choice are no longer
+    // current, as after a details change: a new revision, and a request
+    // choosing among them returns to gathering.
+    await tx`
+      update app.requests
+      set state = case when state = 'negotiating' then 'gathering' else state end, revision = revision + 1, updated_at = now()
+      where id = ${request.id}
+    `;
     return { calendars, outcome: use ? "used" : "not_used", use };
   },
 };

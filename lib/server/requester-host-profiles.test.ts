@@ -52,35 +52,52 @@ function run(tx: Transaction, use: boolean) {
 }
 
 describe("use_host_calendars command", () => {
-  it("leaves the host calendars out of this request only", async () => {
+  it("leaves the host calendars out of this request only, at a new revision", async () => {
     const { tx, writes } = fakeTx({});
     await expect(run(tx, false)).resolves.toEqual({ calendars: ["Work", "Personal"], outcome: "not_used", use: false });
-    expect(writes).toHaveLength(1);
     expect(writes[0]).toContain("update app.requester_host_profiles set items");
+    expect(writes[0]).not.toContain("decided_at");
+    // Earlier times and a proposal are no longer current.
+    expect(writes.at(-1)).toContain("revision = revision + 1");
+    expect(writes.at(-1)).toContain("when state = 'negotiating' then 'gathering'");
     // Neither host settings nor calendar roles are written.
     expect(writes.join(" ")).not.toMatch(/host_settings|calendar_roles/);
   });
 
   it("keeps the Calendar step of a request the account sent, and reopens a web one without a grant", async () => {
-    expect((await run(fakeTx({ account: true }).tx, false)).outcome).toBe("not_used");
     const web = fakeTx({ account: false });
     await run(web.tx, false);
     expect(web.writes.some((sql) => sql.includes("calendar_settled_at = null"))).toBe(true);
     const account = fakeTx({ account: true });
-    await run(account.tx, false);
+    await expect(run(account.tx, false)).resolves.toMatchObject({ outcome: "not_used" });
     expect(account.writes.some((sql) => sql.includes("calendar_settled_at"))).toBe(false);
+    const granted = fakeTx({ account: false, grant: true });
+    await run(granted.tx, false);
+    expect(granted.writes.some((sql) => sql.includes("calendar_settled_at"))).toBe(false);
   });
 
-  it("uses them again and settles the Calendar step", async () => {
-    const { tx, writes } = fakeTx({ profile: { decided_at: new Date(), items: [] } });
+  it("uses them again and settles the Calendar step, unless a calendar was connected for the request", async () => {
+    const { tx, writes } = fakeTx({ account: false, profile: { decided_at: new Date(), items: [] } });
     await expect(run(tx, true)).resolves.toMatchObject({ outcome: "used", use: true });
     expect(writes.some((sql) => sql.includes("calendar_settled_at = coalesce"))).toBe(true);
+    const granted = fakeTx({ account: false, grant: true, profile: { decided_at: new Date(), items: [] } });
+    await expect(run(granted.tx, true)).resolves.toMatchObject({ outcome: "used" });
+    expect(granted.writes.some((sql) => sql.includes("calendar_settled_at"))).toBe(false);
+  });
+
+  it("leaves an open card to the card", async () => {
+    const open = fakeTx({ profile: { decided_at: null, items: [] } });
+    await expect(run(open.tx, false)).resolves.toEqual({ outcome: "card_open" });
+    await expect(run(open.tx, true)).resolves.toEqual({ outcome: "card_open" });
+    expect(open.writes).toEqual([]);
   });
 
   it("changes nothing when it already holds, after agreement, or without host calendars", async () => {
     const same = fakeTx({});
     await expect(run(same.tx, true)).resolves.toMatchObject({ outcome: "unchanged" });
-    expect(same.writes).toEqual([]);
+    const off = fakeTx({ profile: { decided_at: new Date(), items: [] } });
+    await expect(run(off.tx, false)).resolves.toMatchObject({ outcome: "unchanged" });
+    expect([...same.writes, ...off.writes]).toEqual([]);
     await expect(run(fakeTx({ state: "awaiting_host_approval" }).tx, false)).resolves.toEqual({ outcome: "not_now", state: "awaiting_host_approval" });
     await expect(run(fakeTx({ calendars: [], profile: { decided_at: new Date(), items: [] } }).tx, true)).resolves.toEqual({ outcome: "no_host_calendars" });
     await expect(run(fakeTx({ profile: null }).tx, false)).resolves.toEqual({ outcome: "not_linked" });
