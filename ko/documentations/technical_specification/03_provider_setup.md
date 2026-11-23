@@ -201,6 +201,16 @@ Telegram은 2026-11-04에 [`host-telegram-channel` 변경](../../openspec/change
 
 사용자의 승인 없이는 에이전트 세션에서 봇의 토큰을 설정하거나, 웹훅을 등록하거나, Telegram 메시지를 보내서는 안 됩니다.
 
+## Google Analytics
+
+웹 앱의 페이지 조회 분석으로, 2026-11-23에 [`web-analytics` 변경](../../openspec/changes/web-analytics/proposal.md)(#341)에서 제안되었습니다. Firebase SDK 없이 `gtag.js`를 통해 Google Analytics 4를 사용합니다(D1).
+
+- **속성.** `https://findmeatime.com`의 웹 데이터 스트림을 가진 GA4 속성 하나이며, 팀의 Google 계정이 소유합니다. 팀원에게는 뷰어 또는 분석가 역할을 부여하고, 관리자 권한은 저장소 소유자가 보유합니다. 나중에 같은 속성에 Firebase 프로젝트를 연결할 수 있으며, 앱에는 그것이 필요하지 않습니다.
+- **속성 설정.** 웹 스트림의 향상된 측정에서 "브라우저 기록 이벤트를 기반으로 한 페이지 변경"을 **끕니다**. 앱이 가려 낸 자체 페이지 조회를 보내는데, GA의 것에는 전체 주소가 담기기 때문입니다(D2). Google 신호와 광고 개인 최적화는 끄고, 데이터 보관 기간은 2개월로 설정합니다.
+- **변수.** Vercel 프로젝트의 Production 환경에만 `GOOGLE_ANALYTICS_MEASUREMENT_ID`(`G-...`)를 둡니다. 빌드 시점에 읽히므로 설정한 뒤 다시 배포하십시오. 스테이징(`findmeatime-dev`)은 자체 측정 ID를 받기 전까지 측정하지 않습니다.
+- **전송 내용.** 경로만 담은 페이지 조회로, 더 깊은 경로는 첫 세그먼트와 `[redacted]`로 줄이며(`/booking/[redacted]`), 여기에 리퍼러의 origin과 GA 자체의 브라우저, 기기, 대략적인 위치 필드가 더해지고 속성 설정이 허용하는 2개월 동안 보관됩니다. [개인정보 처리방침](../../apps/web/app/privacy/page.tsx)은 Google Analytics를 명시하므로, 태그가 보내는 내용을 바꿀 때 함께 수정하십시오.
+- **확인.** 배포한 뒤 `/`, `/app`, 예약 링크를 열고 GA4 **보고서 → 실시간**을 확인합니다. 예약 페이지는 `/booking/[redacted]`로 나타나야 합니다.
+
 ## 모델 접근과 런타임
 
 모델 설정은 서버 측에 두고 팀의 자체 API 키로 OpenAI를 직접 호출하며, AI Gateway는 사용하지 않습니다. 모델은 `gpt-5.6-terra`이며 2026-10-19에 결정되어 [기반 설계](../../openspec/changes/application-foundation/design.md#5-model-route-and-model)에 기록되어 있습니다. 기반 변경에서 팀의 키를 기준으로 모델 ID, 가격, 도구 지원을 확인하되, 합의된 [모델 한도](../../openspec/specs/model-execution/spec.md)를 강제합니다. 합성 컨텍스트를 사용해 유효하지 않거나 거부된 출력, 공급자 마감 시간, 속도/크레딧 실패, 내구성 있는 사용량 계산, 비공개 데이터 필터링을 테스트합니다. 모델의 실패가 스케줄링 상태를 진행시키거나 승인을 만들어서는 안 됩니다.

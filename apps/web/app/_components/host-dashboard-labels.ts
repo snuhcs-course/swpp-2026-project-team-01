@@ -32,3 +32,41 @@ export function detailNote(event: DashboardEvent) {
     ? "Booked by Thyme. This meeting is shown only once, even if it also appears in Google Calendar."
     : "From your private Google Calendar. Only you can see its details here.";
 }
+
+const MODE_LABELS = { in_person: "In person", online: "Online" } as const;
+
+export type MeetingFact = { readonly label: string; readonly value: string; readonly href?: string };
+
+/**
+ * A Find Me a Time meeting's details, in the order the host saw them when
+ * approving (When · Length · Mode · Place or Meeting link · With · Purpose).
+ * Empty for other sources or a booking without its approved details.
+ */
+export function meetingFacts(event: DashboardEvent, when: string): MeetingFact[] {
+  const meeting = event.meeting;
+  if (event.source !== "thyme" || !meeting) return [];
+  const { guest } = meeting;
+  const facts: MeetingFact[] = [
+    { label: "When", value: when },
+    { label: "Length", value: `${meeting.durationMinutes} minutes` },
+    { label: "Mode", value: MODE_LABELS[meeting.mode] },
+    meeting.mode === "in_person"
+      ? { label: "Place", value: event.location ?? "Not set" }
+      : meeting.joinUrl
+        ? { href: meeting.joinUrl, label: "Meeting link", value: meeting.joinUrl }
+        : { label: "Meeting link", value: "Not set" },
+    { label: "With", value: guest.email ? `${guest.name} <${guest.email}>${guest.emailConfirmed ? "" : " (address not confirmed)"}` : guest.name },
+  ];
+  if (meeting.purpose && meeting.purpose !== event.title) facts.push({ label: "Purpose", value: meeting.purpose });
+  return facts;
+}
+
+/** The host's own view of the request behind a Find Me a Time meeting. */
+export function meetingRequestPath(event: DashboardEvent) {
+  return event.source === "thyme" && event.meeting ? `/app?request=${encodeURIComponent(event.meeting.requestId)}` : null;
+}
+
+/** Who or what a calendar block is about, shown next to its time. */
+export function blockLabel(event: DashboardEvent) {
+  return event.source === "thyme" && event.meeting ? `With ${event.meeting.guest.name}` : event.title;
+}

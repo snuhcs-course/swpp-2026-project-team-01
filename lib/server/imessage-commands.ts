@@ -10,6 +10,7 @@ import {
   type WeeklyWindow,
 } from "../contracts/setup";
 import { finishSampleCommand, tutorialCompletionText, TUTORIAL_TEXT } from "./host-tutorial";
+import { isCalendarDate, MAX_DECLINED_DATES } from "../contracts/declined-dates";
 import { approveCommand, declineCommand } from "./bookings";
 import { type ChannelLanguage, hostConversationLanguage } from "./channel-language";
 import { channelReplies, FIELD_LABELS, locale, STATE_WORDS, weekdayShort } from "./channel-texts";
@@ -56,7 +57,10 @@ import type { TokenKey } from "./token-encryption";
 
 export type ParsedCommand =
   | { readonly name: "help" | "requests" | "setup" | "review" | "changes" | "stop" }
-  | { readonly name: "request" | "share" | "dismiss" | "approve" | "decline" | "confirm"; readonly ref: string };
+  | { readonly name: "request" | "share" | "dismiss" | "approve" | "confirm"; readonly ref: string }
+  // `decline <ref> [YYYY-MM-DD …]`: up to 14 other dates that no longer work
+  // (decline-with-unavailable-dates, #58).
+  | { readonly name: "decline"; readonly ref: string; readonly dates?: readonly string[] };
 
 // "unlink" is the same as "stop" (host-whatsapp-channel design 8, D12).
 const BARE = new Set(["help", "requests", "setup", "review", "changes", "stop", "unlink"]);
@@ -74,6 +78,16 @@ export function parseCommand(text: string): ParsedCommand | null {
   if (words.length === 1 && BARE.has(name)) return { name: name === "unlink" ? "stop" : name } as ParsedCommand;
   if (words.length === 2 && WITH_REF.has(name) && /^[0-9a-z-]{4,20}$/i.test(words[1]!)) {
     return { name, ref: words[1]!.toUpperCase() } as ParsedCommand;
+  }
+  const dates = words.slice(2);
+  if (
+    name === "decline" &&
+    /^[0-9a-z-]{4,20}$/i.test(words[1] ?? "") &&
+    dates.length >= 1 &&
+    dates.length <= MAX_DECLINED_DATES &&
+    dates.every(isCalendarDate)
+  ) {
+    return { dates: [...new Set(dates)], name, ref: words[1]!.toUpperCase() };
   }
   return null;
 }
@@ -329,6 +343,7 @@ async function decide(
   kind: "approve" | "decline",
   ref: string,
   language: ChannelLanguage,
+  dates: readonly string[] = [],
 ): Promise<Reply & { requestId?: string }> {
   const texts = channelReplies(language);
   const parts = splitRef(ref);
@@ -366,8 +381,16 @@ async function decide(
     return { requestId: view.requestId, text: decisionRefusal(deps, outcome.error.category, current, language) };
   }
 
-  const outcome = await run(deps, message, declineCommand(() => deps.notices), view.requestId, {}, view.revision);
-  return { requestId: view.requestId, text: outcome.ok ? texts.declined : decisionRefusal(deps, outcome.error.category, current, language) };
+  const input = dates.length > 0 ? { excludedDates: dates } : {};
+  const outcome = await run(deps, message, declineCommand(() => deps.notices), view.requestId, input, view.revision);
+  if (!outcome.ok) return { requestId: view.requestId, text: decisionRefusal(deps, outcome.error.category, current, language) };
+  return { requestId: view.requestId, text: declineText(texts, outcome.result) };
+}
+
+// The decline reply names the other dates only when the decline kept some.
+function declineText(texts: ReturnType<typeof channelReplies>, result: Record<string, unknown> | null) {
+  const kept = typeof result?.keptDates === "number" ? result.keptDates : 0;
+  return result?.state === "declined" && kept > 0 ? texts.declinedWithDates(kept) : texts.declined;
 }
 
 function decisionRefusal(deps: CommandDependencies, category: string, current: string | null, language: ChannelLanguage) {
@@ -484,7 +507,7 @@ async function savedDecisionReply(
     case "request.approve":
       return { requestId, text: saved.result?.repeated ? texts.alreadyApproved : texts.approved };
     case "request.decline":
-      return { requestId, text: texts.declined };
+      return { requestId, text: declineText(texts, saved.result) };
     case "request.share_changes":
       return { requestId, text: texts.shared };
     case "request.dismiss_changes":
@@ -612,8 +635,10 @@ export async function executeCommand(tx: Transaction, deps: CommandDependencies,
       result = await changes(deps, message, command.name, language, command.ref);
       break;
     case "approve":
-    case "decline":
       result = await decide(deps, message, command.name, command.ref, language);
+      break;
+    case "decline":
+      result = await decide(deps, message, command.name, command.ref, language, command.dates);
       break;
     case "confirm": {
       const confirmed = await confirmSettings(deps, message, command.ref, language);

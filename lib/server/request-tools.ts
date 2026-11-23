@@ -1,6 +1,6 @@
 import { z } from "zod";
 import { clarificationQuestion } from "../contracts/clarifications";
-import { EVALUATION_FAILURE_MESSAGES, nearestTimesMessage, noMatchMessage, type RequesterEvaluationView, TIMES_SHOWN } from "../contracts/feasibility";
+import { CALENDAR_PRIVACY_REPLY, EVALUATION_FAILURE_MESSAGES, nearestTimesMessage, noMatchMessage, type RequesterEvaluationView, TIMES_SHOWN } from "../contracts/feasibility";
 import {
   CLARIFICATION_CATEGORIES,
   type ClarificationCategory,
@@ -22,7 +22,7 @@ import type { Database, Queryable, Transaction } from "./database";
 import { encodeDisplayName } from "./entry-documents";
 import { awaitEvaluation } from "./evaluation";
 import { REQUESTER_AUDIENCE } from "./eve-auth";
-import { detailsComplete, standingBookingOf, withdrawRequestCommand } from "./request-lifecycle";
+import { detailsComplete, readyForTimes, standingBookingOf, withdrawRequestCommand } from "./request-lifecycle";
 import { cancelBookingCommand, changeBookingCommand } from "./booking-cancellation";
 import {
   agreeCommand,
@@ -35,6 +35,7 @@ import {
 import { appOriginFromEnvironment } from "./same-origin";
 import { tokenKeyFromEnvironment } from "./token-encryption";
 import { markIdentityRequested } from "./request-start";
+import { CHANGE_NOTE, localNow, meetingPhase, nextSteps, statusText } from "./request-status-texts";
 import {
   applyReviewCommand,
   draftReviewCommand,
@@ -253,26 +254,6 @@ function minimizedProposal(proposal: RequesterProposal, timezone: string) {
   };
 }
 
-const STATUS_TEXT: Readonly<Record<RequestState, string>> = {
-  draft: "Not yet a request: the guest has not given a name and email. The host cannot see it.",
-  awaiting_host_approval: "The requester agreed to the proposal; it waits for the host's approval. Nothing is booked.",
-  booked:
-    "Booked: the meeting is confirmed. Answer questions about it from booking. Until it starts, the guest can cancel it with cancel_booking after confirming once, or change its time or place: change_booking reopens it, and the meeting stays booked until the host approves the change.",
-  booking: "Booking is in progress.",
-  cancelled: "The booked meeting was cancelled and the request is closed. The calendar event is removed. The guest can write again later to ask for a new meeting.",
-  declined: "The host declined. The request is closed.",
-  expired: "The request expired and is closed.",
-  gathering: "Gathering meeting details. Nothing is proposed or booked.",
-  negotiating: "Choosing a time. Nothing is agreed or booked.",
-  withdrawn: "The requester withdrew. The request is closed.",
-};
-
-const CHANGE_NOTE =
-  "A change to the booked meeting is open: booking holds the meeting that stands until the host approves the new version. If the guest no longer wants the change, withdraw_request drops it and keeps the booked meeting; cancel_booking cancels the meeting itself.";
-
-const NEXT_STEPS =
-  "The guest decides on the booking page's cards or in words: apply_request_review applies the pending review and finds times, choose_time chooses one of the current candidate times, agree_to_proposal agrees to the current proposal, change_agreement reopens an agreed request until the host approves, and withdraw_request withdraws it. Record a decision only when the guest clearly made it, about the exact time or version they named; when it is unclear, ask.";
-
 type RequestRow = {
   contact_email: string | null;
   details: Partial<RequestDetails>;
@@ -330,8 +311,14 @@ export async function readRequestForTool(db: Database, call: RequestToolCall) {
   const { details } = row;
 
   const identified = row.state !== "draft";
+  const now = new Date();
+  const booking = row.state === "booked" || changing ? await minimizedBooking(db, id, timezone, now) : null;
+  const phase = booking?.phase ?? null;
 
   return {
+    // A fixed reply for a question about either calendar (#311): an
+    // instruction alone still let the model offer only the listed times.
+    calendarReply: CALENDAR_PRIVACY_REPLY[language],
     contact: { email: presence(row.contact_email ?? undefined), name: presence(row.contact_email ?? undefined) },
     identified,
     current: {
@@ -355,12 +342,18 @@ export async function readRequestForTool(db: Database, call: RequestToolCall) {
     },
     host: { displayName: encodeDisplayName(row.display_name ?? "Your host"), offer: hostOffer(row.offer) },
     missing: missingFields(details, hostListsPlaces(row.offer)),
-    next: NEXT_STEPS,
+    next: nextSteps(row.state, phase, changing),
     pendingReview: review ? minimizedReview(storedReview(review, language), timezone) : null,
     readyForTimes: identified && detailsComplete(details),
-    status: { expiresAt: displayTime(row.expires_at, timezone), state: row.state, text: STATUS_TEXT[row.state], ...(changing ? { change: CHANGE_NOTE } : {}) },
-    booking: row.state === "booked" || changing ? await minimizedBooking(db, id, timezone) : null,
+    status: {
+      expiresAt: displayTime(row.expires_at, timezone),
+      state: row.state,
+      text: statusText(row.state, phase, changing),
+      ...(changing ? { change: CHANGE_NOTE } : {}),
+    },
+    booking,
     today: today(timezone),
+    now: localNow(timezone, now),
   };
 }
 
@@ -536,7 +529,7 @@ export async function evaluateCandidatesForTool(
   const view = await awaitEvaluation(db, outcome.result.evaluationId, options.waitMs ?? REQUEST_EVALUATION_WAIT_MS);
   if (!view) throw new RequestToolDeniedError();
 
-  return { evaluated: true as const, ...minimizedEvaluation(view, timezone, language, requestedPlace(row.details)), next: NEXT_STEPS };
+  return { evaluated: true as const, ...minimizedEvaluation(view, timezone, language, requestedPlace(row.details)), next: nextSteps(row.state) };
 }
 
 // ---------------------------------------------------------------------------
@@ -547,19 +540,25 @@ export async function readBookingStatusForTool(db: Database, call: RequestToolCa
   const row = await requestRow(db, id);
   const current = await readCurrentProposal(db, id);
   const changing = row.state !== "booked" && (await standingBookingOf(db, id)) !== null;
+  const timezone = zoneOf(row.details);
+  const now = new Date();
+  const booking = row.state === "booked" || changing ? await minimizedBooking(db, id, timezone, now) : null;
+  const text = statusText(row.state, booking?.phase ?? null, changing);
 
   return {
     agreedVersion: current?.agreement?.proposalVersion ?? null,
-    booking: row.state === "booked" || changing ? await minimizedBooking(db, id, zoneOf(row.details)) : null,
+    booking,
+    now: localNow(timezone, now),
     proposalVersion: current?.proposal.version ?? null,
     state: row.state,
-    text: changing ? `${STATUS_TEXT[row.state]} ${CHANGE_NOTE}` : STATUS_TEXT[row.state],
+    text: changing ? `${text} ${CHANGE_NOTE}` : text,
   };
 }
 
 // The confirmed meeting as the guest may read it (U18): its time in their
-// timezone, length, form, place or join link. Nothing of the host's calendar.
-async function minimizedBooking(db: Database, id: string, timezone: string) {
+// timezone, length, form, place or join link, and whether it has started
+// (#277). Nothing of the host's calendar.
+async function minimizedBooking(db: Database, id: string, timezone: string, now: Date) {
   const status = await readBookingStatus(db, id, "requester");
   const receipt = status?.receipt;
   if (!receipt) return null;
@@ -568,6 +567,7 @@ async function minimizedBooking(db: Database, id: string, timezone: string) {
     joinUrl: receipt.joinUrl,
     location: receipt.location,
     mode: receipt.mode,
+    phase: meetingPhase(receipt, now),
     time: window(receipt, timezone),
     title: receipt.title,
   };
@@ -644,7 +644,7 @@ async function applyAndEvaluate(
   if (!outcome.ok) return refused(outcome.error.category);
 
   const row = await requestRow(db, id);
-  if (row.state === "draft" || !detailsComplete(row.details)) {
+  if (!readyForTimes(row.state, row.details)) {
     return { message: "Applied. Something is still missing before times can be found.", recorded: true as const, state: row.state };
   }
 
@@ -697,7 +697,11 @@ export async function changeAgreementForTool(db: Database, call: RequestToolCall
   const { outcome } = await decide(db, call, changeAgreementCommand, {} as Record<string, never>);
   if (!outcome.ok) {
     return outcome.error.category === "stale_revision"
-      ? { message: "Nothing to reopen: the request is not waiting for the host's approval. If the host approved, the guest contacts the host directly.", recorded: false }
+      ? {
+          message:
+            "Nothing to reopen: the request is not waiting for the host's approval. Read the request again and tell the guest what is current: while the host's approval is being booked nothing changes here, and once the meeting is booked, change_booking changes its time or place.",
+          recorded: false,
+        }
       : refused(outcome.error.category);
   }
   return { message: "Reopened: details and times can change again, and a new time needs a new agreement.", recorded: true, state: outcome.result.state };
@@ -767,7 +771,7 @@ export async function changeBookingForTool(db: Database, call: RequestToolCall):
   }
   return {
     message:
-      "Open for a change. The booked meeting stays as it is until the host approves a new one. Draft what the guest wants changed with draft_request_review (new times as availability, or a new place or meeting type as details), find times, and have the guest choose and agree as usual. If the guest drops the change, withdraw_request keeps the booked meeting.",
+      "Open for a change. The booked meeting stays as it is until the host approves a new one. Draft what the guest wants changed with draft_request_review (new times as availability, with relative days such as next week or a weekday worked out from today as for a new request, or a new place or meeting type as details), find times, and have the guest choose and agree as usual. If the guest drops the change, withdraw_request keeps the booked meeting.",
     recorded: true,
     state: outcome.result.state,
   };

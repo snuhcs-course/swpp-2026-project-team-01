@@ -49,11 +49,11 @@ export function displayTime(instant: Date, timeZone: string) {
 }
 
 // The local date of an instant in the zone, as YYYY-MM-DD.
-function localDate(instant: Date, timeZone: string) {
+export function localDate(instant: Date, timeZone: string) {
   return new Intl.DateTimeFormat("en-CA", { day: "2-digit", month: "2-digit", timeZone, year: "numeric" }).format(instant);
 }
 
-function addDays(date: string, days: number) {
+export function addDays(date: string, days: number) {
   const day = new Date(`${date}T00:00:00Z`);
   day.setUTCDate(day.getUTCDate() + days);
   return day.toISOString().slice(0, 10);

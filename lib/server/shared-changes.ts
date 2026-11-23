@@ -10,6 +10,9 @@ import { invalidateExceptions } from "./request-exceptions";
 // Suggested changes to the shared details (host-review-and-booking design 4,
 // D7). A suggestion comes from the host's editor (**Request changes**) or from
 // the assistant's propose_shared_changes; a new one supersedes the pending one.
+// The editor states a whole suggestion against the proposal, while the
+// assistant drafts only what the host asked to change, so the assistant's new
+// suggestion keeps the pending one's other changes (#275).
 // **Share revised details** applies the detail changes as a new request
 // revision, which leaves the old proposal stale for agreement and any approval
 // naming it unusable, and publishes a host-audience evaluation of exactly the
@@ -39,9 +42,25 @@ export const sharedChangesSchema = z
 
 export type SharedChanges = z.infer<typeof sharedChangesSchema>;
 
-export type SuggestResult = { readonly suggestionId: string };
+export type SuggestResult = { readonly changes: SharedChanges; readonly suggestionId: string };
 
 const suggestInput = z.object({ changes: sharedChangesSchema }).strict();
+
+// The changes a new suggestion stores when it replaces a pending one: the
+// pending suggestion's changes with the new ones laid over them. A new mode
+// drops the pending place or link that the other mode would not use. A new
+// place without a mode means in person and a new link without a mode means
+// online: the stored suggestion then names that mode, so sharing neither keeps
+// a contradicting pending mode nor falls back to the proposal's mode and drops
+// what the host just asked for.
+export function replacementChanges(pending: SharedChanges | null, next: SharedChanges): SharedChanges {
+  if (!pending) return next;
+  const kept: SharedChanges = { ...pending };
+  const mode = next.mode ?? (next.location ? "in_person" : next.linkPlan ? "online" : undefined);
+  if (mode === "online") delete kept.location;
+  if (mode === "in_person") delete kept.linkPlan;
+  return { ...kept, ...next, ...(mode ? { mode } : {}) };
+}
 
 export function suggestChangesCommand(source: "assistant" | "host"): CommandDefinition<z.infer<typeof suggestInput>, SuggestResult> {
   return {
@@ -54,18 +73,20 @@ export function suggestChangesCommand(source: "assistant" | "host"): CommandDefi
       if (!["gathering", "negotiating", "awaiting_host_approval"].includes(request.state)) throw new CommandError("invalid_input");
 
       const base = await latestProposalOf(tx, request.id);
-      await tx`
+      const superseded = await tx<{ changes: SharedChanges }[]>`
         update app.shared_change_drafts set state = 'superseded', resolved_at = now()
         where request_id = ${request.id} and state = 'pending'
+        returning changes
       `;
+      const changes = source === "assistant" ? replacementChanges(superseded[0]?.changes ?? null, context.input.changes) : context.input.changes;
       const [created] = await tx<{ id: string }[]>`
         insert into app.shared_change_drafts (request_id, source, base_revision, base_proposal_version, changes)
         values (${request.id}, ${source}, ${request.revision}, ${base?.version ?? null},
-                ${tx.json(context.input.changes as Parameters<typeof tx.json>[0])})
+                ${tx.json(changes as Parameters<typeof tx.json>[0])})
         returning id
       `;
 
-      return { suggestionId: created!.id };
+      return { changes, suggestionId: created!.id };
     },
   };
 }

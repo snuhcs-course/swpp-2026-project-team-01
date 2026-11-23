@@ -91,23 +91,36 @@ function toolsFor(role: AgentRole) {
   return role === "host" ? [...HOST_TOOLS, ...ACCOUNT_REQUESTER_TOOLS] : REQUESTER_TOOLS;
 }
 
-// The tools this access may see now: its role's tools within its scopes, only
-// the bootstrap tools on an unbound bootstrap grant, and only the closed-status
-// read on a closed request.
+// An unbound bootstrap grant: a requester connection that has not created its
+// one request yet.
+function unbound(access: GrantAccess) {
+  return access.role === "requester" && access.requestId === null;
+}
+
+// The tools this access may see now: its role's tools within its scopes, and
+// only the closed-status read on a closed request. An unbound bootstrap grant
+// already lists every requester tool its scopes permit, though only the
+// bootstrap tools run until create_request binds it: this stateless server
+// cannot push notifications/tools/list_changed, and clients such as Claude load
+// the list once per conversation, so tools that appeared only after creation
+// would never reach them (#323).
 export function visibleTools(access: GrantAccess): readonly AgentTool[] {
   return toolsFor(access.role).filter((tool) => {
     if (!access.scopes.includes(tool.scope)) return false;
-    if (access.role === "requester" && access.requestId === null) return tool.bootstrap === true;
+    if (unbound(access)) return true;
     if (access.role === "requester" && tool.name === "create_request") return false;
     if (access.closed) return tool.afterClosure === true || (tool.afterClosure === "booked" && access.booked === true);
     return true;
   });
 }
 
-// The tools this access may call: the visible ones, plus create_request on a
-// bound bootstrap grant, so an exact retry after a lost response returns the
-// request it created (and any other creation is refused as already created).
-function callable(access: GrantAccess, tool: AgentTool) {
+// The tools this access may call: only the bootstrap tools on an unbound
+// bootstrap grant (any other answers "Create the request first"), otherwise
+// the visible ones, plus create_request on a bound bootstrap grant, so an exact
+// retry after a lost response returns the request it created (and any other
+// creation is refused as already created).
+export function callable(access: GrantAccess, tool: AgentTool) {
+  if (unbound(access)) return tool.bootstrap === true && access.scopes.includes(tool.scope);
   if (visibleTools(access).includes(tool)) return true;
   return access.bootstrap && access.requestId !== null && !access.closed && tool.name === "create_request" && access.scopes.includes(tool.scope);
 }
@@ -265,6 +278,15 @@ async function dispatch(
   return { error: { code: -32601, message: `Method not found: ${method}` }, status: 404 };
 }
 
+// The refusal for a listed tool the grant cannot run yet or any more. Its
+// nextAction must name a tool that runs on this grant: an unbound grant runs
+// only get_host and create_request, so it points at create_request.
+export function uncallableRefusal(access: GrantAccess): Omit<Extract<ToolResult, { ok: false }>, "ok" | "correlationId"> {
+  if (access.closed) return { category: "request_closed", message: "The request is closed.", nextAction: "Read it with get_request for its status and receipt." };
+  if (access.requestId === null) return { category: "request_unavailable", message: "Create the request first with create_request.", nextAction: "Call create_request, then try again." };
+  return { category: "already_created", message: "This connection already created its one request.", nextAction: "Use get_request for the request this connection reaches." };
+}
+
 async function callTool(deps: AgentToolDependencies, access: GrantAccess, params: Record<string, unknown>): Promise<Dispatched> {
   const name = typeof params.name === "string" ? params.name : "";
   const tool = toolsFor(access.role).find((candidate) => candidate.name === name);
@@ -283,19 +305,7 @@ async function callTool(deps: AgentToolDependencies, access: GrantAccess, params
   }
 
   if (!callable(access, tool)) {
-    const closed = access.closed;
-    return {
-      result: toolResultBody({
-        category: closed ? "request_closed" : access.requestId === null ? "request_unavailable" : "already_created",
-        message: closed
-          ? "The request is closed."
-          : access.requestId === null
-            ? "Create the request first with create_request."
-            : "This connection already created its one request.",
-        nextAction: closed ? "Read it with get_request for its status and receipt." : "Use get_request for the request this connection reaches.",
-        ok: false,
-      }),
-    };
+    return { result: toolResultBody({ ...uncallableRefusal(access), ok: false }) };
   }
 
   try {
