@@ -13,4 +13,4 @@
 ## Documents and review
 
 - [x] Describe the command in the operations runbook of the provider setup and regenerate its Korean mirror.
-- [ ] Review with the team, deploy the migrations through CI, then archive the change into `openspec/specs/operational-diagnostics/spec.md` and close #344.
+- [x] Review with the team, deploy the migrations through CI, then archive the change into `openspec/specs/operational-diagnostics/spec.md` and close #344.
