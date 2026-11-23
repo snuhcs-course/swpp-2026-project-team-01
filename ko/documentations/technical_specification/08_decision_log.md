@@ -817,3 +817,11 @@ Dohyeon Park이 2026-11-16에 결정했으며, 2026-11-14 UAT 회의가 [이슈 
 | D4 | 예약된 미팅은 취소하지 않습니다. 열린 요청은 닫히고 게스트는 이메일을 받으며, 호스트는 예약, 취소, 실행 때 이메일을 받습니다. 계정 이메일에는 요청이 없으므로 끝난 지 30일 뒤에 삭제합니다 | 호스트 대신 캘린더 이벤트 취소; 채팅으로 게스트에게 알리기 | 제안; 설계 5 | `lib/server/account-emails.ts`, `accountEmailCurrent`, `account_emails` 보존 규칙 |
 | D5 | 예약하면 Supabase의 전역 범위로 모든 세션에서 로그아웃합니다 | 세션을 유지하고 취소 버튼 제공 | 설계 2 | `createAccountDeletionHandler` |
 | D6 | 채팅과 MCP 서버는 삭제하지 않고 `/app?settings=account`를 안내합니다 | 확인 절차를 거치는 삭제 도구 | 설계 6 | `agent/instructions/base.md`, `host-imessage.ts`, `lib/server/agent-mcp.ts` |
+
+## `place-settles-in-person`
+
+[제안서](../../openspec/changes/place-settles-in-person/proposal.md)는 이슈 #378에 대한 이 선택을 기록합니다. 저장소 소유자가 2026-11-23에 이슈에서 정했으며, #280을 위해 `guest-assistant-story-fixes`(PR #357)가 추가한 규칙을 뒤집습니다.
+
+| # | 선택 | 대안 | 기록 위치 | 바꾸려면 |
+|---|---|---|---|---|
+| D1 | 호스트가 온라인 또는 대면을 제안했고 게스트가 만날 곳으로 장소를 말하면("어디서 만날까요?"에 "역삼역으로요") 게스트 어시스턴트는 그 장소를 검토 카드에 담아 대면으로 초안을 작성합니다. 장소가 지나가듯 나오거나 같은 답이 온라인 쪽으로 기울 때만 방식을 묻습니다 | 장소가 나오면 항상 방식을 묻기(#280 규칙); 언급된 모든 장소를 대면으로 보기 | `meeting-requests` 델타 "Guest assistant answers within its scope"; 문서 13의 GU-50, GU-A04, GU-A08, GU-A09 | `agent/instructions/requester.ts`의 장소와 방식 규칙 및 `evals/requester/story-cases.ts`의 해당 케이스 |

@@ -1,0 +1,40 @@
+{
+  "branch": "feat/place-settles-in-person",
+  "user": "dodo41142727@gmail.com",
+  "sessions": {
+    "claude:bffa4346-e7ff-48cf-baea-49cfb2a79a27": {
+      "agent": "claude-code",
+      "client": "claude-desktop",
+      "agent_ms": 0,
+      "models": {
+        "claude-opus-5-5": {
+          "input": 88,
+          "cache_read": 5475695,
+          "cache_write_5m": 0,
+          "cache_write_1h": 61195,
+          "output": 20119,
+          "reasoning": 0
+        }
+      },
+      "first": "2026-11-23T06:14:22.993Z",
+      "last": "2026-11-23T06:27:11.911Z"
+    },
+    "claude:bffa4346-e7ff-48cf-baea-49cfb2a79a27/agent-abc1e5782623fc229": {
+      "agent": "claude-code",
+      "client": "claude-desktop",
+      "agent_ms": 0,
+      "models": {
+        "claude-sonnet-5-5": {
+          "input": 12,
+          "cache_read": 415594,
+          "cache_write_5m": 56134,
+          "cache_write_1h": 0,
+          "output": 1696,
+          "reasoning": 0
+        }
+      },
+      "first": "2026-11-23T06:25:25.032Z",
+      "last": "2026-11-23T06:26:14.079Z"
+    }
+  }
+}
