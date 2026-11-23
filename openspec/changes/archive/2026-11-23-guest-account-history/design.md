@@ -2,7 +2,7 @@
 
 ## Context
 
-See [proposal.md](proposal.md). Every signed-in person has one `app.host_accounts` row; a guest account is the same row seen from the requests it sent. `app.requester_host_profiles` holds the match of a sent request to the account (`request_id` primary key, cascading from both sides) and survives closure with its settings choice cleared ([request-dashboard](../../request-dashboard/proposal.md)). `app.operator_delete_host` deletes every row that references the account, the matches included, and is run by the operator CLI through `psql` and by the `host_deletion` job.
+See [proposal.md](proposal.md). Every signed-in person has one `app.host_accounts` row; a guest account is the same row seen from the requests it sent. `app.requester_host_profiles` holds the match of a sent request to the account (`request_id` primary key, cascading from both sides) and survives closure with its settings choice cleared ([request-dashboard](../2026-11-24-request-dashboard/proposal.md)). `app.operator_delete_host` deletes every row that references the account, the matches included, and is run by the operator CLI through `psql` and by the `host_deletion` job.
 
 ## Decisions
 

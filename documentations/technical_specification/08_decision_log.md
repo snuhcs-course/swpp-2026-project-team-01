@@ -78,7 +78,7 @@ These steps were not taken because they need a provider console, a person's own 
 
 ## Phase 4 — `host-review-and-booking`
 
-The [proposal](../../openspec/changes/host-review-and-booking/proposal.md#decisions) records D1–D12. The implementing session took them on 2026-10-22, under the user's instruction to log every decision and keep it changeable; none has had teammate review yet.
+The [proposal](../../openspec/changes/archive/2026-11-24-host-review-and-booking/proposal.md#decisions) records D1–D12. The implementing session took them on 2026-10-22, under the user's instruction to log every decision and keep it changeable; none has had teammate review yet.
 
 ### Product decisions
 
@@ -130,7 +130,7 @@ The [proposal](../../openspec/changes/host-review-and-booking/proposal.md#decisi
 | Lane B as one commit | The three Lane B plan items landed in one commit, because the reservation, the dispatch and reconciliation are one module and one job; the commit also carries the server modules for Lane A's shared changes and exceptions, which the evaluation job imports, and the host discussions' request scope, which the new discussions key requires | Three commits with stubbed halves | This log; the commit message | Split the module if a later change needs it |
 | Lane A cards as one commit | The selection cards and switch, the proposal and suggestion cards and the rule and travel review landed together, since they share one view, one card module and one browser test | Three commits | This log | — |
 | Reference followed for event creation | OpenInstinct `agent/lib/google-workspace/calendar.ts` at `0c2a7c6e`: a 32-hex event ID, `sendUpdates: "all"` with attendees, and `409` read back with `events.get` | Google-assigned IDs | The pull request | — |
-| Review bypass | PR #30 was squash-merged with `--admin` on 2026-10-22, without a teammate approval, at the user's request, after CI passed (7 of 7) | Waiting for approval | The squash commit message | Teammates review afterwards against the [proposal](../../openspec/changes/host-review-and-booking/proposal.md#decisions) and this log |
+| Review bypass | PR #30 was squash-merged with `--admin` on 2026-10-22, without a teammate approval, at the user's request, after CI passed (7 of 7) | Waiting for approval | The squash commit message | Teammates review afterwards against the [proposal](../../openspec/changes/archive/2026-11-24-host-review-and-booking/proposal.md#decisions) and this log |
 | Migration path | `20261022021159_host_review_and_booking.sql` went to `anelszynxtvxoxqvzgqt` with `supabase db push --linked` on 2026-10-22, after a dry run that listed only it, at the user's request, before the deploy that needs it; 22 migrations are now applied | The `Deploy shared Supabase` workflow, whose secrets are still unset | [Acceptance record](07_acceptance_record.md#phase-4--host-review-and-booking) | Set the workflow's repository secrets so later migrations go through CI |
 | Production deploy | `vercel deploy --prod` from a clean checkout of `origin/main` at `708381cb`, linked to `findmeatime-release`, after `npm ci` (compiling `vercel.ts` needs `eve` installed) | Git-integrated deploys (not configured) | Acceptance record | As in Phase 3 |
 | Production acceptance check | Run in the built-in browser on the user's own host account with a team member's second address as the guest, after the user signed in and named the address | A separate test host account | [Acceptance record](07_acceptance_record.md#production-acceptance-check) | Use a dedicated test host once one exists |
@@ -144,7 +144,7 @@ These steps were not taken because they cannot be undone by a revert, need a pro
 
 ## Phase 5 — `agent-access`
 
-The [proposal](../../openspec/changes/agent-access/proposal.md#decisions) records D1–D16 and the [design](../../openspec/changes/agent-access/design.md) the reasoning. The implementing session took them on 2026-10-22, under the user's instruction to log every decision and keep it changeable; none has had teammate review yet.
+The [proposal](../../openspec/changes/archive/2026-11-24-agent-access/proposal.md#decisions) records D1–D16 and the [design](../../openspec/changes/archive/2026-11-24-agent-access/design.md) the reasoning. The implementing session took them on 2026-10-22, under the user's instruction to log every decision and keep it changeable; none has had teammate review yet.
 
 ### Product decisions
 
@@ -231,7 +231,7 @@ These steps were not taken because they cannot be undone by a revert, need a pro
 
 ## Phase 6 — `host-imessage-channel`
 
-The [proposal](../../openspec/changes/host-imessage-channel/proposal.md#decisions) records D1–D19. The plan assigns the adapter and sender format, line provisioning and the new-conversation allowance, code expiry and resend limits, and the deep-link format to this phase. The user decided D3 and D4 on 2026-10-23; the implementing session took the others on 2026-10-23, under the user's instruction to log every decision and keep it changeable; none has had teammate review yet.
+The [proposal](../../openspec/changes/archive/2026-11-24-host-imessage-channel/proposal.md#decisions) records D1–D19. The plan assigns the adapter and sender format, line provisioning and the new-conversation allowance, code expiry and resend limits, and the deep-link format to this phase. The user decided D3 and D4 on 2026-10-23; the implementing session took the others on 2026-10-23, under the user's instruction to log every decision and keep it changeable; none has had teammate review yet.
 
 **Teammate draft PR #23 is not adopted.** PR #23 (enu3379, `docs/host-imessage-linking`) has the host enter a number in `/app`, Thyme text it first, and a matching two-digit reply link the number. That makes Thyme's first message unsolicited: it shows the recipient a junk banner and spends one of the line's daily new conversations, which the PRD's inbound-first link code exists to avoid, and the user kept the PRD's design on 2026-10-23. Three pieces of it are reused and credited in the pull request: the Photon webhook signature check (`v0:` HMAC over the raw body, five-minute window, webhook-ID check), durable inbound events stored before the `2xx` with the text cleared after processing, and send limits with spacing. Its migration timestamps predate migrations already applied to the shared project, so none of its schema files is copied. The PR itself is left untouched.
 
@@ -317,7 +317,7 @@ These steps were not taken because they cannot be undone by a revert, need a pro
 
 ## Phase 7 — `requester-email-channel`
 
-The [proposal](../../openspec/changes/requester-email-channel/proposal.md#decisions) records D1–D11; the plan assigns D1–D4 to this phase and the design raised D5–D11. The implementing session took them on 2026-10-22, under the user's instruction to log every decision and keep it changeable; none has had teammate review yet.
+The [proposal](../../openspec/changes/archive/2026-11-24-requester-email-channel/proposal.md#decisions) records D1–D11; the plan assigns D1–D4 to this phase and the design raised D5–D11. The implementing session took them on 2026-10-22, under the user's instruction to log every decision and keep it changeable; none has had teammate review yet.
 
 ### Product decisions
 
@@ -394,7 +394,7 @@ These steps were not taken because they cannot be undone by a revert, need a pro
 
 ## Phase 8 — `operations-and-release`
 
-The [proposal](../../openspec/changes/operations-and-release/proposal.md#decisions) records D1–D14; the plan assigns D1–D4 and the retention and deletion rules to this phase, and the design raised the rest. The implementing session took them on 2026-10-23, under the user's instruction to log every decision and keep it changeable; none has had teammate review yet.
+The [proposal](../../openspec/changes/archive/2026-11-24-operations-and-release/proposal.md#decisions) records D1–D14; the plan assigns D1–D4 and the retention and deletion rules to this phase, and the design raised the rest. The implementing session took them on 2026-10-23, under the user's instruction to log every decision and keep it changeable; none has had teammate review yet.
 
 ### Product decisions
 
@@ -477,7 +477,7 @@ These steps were not taken because they cannot be undone by a revert, need a pro
 16. **Production acceptance**: the named-client checks in [personal-agent clients](09_agent_clients.md), the controlled iPhone run, real inbox delivery, the guest's inbox check and a signed-in setup, recorded against the [release summary](07_acceptance_record.md#release-summary); then `openspec archive operations-and-release`.
 ## Phase 9 — `host-whatsapp-channel`
 
-The [proposal](../../openspec/changes/host-whatsapp-channel/proposal.md#decisions) records D1–D13. The team decided on 2026-11-02 to support Android hosts through WhatsApp from now on, after linking WhatsApp Business to the production Photon project. The session that wrote the change took D1–D13 the same day under that decision. They are proposals awaiting teammate review, and no code implements them yet. Tracking issue: #66.
+The [proposal](../../openspec/changes/archive/2026-11-24-host-whatsapp-channel/proposal.md#decisions) records D1–D13. The team decided on 2026-11-02 to support Android hosts through WhatsApp from now on, after linking WhatsApp Business to the production Photon project. The session that wrote the change took D1–D13 the same day under that decision. They are proposals awaiting teammate review, and no code implements them yet. Tracking issue: #66.
 
 **What came before.** On 2026-11-02, issue #62 and PR #63 made the iMessage receiver drop every event whose platform is not iMessage. Until this change is implemented, WhatsApp messages to the line are acknowledged and ignored.
 
@@ -556,7 +556,7 @@ These steps were not taken because they change a provider console, message a per
 
 ## Phase 10 — `host-telegram-channel`
 
-The [proposal](../../openspec/changes/host-telegram-channel/proposal.md#decisions) records D1–D13. On 2026-11-04 the user created the bot `@findmeatime_bot` and asked for the host channel to be set up on Telegram. The session that wrote the change took D1–D13 the same day. They are proposals awaiting teammate review. Lane A (tasks 2.1 to 2.4) implements the webhook, the records and the Bot API transport at the user's request before that review, and Lane B (tasks 3.1 and 3.2) links a Telegram sender from the card, the link step and `/?flow=telegram`, and Lane C (tasks 4.1 to 4.3) the buttons, the Telegram extras and the channel's behavior. Tracking issue: #111.
+The [proposal](../../openspec/changes/archive/2026-11-24-host-telegram-channel/proposal.md#decisions) records D1–D13. On 2026-11-04 the user created the bot `@findmeatime_bot` and asked for the host channel to be set up on Telegram. The session that wrote the change took D1–D13 the same day. They are proposals awaiting teammate review. Lane A (tasks 2.1 to 2.4) implements the webhook, the records and the Bot API transport at the user's request before that review, and Lane B (tasks 3.1 and 3.2) links a Telegram sender from the card, the link step and `/?flow=telegram`, and Lane C (tasks 4.1 to 4.3) the buttons, the Telegram extras and the channel's behavior. Tracking issue: #111.
 
 **What came before.** On 2026-11-03 Meta disabled the WhatsApp Business Account of Phase 9 for a "breach of terms of acceptable use", before it sent any message; on 2026-11-04 `PHOTON_WHATSAPP_NUMBER` was removed from production at the user's request, so the card offers iMessage only ([provider setup](03_provider_setup.md#whatsapp-business), PR #110).
 
@@ -699,7 +699,7 @@ The user reviewed D1–D10 and O1–O4 one at a time on 2026-11-01 (task 0.1).
 
 ## `imessage-number-registration`
 
-The [proposal](../../openspec/changes/imessage-number-registration/proposal.md#decisions) records D1–D3, which the user took on 2026-11-04 after issue #94 found that Photon's shared lines deliver only registered users' messages.
+The [proposal](../../openspec/changes/archive/2026-11-24-imessage-number-registration/proposal.md#decisions) records D1–D3, which the user took on 2026-11-04 after issue #94 found that Photon's shared lines deliver only registered users' messages.
 
 | # | Choice | Alternatives | Recorded in | To change it |
 |---|---|---|---|---|
@@ -710,7 +710,7 @@ The [proposal](../../openspec/changes/imessage-number-registration/proposal.md#d
 
 ## `guest-whatsapp-link`
 
-The [proposal](../../openspec/changes/guest-whatsapp-link/proposal.md#decisions) records D1–D4, taken on 2026-11-04 in the session that wrote the change, from the user's request on issue #117. They bring requester messaging over WhatsApp into scope, which `host-whatsapp-channel` left out (its non-goals and the 2026-11-02 Android decision above), and reverse `imessage-number-registration` design 1's "WhatsApp attempts take no number". They have had no teammate review yet.
+The [proposal](../../openspec/changes/archive/2026-11-24-guest-whatsapp-link/proposal.md#decisions) records D1–D4, taken on 2026-11-04 in the session that wrote the change, from the user's request on issue #117. They bring requester messaging over WhatsApp into scope, which `host-whatsapp-channel` left out (its non-goals and the 2026-11-02 Android decision above), and reverse `imessage-number-registration` design 1's "WhatsApp attempts take no number". They have had no teammate review yet.
 
 | # | Choice | Alternatives | Recorded in | To change it |
 |---|---|---|---|---|
@@ -742,7 +742,7 @@ The [proposal](../../openspec/changes/channel-actions-in-words/proposal.md#decis
 
 ## `agent-decisions-in-words`
 
-The [proposal](../../openspec/changes/agent-decisions-in-words/proposal.md#decisions) records D1–D4, taken on 2026-11-04 in the session that wrote the change, from the user's decision that natural language works everywhere, agents included (issue #149). They reverse `agent-access` D9 and amend the wording of its D3 for `host:decide`. They have had no teammate review yet.
+The [proposal](../../openspec/changes/archive/2026-11-24-agent-decisions-in-words/proposal.md#decisions) records D1–D4, taken on 2026-11-04 in the session that wrote the change, from the user's decision that natural language works everywhere, agents included (issue #149). They reverse `agent-access` D9 and amend the wording of its D3 for `host:decide`. They have had no teammate review yet.
 
 | # | Choice | Alternatives | Recorded in | To change it |
 |---|---|---|---|---|
@@ -798,7 +798,7 @@ The [proposal](../../openspec/changes/archive/2026-11-23-guest-email-and-agree-n
 
 ## `guest-telegram-link`
 
-The [proposal](../../openspec/changes/guest-telegram-link/proposal.md#decisions) records D1–D6, taken on 2026-11-16 in the session that wrote the change, from the user's request to let guests get updates in Telegram after WhatsApp was hidden (#221; tracking issue #227). They bring requester messaging over Telegram into scope, which `host-telegram-channel` left out, and supersede `guest-whatsapp-link` D4's "Telegram stays host-only". They have had no teammate review yet.
+The [proposal](../../openspec/changes/archive/2026-11-24-guest-telegram-link/proposal.md#decisions) records D1–D6, taken on 2026-11-16 in the session that wrote the change, from the user's request to let guests get updates in Telegram after WhatsApp was hidden (#221; tracking issue #227). They bring requester messaging over Telegram into scope, which `host-telegram-channel` left out, and supersede `guest-whatsapp-link` D4's "Telegram stays host-only". They have had no teammate review yet.
 
 | # | Choice | Alternatives | Recorded in | To change it |
 |---|---|---|---|---|
@@ -824,7 +824,7 @@ The [proposal](../../openspec/changes/post-booking-changes/proposal.md#decisions
 
 ## `self-service-account-deletion`
 
-The [design](../../openspec/changes/self-service-account-deletion/design.md) records these choices for issue #228, taken on 2026-11-16 from the proposal comment on that issue in the session that implemented them. The grace period and the handling of booked meetings were open questions there and wait for the issue owner's agreement.
+The [design](../../openspec/changes/archive/2026-11-24-self-service-account-deletion/design.md) records these choices for issue #228, taken on 2026-11-16 from the proposal comment on that issue in the session that implemented them. The grace period and the handling of booked meetings were open questions there and wait for the issue owner's agreement.
 
 | # | Choice | Alternatives | Recorded in | To change it |
 |---|---|---|---|---|
@@ -874,7 +874,7 @@ Remaining risk, accepted with D1 and D3: a code that leaks before its owner send
 
 ## `place-settles-in-person`
 
-The [proposal](../../openspec/changes/place-settles-in-person/proposal.md) records this choice for issue #378. The repository owner decided it on 2026-11-23 in the issue, reversing the rule that `guest-assistant-story-fixes` (PR #357) added for #280.
+The [proposal](../../openspec/changes/archive/2026-11-24-place-settles-in-person/proposal.md) records this choice for issue #378. The repository owner decided it on 2026-11-23 in the issue, reversing the rule that `guest-assistant-story-fixes` (PR #357) added for #280.
 
 | # | Choice | Alternatives | Recorded in | To change it |
 |---|---|---|---|---|

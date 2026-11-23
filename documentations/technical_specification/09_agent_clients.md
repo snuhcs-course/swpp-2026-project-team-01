@@ -2,7 +2,7 @@
 
 Status: connection paths written; no named client has been run yet\
 Date: 2026-11-20\
-Companions: [`agent-access` design](../../openspec/changes/agent-access/design.md#11-per-client-acceptance), [CLI direction](05_cli.md), [acceptance record](07_acceptance_record.md)
+Companions: [`agent-access` design](../../openspec/changes/archive/2026-11-24-agent-access/design.md#11-per-client-acceptance), [CLI direction](05_cli.md), [acceptance record](07_acceptance_record.md)
 
 This document records, for each named client of PRD FR-24, how it finds the Find Me a Time instructions, how it connects, and the result of its last run in each role. It is the per-client acceptance plan of AC-14, AC-15 and AC-19 to AC-25. A row says "not yet run" until a team member runs it and records the evidence in the acceptance record; nothing here claims that a client works before then.
 
@@ -39,7 +39,7 @@ The service checks the verified account/request association and live private-lin
 
 ## Test environment
 
-Decided in the [`agent-access` proposal](../../openspec/changes/agent-access/proposal.md#decisions) (D16):
+Decided in the [`agent-access` proposal](../../openspec/changes/archive/2026-11-24-agent-access/proposal.md#decisions) (D16):
 
 - **Where:** production, `https://findmeatime.com`, after the `agent-access` change is deployed with its migration and `AGENT_TOKEN_SIGNING_KEY`.
 - **Who:** a team host account that has finished setup, and a team-controlled requester inbox. Each client runs under a team member's own account at its current public version.
@@ -66,6 +66,6 @@ An unresolved client is a release blocker, as the [implementation plan](06_imple
 
 - The agent finds the instructions from the plain URL; if it cannot, the run repeats with the explicit `/SKILL.md` form and records that.
 - Connecting shows the consent page with the client's name and redirect host; **Deny** leaves nothing connected.
-- Host role: the agent reads setup and requests, cannot see another host's request, and approves or declines only when the host tells it to in their own words, passing those words; asked to approve with a condition, it asks the host instead ([`agent-decisions-in-words`](../../openspec/changes/agent-decisions-in-words/proposal.md)).
+- Host role: the agent reads setup and requests, cannot see another host's request, and approves or declines only when the host tells it to in their own words, passing those words; asked to approve with a condition, it asks the host instead ([`agent-decisions-in-words`](../../openspec/changes/archive/2026-11-24-agent-decisions-in-words/proposal.md)).
 - Requester role: the agent creates one request with the person's own details, asks for anything missing, chooses within what the person allowed, agrees only to a time they accept, and reports the meeting as booked only after the host approves and the service shows it booked.
 - Revoking the connection under **Connected agents** stops the agent at its next call.

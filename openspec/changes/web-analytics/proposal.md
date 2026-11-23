@@ -4,7 +4,7 @@ Tracking issue: #341
 
 ## Why
 
-Nobody on the team can see how many people open the landing page, a host page or the workspace, or where they leave. The [measurement targets](../operations-and-release/proposal.md#decisions) (D1, D2) are counted from the database, which records requests and bookings, not visits. Issue #341 asks for Google Analytics on the web app. The app's credentials live in its paths, though: a booking link is the requester's only credential ([meeting requests](../../specs/meeting-requests/spec.md)), and link codes and OAuth steps sit under `/connect`, `/connections` and `/oauth`. A stock analytics tag reports the full address of every page, and the [privacy notice](../../../apps/web/app/privacy/page.tsx) lists every processor by name. So analytics needs its own rules.
+Nobody on the team can see how many people open the landing page, a host page or the workspace, or where they leave. The [measurement targets](../archive/2026-11-24-operations-and-release/proposal.md#decisions) (D1, D2) are counted from the database, which records requests and bookings, not visits. Issue #341 asks for Google Analytics on the web app. The app's credentials live in its paths, though: a booking link is the requester's only credential ([meeting requests](../../specs/meeting-requests/spec.md)), and link codes and OAuth steps sit under `/connect`, `/connections` and `/oauth`. A stock analytics tag reports the full address of every page, and the [privacy notice](../../../apps/web/app/privacy/page.tsx) lists every processor by name. So analytics needs its own rules.
 
 ## What Changes
 
@@ -31,7 +31,7 @@ Nobody on the team can see how many people open the landing page, a host page or
 
 ### Modified Capabilities
 
-None in `openspec/specs/`. The public data notice (`data-stewardship`) is still a pending delta of [operations-and-release](../operations-and-release/specs/data-stewardship/spec.md). Its requirement already says the page names the providers that process data, so this change adds a provider to the page without changing that requirement.
+None in `openspec/specs/`. The public data notice (`data-stewardship`) is still a pending delta of [operations-and-release](../archive/2026-11-24-operations-and-release/specs/data-stewardship/spec.md). Its requirement already says the page names the providers that process data, so this change adds a provider to the page without changing that requirement.
 
 ## Impact
 

@@ -4,7 +4,7 @@
 
 상태: 연결 경로 작성 완료; 명시된 클라이언트의 실행 검증은 아직 없음\
 날짜: 2026-11-18\
-함께 보기: [`agent-access` 설계](../../openspec/changes/agent-access/design.md#11-per-client-acceptance), [CLI 방향](05_cli.md), [인수 기록](07_acceptance_record.md)
+함께 보기: [`agent-access` 설계](../../openspec/changes/archive/2026-11-24-agent-access/design.md#11-per-client-acceptance), [CLI 방향](05_cli.md), [인수 기록](07_acceptance_record.md)
 
 이 문서는 PRD FR-24의 각 클라이언트가 안내를 찾고 연결하는 방법과 역할별 마지막 실행 결과를 기록합니다. AC-14, AC-15 및 AC-19~AC-25의 클라이언트별 인수 계획입니다. 팀원이 실행하고 인수 기록에 근거를 남길 때까지 행에는 “아직 실행하지 않음”을 표시하며, 그 전에 동작을 보장하지 않습니다.
 
@@ -37,7 +37,7 @@
 
 ## 테스트 환경
 
-[`agent-access` 제안](../../openspec/changes/agent-access/proposal.md#decisions)의 D16 결정:
+[`agent-access` 제안](../../openspec/changes/archive/2026-11-24-agent-access/proposal.md#decisions)의 D16 결정:
 
 - **장소:** 마이그레이션 및 `AGENT_TOKEN_SIGNING_KEY`와 함께 `agent-access`가 배포된 운영 환경 `https://findmeatime.com`.
 - **주체:** 설정을 완료한 팀 호스트 계정과 팀에서 제어하는 요청자 이메일함. 각 클라이언트는 팀원의 계정과 현재 공개 버전으로 실행합니다.
@@ -64,6 +64,6 @@
 
 - 에이전트가 일반 URL에서 안내를 찾는지 확인합니다. 실패하면 명시적 `/SKILL.md`로 재시도하고 기록합니다.
 - 연결 시 클라이언트 이름과 리디렉션 호스트를 표시하는 동의 화면이 나오며, **Deny**를 누르면 연결되지 않습니다.
-- 호스트 역할: 설정과 요청을 읽고, 다른 호스트의 요청은 볼 수 없으며, 호스트가 본인의 말로 지시할 때만 해당 말을 전달하여 승인·거절합니다. 조건부 승인에는 다시 질문합니다([`agent-decisions-in-words`](../../openspec/changes/agent-decisions-in-words/proposal.md)).
+- 호스트 역할: 설정과 요청을 읽고, 다른 호스트의 요청은 볼 수 없으며, 호스트가 본인의 말로 지시할 때만 해당 말을 전달하여 승인·거절합니다. 조건부 승인에는 다시 질문합니다([`agent-decisions-in-words`](../../openspec/changes/archive/2026-11-24-agent-decisions-in-words/proposal.md)).
 - 요청자 역할: 사용자 본인의 정보로 요청 하나를 만들고 부족한 정보는 질문하며, 허용 범위에서 시간을 선택하고 사용자가 수락한 시간에만 동의합니다. 호스트 승인 후 서비스가 예약 완료를 표시할 때만 예약되었다고 알립니다.
 - **Connected agents**에서 연결을 취소하면 다음 호출부터 차단됩니다.

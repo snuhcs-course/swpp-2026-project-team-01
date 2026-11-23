@@ -8,7 +8,7 @@ This record lists the evidence each phase of the [implementation plan](06_implem
 
 ## Release summary
 
-Compiled on 2026-10-23 by the [`operations-and-release`](../../openspec/changes/operations-and-release/proposal.md) change (Lane D) from the phase sections below. **Local** means fixture or local-stack evidence, which proves logic; **Production** means a check against the deployed integration; **Pending** is what the [PRD](../02_product_requirements.md#9-end-to-end-release-acceptance-scenarios) still requires. A scenario with anything pending is not closed, and an unresolved named-client, device or inbox case is a release blocker, so **the release is not yet acceptable**. The zero-tolerance measures (unauthorized bookings, duplicate events, private disclosures) have no failing case in the suites run so far.
+Compiled on 2026-10-23 by the [`operations-and-release`](../../openspec/changes/archive/2026-11-24-operations-and-release/proposal.md) change (Lane D) from the phase sections below. **Local** means fixture or local-stack evidence, which proves logic; **Production** means a check against the deployed integration; **Pending** is what the [PRD](../02_product_requirements.md#9-end-to-end-release-acceptance-scenarios) still requires. A scenario with anything pending is not closed, and an unresolved named-client, device or inbox case is a release blocker, so **the release is not yet acceptable**. The zero-tolerance measures (unauthorized bookings, duplicate events, private disclosures) have no failing case in the suites run so far.
 
 | ID | Local | Production | Pending |
 |---|---|---|---|
@@ -48,7 +48,7 @@ Two earlier gaps changed since their phases were recorded: every migration throu
 
 ## Phase 1 — `application-foundation`
 
-Change: [`application-foundation`](../../openspec/changes/application-foundation/tasks.md). Evidence list: [Phase 1](06_implementation_plan.md#phase-1--application-foundation).
+Change: [`application-foundation`](../../openspec/changes/archive/2026-11-24-application-foundation/tasks.md). Evidence list: [Phase 1](06_implementation_plan.md#phase-1--application-foundation).
 
 ### Environments
 
@@ -127,7 +127,7 @@ Run by the lead on 2026-10-19 against the **production** deployment of revision 
 
 ## Phase 2 — `host-onboarding`
 
-Change: [`host-onboarding`](../../openspec/changes/host-onboarding/tasks.md). Evidence list: [Phase 2](06_implementation_plan.md#phase-2--host-onboarding). Environments as in Phase 1; the browser and integration suites also run a local Google stand-in (`tests/e2e/support/fake-google-server.ts`, `tests/integration/support/fake-google.ts`) for the token endpoint and Calendar API.
+Change: [`host-onboarding`](../../openspec/changes/archive/2026-11-24-host-onboarding/tasks.md). Evidence list: [Phase 2](06_implementation_plan.md#phase-2--host-onboarding). Environments as in Phase 1; the browser and integration suites also run a local Google stand-in (`tests/e2e/support/fake-google-server.ts`, `tests/integration/support/fake-google.ts`) for the token endpoint and Calendar API.
 
 ### Suite runs
 
@@ -183,7 +183,7 @@ Run by the lead on 2026-10-20 against the **production** deployment of revision 
 | Renewed Calendar consent | `GET /auth/sign-in?consent=calendar` on both origins | 303 to Supabase Auth with that origin's callback, `prompt=consent`, `include_granted_scopes=true`, offline access, PKCE S256 |
 | Setup API | Unauthenticated `GET /api/setup/state`; cross-site `POST /api/setup/commands` | 401; 403 |
 
-The manual push is the exception recorded in the [design](../../openspec/changes/host-onboarding/design.md#migration-plan): the user approved it again on 2026-10-20, because the deploy workflow's secrets are still not set.
+The manual push is the exception recorded in the [design](../../openspec/changes/archive/2026-11-24-host-onboarding/design.md#migration-plan): the user approved it again on 2026-10-20, because the deploy workflow's secrets are still not set.
 
 ### Known gaps
 
@@ -226,7 +226,7 @@ The manual pushes repeat the exception from Phases 1 and 2: the user approved ea
 
 ## Phase 4 — `host-review-and-booking`
 
-Change: [`host-review-and-booking`](../../openspec/changes/host-review-and-booking/tasks.md). Evidence list: [Phase 4](06_implementation_plan.md#phase-4--host-review-and-booking). Environments as in Phase 1, with the local Google stand-in extended to `events.insert` and `events.get` (fixed event IDs, `409` on a duplicate, lost responses before and after creation) and the local Cloudflare stand-in recording `reply_to` and attachments. Only the release steps below ran against production.
+Change: [`host-review-and-booking`](../../openspec/changes/archive/2026-11-24-host-review-and-booking/tasks.md). Evidence list: [Phase 4](06_implementation_plan.md#phase-4--host-review-and-booking). Environments as in Phase 1, with the local Google stand-in extended to `events.insert` and `events.get` (fixed event IDs, `409` on a duplicate, lost responses before and after creation) and the local Cloudflare stand-in recording `reply_to` and attachments. Only the release steps below ran against production.
 
 ### Suite runs
 
@@ -294,7 +294,7 @@ Found: the receipt shows the organizer as "address <address>" when Google return
 
 ## Phase 5 — `agent-access`
 
-Change: [`agent-access`](../../openspec/changes/agent-access/tasks.md). Evidence list: [Phase 5](06_implementation_plan.md#phase-5--agent-access). Environments as in Phase 1. A scripted MCP client over plain `fetch` and the CLI `fmat` stand in for agents; no named client ran, and nothing here ran against production. Per-client results belong in [personal-agent clients](09_agent_clients.md).
+Change: [`agent-access`](../../openspec/changes/archive/2026-11-24-agent-access/tasks.md). Evidence list: [Phase 5](06_implementation_plan.md#phase-5--agent-access). Environments as in Phase 1. A scripted MCP client over plain `fetch` and the CLI `fmat` stand in for agents; no named client ran, and nothing here ran against production. Per-client results belong in [personal-agent clients](09_agent_clients.md).
 
 ### Suite runs
 
@@ -329,7 +329,7 @@ Local evidence only; each names the test that shows it.
 
 ## Phase 6 — `host-imessage-channel`
 
-Change: [`host-imessage-channel`](../../openspec/changes/host-imessage-channel/tasks.md). Evidence list: [Phase 6](06_implementation_plan.md#phase-6--host-imessage-channel). Environments as in Phase 1, with the default local stack, and a loopback Photon stand-in (`tests/integration/support/fake-photon.ts`, and `tests/e2e/support/fake-photon-server.ts` for the browser tests) that records sends and can refuse a send or drop its answer. Inbound messages were signed with Photon's documented scheme (`tests/integration/support/photon.ts`). No Photon line exists, no webhook is registered, and nothing ran against Photon, a real phone or production. The link screens added later (PR #39, D15–D19) were also checked once against the `fmat-spike` line on the user's iPhone and Mac through a local receiver; nothing ran against production.
+Change: [`host-imessage-channel`](../../openspec/changes/archive/2026-11-24-host-imessage-channel/tasks.md). Evidence list: [Phase 6](06_implementation_plan.md#phase-6--host-imessage-channel). Environments as in Phase 1, with the default local stack, and a loopback Photon stand-in (`tests/integration/support/fake-photon.ts`, and `tests/e2e/support/fake-photon-server.ts` for the browser tests) that records sends and can refuse a send or drop its answer. Inbound messages were signed with Photon's documented scheme (`tests/integration/support/photon.ts`). No Photon line exists, no webhook is registered, and nothing ran against Photon, a real phone or production. The link screens added later (PR #39, D15–D19) were also checked once against the `fmat-spike` line on the user's iPhone and Mac through a local receiver; nothing ran against production.
 
 ### Suite runs
 
@@ -354,7 +354,7 @@ Fixture and local-stack evidence only; each names the test that shows it.
 
 | Item | Evidence |
 |---|---|
-| Spike and adapter (D1, D2) | [Design 1](../../openspec/changes/host-imessage-channel/design.md#1-the-transport-spike-and-the-adapter) records the comparison; `lib/server/photon-receiver.test.ts` covers the signature scheme, the sender identifier format and the payload |
+| Spike and adapter (D1, D2) | [Design 1](../../openspec/changes/archive/2026-11-24-host-imessage-channel/design.md#1-the-transport-spike-and-the-adapter) records the comparison; `lib/server/photon-receiver.test.ts` covers the signature scheme, the sender identifier format and the payload |
 | Durable signed receipt | `tests/integration/imessage-receiver.test.ts`: one sealed receipt and one job before `200`; concurrent and repeated deliveries resolve to one; a changed payload answers `409`; stale, badly signed, foreign-webhook, unconfigured and over-large deliveries store nothing. `tests/integration/eve-surface.test.ts` refuses the unsigned route on the built agent service |
 | Linking (D3, D5) | `tests/integration/imessage-links.test.ts`: binding only after **Confirm and link**; unknown, expired, replayed and group codes bind nothing; one refusal a day; a sender bound to one host; the confirmation window; five codes an hour and the exact retry |
 | One-tap deep link (D4) | `lib/contracts/imessage.test.ts` (platforms, `&body=` and `?body=`, the QR code's link); `tests/e2e/imessage-link.test.ts` at 390 and 1280 px (desktop shows the number, the message, **Copy** and the QR code and opens nothing) and with an iPhone user agent (the card's **Open Messages** carries the exact iOS link) |
@@ -383,7 +383,7 @@ Fixture and local-stack evidence only; each names the test that shows it.
 
 ## Phase 7 — `requester-email-channel`
 
-Change: [`requester-email-channel`](../../openspec/changes/requester-email-channel/tasks.md). Evidence list: [Phase 7](06_implementation_plan.md#phase-7--requester-email-channel). Environments as in Phase 1, except that the local stack was a separate one (`project_id` `fmat-phase7`, ports 553xx) so the parallel Phase 5 session's stack was never reset ([decision log](08_decision_log.md#phase-7--requester-email-channel)), and a local AgentMail stand-in (`tests/integration/support/fake-agentmail.ts`) served the message API, recorded replies and honored `Idempotency-Key`. No inbox exists and nothing ran against AgentMail or production.
+Change: [`requester-email-channel`](../../openspec/changes/archive/2026-11-24-requester-email-channel/tasks.md). Evidence list: [Phase 7](06_implementation_plan.md#phase-7--requester-email-channel). Environments as in Phase 1, except that the local stack was a separate one (`project_id` `fmat-phase7`, ports 553xx) so the parallel Phase 5 session's stack was never reset ([decision log](08_decision_log.md#phase-7--requester-email-channel)), and a local AgentMail stand-in (`tests/integration/support/fake-agentmail.ts`) served the message API, recorded replies and honored `Idempotency-Key`. No inbox exists and nothing ran against AgentMail or production.
 
 ### Suite runs
 
@@ -421,7 +421,7 @@ Fixture and local-stack evidence only; each names the test that shows it.
 
 ## Phase 8 — `operations-and-release`
 
-Change: [`operations-and-release`](../../openspec/changes/operations-and-release/tasks.md). Evidence list: [Phase 8](06_implementation_plan.md#phase-8--operations-and-release). Environments as in Phase 1; this branch ran on the default local stack, reset with its own migration chain.
+Change: [`operations-and-release`](../../openspec/changes/archive/2026-11-24-operations-and-release/tasks.md). Evidence list: [Phase 8](06_implementation_plan.md#phase-8--operations-and-release). Environments as in Phase 1; this branch ran on the default local stack, reset with its own migration chain.
 
 ### Suite runs
 
@@ -474,7 +474,7 @@ The push was an exception to the CI-only rule, taken because the `Deploy shared 
 
 ## Phase 9 — `host-whatsapp-channel`
 
-Change: [`host-whatsapp-channel`](../../openspec/changes/host-whatsapp-channel/tasks.md). Evidence list: [Phase 9](06_implementation_plan.md#phase-9--host-whatsapp-channel). Environments as in Phase 6: the default local stack and the loopback Photon stand-in (`tests/integration/support/fake-photon.ts`), which now answers WhatsApp at `/whatsapp/messages`, refuses free text for a closed window (131047) and can refuse every template.
+Change: [`host-whatsapp-channel`](../../openspec/changes/archive/2026-11-24-host-whatsapp-channel/tasks.md). Evidence list: [Phase 9](06_implementation_plan.md#phase-9--host-whatsapp-channel). Environments as in Phase 6: the default local stack and the loopback Photon stand-in (`tests/integration/support/fake-photon.ts`), which now answers WhatsApp at `/whatsapp/messages`, refuses free text for a closed window (131047) and can refuse every template.
 
 ### Suite runs
 
@@ -521,7 +521,7 @@ Fixture and local-stack evidence only.
 
 ## Phase 10 — `host-telegram-channel`
 
-Change: [`host-telegram-channel`](../../openspec/changes/host-telegram-channel/tasks.md). Evidence list: [Phase 10](06_implementation_plan.md#phase-10--host-telegram-channel). Lanes A to C were verified locally in their pull requests (#113, #127, #130, #134); this section records the release and the join.
+Change: [`host-telegram-channel`](../../openspec/changes/archive/2026-11-24-host-telegram-channel/tasks.md). Evidence list: [Phase 10](06_implementation_plan.md#phase-10--host-telegram-channel). Lanes A to C were verified locally in their pull requests (#113, #127, #130, #134); this section records the release and the join.
 
 ### Suite runs
 

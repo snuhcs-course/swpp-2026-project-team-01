@@ -25,12 +25,12 @@ The website SHALL open incomplete host setup and request management on the relev
 - **THEN** request conversations appear as selectable artifacts in the conversation workspace without a permanent sidebar
 
 #### Scenario: Switch host discussion visibility
-- **WHEN** a host reviews a request with shared and private discussions
-- **THEN** a labeled switch shows one discussion at a time and never exposes the private discussion to a requester
+- **WHEN** a host reviews a request
+- **THEN** only the host-private discussion is shown, with no switch to the requester's conversation, and the private discussion is never exposed to a requester
 
 #### Scenario: Use compact navigation
-- **WHEN** a ready host opens the workspace menu by pointer or keyboard
-- **THEN** dashboard, setup, inbox, and sign-out actions are available, the menu closes with Escape, and focus returns to its trigger
+- **WHEN** a host opens the workspace menu by pointer or keyboard
+- **THEN** dashboard, setup, inbox, and sign-out actions are available for a ready host, the menu closes with Escape, and focus returns to its trigger
 
 #### Scenario: Request link without authority
 - **WHEN** a browser opens a protected request without its continuation credential, or with an unknown, malformed or expired one
@@ -97,7 +97,7 @@ Temporary admission throttling SHALL return a safe retryable error to web caller
 - **THEN** no new model work is admitted and the receipt reaches the channel's existing unauthorized terminal outcome
 
 ### Requirement: Google-only MVP host login
-The host workspace SHALL offer Google sign-in through Supabase Auth and SHALL NOT offer email/password, email OTP or magic-link login in the MVP. The application SHALL initiate one Google OAuth consent that requests identity together with the Calendar scopes needed to read selected calendars and create events, with browser-bound PKCE, offline access and a fixed `/auth/callback` return to `/app`, and SHALL record the scopes Google actually granted and the refresh token server-side at sign-in. The deployed Auth configuration SHALL disable email login. First-time Google sign-in SHALL create an active host account whether or not the Calendar scopes were granted. Calendar permission SHALL exist only for granted scopes; login SHALL NOT grant requester authority, and requester contact email fields SHALL remain available.
+The host workspace SHALL offer Google sign-in through Supabase Auth and SHALL NOT offer email/password, email OTP or magic-link login in the MVP. The application SHALL initiate one Google OAuth consent that requests identity together with the Calendar scopes needed to read selected calendars and create events, with browser-bound PKCE, offline access and a `/auth/callback` return to `/app`, and SHALL record the scopes Google actually granted and the refresh token server-side at sign-in. The only other returns SHALL be to a live, undecided agent consent transaction at `/connect/consent`, to a live host chat-link page at `/connect/link/{token}`, or to `/app` after a sign-in started from the iMessage start; sign-in records the return in an HTTP-only cookie after checking the transaction or link, and the callback checks it again. A query parameter or other caller-supplied value SHALL NOT choose any other destination. The deployed Auth configuration SHALL disable email login. First-time Google sign-in SHALL create an active host account whether or not the Calendar scopes were granted. Calendar permission SHALL exist only for granted scopes; login SHALL NOT grant requester authority, and requester contact email fields SHALL remain available.
 
 #### Scenario: First Google sign-in
 - **WHEN** a user completes Google sign-in for the first time
@@ -114,6 +114,14 @@ The host workspace SHALL offer Google sign-in through Supabase Auth and SHALL NO
 #### Scenario: Former email login request
 - **WHEN** a client submits an email address to the sign-in endpoint
 - **THEN** the request is rejected without sending an authentication email
+
+#### Scenario: Sign-in from agent consent
+- **WHEN** a signed-out host starts sign-in from the consent page of a live transaction
+- **THEN** the callback returns to that consent page instead of `/app`
+
+#### Scenario: Return to a stale transaction
+- **WHEN** the recorded transaction expired or was decided before the callback
+- **THEN** the callback returns to `/app`
 
 ### Requirement: Single host workspace
 Host sign-in, setup, request selection, review and settings SHALL remain inside `/app` as authorized states, cards or dialogs. Browser authentication and consent SHALL return to that workspace with the permitted context restored. The wordmark on every signed-in host page SHALL link to `/app`. While the workspace reads the host's session, it SHALL show the workspace background with a loading status, not the sign-in layout. A return from Google consent begun at Thyme's Calendar link SHALL say that Google Calendar is connected only when the grant can use Calendar.
@@ -187,7 +195,7 @@ A workspace with a confirmed failed runtime SHALL show a safe explanation and an
 - **THEN** the workspace reports that outcome without claiming recovery, exposing credentials or discarding unsent text
 
 ### Requirement: Host calendar Dashboard
-The Dashboard SHALL show confirmed Find Me a Time bookings and events from the host's selected Google calendars in the host's saved timezone. The two sources SHALL have distinct colors and text labels. A confirmed booking that is also present in Google Calendar SHALL appear only once as a Find Me a Time meeting. The Dashboard SHALL provide week and month views, previous and next period navigation, a return to today, source filters, and details for a selected day and event. Calendar details SHALL be available only to the authenticated host. A Google Calendar access error SHALL leave confirmed bookings visible with an explanation. Period navigation SHALL keep the date and time grid visible, showing loading feedback in the event area while the period's events are fetched; a period loaded earlier in the visit SHALL show its events at once, the adjacent periods SHALL be fetched ahead, and the events shown SHALL always be those of the selected period.
+The Dashboard SHALL show confirmed Find Me a Time bookings received by the signed-in account, timed requests the account sent as a verified guest, and events from selected Google calendars in the account's saved timezone. The sources SHALL have distinct colors and text labels. A confirmed booking also present in Google Calendar SHALL appear only once. The Dashboard SHALL provide week and month views, previous and next period navigation, a return to today, source filters, and details for a selected day and event. Calendar details SHALL be available only to the authenticated account. A Google Calendar access error SHALL leave Find Me a Time bookings and sent requests visible with an explanation. Period navigation SHALL keep the date and time grid visible, showing loading feedback in the event area while the period's events are fetched; a period loaded earlier in the visit SHALL show its events at once, the adjacent periods SHALL be fetched ahead, and the events shown SHALL always be those of the selected period.
 
 #### Scenario: Compare sources
 - **WHEN** a host opens a week containing a Google event and a confirmed Find Me a Time booking
@@ -200,6 +208,26 @@ The Dashboard SHALL show confirmed Find Me a Time bookings and events from the h
 #### Scenario: Google Calendar access fails
 - **WHEN** Google Calendar cannot be read for the host
 - **THEN** confirmed Find Me a Time bookings remain visible and a status message explains the Google Calendar problem
+
+#### Scenario: Changing weeks
+- **WHEN** the host moves to the next week and back in the Week view
+- **THEN** the grid stays visible throughout, the next week's events usually show without waiting, and the week returned to shows its events at once
+
+#### Scenario: Answers arrive out of order
+- **WHEN** the host moves through several weeks quickly and an earlier week's answer arrives last
+- **THEN** the Dashboard shows the selected week's events, not the earlier week's
+
+#### Scenario: Sent booking and Google invitation
+- **WHEN** a signed-in account has a confirmed booking made as a guest and Google Calendar returns its invitation
+- **THEN** the Dashboard shows one labeled sent meeting at its confirmed time, not a second Google event
+
+#### Scenario: Sent request waiting for approval
+- **WHEN** a matched guest request has an agreed proposal awaiting approval
+- **THEN** the Dashboard shows its proposed time and **Awaiting approval**, without calling it booked
+
+#### Scenario: Guest without a verified account match
+- **WHEN** a guest neither signs in with Google for a request nor has an existing signed-in account session
+- **THEN** that request is absent from the account's sent view
 
 ### Requirement: Guided host setup in the linked chat
 Host setup in a linked iMessage, WhatsApp or Telegram conversation SHALL show its progress: the first setup message SHALL say in one line what setup covers and roughly how long it takes; each step's question SHALL start with a line naming the step and where it stands among the four steps, Calendar, Meeting hours, Where you meet and Open times; and the first successful save SHALL say plainly that setup is done, with the booking link. The web setup SHALL use the same step names for the same steps. When the service saves the primary calendar as the default calendar roles, its message SHALL name the other calendars it would recommend checking for conflicts and ask once whether they should count too; without an answer, the primary calendar SHALL remain the only conflict calendar. Each message SHALL ask at most one question.
@@ -275,3 +303,89 @@ The Dashboard SHALL show each received request that needs the host's decision (a
 #### Scenario: Request decided or only a sample
 - **WHEN** the request is booked, declined or closed, or the only request is the tutorial sample
 - **THEN** no received-request block appears for it; a booked request appears as a Find Me a Time meeting
+
+### Requirement: Notify a host when the weekly limit holds a requester
+When a requester evaluation finds feasible candidates but offers none because every candidate falls in a full week under the host's current weekly limit, the service SHALL send the host a notice on the host's active linked conversation. The notice SHALL explain that the guest cannot choose a time, ask whether the host wants to adjust the weekly limit, and link directly to that setting. It SHALL be suppressed when the request or settings revision changes before delivery and deduplicated for the same revisions.
+
+#### Scenario: Weekly limit holds every feasible time
+- **WHEN** a current requester evaluation holds all otherwise feasible candidates because of the weekly limit
+- **THEN** the host receives one revision-scoped notice with a direct link to edit the limit
+
+#### Scenario: Request or settings changed before delivery
+- **WHEN** the queued weekly-limit notice is processed after its request or settings revision changed, or the hold no longer applies
+- **THEN** the notice is suppressed
+
+### Requirement: Host request inbox
+`/app` SHALL offer a request inbox from the workspace menu that lists the host's requests, except drafts, as selectable cards with requester, purpose, status and whether a decision is needed. A selected request SHALL open on the host-private discussion with the assistant and its decision cards: the proposal review, any suggested shared changes, the rule and travel review and the booking status. The host SHALL NOT be shown the requester's conversation with the assistant; the request's details, current proposal, agreement and status SHALL come from the host projection. Selection SHALL be addressable as `/app?request={requestId}`.
+
+#### Scenario: Host opens a request from the inbox
+- **WHEN** a host selects a request awaiting approval
+- **THEN** the private discussion and the proposal review card with **Approve this proposal**, **Request changes** and **Decline** appear, and the URL names the request
+
+#### Scenario: Requester conversation stays with the requester
+- **WHEN** a host opens a request whose requester has written to the assistant
+- **THEN** the view offers no tab, link or route to that conversation, and the requester's messages are not shown
+
+#### Scenario: Another host's request
+- **WHEN** a host opens `/app?request=` with a request that belongs to another host
+- **THEN** the inbox opens with no request selected and nothing about that request is shown
+
+### Requirement: Connected apps manages host calendars
+The host's **Connected apps** dialog SHALL show the connected Google account and let the host change the calendars checked for conflicts and the destination used for new bookings. It SHALL let the host disconnect the saved Google Calendar grant. Disconnecting SHALL remove the app's saved grant and calendar selections, pause readiness for new requests until setup is completed again, and SHALL NOT delete existing calendar events or bookings.
+
+#### Scenario: Change calendar roles
+- **WHEN** the host selects different conflict calendars or a different writable booking calendar and saves
+- **THEN** the new choices are saved through setup's calendar-role command
+
+#### Scenario: Disconnect Google Calendar
+- **WHEN** the host confirms disconnecting
+- **THEN** the saved grant and calendar selections are removed, existing events and bookings remain, and new requests are unavailable until reconnection and setup
+
+### Requirement: Account request inbox
+The Requests view SHALL combine requests received by the signed-in account with requests it sent as a guest whose verified Google subject or existing signed-in account session matched that active account, whether or not host settings were completed. A typed contact email alone SHALL NOT link a request. Each card SHALL show the other party, purpose when available, state, proposed time when available, and a direction tag reading **Received request** or **Sent request**. All, Received and Sent filters SHALL narrow the list. Received requests requiring action SHALL say **Needs your decision** in red, and a sent request awaiting the other party's approval SHALL say **Awaiting host approval**. Direction SHALL be conveyed by text as well as color.
+
+#### Scenario: Both directions
+- **WHEN** a signed-in account has one received and one matched sent request
+- **THEN** both appear in All, and each appears only in its matching filter
+
+#### Scenario: Signed-in guest continues without Google
+- **WHEN** an already signed-in account identifies a guest request manually
+- **THEN** the request is linked to that account after identification succeeds, without using the typed contact email as proof
+
+#### Scenario: Open a sent request
+- **WHEN** the account selects an open sent request with a valid private link
+- **THEN** the existing guest workspace opens under that link, with its existing requester permissions; a closed sent request shows its conversation read only in the list instead ([guest-account-history](../guest-account-history/spec.md))
+
+#### Scenario: Expired private link
+- **WHEN** the sent request's private link has expired
+- **THEN** the summary remains visible but no link or request credential is exposed
+
+#### Scenario: Closed request history
+- **WHEN** a matched request closes
+- **THEN** its host-profile settings choice is cleared and the account still sees the sent request summary
+
+### Requirement: Host calendar beside a decision
+While a received request in the host's Requests view shows a proposal, a suggestion, the offered times of a private search or the **Request changes** editor, the view SHALL show the host's own calendar for that week beside the decision card on a wide screen and with it on a narrow one, as one day with a day switcher on a phone. The calendar SHALL show the events the Dashboard shows for that week, with the proposed time, a suggestion and the time being edited marked over them in text as well as colour, and SHALL move to a new proposed or edited time. Choosing an offered time or an empty time on the calendar SHALL open **Request changes** with that time filled in and SHALL share nothing until the host shares the suggestion. The calendar SHALL NOT appear for the tutorial sample or a closed request, and a failed calendar read SHALL keep the marked times with an explanation.
+
+#### Scenario: Proposal against the host's day
+- **WHEN** the host opens a received request awaiting approval with a proposal at 10:00 on a day that has a Google event at 09:00
+- **THEN** the host's week for that day is shown beside the decision card with the 09:00 event and the 10:00 time marked **Proposed**
+
+#### Scenario: Suggest a time from the calendar
+- **WHEN** the host clicks an empty 14:00 slot on the calendar
+- **THEN** **Request changes** opens with that date and 14:00 filled in, the calendar marks it as the new time, and nothing is shared with the requester
+
+#### Scenario: Calendar cannot be read
+- **WHEN** the host's calendar cannot be loaded for the shown week
+- **THEN** the marked times remain and a status line says the calendar could not be loaded
+
+### Requirement: Host schedule image review
+The host Calendar connection card SHALL offer an English action to upload a schedule image. Activating it SHALL reveal a PNG/JPEG/WebP file input, preview, reading status and detected free hours. The server SHALL authorize the host, bound and validate the image, limit model attempts and return only structured weekday/time ranges. Adding the detected hours to setup SHALL create an unaccepted draft suggestion. After Google Calendar connection, the normal weekly hours question SHALL show that suggestion with actions to accept or adjust it. The image and private extracted text SHALL not be persisted or sent to a guest or the assistant. The host SHALL still choose a writable Google Calendar destination for confirmed bookings.
+
+#### Scenario: Recognized weekly timetable
+- **WHEN** the host uploads a labeled weekly timetable and the extractor finds clear free hours
+- **THEN** the hours appear as a draft suggestion and the weekly hours question asks the host to accept or correct them
+
+#### Scenario: Unavailable reading
+- **WHEN** the image is invalid, ambiguous, the provider is disabled or a budget limit is reached
+- **THEN** the host can enter weekly hours through the existing setup editor and still connect Calendar for bookings

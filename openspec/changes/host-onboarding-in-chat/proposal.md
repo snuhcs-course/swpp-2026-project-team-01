@@ -4,7 +4,7 @@ Tracking issue: #166
 
 ## Why
 
-The Iteration 4 kickoff (2026-11-08) moved host onboarding out of the web: a host should start from iMessage or WhatsApp and finish there. Today the [iMessage start](../host-imessage-channel/proposal.md) already links the phone and lets setup continue in the chat, but two steps still need `/app`. Calendar roles are saved only by the web card (`setup.save_calendar_roles`), and meeting mode, location and travel mode count only after a card press ([`host-onboarding`](../host-onboarding/specs/host-setup/spec.md), "Explicit mode, location and transport answers"). So a host who stays in the chat cannot finish. The chat also asks setup field by field, with suggestions the host has to read as settings.
+The Iteration 4 kickoff (2026-11-08) moved host onboarding out of the web: a host should start from iMessage or WhatsApp and finish there. Today the [iMessage start](../archive/2026-11-24-host-imessage-channel/proposal.md) already links the phone and lets setup continue in the chat, but two steps still need `/app`. Calendar roles are saved only by the web card (`setup.save_calendar_roles`), and meeting mode, location and travel mode count only after a card press ([`host-onboarding`](../archive/2026-11-24-host-onboarding/specs/host-setup/spec.md), "Explicit mode, location and transport answers"). So a host who stays in the chat cannot finish. The chat also asks setup field by field, with suggestions the host has to read as settings.
 
 The kickoff asked for a shorter conversation that reads the host's calendar first: suggest meeting hours from when the host's meetings and appointments actually ran, suggest places from where they were, show next week's open slots, and end with the booking link.
 

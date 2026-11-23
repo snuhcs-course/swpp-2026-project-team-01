@@ -28,7 +28,7 @@ M-2 ("Which meetings are confirmed this week?") was rechecked first: since #302 
 
 ### Modified Capabilities
 
-- `chat-workspaces`: received requests awaiting a decision on the Dashboard, added as a new requirement so the still-open [`request-dashboard`](../../request-dashboard/proposal.md) change, which modifies **Host calendar Dashboard**, is not contradicted.
+- `chat-workspaces`: received requests awaiting a decision on the Dashboard, added as a new requirement so the still-open [`request-dashboard`](../2026-11-24-request-dashboard/proposal.md) change, which modifies **Host calendar Dashboard**, is not contradicted.
 
 ## Impact
 

@@ -2,7 +2,7 @@
 
 ## Context
 
-See [proposal.md](proposal.md). Linking used to be two steps: the code's message recorded the sender (`imessage_links.state = 'received'`) and the browser's **Confirm and link** bound it ([`host-imessage-channel` design 4](../host-imessage-channel/design.md#4-linking-by-a-host-sent-code), [`guest-flow-completion` design 1](../guest-flow-completion/design.md)). This change makes the first step bind.
+See [proposal.md](proposal.md). Linking used to be two steps: the code's message recorded the sender (`imessage_links.state = 'received'`) and the browser's **Confirm and link** bound it ([`host-imessage-channel` design 4](../archive/2026-11-24-host-imessage-channel/design.md#4-linking-by-a-host-sent-code), [`guest-flow-completion` design 1](../guest-flow-completion/design.md)). This change makes the first step bind.
 
 ## Goals / Non-Goals
 

@@ -15,6 +15,6 @@ An email thread SHALL be bound to at most one request, and a request SHALL have 
 - **WHEN** the bound sender writes after the request was booked
 - **THEN** the message reaches the request's discussion, the assistant answers from the booking's receipt, and nothing is recorded
 
-#### Scenario: Declined, expired or withdrawn request
+#### Scenario: Closed request
 - **WHEN** the bound sender writes after the request was declined, expired or withdrawn
 - **THEN** no closed notice is sent, and the message creates or reaches the revised request as `meeting-requests` requires

@@ -32,4 +32,4 @@ None.
 
 ## Impact
 
-`lib/contracts/setup.ts`, `lib/server/requester-routes.ts`, `lib/server/host-tutorial.ts`, `apps/web/app/_components/host/host-request-cards.tsx`, their unit tests, the [product requirements](../../../../documentations/02_product_requirements.md) rule configuration row, and the starter-default tables of the [`host-onboarding`](../../host-onboarding/design.md#5-starter-defaults-and-suggestions) change. No schema change and no data migration.
+`lib/contracts/setup.ts`, `lib/server/requester-routes.ts`, `lib/server/host-tutorial.ts`, `apps/web/app/_components/host/host-request-cards.tsx`, their unit tests, the [product requirements](../../../../documentations/02_product_requirements.md) rule configuration row, and the starter-default tables of the [`host-onboarding`](../2026-11-24-host-onboarding/design.md#5-starter-defaults-and-suggestions) change. No schema change and no data migration.

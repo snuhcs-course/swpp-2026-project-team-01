@@ -8,7 +8,7 @@
 
 ## 상태
 
-**Phase 1과 2가 구현되었습니다.** 제품 방향, 사용자 경험, 아키텍처, 제공자 설정, 시각 디자인, 기능 명세는 이 저장소에서 합의되었습니다. [`application-foundation`](openspec/changes/application-foundation/proposal.md) 변경이 Google 로그인, `/app` 작업 공간, 플랫폼 메커니즘을 만들었고, [`host-onboarding`](openspec/changes/host-onboarding/proposal.md)이 제안 우선 호스트 설정, 공개 호스트 페이지와 스킬 문서, 관리자 CLI를 추가했습니다. 두 변경 모두 `findmeatime.com`과 `release.findmeatime.com`에 배포되어 있으며, 그 증거와 열린 공백은 [인수 기록](documentations/technical_specification/07_acceptance_record.md)에 있습니다. 요청자 접수와 예약은 이후 단계에서 들어옵니다.
+**Phase 1과 2가 구현되었습니다.** 제품 방향, 사용자 경험, 아키텍처, 제공자 설정, 시각 디자인, 기능 명세는 이 저장소에서 합의되었습니다. [`application-foundation`](openspec/changes/archive/2026-11-24-application-foundation/proposal.md) 변경이 Google 로그인, `/app` 작업 공간, 플랫폼 메커니즘을 만들었고, [`host-onboarding`](openspec/changes/archive/2026-11-24-host-onboarding/proposal.md)이 제안 우선 호스트 설정, 공개 호스트 페이지와 스킬 문서, 관리자 CLI를 추가했습니다. 두 변경 모두 `findmeatime.com`과 `release.findmeatime.com`에 배포되어 있으며, 그 증거와 열린 공백은 [인수 기록](documentations/technical_specification/07_acceptance_record.md)에 있습니다. 요청자 접수와 예약은 이후 단계에서 들어옵니다.
 
 먼저 [원페이저](documentations/01_one_pager.md)와 [PRD](documentations/02_product_requirements.md)를 읽으십시오. [문서 색인](documentations/README.md)에서 모든 문서를 볼 수 있습니다.
 

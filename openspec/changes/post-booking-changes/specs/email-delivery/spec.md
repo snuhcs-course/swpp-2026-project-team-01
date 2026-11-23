@@ -1,15 +1,23 @@
 ## MODIFIED Requirements
 
 ### Requirement: Requester status notifications
-The service SHALL email the requester's verified contact when a new proposal version awaits their agreement, when the host declines, when the request expires, when a booking stays pending beyond the reconciliation window, when the host cancels a booked meeting, and when a change to a booked meeting is declined or expires. Each notification SHALL carry the current status and the booking link, SHALL be generated from domain records, and SHALL NOT change request state. Requesters who entered through email SHALL receive the same notices in their existing conversational thread.
+The service SHALL email the requester's current contact address, whether or not the requester confirmed it, when a new proposal version awaits their agreement, when the host declines, when the request expires, when a booking stays unconfirmed 15 minutes after its first dispatch, when the host cancels a booked meeting, and when a change to a booked meeting is declined or expires. Each notification SHALL carry the current status and the booking link, SHALL be generated from domain records, SHALL be suppressed at dispatch when its condition no longer holds, and SHALL NOT change request state. Requesters who entered through email SHALL receive the same notices in their existing conversational thread.
 
 #### Scenario: Host requests changes
 - **WHEN** the host shares revised details that create a new proposal version
-- **THEN** the requester's verified contact receives an action-needed email with the changed details and the booking link, and no agreement is recorded
+- **THEN** the requester's contact address receives an action-needed email with the changed details and the booking link, and no agreement is recorded
 
 #### Scenario: Notification delivery fails
 - **WHEN** a status email is rejected or uncertain
 - **THEN** the delivery job retries or records uncertainty without changing the request or booking state
+
+#### Scenario: Booking still pending
+- **WHEN** a booking is still unconfirmed 15 minutes after its first dispatch
+- **THEN** the requester receives one email saying the booking is in progress, with the booking link and no claim that the meeting is booked
+
+#### Scenario: Notice no longer current
+- **WHEN** a new-version email reaches dispatch after the requester agreed or a newer version replaced it
+- **THEN** it is suppressed and not sent
 
 #### Scenario: Host cancels a booked meeting
 - **WHEN** the host cancels a booked meeting
