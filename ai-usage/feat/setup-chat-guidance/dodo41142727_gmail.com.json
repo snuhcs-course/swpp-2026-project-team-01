@@ -1,0 +1,40 @@
+{
+  "branch": "feat/setup-chat-guidance",
+  "user": "dodo41142727@gmail.com",
+  "sessions": {
+    "claude:05556d48-088b-41ab-92af-6d19f777618a": {
+      "agent": "claude-code",
+      "client": "claude-desktop",
+      "agent_ms": 0,
+      "models": {
+        "claude-opus-5-5": {
+          "input": 124,
+          "cache_read": 10624966,
+          "cache_write_5m": 0,
+          "cache_write_1h": 138494,
+          "output": 47016,
+          "reasoning": 0
+        }
+      },
+      "first": "2026-11-23T06:14:08.845Z",
+      "last": "2026-11-23T06:32:22.137Z"
+    },
+    "claude:05556d48-088b-41ab-92af-6d19f777618a/agent-a95e0747fc473875e": {
+      "agent": "claude-code",
+      "client": "claude-desktop",
+      "agent_ms": 0,
+      "models": {
+        "claude-sonnet-5-5": {
+          "input": 6,
+          "cache_read": 176737,
+          "cache_write_5m": 56045,
+          "cache_write_1h": 0,
+          "output": 1640,
+          "reasoning": 0
+        }
+      },
+      "first": "2026-11-23T06:30:47.396Z",
+      "last": "2026-11-23T06:31:03.026Z"
+    }
+  }
+}

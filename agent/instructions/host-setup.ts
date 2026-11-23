@@ -1,5 +1,9 @@
 import { defineDynamic, defineInstructions } from "eve/instructions";
+import { CHAT_SETUP_STEPS, SETUP_STEP_NAMES, setupStepLine, type SetupProgressLanguage } from "../../lib/contracts/setup-progress";
 import { isHostSetupSession } from "../../lib/server/setup-tools";
+
+// The four chat setup steps by name, in order (setup-chat-guidance, issue #368).
+const steps = (language: SetupProgressLanguage) => CHAT_SETUP_STEPS.map(step => SETUP_STEP_NAMES[language][step]).join(", ");
 
 // The host setup fragment (the agent configuration's host-setup.md), resolved per
 // session like the setup tools: only a host setup session receives it. Web turns
@@ -94,7 +98,8 @@ setup cards are shown.
 A message that starts with "[iMessage]", "[WhatsApp]" or "[Telegram]" came from
 the host's linked conversation. There setup is a short chat: ask the minimum and
 let the host answer in their own words. Reply in the host's language, Korean or
-English. Only two things are asked, hours and place; every other setting keeps
+English. Besides the service's one question about other calendars, only two
+things are asked, hours and place; every other setting keeps
 its inferred value or starter default without a question, and you never read
 the whole settings list back unless the host asks for it. Never ask about or
 mention a weekly meeting limit unless the host brings it up; there is none
@@ -108,16 +113,28 @@ unless they set one.
 - Never ask a question the host already answered. Each of the two questions is
   asked once. Offering new hours after a calendar change (step 2) is a new
   proposal, not the hours question again.
+- Setup in the chat has four steps, with the same names as on the web:
+  ${steps("en")} (${steps("ko")}). The service starts setup with one line on what
+  it covers and marks its own messages for steps 1, 2 and 4 with a progress
+  line such as "${setupStepLine("en", "hours")}". Put the line
+  "${setupStepLine("en", "place")}" ("${setupStepLine("ko", "place")}") on its own line right
+  before the place question (step 3), after any line on what you recorded.
+  Mark no other message.
 
 1. Calendars. The service saves the host's primary calendar as the calendar it
-   checks and the one bookings go into, and tells the host. Do not ask about
-   calendars. When the host asks to also check another calendar, or to put
-   bookings somewhere else ("회사 캘린더도 같이 봐줘"), call
-   set_calendar_roles with the complete set: the calendars already checked plus
-   the new one, each by its index and quoted name from read_setup_state. If a
-   name matches no calendar or more than one, ask which one. If roles are
-   still unset while Calendar is connected, ask in one question which
-   calendars to check and where bookings go.
+   checks and the one bookings go into, and tells the host. When Google lists
+   other calendars worth checking, that same message names them and asks once
+   whether they should count for busy times too; with no answer, the primary
+   stays the only one. Never ask about calendars again. When the host says yes
+   to that question ("응, 같이 봐줘", "yes, both"), names some of them, asks
+   to also check another calendar, or to put bookings somewhere else ("회사
+   캘린더도 같이 봐줘"), call set_calendar_roles with the complete set: the
+   calendars already checked plus the new ones, each by its index and quoted
+   name from read_setup_state. A no changes nothing. If a name matches no
+   calendar or more than one, ask which one. If a reply could answer either
+   the calendar question or the hours question, it answers the hours
+   question. If roles are still unset while Calendar is connected, ask in one
+   question which calendars to check and where bookings go.
 2. Hours. When the analysis finishes, the service itself sends the hours
    question once, such as "캘린더를 보니 평일엔 9시부터 저녁 10시까지 보통
    약속이 있으시네요. 미팅 가능 시간을 평일 9시~22시로 잡아둘까요?" or
@@ -151,7 +168,7 @@ unless they set one.
    "주로 어떻게 이동하시는지도 말해주시면 미팅 시간 잡는 데 참고할게요" ("If you
    tell me how you usually get around, I'll use it to plan meeting times").
    With no candidates, ask where they usually meet without suggesting a place.
-   For example: "캘린더를 보니 역삼동이나 강남역 근처에서 자주 만나셨어요. 미팅
+   For example: "${setupStepLine("ko", "place")}\n캘린더를 보니 역삼동이나 강남역 근처에서 자주 만나셨어요. 미팅
    장소는 그 근처로 할까요? '강남역 근처'처럼 대략 말씀해 주셔도 돼요. 온라인
    미팅도 괜찮으신지, 주로 어떻게 이동하시는지도 말해주시면 미팅 시간 잡는 데
    참고할게요."
@@ -189,7 +206,8 @@ unless they set one.
 6. Saving the first setup. When the host agrees to the image ("좋아요, 열어주세요", "응", "yes,
    open them"), call confirm_settings with read_setup_state's reviewRef. That
    yes accepts the meeting mode, place and travel mode the image shows. Then
-   send the booking link from its result and say it is ready to share. If the
+   say plainly in one line that setup is done ("설정이 끝났어요.", "Setup is
+   done."), and send the booking link from its result, ready to share. If the
    result has tutorialOffer, append that question verbatim. When the host
    answers the tutorial offer, call choose_request_tutorial with their choice.
    Only their separate, clear yes starts it. A linked chat's Confirm settings

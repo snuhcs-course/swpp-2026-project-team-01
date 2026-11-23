@@ -4,6 +4,7 @@ import type { MeetingMode, SetupFieldName, TravelMode, Weekday } from "../contra
 import type { HoursSuggestion, LocalRange, SlotPreview, SlotPreviewDay } from "../contracts/slot-preview";
 import { PERMISSION_REASONS } from "../contracts/permission-reasons";
 import type { ChannelLanguage } from "./channel-language";
+import { withSetupStep } from "../contracts/setup-progress";
 
 // The fixed replies of a linked conversation, in English and Korean
 // (channel-actions-in-words D3, D4). None of them asks the host to type a
@@ -334,6 +335,37 @@ export function noteReadBack(entries: readonly { readonly number: number; readon
   return `${named}${finalConsonant(last) === 0 ? "를" : "을"} 비울까요?`;
 }
 
+// Other calendars named in the calendar step, quoted because Google Calendar
+// names are other people's text: at most three, then how many more.
+const CALENDAR_LIST_LIMIT = 3;
+
+export function calendarListText(names: readonly string[], language: ChannelLanguage) {
+  const shown = names.slice(0, CALENDAR_LIST_LIMIT).map(quotedTitle);
+  const more = names.length - shown.length;
+  if (language === "ko") return `${shown.join(", ")}${more > 0 ? ` 외 ${more}개` : ""}`;
+  return listEn(more > 0 ? [...shown, `${more} more`] : shown);
+}
+
+function hoursQuestionEn(hours: HoursSuggestion) {
+  const groups = hourGroups(hours, "en");
+  const proposed = listEn(groups.map((group) => `${group.label} ${rangeText(group.range, "en")}`));
+  if (hours.source === "starter_default") {
+    return `Your recent and upcoming calendar is fairly quiet, so I started from ${proposed}. Shall I keep that as your meeting hours, or do you have other times in mind?`;
+  }
+  const seen = listEn(groups.map((group) => `from ${clockText(group.range.start, "en")} to ${clockText(group.range.end, "en")} on ${group.label}`));
+  return `Looking at your recent and upcoming calendar, your appointments usually run ${seen}. Shall I set your meeting hours to ${proposed}?`;
+}
+
+function hoursQuestionKo(hours: HoursSuggestion) {
+  const groups = hourGroups(hours, "ko");
+  const proposed = groups.map((group) => `${group.label} ${rangeText(group.range, "ko")}`).join(", ");
+  if (hours.source === "starter_default") {
+    return `캘린더에 일정이 많지 않아서 기본 시간인 ${eul(proposed)} 넣어봤어요. 미팅 가능 시간을 이대로 잡아둘까요, 아니면 원하시는 시간이 있으세요?`;
+  }
+  const seen = groups.map((group) => `${group.label}엔 ${spokenKo(group.range.start)}부터 ${spokenKo(group.range.end)}까지`).join(", ");
+  return `캘린더를 보니 ${seen} 보통 약속이 있으시네요. 미팅 가능 시간을 ${ro(proposed)} 잡아둘까요?`;
+}
+
 const hasOpenTime = (preview: SlotPreview) => preview.days.some((day) => day.open.length > 0);
 
 export const CHANNEL_REPLIES = {
@@ -368,18 +400,20 @@ export const CHANNEL_REPLIES = {
     selectedRequest: "We're now talking about this request.",
     selectedSetup: "We're now talking about your setup.",
     onboarding: {
-      rolesDefault: (calendar: string) =>
-        `I'll check your primary calendar (${calendar}) for busy times and put bookings there. If another calendar should count too, just tell me. I'm looking over your recent and upcoming calendar now and will suggest meeting hours next.\n${PERMISSION_REASONS.en.calendarRoles}`,
-      rolesNeeded: `Which calendars should I check for busy times, and which one should bookings go into? Just tell me their names.\n${PERMISSION_REASONS.en.calendarRoles}`,
-      hoursQuestion: (hours: HoursSuggestion) => {
-        const groups = hourGroups(hours, "en");
-        const proposed = listEn(groups.map((group) => `${group.label} ${rangeText(group.range, "en")}`));
-        if (hours.source === "starter_default") {
-          return `Your recent and upcoming calendar is fairly quiet, so I started from ${proposed}. Shall I keep that as your meeting hours, or do you have other times in mind?`;
-        }
-        const seen = listEn(groups.map((group) => `from ${clockText(group.range.start, "en")} to ${clockText(group.range.end, "en")} on ${group.label}`));
-        return `Looking at your recent and upcoming calendar, your appointments usually run ${seen}. Shall I set your meeting hours to ${proposed}?`;
-      },
+      // The primary calendar the service saved, and once, the other calendars
+      // it could also check (issue #361); no answer keeps the primary only.
+      rolesDefault: (calendar: string, others: readonly string[] = []) =>
+        withSetupStep(
+          "en",
+          "calendar",
+          `I'll check your primary calendar (${calendar}) for busy times and put bookings there. ${
+            others.length
+              ? `You also have ${calendarListText(others, "en")}. Should I check ${others.length === 1 ? "it" : "them"} for busy times too? If not, no need to reply.`
+              : "If another calendar should count too, just tell me."
+          } I'm looking over your calendar now; meeting hours come next.\n${PERMISSION_REASONS.en.calendarRoles}`,
+        ),
+      rolesNeeded: withSetupStep("en", "calendar", `Which calendars should I check for busy times, and which one should bookings go into? Just tell me their names.\n${PERMISSION_REASONS.en.calendarRoles}`),
+      hoursQuestion: (hours: HoursSuggestion) => withSetupStep("en", "hours", hoursQuestionEn(hours)),
       // The note review link (calendar-note-review design 8), between the place
       // answer and the slot image.
       noteReviewLink: (count: number, url: string) =>
@@ -459,6 +493,8 @@ export const CHANNEL_REPLIES = {
     reviewNotCurrent: (current: string) => `That review is no longer current; the current one is ${current}. Ask me to show it.`,
     calendarUnreadable: (origin: string) => `Google Calendar couldn't be read. Reconnect it at ${origin}/app, then try again.`,
     saved: (link: string) => `Saved. Your booking link is ${link}`,
+    // The first save ends setup (issue #368): said plainly, with the link.
+    setupDone: (link: string) => `Setup is done. Your booking link: ${link}`,
     destinationGone: (origin: string) => `Bookings can't be added to that calendar any more. Choose another at ${origin}/app.`,
     settingsMoved: "Your settings changed meanwhile. Ask me to show the current ones.",
     couldNotSave: (origin: string) => `I couldn't save that here. Open ${origin}/app.`,
@@ -539,18 +575,18 @@ export const CHANNEL_REPLIES = {
     selectedRequest: "이제 이 요청에 대해 이야기해요.",
     selectedSetup: "이제 설정에 대해 이야기해요.",
     onboarding: {
-      rolesDefault: (calendar: string) =>
-        `기본 캘린더(${calendar})로 일정을 확인하고 예약도 여기에 넣을게요. 다른 캘린더도 같이 봐야 하면 말씀해 주세요. 지금 최근 일정과 예정된 일정을 살펴보고 있으니 곧 미팅 시간을 제안드릴게요.\n${PERMISSION_REASONS.ko.calendarRoles}`,
-      rolesNeeded: `어떤 캘린더로 일정을 확인하고, 예약은 어느 캘린더에 넣을까요? 캘린더 이름으로 말씀해 주세요.\n${PERMISSION_REASONS.ko.calendarRoles}`,
-      hoursQuestion: (hours: HoursSuggestion) => {
-        const groups = hourGroups(hours, "ko");
-        const proposed = groups.map((group) => `${group.label} ${rangeText(group.range, "ko")}`).join(", ");
-        if (hours.source === "starter_default") {
-          return `캘린더에 일정이 많지 않아서 기본 시간인 ${eul(proposed)} 넣어봤어요. 미팅 가능 시간을 이대로 잡아둘까요, 아니면 원하시는 시간이 있으세요?`;
-        }
-        const seen = groups.map((group) => `${group.label}엔 ${spokenKo(group.range.start)}부터 ${spokenKo(group.range.end)}까지`).join(", ");
-        return `캘린더를 보니 ${seen} 보통 약속이 있으시네요. 미팅 가능 시간을 ${ro(proposed)} 잡아둘까요?`;
-      },
+      rolesDefault: (calendar: string, others: readonly string[] = []) =>
+        withSetupStep(
+          "ko",
+          "calendar",
+          `기본 캘린더(${calendar})로 일정을 확인하고 예약도 여기에 넣을게요. ${
+            others.length
+              ? `${calendarListText(others, "ko")} 캘린더도 있는데, 같이 확인할까요? 아니면 답하지 않으셔도 돼요.`
+              : "다른 캘린더도 같이 봐야 하면 말씀해 주세요."
+          } 지금 캘린더를 살펴보고 있어요. 다음은 미팅 시간이에요.\n${PERMISSION_REASONS.ko.calendarRoles}`,
+        ),
+      rolesNeeded: withSetupStep("ko", "calendar", `어떤 캘린더로 일정을 확인하고, 예약은 어느 캘린더에 넣을까요? 캘린더 이름으로 말씀해 주세요.\n${PERMISSION_REASONS.ko.calendarRoles}`),
+      hoursQuestion: (hours: HoursSuggestion) => withSetupStep("ko", "hours", hoursQuestionKo(hours)),
       noteReviewLink: (count: number, url: string) =>
         `메모처럼 보이는 일정이 ${count}개 있어요. 비워도 되는 일정을 골라주세요. 고르시면 가능한 시간을 보내드릴게요: ${url}\n${PERMISSION_REASONS.ko.noteReview}`,
       noteReviewLater: (url: string) => `메모처럼 보이는 일정은 일단 바쁨으로 두었어요. 비워도 되는 일정은 나중에 여기서 고를 수 있어요: ${url}`,
@@ -625,6 +661,7 @@ export const CHANNEL_REPLIES = {
     reviewNotCurrent: (current: string) => `그 검토는 더 이상 현재 검토가 아니에요. 현재 검토는 ${current}이에요. 보여 달라고 말씀해 주세요.`,
     calendarUnreadable: (origin: string) => `Google Calendar를 읽지 못했어요. ${origin}/app 에서 다시 연결한 뒤 다시 시도해 주세요.`,
     saved: (link: string) => `저장했어요. 예약 링크는 ${link} 이에요.`,
+    setupDone: (link: string) => `설정이 끝났어요. 예약 링크: ${link}`,
     destinationGone: (origin: string) => `그 캘린더에는 더 이상 예약을 추가할 수 없어요. ${origin}/app 에서 다른 캘린더를 골라 주세요.`,
     settingsMoved: "그사이 설정이 바뀌었어요. 현재 설정을 보여 달라고 말씀해 주세요.",
     couldNotSave: (origin: string) => `여기서는 저장하지 못했어요. ${origin}/app 을 열어 주세요.`,

@@ -57,6 +57,17 @@ describe("setup capabilities resolve per audience", () => {
     expect(content).toContain("Their hours stay until they agree");
   });
 
+  it("guides chat setup with the shared step names and one calendar question (setup-chat-guidance)", async () => {
+    const instructions = await hostSetupInstructions.events["session.started"]!({}, resolveContext(hostSetup));
+    const content = (instructions as { content: string }).content;
+
+    expect(content).toContain("Calendar, Meeting hours, Where you meet, Open times");
+    expect(content).toContain('Put the line\n  "3/4 · Where you meet" ("3/4 · 미팅 장소")');
+    expect(content).toContain("asks once\n   whether they should count for busy times too");
+    expect(content).toContain("Never ask about calendars again");
+    expect(content).toContain("setup is done");
+  });
+
   it("describes draft_settings to the model as JSON Schema", () => {
     const schema = JSON.stringify(serializeModelInputSchema(draftSettingsToolInput));
 

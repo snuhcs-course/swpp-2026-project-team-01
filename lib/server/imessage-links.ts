@@ -10,6 +10,7 @@ import {
 } from "../contracts/imessage";
 import { configuredChannels, type MessagingChannel } from "../contracts/messaging-channel";
 import { defaultCalendarRoles, readDefaultRoleCalendars } from "./calendar-roles";
+import { SETUP_OVERVIEW, withSetupStep } from "../contracts/setup-progress";
 import { hostConversationLanguage } from "./channel-language";
 import { channelReplies } from "./channel-texts";
 import { googleCalendarConfigFromEnvironment, type GoogleCalendarDependencies, type CalendarListEntry } from "./google-calendar";
@@ -136,7 +137,7 @@ export const LINK_TEXTS = {
   // A ready host gets this; one still setting up gets a welcome into setup here (D19).
   linked: "Linked. Send help for what I can do here.",
   welcomeCalendar: (url: string) =>
-    `You're connected! I'm Thyme, and we can set up your meetings right here. First, connect Google Calendar: ${url}\n${PERMISSION_REASONS.en.googleSignIn}`,
+    `You're connected! I'm Thyme, and we can set up your meetings right here. ${SETUP_OVERVIEW.en}\n${withSetupStep("en", "calendar", `First, connect Google Calendar: ${url}`)}\n${PERMISSION_REASONS.en.googleSignIn}`,
   backFromGoogle: "You're back from Google. Let's keep going here: tell me your meeting preferences, or send setup to see what's next.",
   fallbackCode: (code: string, minutes: number) => `Your Find Me a Time code is ${code}. It expires in ${minutes} minutes.`,
 } as const;
@@ -383,9 +384,11 @@ async function linkedText(tx: Transaction, hostAccountId: string, options: LinkO
     select ${calendarUsable(tx)} as usable from app.provider_grants g where g.host_account_id = ${hostAccountId}
   `;
   if (!grant?.usable) return LINK_TEXTS.welcomeCalendar(calendarConnectUrl(options.origin));
-  const name = await defaultCalendarRoles(tx, hostAccountId, options.liveCalendars ?? null);
-  const texts = channelReplies(await hostConversationLanguage(tx, hostAccountId)).onboarding;
-  return name ? texts.rolesDefault(name) : texts.rolesNeeded;
+  const roles = await defaultCalendarRoles(tx, hostAccountId, options.liveCalendars ?? null);
+  const language = await hostConversationLanguage(tx, hostAccountId);
+  const texts = channelReplies(language).onboarding;
+  // Setup starts here, so the message first says what it covers (issue #368).
+  return `${SETUP_OVERVIEW[language]}\n${roles ? texts.rolesDefault(roles.calendar, roles.others) : texts.rolesNeeded}`;
 }
 
 const noInput = z.object({}).strict() as unknown as z.ZodType<Record<string, never>>;
@@ -995,9 +998,9 @@ export async function resumeImessageOnboarding(db: Database, key: TokenKey, host
     const [grant] = await tx<{ usable: boolean }[]>`select ${calendarUsable(tx)} as usable from app.provider_grants g where g.host_account_id = ${hostAccountId}`;
     let text: string = LINK_TEXTS.backFromGoogle;
     if (grant?.usable && !(await readReadiness(tx, hostAccountId)).ready) {
-      const name = await defaultCalendarRoles(tx, hostAccountId, live);
+      const roles = await defaultCalendarRoles(tx, hostAccountId, live);
       const texts = channelReplies(await hostConversationLanguage(tx, hostAccountId)).onboarding;
-      text = name ? texts.rolesDefault(name) : texts.rolesNeeded;
+      text = roles ? texts.rolesDefault(roles.calendar, roles.others) : texts.rolesNeeded;
     }
     await recordOutbound(tx, {
       bindingId: binding.id,
