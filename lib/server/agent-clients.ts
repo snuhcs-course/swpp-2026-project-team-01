@@ -3,7 +3,7 @@ import { lookup } from "node:dns/promises";
 import { isIP } from "node:net";
 import { z } from "zod";
 import type { Database, Queryable } from "./database";
-import { AGENT_LIMITS, admitAttempt, AttemptLimitError } from "./agent-limits";
+import { AGENT_LIMITS, admitAttempt, AttemptLimitError, registrationBounds } from "./agent-limits";
 
 // Agent OAuth clients (agent-access D2, D15, design 3). Three kinds:
 //   - the first-party CLI client fmat-cli, defined here, whose redirects are a
@@ -348,10 +348,7 @@ export async function registerClient(db: Database, input: unknown, sourceHash: s
   }
 
   try {
-    await admitAttempt(db, "registration", [
-      { bound: AGENT_LIMITS.registrationPerSource, key: sourceHash },
-      { bound: AGENT_LIMITS.registrationService, key: "service" },
-    ]);
+    await admitAttempt(db, "registration", registrationBounds(sourceHash));
   } catch (error) {
     if (error instanceof AttemptLimitError) {
       return {
