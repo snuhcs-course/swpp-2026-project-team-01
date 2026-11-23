@@ -77,3 +77,47 @@ describe("requester tool visibility", () => {
     expect(callable(readOnly, tool("create_request"))).toBe(false);
   });
 });
+
+// Testing baseline rows marked supported that the MCP tool lists decide
+// (module test map): H03 P-4, H04 P-2, G03 P-2, R01 P-1, P-4, P-5 and P-7.
+describe("tools the testing baseline names", () => {
+  const host: GrantAccess = {
+    bootstrap: false,
+    clientId: "client",
+    closed: false,
+    creationRetryKey: null,
+    grantId: "grant",
+    hostAccountId: "host",
+    requestId: null,
+    resource: "https://example.test/mcp",
+    role: "host",
+    scopes: [...AGENT_SCOPES],
+    sourceHash: "source",
+  };
+  const names = (access: GrantAccess) => visibleTools(access).map((tool) => tool.name);
+
+  it("lets a host's agent waive the weekly limit, allow a trip and check a booking (H03 P-4, H04 P-2)", () => {
+    expect(names(host)).toEqual(expect.arrayContaining(["waive_weekly_limit", "allow_host_trip", "evaluate_request", "check_booking"]));
+  });
+
+  it("offers received and sent requests side by side on one host connection (R01 P-4, P-5, P-7)", () => {
+    expect(names(host)).toEqual(expect.arrayContaining(["list_requests", "list_sent_requests", "get_sent_request", "check_sent_booking", "create_request"]));
+  });
+
+  it("needs the request permissions before a host-only grant can create a request (R01 P-1)", () => {
+    const hostOnly: GrantAccess = { ...host, scopes: ["host:read", "host:write", "host:decide"] };
+    const create = ACCOUNT_REQUESTER_TOOLS.find((tool) => tool.name === "create_request")!;
+
+    expect(names(hostOnly)).not.toContain("create_request");
+    expect(callable(hostOnly, create)).toBe(false);
+    expect(callable(host, create)).toBe(true);
+    expect(challengeScopes("host")).toEqual(expect.arrayContaining(["request:write"]));
+  });
+
+  it("lets a guest's agent check its booking once the request exists (G03 P-2)", () => {
+    const guest: GrantAccess = { ...host, creationRetryKey: "create-0001", requestId: "request", resource: "https://example.test/h/mcp", role: "requester", scopes: [...REQUESTER_SCOPES] };
+    const check = REQUESTER_TOOLS.find((tool) => tool.name === "check_booking")!;
+
+    expect(callable(guest, check)).toBe(true);
+  });
+});

@@ -27,7 +27,10 @@ Read product purpose and requirements, then UX and architecture. Detailed agreed
 | [Decision log](technical_specification/08_decision_log.md) | Every decision point per phase with its alternatives, where it is recorded and how to change it, plus steps blocked on the user |
 | [Guest defense evaluation](technical_specification/10_guest_defense_evaluation.md) | Fixed attack set for the guest assistant, its grading, pre-declared pass criteria, run settings and results |
 | [Host approval evaluation](technical_specification/11_host_approval_evaluation.md) | Draft: fixed set of host messages for approval in words, its grading, proposed pass criteria and run settings |
+| [Testing baseline](technical_specification/12_testing_baseline.md) | Draft: step-by-step expected behavior of the ten user stories in each interface, with each row's verdicts and code status |
 | [Story path evaluation](technical_specification/13_story_path_evaluation.md) | Draft: fixed set of story-path cases from the testing baseline, real-tool runner, run settings and testing progress |
+| [Module test map](technical_specification/14_module_test_map.md) | The testing baseline's supported, code-decided rows mapped to the module tests that pin them, and the rows left without one |
+| [QA sheet](technical_specification/15_qa_sheet.md) | Draft: one QA case per failure, branch and off-path outcome of the testing baseline, with columns to record each run |
 | [Competitor research](business/competitor_research.md) | Dated research context; no product compatibility claim |
 | [Transplant guide](transplant/en/transplant-guide.md) | Iteration 1 prototype features F01–F11, journeys and design decomposed for reuse; copied from `dev` for review, not yet reconciled |
 
