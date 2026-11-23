@@ -810,7 +810,7 @@ Dohyeon Park이 2026-11-16에 결정했으며, 2026-11-14 UAT 회의가 [이슈 
 
 ## `post-booking-changes`
 
-[제안서](../../openspec/changes/post-booking-changes/proposal.md#decisions)와 [설계](../../openspec/changes/post-booking-changes/design.md)는 이슈 #234(예약 후 재협상, #169)에 대한 이 선택들을 기록합니다. 사용자는 2026-11-16에 제품이 예약된 미팅의 취소와 변경을 지원하기로, 취소를 먼저 하기로 정했으며, 이 변경을 작성한 세션이 같은 날 D1–D6을 정했고 아직 팀원의 검토를 받지 않았습니다. PRD의 비목표 "예약 후 자동 일정 변경 및 취소"는 FR-43으로 대체됩니다.
+[제안서](../../openspec/changes/post-booking-changes/proposal.md#decisions)와 [설계](../../openspec/changes/post-booking-changes/design.md)는 이슈 #234(예약 후 재협상, #169)에 대한 이 선택들을 기록합니다. 사용자는 2026-11-16에 제품이 예약된 미팅의 취소와 변경을 지원하기로, 취소를 먼저 하기로 정했으며, 이 변경을 작성한 세션이 같은 날 D1–D6을, 이 변경을 마무리한 세션이 2026-11-24에 D7을 정했으며, 아직 팀원의 검토를 받지 않았습니다. PRD의 비목표 "예약 후 자동 일정 변경 및 취소"는 FR-43으로 대체됩니다.
 
 | # | 선택 | 대안 | 기록 위치 | 바꾸려면 |
 |---|---|---|---|---|
@@ -820,6 +820,7 @@ Dohyeon Park이 2026-11-16에 결정했으며, 2026-11-14 UAT 회의가 [이슈 
 | D4 | 취소하지 않은 쪽만 우리의 알림을 받습니다. 게스트는 `status_cancelled` 이메일과 채팅 메시지, 호스트는 `booking_cancelled` 이메일과 채팅 메시지를 받으며, Google의 취소 알림은 어느 쪽이든 게스트에게 닿습니다. 게스트가 이메일이나 iMessage로 다시 쓰면 취소된 요청은 새 요청으로 이어집니다 | 양쪽 모두에게 알림 | 설계 4; `email-delivery` 델타 | `lib/server/booking-notices.ts`, `booking-emails.ts`, `imessage-notice-job.ts`; `revised-requests.ts`의 `isRevisable` |
 | D5 | 예약 후 변경은 예약된 미팅이 유지된 채로 제안 흐름을 다시 열고, 승인되면 같은 이벤트를 패치합니다 | 취소 후 다시 예약; 별도의 일정 변경 흐름 | 설계 5; `meeting-requests` 델타 "Changing a booked meeting" | `lib/server/booking-cancellation.ts`의 `changeBookingCommand`; `lib/server/bookings.ts`의 `patchChange`와 `confirm` |
 | D6 | 변경은 요청을 `negotiating`으로 다시 열며(기한: 7일 또는 미팅 시작 중 먼저 오는 쪽), 남아 있는 확정 예약으로 식별합니다. `replaces_booking_id`를 가진 두 번째 예약 행이 이벤트 ID를 공유하고, 미팅 자신의 이벤트는 바쁜 시간으로 치지 않으며, 철회, 거절, 만료 시에는 미팅이 유지됩니다 | `rebooking` 요청 상태; 확정된 예약 행 수정 | 설계 5 | `lib/server/request-lifecycle.ts`의 `standingBookingOf`와 `dropChange`; `lib/server/evaluation.ts`의 `notOwnEvent`; `bookings.sql` |
+| D7 | 더 이상 Google Meet을 쓰지 않는 변경(대면, 또는 게스트 자신의 링크)은 이벤트를 `conferenceData: null`로 패치해 Meet을 없애고, 장소가 없는 변경은 이벤트의 위치를 비웁니다. Meet을 계속 쓰는 변경은 기존 Meet을 유지합니다. 게스트 자신의 링크를 쓰는 미팅은 항상 그 링크를 보여 줍니다 | 이벤트에 Meet을 남겨 두기(첫 구현); 이벤트를 지우고 다시 만들기 | 제안서; 설계 5; `meeting-requests` 델타 "Online meeting changes to in person" | `lib/server/bookings.ts`의 `changePatchBody`; `lib/contracts/booking.ts`의 `bookingJoinUrl` |
 
 ## `self-service-account-deletion`
 
@@ -887,3 +888,13 @@ D1과 D3과 함께 감수하는 남은 위험: 코드의 주인이 보내기 전
 | # | 선택 | 대안 | 기록 위치 | 바꾸려면 |
 |---|---|---|---|---|
 | D1 | 호스트가 온라인 또는 대면을 제안했고 게스트가 만날 곳으로 장소를 말하면("어디서 만날까요?"에 "역삼역으로요") 게스트 어시스턴트는 그 장소를 검토 카드에 담아 대면으로 초안을 작성합니다. 장소가 지나가듯 나오거나 같은 답이 온라인 쪽으로 기울 때만 방식을 묻습니다 | 장소가 나오면 항상 방식을 묻기(#280 규칙); 언급된 모든 장소를 대면으로 보기 | `meeting-requests` 델타 "Guest assistant answers within its scope"; 문서 13의 GU-50, GU-A04, GU-A08, GU-A09 | `agent/instructions/requester.ts`의 장소와 방식 규칙 및 `evals/requester/story-cases.ts`의 해당 케이스 |
+
+## `host-decisions-in-one-message`
+
+[제안서](../../openspec/changes/host-decisions-in-one-message/proposal.md#decisions)는 이슈 #382에 대한 이 선택들을 기록합니다. 변경을 구현한 세션에서 2026-11-24에 이슈의 기대 동작을 바탕으로 정했습니다. `host-imessage-channel` D23과 D26, `channel-actions-in-words` D1을 확장하며, 아직 팀원 검토를 받지 않았습니다.
+
+| # | 선택 | 대안 | 기록 위치 | 바꾸려면 |
+|---|---|---|---|---|
+| D1 | `approve_proposal`과 `decline_request`는 선택 항목 `request`(참조 번호 또는 호스트가 쓴 요청자 이름)를 받으며, 한 메시지가 정하는 요청마다 한 번씩 호출됩니다. 대화는 원래 요청에 머뭅니다 | 결정 목록을 받는 일괄 도구, 호출 사이에 대화를 전환하는 방식 | 제안서, `host-imessage-channel` 델타 "Several decisions in one message" | `lib/server/host-review-tools.ts`의 `requestReferenceInput`과 `decisionTarget`, `agent/tools/request.ts`, `agent/instructions/host-imessage.ts` |
+| D2 | 참조는 호스트 자신의 요청 가운데서 참조 번호로, 또는 소유를 나타내는 말을 뗀 요청자의 정확한 이름으로 찾습니다. 승인일 때 여러 요청이 맞으면 승인을 기다리는 유일한 요청으로 좁힙니다. 여러 요청이 맞거나 하나도 맞지 않으면 그 요청에 대해서는 아무것도 정하지 않고, 어시스턴트는 그 요청만 따로 묻습니다 | 한 이름이 다른 이름을 포함하기만 하면 맞는 `switch_conversation`의 느슨한 방식("Lee"가 Eunwoo Lee와 맞음), 가장 최근 또는 첫 번째로 맞는 요청을 고르는 방식 | 제안서 | `lib/server/channel-selection.ts`의 `matchHostRequests`, `host-review-tools.ts`의 `chooseDecisionTarget` |
+| D3 | 이름으로 지목한 요청의 결정은 `list_host_requests`가 준 그 요청의 `proposalVersion`에 답하며, 대화의 요청과 같은 방식으로 확인합니다 | 지목한 요청에는 버전을 요구하지 않는 방식 | 제안서 | `host-review-tools.ts`의 `hostRequestsForModel` |

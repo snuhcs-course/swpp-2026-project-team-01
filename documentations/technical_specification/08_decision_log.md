@@ -811,7 +811,7 @@ The [proposal](../../openspec/changes/archive/2026-11-24-guest-telegram-link/pro
 
 ## `post-booking-changes`
 
-The [proposal](../../openspec/changes/post-booking-changes/proposal.md#decisions) and [design](../../openspec/changes/post-booking-changes/design.md) record these choices for issue #234 (renegotiation after booking, #169). The user decided on 2026-11-16 that the product supports cancelling and changing a booked meeting, cancellation first; the session that wrote the change took D1–D6 the same day, and they have had no teammate review yet. The PRD's non-goal "automated post-booking rescheduling and cancellation" is replaced by FR-43.
+The [proposal](../../openspec/changes/post-booking-changes/proposal.md#decisions) and [design](../../openspec/changes/post-booking-changes/design.md) record these choices for issue #234 (renegotiation after booking, #169). The user decided on 2026-11-16 that the product supports cancelling and changing a booked meeting, cancellation first; the session that wrote the change took D1–D6 the same day, and the session that finished it took D7 on 2026-11-24; they have had no teammate review yet. The PRD's non-goal "automated post-booking rescheduling and cancellation" is replaced by FR-43.
 
 | # | Choice | Alternatives | Recorded in | To change it |
 |---|---|---|---|---|
@@ -821,6 +821,7 @@ The [proposal](../../openspec/changes/post-booking-changes/proposal.md#decisions
 | D4 | Only the side that did not cancel gets our notice: a guest the `status_cancelled` email and chat message, a host the `booking_cancelled` email and chat message; Google's cancellation reaches the guest either way. A cancelled request continues as a new request when the guest writes again by email or iMessage | Notifying both sides | Design 4; `email-delivery` delta | `lib/server/booking-notices.ts`, `booking-emails.ts`, `imessage-notice-job.ts`; `isRevisable` in `revised-requests.ts` |
 | D5 | A change after booking reopens the proposal flow while the booked meeting stands and patches the same event on approval | Cancelling and booking again; a separate reschedule flow | Design 5; `meeting-requests` delta "Changing a booked meeting" | `changeBookingCommand` in `lib/server/booking-cancellation.ts`; `patchChange` and `confirm` in `lib/server/bookings.ts` |
 | D6 | A change reopens the request to `negotiating` (deadline: seven days or the meeting's start), recognised by its standing confirmed booking; a second booking row with `replaces_booking_id` shares the event ID; the meeting's own event is not busy time; withdrawal, decline and expiry keep the meeting | A `rebooking` request state; editing the confirmed booking row | Design 5 | `standingBookingOf` and `dropChange` in `lib/server/request-lifecycle.ts`; `notOwnEvent` in `lib/server/evaluation.ts`; `bookings.sql` |
+| D7 | A change that no longer uses Google Meet (in person, or the guest's own link) patches the event with `conferenceData: null`, removing its Meet, and a change without a place clears the event's location; a change that stays on Meet keeps the existing Meet; a meeting on the guest's own link always shows that link | Leaving the Meet on the event (the first implementation); deleting and recreating the event | Proposal; design 5; `meeting-requests` delta "Online meeting changes to in person" | `changePatchBody` in `lib/server/bookings.ts`; `bookingJoinUrl` in `lib/contracts/booking.ts` |
 
 ## `self-service-account-deletion`
 
@@ -888,3 +889,13 @@ The [proposal](../../openspec/changes/archive/2026-11-24-place-settles-in-person
 | # | Choice | Alternatives | Recorded in | To change it |
 |---|---|---|---|---|
 | D1 | When the host offers online or in person and the guest names a place as where they will meet ("역삼역으로요" to "어디서 만날까요?"), the guest assistant drafts in person with that place on the review card; it asks the form only when the place comes up in passing or the same answer leans toward online | Asking the form after any place (the #280 rule); taking every mentioned place as in person | `meeting-requests` delta "Guest assistant answers within its scope"; GU-50, GU-A04, GU-A08 and GU-A09 in documentation 13 | The place-and-form rule in `agent/instructions/requester.ts` and those cases in `evals/requester/story-cases.ts` |
+
+## `host-decisions-in-one-message`
+
+The [proposal](../../openspec/changes/host-decisions-in-one-message/proposal.md#decisions) records these choices for issue #382, taken on 2026-11-24 in the session that implemented the change, from the issue's expected behavior. They extend `host-imessage-channel` D23 and D26 and `channel-actions-in-words` D1, and have had no teammate review yet.
+
+| # | Choice | Alternatives | Recorded in | To change it |
+|---|---|---|---|---|
+| D1 | `approve_proposal` and `decline_request` take an optional `request` (a reference or the requester's name as the host wrote it) and are called once per request a message decides; the conversation stays on its own request | A batch tool taking a list of decisions; switching the conversation between calls | Proposal; `host-imessage-channel` delta "Several decisions in one message" | `requestReferenceInput` and `decisionTarget` in `lib/server/host-review-tools.ts`, `agent/tools/request.ts`, `agent/instructions/host-imessage.ts` |
+| D2 | The reference resolves among the host's own requests by reference or by the requester's exact name with any possessive dropped; for an approval several matches narrow to the only one awaiting approval; several or no matches decide nothing for that request and the assistant asks about it alone | `switch_conversation`'s looser match, where "Lee" would match Eunwoo Lee; taking the latest or first match | Proposal | `matchHostRequests` in `lib/server/channel-selection.ts`, `chooseDecisionTarget` in `host-review-tools.ts` |
+| D3 | A named request's decision answers its `proposalVersion` from `list_host_requests`, checked as for the conversation's own request | No version for a named request | Proposal | `hostRequestsForModel` in `host-review-tools.ts` |
