@@ -675,6 +675,7 @@
 | U17(D5, D6) | 수정된 요청은 아직 남은 게스트의 시간 창과 제외된 시간을 가져옵니다: 거절된 시간과 닫힌 요청 자체의 제외된 시간이며, 사유는 가져오지 않습니다. 시작 요약에는 앞서 제안한 시간을 나열합니다. 호스트가 거절하며 지정한 요일은 호스트 측이므로 #58에 맡깁니다 | 시간을 가져오지 않기 | 제안서 U17; `meeting-requests` 델타 | `lib/server/evaluation.ts`의 `excludedBusy`, `lib/server/revised-requests.ts`, `lib/server/request-reviews.ts`의 `excludedWindowProblem`(전적으로 그 안에 들어가는 초안 시간은 사유 없이 거부) |
 | U18(O1) | 예약 뒤에도 대화는 미팅에 관한 질문을 위해 읽기 전용으로 열려 있습니다 | 종료 알림 | 제안서 U18 | `lib/server/request-tools.ts`의 `fenced`, `lib/server/conversations.ts`의 `withPrincipalAuthority` |
 | U19(O3) | 수정된 요청에는 호스트 차단이 없습니다. 10개의 체인과 생성 한도는 그대로입니다 | 호스트의 "이 게스트 더 이상 받지 않기" | 제안서 U19 | `REVISED_CHAIN_LIMIT` |
+| U13 재개(#53) | `read_request`는 게스트의 어시스턴트에게 호스트가 Thyme에게 남긴 메모도 제안을 다듬는 용도의 인용된 데이터로만 제공합니다. U13의 나머지는 모두 그대로입니다(저장소 소유자, 2026-11-23) | `read_request`를 호스트가 모든 게스트에게 제공하는 내용으로 한정하기 | [`host-preference-notes`](#host-preference-notes) | `lib/server/host-notes.ts`의 `guestNotesView`, `lib/server/request-tools.ts`의 `readRequestForTool` |
 
 ### 구현 결정
 
@@ -817,3 +818,14 @@ Dohyeon Park이 2026-11-16에 결정했으며, 2026-11-14 UAT 회의가 [이슈 
 | D4 | 예약된 미팅은 취소하지 않습니다. 열린 요청은 닫히고 게스트는 이메일을 받으며, 호스트는 예약, 취소, 실행 때 이메일을 받습니다. 계정 이메일에는 요청이 없으므로 끝난 지 30일 뒤에 삭제합니다 | 호스트 대신 캘린더 이벤트 취소; 채팅으로 게스트에게 알리기 | 제안; 설계 5 | `lib/server/account-emails.ts`, `accountEmailCurrent`, `account_emails` 보존 규칙 |
 | D5 | 예약하면 Supabase의 전역 범위로 모든 세션에서 로그아웃합니다 | 세션을 유지하고 취소 버튼 제공 | 설계 2 | `createAccountDeletionHandler` |
 | D6 | 채팅과 MCP 서버는 삭제하지 않고 `/app?settings=account`를 안내합니다 | 확인 절차를 거치는 삭제 도구 | 설계 6 | `agent/instructions/base.md`, `host-imessage.ts`, `lib/server/agent-mcp.ts` |
+
+## `host-preference-notes`
+
+저장소 소유자가 2026-11-23에 [이슈 #53](https://github.com/snuhcs-course/swpp-2026-project-team-01/issues/53)을 결정했습니다: 만든다. 나머지는 [제안서](../../openspec/changes/archive/2026-11-23-host-preference-notes/proposal.md)와 [설계](../../openspec/changes/archive/2026-11-23-host-preference-notes/design.md)에 기록되어 있으며, 아래 구현 선택은 아직 팀원 검토를 받지 않았습니다.
+
+| # | 선택 | 대안 | 기록 위치 | 바꾸려면 |
+|---|---|---|---|---|
+| 범위(소유자) | 호스트는 설정 단계, Settings, 메신저에서 말로 Thyme에게 자유 형식 메모를 남길 수 있습니다. 게스트의 어시스턴트는 메모를 제안을 다듬는 데에만 사용하며, 인용하지 않고, 설정보다 우선하는 규칙으로 취급하지 않으며, 제안이 보여 주는 것 이상을 드러내지 않습니다. 이는 `guest-flow-completion`의 U13을 재개합니다 | `read_request`를 호스트가 모든 게스트에게 제공하는 내용으로 한정하기 | 제안서 | — |
+| 저장 | `host_accounts.assistant_notes`와 `assistant_notes_updated_at`을 `setup.save_assistant_notes`가 즉시 저장합니다. 답하기 전에는 null, 메모 없음은 빈 값이며, 계정이 삭제로 표시되면 트리거가 지웁니다 | 설정 초안 필드(일정과 무관한 텍스트에 확인과 캘린더 재확인이 필요함); `host_settings` 컬럼(첫 확인 전에는 없음); `app.operator_delete_host` 수정 | 설계 1–2; 마이그레이션 `20261123064947_host_assistant_notes` | `lib/server/host-notes.ts`, `supabase/schemas/app/tables/host_accounts.sql` |
+| 게스트 보기 | 요청자용 `read_request`에서만 `host.notes: { quoted, use }`로 제공합니다. 카드, 이메일, 호스트 검토 어시스턴트, MCP나 CLI를 통한 에이전트에는 제공하지 않습니다 | 게스트 측 모든 화면에 제공하기 | 설계 3 | `guestNotesView`, `agent/instructions/requester.ts` |
+| 설정 단계 | 마지막 선택 단계이며 **No notes**와 **Skip for now**가 있고, 최신 저장에 대해 영수증 하나만 보여 줍니다 | 미팅 방식 앞의 단계 | 설계 4 | `apps/web/app/_components/setup/steps.ts`, `assistant-notes-card.tsx` |

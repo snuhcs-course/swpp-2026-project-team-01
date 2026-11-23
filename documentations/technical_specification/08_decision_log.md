@@ -676,6 +676,7 @@ The user reviewed D1–D10 and O1–O4 one at a time on 2026-11-01 (task 0.1).
 | U17 (D5, D6) | A revised request carries the guest's windows still ahead and the excluded times: the declined time and the closed request's own excluded times, never a reason; its opening summary lists the times proposed before. Days the host names when declining are host-side and left to #58 | Carrying no times | Proposal U17; `meeting-requests` delta | `excludedBusy` in `lib/server/evaluation.ts`, `lib/server/revised-requests.ts`, `excludedWindowProblem` in `lib/server/request-reviews.ts` (a drafted time wholly inside them is refused with no reason) |
 | U18 (O1) | After a booking the conversation stays open for questions about the meeting, read-only | The closed notice | Proposal U18 | `fenced` in `lib/server/request-tools.ts`, `withPrincipalAuthority` in `lib/server/conversations.ts` |
 | U19 (O3) | No host block on revised requests; the chain of 10 and the creation bounds remain | A host's "no more from this guest" | Proposal U19 | `REVISED_CHAIN_LIMIT` |
+| U13 reopened (#53) | `read_request` also gives the guest's assistant the host's notes for Thyme, as quoted data for shaping proposals only; everything else of U13 stands (repository owner, 2026-11-23) | Keeping `read_request` to what the host offers every guest | [`host-preference-notes`](#host-preference-notes) | `guestNotesView` in `lib/server/host-notes.ts`, `readRequestForTool` in `lib/server/request-tools.ts` |
 
 ### Implementation decisions
 
@@ -818,3 +819,15 @@ The [design](../../openspec/changes/self-service-account-deletion/design.md) rec
 | D4 | Booked meetings are not cancelled; open requests close and their guests get an email; the host gets emails when it is scheduled, cancelled and run; account emails have no request and are deleted 30 days after they finish | Cancelling calendar events for the host; telling guests on chats | Proposal; design 5 | `lib/server/account-emails.ts`, `accountEmailCurrent`, the `account_emails` retention rule |
 | D5 | Scheduling signs out every session with Supabase's global scope | Keeping the session and offering a cancel button | Design 2 | `createAccountDeletionHandler` |
 | D6 | Chats and the MCP server never delete; they send `/app?settings=account` | A deletion tool behind confirmation | Design 6 | `agent/instructions/base.md`, `host-imessage.ts`, `lib/server/agent-mcp.ts` |
+
+## `host-preference-notes`
+
+The repository owner decided [issue #53](https://github.com/snuhcs-course/swpp-2026-project-team-01/issues/53) on 2026-11-23: build it. The [proposal](../../openspec/changes/archive/2026-11-23-host-preference-notes/proposal.md) and [design](../../openspec/changes/archive/2026-11-23-host-preference-notes/design.md) record the rest; the implementation choices below have had no teammate review yet.
+
+| # | Choice | Alternatives | Recorded in | To change it |
+|---|---|---|---|---|
+| Scope (owner) | Hosts get free-text notes for Thyme, set in setup, Settings and in words in the messenger. The guest's assistant uses them only to shape what it proposes; it never quotes them, never treats them as rules over the settings and never reveals more than its proposals show. This reopens U13 of `guest-flow-completion` | Keeping `read_request` to what the host offers every guest | Proposal | — |
+| Storage | `host_accounts.assistant_notes` and `assistant_notes_updated_at`, saved at once by `setup.save_assistant_notes`; null until answered, empty for none; cleared by a trigger when the account is marked deleted | A setup draft field, which needs a confirmation and a calendar recheck for text that schedules nothing; a `host_settings` column, absent before the first confirmation; editing `app.operator_delete_host` | Design 1–2; migration `20261123064947_host_assistant_notes` | `lib/server/host-notes.ts`, `supabase/schemas/app/tables/host_accounts.sql` |
+| Guest view | Only the requester `read_request`, as `host.notes: { quoted, use }`; not the cards, emails, the host-review assistant or agents through MCP or the CLI | Giving them to every guest-side surface | Design 3 | `guestNotesView`, `agent/instructions/requester.ts` |
+| Setup step | The last step, optional, with **No notes** and **Skip for now**; one receipt for the latest save | A step before the meeting mode | Design 4 | `apps/web/app/_components/setup/steps.ts`, `assistant-notes-card.tsx` |
+
