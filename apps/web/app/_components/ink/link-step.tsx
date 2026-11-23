@@ -29,7 +29,20 @@ import { clock, isPhone, MessagePreview, type SendCode, SendPanel, shownNumber, 
 
 const POLL_MS = 2000;
 
-export function LinkStep({ children, locale, ready }: { readonly children: ReactNode; readonly locale: Locale; readonly ready: boolean }) {
+// `calendarConnected` marks the return from Google consent begun at Thyme's Calendar link (host-imessage-channel
+// D19), which the sign-in callback sends only once the Calendar grant is usable: a linked host then reads that
+// Calendar is connected and that setup carries on in the conversation, not the link confirmation again.
+export function LinkStep({
+  calendarConnected = false,
+  children,
+  locale,
+  ready,
+}: {
+  readonly calendarConnected?: boolean;
+  readonly children: ReactNode;
+  readonly locale: Locale;
+  readonly ready: boolean;
+}) {
   const base = COPY[locale];
   const platform = usePlatform();
   const phone = isPhone(platform);
@@ -144,6 +157,12 @@ export function LinkStep({ children, locale, ready }: { readonly children: React
     })();
   }, [ready, take]);
 
+  // The Calendar return's words belong to this visit only: drop the flag from the address, so a reload or a
+  // later visit through history does not say Calendar is connected again.
+  useEffect(() => {
+    if (calendarConnected) window.history.replaceState(window.history.state, "", "/app");
+  }, [calendarConnected]);
+
   const state = status?.state;
   useEffect(() => {
     if (shown !== "step" || state !== "pending") return;
@@ -187,7 +206,7 @@ export function LinkStep({ children, locale, ready }: { readonly children: React
     return (
       <InkStage locale={locale}>
         <div className="inner" data-screen="imessage-link">
-          <header className="top"><Brand /></header>
+          <header className="top"><Brand href="/app" /></header>
           <main className="handoff">
             <h1>{base.link.unavailableTitle}</h1>
             <p className="lede small">{base.link.unavailableLede}</p>
@@ -258,7 +277,7 @@ export function LinkStep({ children, locale, ready }: { readonly children: React
         <InkStage locale={locale}>
           <div className="inner" data-screen="imessage-link">
             <header className="top">
-              <Brand />
+              <Brand href="/app" />
             </header>
             <main className="panel-page">
               <section aria-labelledby="connect-h" className="modal">
@@ -467,9 +486,9 @@ export function LinkStep({ children, locale, ready }: { readonly children: React
         <main className="handoff verify">
           <StatusMark state="done" />
           <h1 ref={heading} tabIndex={-1}>
-            {c.link.connected}
+            {calendarConnected ? c.link.calendarConnected : c.link.connected}
           </h1>
-          <p className="lede">{c.link.connectedLede}</p>
+          <p className="lede">{calendarConnected ? c.link.calendarConnectedLede : c.link.connectedLede}</p>
           <p className="sent-to">
             {c.link.linkedTo} <b>{linked.sender}</b>
           </p>
@@ -504,7 +523,7 @@ export function LinkStep({ children, locale, ready }: { readonly children: React
     <InkStage locale={locale}>
       <div className="inner" data-screen="imessage-link">
         <header className="top">
-          <Brand />
+          <Brand href="/app" />
         </header>
         {body}
       </div>
