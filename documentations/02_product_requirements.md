@@ -77,7 +77,8 @@ Release acceptance requires zero unauthorized bookings, duplicate events, and pr
 - Automatic booking without host approval, including approval delegated to an AI's judgment.
 - Moving existing calendar events to make room for a request.
 - A native mobile application, payments, and general-purpose inbox or task management.
-- A host notice when a request first arrives: the host is told once the guest has picked a time (#122, kept on 2026-11-23 in #327) and can list incoming requests in the messenger at any time. A recurring weekly report to the host (dropped on 2026-11-23, #330).
+- A host notice when a request first arrives: the host is told once the guest has picked a time (#122, kept on 2026-11-23 in #327) and can list incoming requests in the messenger at any time.
+- A recurring weekly report to the host (dropped on 2026-11-23, #330).
 - Guaranteed arrival times or a custom live-traffic prediction system. Map-provider travel estimates are included, with explicit host-defined buffers; missing or unsupported routes require clarification rather than assumed travel time.
 
 Booking links, email, and agent access are all in the one-pager's intended experience. Dots, Muse, Instinct, ChatGPT, Codex, Claude, and Claude Code are required compatibility targets. If delivery is staged, the team must agree on the sequence rather than silently dropping a channel or required integration. Remote MCP and a CLI are the chosen access direction; client connection methods, protocol versions, and supported client versions still need technical design and compatibility testing. ChatGPT and Codex are separate compatibility targets, as are Claude and Claude Code; support for one client does not establish support for another. These names identify required integrations, not verified capabilities already available in each client.
@@ -104,7 +105,8 @@ The following rules apply to every channel:
 3. Approval cannot override a conflicting calendar event or an unmet hard constraint. The host must resolve the conflict or explicitly change the applicable rule, then review a valid proposal.
 4. Calendar details, host preferences, private host discussions, and private reasoning are not exposed to requesters or their agents.
 5. All clients act on the same current request state. Old messages, concurrent decisions, and retries cannot revive a superseded proposal or duplicate a booking.
-6. Everything a host can do on the web must also be possible in the host's linked messenger (iMessage, Telegram), decided by the repository owner on 2026-11-23 (#325). The messenger may offer more than the web: the host web request view has no chat, and conversation about a request happens in the messenger (#326).
+6. Everything a host can do on the web must also be possible in the host's linked messenger (iMessage, Telegram), decided by the repository owner on 2026-11-23 (#325). Parts of this are still being built (#327, #328, #330, #333).
+7. The host web keeps no Thyme chat: setup and conversation about requests happen in the messenger, and the web keeps the settings screens, the dashboard and the request view with its controls (decided 2026-11-23, #326). A host who has not linked a messenger is led to link one first. The web setup chat and the request view's **Private messages** chat still exist in the code until #326 is built.
 
 The [user stories](user_experience/02_user_stories.md) state the ten stories (H01–H04, G01–G03, M01, A01, R01) of the [testing baseline](technical_specification/12_testing_baseline.md), which holds each story's step-by-step behavior and code status. Where this document and the baseline disagree on a flow, the baseline is the reference until the team updates one of them.
 

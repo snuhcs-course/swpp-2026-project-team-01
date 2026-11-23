@@ -10,10 +10,7 @@ These are the ten stories of the [testing baseline](../technical_specification/1
 
 ## Rules for every story
 
-- **Host channel parity (decided 2026-11-23, #325):** everything a host can do on the web must also be possible in the host's messenger (iMessage, Telegram). The web does not have to offer everything the messenger does. WhatsApp stays hidden for now (#221).
-- **No arrival notice (decided 2026-11-23, #327; the #122 decision of 2026-11-04 stands):** the host's messenger is not told when a request first arrives. The host is told once the guest has picked a time, and can list incoming requests in the messenger at any time.
-- **No weekly report (decided 2026-11-23, #330):** there is no recurring weekly report. The only recurring host message is the Monday list of possible calendar notes (H02).
-- Only the host's explicit approval of the current proposal books a meeting; private calendar details, rules and host discussions stay private ([one-pager principles](../01_one_pager.md#principles)).
+The rules decided on 2026-11-23 are stated once, in the [PRD's core rules](../02_product_requirements.md#4-core-concepts-and-rules) (rules 6 and 7) and its [out-of-scope list](../02_product_requirements.md#outside-the-initial-release): host channel parity, no Thyme chat on the host web, no notice when a request first arrives, and no weekly report. Several of them are still being built (#326–#334), so the stories below say what exists today. WhatsApp stays hidden for now (#221).
 
 ## Host
 
@@ -37,10 +34,10 @@ As a host, I want to view and change my available times and meeting conditions a
 
 As a host, I want to receive new meeting requests, review them, ask what I need or adjust conditions, and then approve or decline them.
 
-- The host is first told in the messenger once the guest has agreed to a time ("Ready for your approval."), not when the request arrives. The host approves, declines, suggests changed details, or allows an exception, in words or with the messenger's buttons, on the web, or through an authorized agent.
+- The host is first told in the messenger once the guest has agreed to a time ("Ready for your approval."), not when the request arrives. The host approves, declines or suggests changed details in the messenger (in words, or with Telegram's buttons), on the web, or through an authorized agent; allowing a weekly-limit or trip exception works today on the web and through MCP only.
 - Decided to build (#327): a messenger notice when every candidate time is held back by the weekly limit; messenger tools to waive the weekly limit for one request (`waive_weekly_limit`) and to allow a trip (`allow_host_trip`), as MCP already has; a way for the host to ask the guest a question from the messenger.
-- Decided for the web (#326): the host web request view drops only its chat (**Private messages**); conversation about a request happens in the messenger. The web keeps **Request changes**, the rule card (weekly-limit exception, trip estimate) and **Cancel meeting** / **Change meeting**, and the messenger must offer each of them as well.
-- Baseline: [H03](../technical_specification/12_testing_baseline.md#h03-host-review-negotiation-and-decision). Its rows for the web view and the arrival notice are being updated to match these decisions.
+- Decided for the web (#326): the host web keeps no Thyme chat, so the request view's **Private messages** chat (still in the code today) is to be removed and conversation about a request happens in the messenger. The web keeps **Request changes**, the rule card (weekly-limit exception, trip estimate) and **Cancel meeting** / **Change meeting**, and the messenger must offer each of them as well.
+- Baseline: [H03](../technical_specification/12_testing_baseline.md#h03-host-review-negotiation-and-decision). Rows that these decisions change are being updated by the sessions building them: the preamble and W-2, W-5, W-6 on the host web view, the arrival-notice note, and M-7 (now built rather than refused).
 
 ### H04 — Host schedule and meeting status
 
@@ -49,7 +46,7 @@ As a host, I want to see my current schedule, the requests I received and sent, 
 - The `/app` dashboard calendar shows Google Calendar events, meetings booked through Find Me a Time and requests the host sent to others.
 - Decided to build (#330): received requests awaiting a decision on the dashboard calendar; answers to questions about the host's schedule (Google Calendar and booked meetings) in iMessage, Telegram and MCP; a schedule image in the messenger.
 - Decided not to build (#330): a weekly report.
-- Baseline: [H04](../technical_specification/12_testing_baseline.md#h04-host-schedule-and-meeting-status). Schedule questions and the schedule image are **not supported** until built.
+- Baseline: [H04](../technical_specification/12_testing_baseline.md#h04-host-schedule-and-meeting-status). Schedule questions and the schedule image are **not supported** until built; the weekly-report row M-6 is to be removed.
 
 ## Guest
 
@@ -85,7 +82,7 @@ As a participant in a booked meeting, I want to cancel it or change its time, pl
 
 - Either side can cancel or change a booked meeting until it starts. During a change the booked meeting stands; approval updates the same calendar event.
 - Decided (#329): the booked guest page keeps its conversation, so a guest who linked no messenger can cancel or start a change in words on the web. Decided (#326): the host web keeps **Cancel meeting** and **Change meeting**; the host's messenger and agent offer both as well.
-- Baseline: [M01](../technical_specification/12_testing_baseline.md#m01-cancel-or-reschedule-a-booked-meeting). The guest web conversation after booking is **not supported** until built.
+- Baseline: [M01](../technical_specification/12_testing_baseline.md#m01-cancel-or-reschedule-a-booked-meeting). The guest web conversation after booking is **not supported** until built, and rows W-H1 (host web shows details only) and W-G1, W-G2 are being updated to these decisions.
 
 ### A01 — Account and external connections
 

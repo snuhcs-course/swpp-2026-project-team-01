@@ -152,8 +152,10 @@ Draft for team review (#170), updated 2026-11-23. This replaces the earlier capa
 How to read it. Competitor rows describe what the cited public documentation establishes, not hands-on tests; "not established" means the sources reviewed did not show it, not that the product lacks it. The Find Me a Time rows describe the behavior in the [user stories](../user_experience/02_user_stories.md) and the [testing baseline](../technical_specification/12_testing_baseline.md); where a row there is not yet built, the cell says so. The groups are:
 
 - **Booking links:** Calendly, Cal.com, SavvyCal. The guest picks an open slot on the host's page.
-- **Email assistants:** Howie, Skej, CalendarBridge, Calendly Callie, SkipUp. The host copies an AI assistant into an email thread, which proposes times and books once the participants agree.
+- **Email assistants:** Howie, Skej, CalendarBridge, Calendly Callie, SkipUp, Clara, Ari, Sarra. The host copies an AI assistant into an email thread, which proposes times and books once the participants agree.
 - **Agent-mediated scheduling:** Openavail. A requester's agent asks through an API or MCP and the owner reviews proposals.
+
+A scenario leaves a group out when the reviewed sources say nothing about that moment for it (S3, S4, S6 and S8 have no agent-mediated row, and S7 has no email-assistant row because those assistants work in the host's inbox, not for the guest's agent).
 
 ### S1. Travel between meetings (the [problem scenario](../user_experience/01_user_journeys.md#problem-scenario-travel-between-meetings))
 
@@ -172,10 +174,10 @@ After booking, the guest needs a different time or place, or the host does.
 
 | | Host | Guest | Why it does not fit |
 |---|---|---|---|
-| Booking links | Calendly's **Share new times to meet** cancels the meeting and asks the invitee to pick again ([Calendly](https://calendly.com/help/how-to-reschedule-a-meeting)) | Reschedules or cancels from the link in the confirmation email ([Calendly FAQ](https://calendly.com/help/scheduling-faq)), choosing from the same slot grid | The new slot is checked as the first one was, so S1's problem comes back; the original booking is gone while a new time is found |
-| Email assistants | Clara and Ari list rescheduling ([Clara](https://www.claralabs.com/), [Ari](https://justcc.to/)); a separate host checkpoint on the new time is not established | Replies in the thread | The changed meeting is booked on agreement, without the host's fresh approval |
+| Booking links | Calendly's **Share new times to meet** cancels the meeting and asks the invitee to pick again ([Calendly](https://calendly.com/help/how-to-reschedule-a-meeting)) | Reschedules or cancels from the link in the confirmation email ([Calendly FAQ](https://calendly.com/help/scheduling-faq)), choosing from the same slot grid | The new slot is checked as the first one was, so S1's problem comes back; **Share new times to meet** cancels the original before a new time is found |
+| Email assistants | Clara and Ari list rescheduling ([Clara](https://www.claralabs.com/), [Ari](https://justcc.to/)); a separate host checkpoint on the new time is not established | Replies in the thread | Fresh host approval of the changed meeting is not established |
 | Agent-mediated | Public requests enter the owner's approval queue unless the owner's policy allows auto-book ([Openavail](https://www.openavail.com/docs/public-scheduling/)); changes to a booked meeting were not reviewed here | Not established | Not established |
-| **Find Me a Time** | Approves or declines the changed proposal; the booked meeting stands until then and the same calendar event moves | Asks in the booking page conversation, the messenger or an agent until the meeting starts | M01: a change goes through the same checks and fresh host approval; a declined or expired change leaves the meeting as it was |
+| **Find Me a Time** | Approves or declines the changed proposal; the booked meeting stands until then and the same calendar event moves | Asks in a linked messenger, by email reply or through an agent until the meeting starts; the booking-page conversation after booking is to build (#329) | M01: a change goes through the same checks and fresh host approval; a declined or expired change leaves the meeting as it was |
 
 ### S3. A request with missing details
 
@@ -216,7 +218,7 @@ The host tells the assistant something private ("not before my board meeting"); 
 |---|---|---|---|
 | Booking links | Keeps the reason private by never stating it | Sees only open slots | Fits on privacy, without any negotiation |
 | Email assistants | Talks to the assistant in or around a thread the guest is copied on; Howie's policy says availability may be shared with the other side ([privacy policy](https://howie.com/privacy-policy/)) | May see the assistant's reasoning in the thread | Keeping host-only reasons out of the shared thread is not established |
-| **Find Me a Time** | Discusses in the private messenger conversation; the web has no request chat (#326) | The guest's assistant never sees the host's calendar or rules and does not explain why a time is unavailable | Host-private and guest-facing conversations are separate (PRD section 8) |
+| **Find Me a Time** | Discusses in the private messenger conversation; the web's request chat is being removed (#326) | The guest's assistant never sees the host's calendar or rules and does not explain why a time is unavailable | Host-private and guest-facing conversations are separate (PRD section 8) |
 
 ### S7. A guest who sends their own agent
 
@@ -235,7 +237,7 @@ The host prefers investor meetings in the afternoon and student meetings in offi
 | | Host | Guest | Why it does not fit |
 |---|---|---|---|
 | Booking links | Keeps one event type or link per audience and sends the right one | Sees only the link they were sent | Works only when the host picks the link |
-| Email assistants | CalendarBridge keeps a plain-English configuration of up to 1,000 characters ([guide](https://help.calendarbridge.com/help/ai-assistant.html)); Clara lists priority contacts ([Clara](https://www.claralabs.com/)) | Not affected | Whether rules differ by who is asking is not established in tests |
+| Email assistants | CalendarBridge keeps a plain-English configuration of up to 1,000 characters ([guide](https://help.calendarbridge.com/help/ai-assistant.html)); Clara lists priority contacts ([Clara](https://www.claralabs.com/)) | Not affected | Whether rules differ by who is asking is not established by the sources reviewed |
 | **Find Me a Time** | One set of hours, limit and places per host; per-relationship rules are not built | Same | Not a current advantage; needs a team decision before it is claimed |
 
 ### Operating status checked 2026-11-23

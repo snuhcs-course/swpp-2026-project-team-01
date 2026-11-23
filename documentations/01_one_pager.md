@@ -12,7 +12,7 @@ The product is two-sided. Every meeting has one **host**, who owns the calendar 
 
 ### Hosts
 
-VC investors, founders, and professors who schedule frequent external one-to-one meetings across locations and time zones. The MVP targets hosts who use an iPhone and iMessage; Telegram serves hosts on any device, and WhatsApp is hidden for now (#221). Hosts sign in on the web, link iMessage or Telegram and finish setup there by answering two questions, hours and places, and agreeing to an image of next week's open times ([`host-onboarding-in-chat`](../openspec/changes/host-onboarding-in-chat/proposal.md#decisions), #166). They use browser handoffs for sign-in and Google consent and continue everyday scheduling in their linked private conversation. Web remains available throughout, and everything a host can do on the web can also be done in the host's messenger (decided 2026-11-23, #325).
+VC investors, founders, and professors who schedule frequent external one-to-one meetings across locations and time zones. The MVP targets hosts who use an iPhone and iMessage; Telegram serves hosts on any device, and WhatsApp is hidden for now (#221). Hosts sign in on the web, link iMessage or Telegram and finish setup there by answering two questions, hours and places, and agreeing to an image of next week's open times ([`host-onboarding-in-chat`](../openspec/changes/host-onboarding-in-chat/proposal.md#decisions), #166). They use browser handoffs for sign-in and Google consent and continue everyday scheduling in their linked private conversation. Web remains available throughout, and everything a host can do on the web is to be possible in the host's messenger too (decided 2026-11-23, #325; partly still being built).
 
 ### Requesters
 
@@ -51,7 +51,7 @@ Asking a busy person for time means guessing at their availability, trading seve
 - Only the host's approval of the current proposal authorizes booking.
 - Private calendar details, preferences, and host discussions stay private.
 - Chat, email, mobile, and agent clients share one request state.
-- Everything a host can do on the web also works in the host's messenger (iMessage, Telegram).
+- Everything a host can do on the web must also work in the host's messenger (iMessage, Telegram).
 
 The [user stories](user_experience/02_user_stories.md) list the ten stories the product is tested against, from the [testing baseline](technical_specification/12_testing_baseline.md).
 
