@@ -1,0 +1,40 @@
+{
+  "branch": "fix/channel-message-fixes",
+  "user": "dodo41142727@gmail.com",
+  "sessions": {
+    "claude:2cf99f28-7629-40df-80ee-b4f1a518d790": {
+      "agent": "claude-code",
+      "client": "claude-desktop",
+      "agent_ms": 0,
+      "models": {
+        "claude-opus-5-5": {
+          "input": 90,
+          "cache_read": 7291944,
+          "cache_write_5m": 0,
+          "cache_write_1h": 144383,
+          "output": 24510,
+          "reasoning": 0
+        }
+      },
+      "first": "2026-11-23T07:23:51.327Z",
+      "last": "2026-11-23T07:32:30.453Z"
+    },
+    "claude:2cf99f28-7629-40df-80ee-b4f1a518d790/agent-af629b407b0080522": {
+      "agent": "claude-code",
+      "client": "claude-desktop",
+      "agent_ms": 0,
+      "models": {
+        "claude-sonnet-5-5": {
+          "input": 6,
+          "cache_read": 173852,
+          "cache_write_5m": 93747,
+          "cache_write_1h": 0,
+          "output": 1364,
+          "reasoning": 0
+        }
+      },
+      "first": "2026-11-23T07:31:38.738Z",
+      "last": "2026-11-23T07:31:48.555Z"
+    }
+  }
+}

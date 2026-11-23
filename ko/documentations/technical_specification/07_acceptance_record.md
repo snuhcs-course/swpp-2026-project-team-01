@@ -366,7 +366,7 @@
 | AC-17 | 같은 여정: 평범한 "yes"와 오래된 `approve <ref>-1`은 아무것도 기록하지 않음; "gives an unlinked sender and a group conversation nothing private"; `tests/integration/imessage-channel.test.ts`(연결되지 않았거나 정지된 발신자, 그룹 대화, 반응)와 `imessage-commands.test.ts`(오래되었거나 알 수 없는 참조) |
 | AC-18 | 여정과 `imessage-commands.test.ts` "approves the current proposal once, also when replayed and after a web approval": 같은 메시지를 두 번 전달해도 영수증은 하나이고, 재시작 때처럼 다시 처리한 영수증은 저장된 승인을 재생하며, 동시에 일어난 웹 승인은 예약을 하나만 남김; 예약 완료 요약의 전달이 거부되면 요청은 예약된 채로 `/app` 카드에 표시됨(`imessage-notices.test.ts`도 해당) |
 | 배압 | `imessage-forwarding.test.ts` "defers a message an admission budget refuses by at least a minute, keeping later ones behind it"; `imessage-channel.test.ts`는 처리되지 않은 앞선 메시지 뒤에 나중 메시지를 유지함 |
-| 요약(D12) | `tests/integration/imessage-notices.test.ts`: 새 요청, 승인 대기(명령과 함께 한 번), 확정, 확정되지 않음, 여전히 대기 중; 바인딩이 없으면 없음; 오래된 버전은 건너뜀 |
+| 요약(D12) | `tests/integration/imessage-notices.test.ts`: 새 요청, 승인 대기(명령과 함께 한 번), 확정과 확정되지 않음, 여전히 대기 중인 예약에는 아무것도 보내지 않음(#173); 바인딩이 없으면 없음; 오래된 버전은 건너뜀 |
 | iMessage를 통한 설정 | `tests/integration/imessage-setup.test.ts`와 `imessage-commands.test.ts` "reviews settings with their reference and saves them only for the current one" |
 | 보존(D14) | `supabase/tests/imessage_channel.test.sql`; `imessage-setup.test.ts` "retention" |
 

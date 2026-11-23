@@ -138,7 +138,21 @@ export const IMESSAGE_PREFIX = "[iMessage] ";
 export const WHATSAPP_PREFIX = "[WhatsApp] ";
 // A linked Telegram chat (host-telegram-channel D12).
 export const TELEGRAM_PREFIX = "[Telegram] ";
+// A requester's email in their thread (requester-email-channel).
+export const EMAIL_PREFIX = "[Email] ";
 
 export function cameFromMessagingChannel(message: string) {
   return message.startsWith(IMESSAGE_PREFIX) || message.startsWith(WHATSAPP_PREFIX) || message.startsWith(TELEGRAM_PREFIX);
+}
+
+// The markers belong to forwarded input only. The model sometimes copies one to
+// the start of its reply (#410), so every outgoing channel reply drops any
+// leading marker, repeated or bolded ones included, whatever the model wrote.
+const MARKER_NAMES = [IMESSAGE_PREFIX, WHATSAPP_PREFIX, TELEGRAM_PREFIX, EMAIL_PREFIX].map((prefix) => prefix.trim().slice(1, -1));
+const LEADING_MARKER = new RegExp(`^\\s*(?:\\*\\*)?\\[(?:${MARKER_NAMES.join("|")})\\](?:\\*\\*)?[ \\t]*:?\\s*`, "i");
+
+export function stripChannelMarkers(text: string) {
+  let rest = text;
+  while (LEADING_MARKER.test(rest)) rest = rest.replace(LEADING_MARKER, "");
+  return rest;
 }

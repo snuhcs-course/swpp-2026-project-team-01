@@ -151,14 +151,18 @@ In the linked iMessage or WhatsApp conversation, the assistant SHALL be able to 
 - **THEN** nothing is switched and the assistant asks which one, naming each
 
 ### Requirement: Shared discussions and replies
-A linked host's free text SHALL become an accepted input of the discussion the host selected (setup by default, or the private review discussion of a selected request), marked as coming from iMessage, under the same redaction, admission, session index and model limits as web input; a retried receipt SHALL resolve to the same input. When that input's turn ends, the assistant's final text SHALL be sent to the linked conversation, and a turn that fails or yields no text SHALL send a fixed fallback pointing to the web.
+A linked host's free text SHALL become an accepted input of the discussion the host selected (setup by default, or the private review discussion of a selected request), marked as coming from iMessage, under the same redaction, admission, session index and model limits as web input; a retried receipt SHALL resolve to the same input. When that input's turn ends, the assistant's final text SHALL be sent to the linked conversation without any leading channel marker such as `[iMessage]`, which the send path SHALL drop whatever the model wrote (#410), and a turn that fails or yields no text SHALL send a fixed fallback pointing to the web.
 
 #### Scenario: Private question
 - **WHEN** the linked host selects a request and asks a question in text
 - **THEN** the question appears in that request's private discussion in `/app` and the assistant's answer arrives in iMessage
 
+#### Scenario: Reply copies the marker
+- **WHEN** the assistant's final text for a linked host's message starts with `[iMessage] ` or `[Telegram] `, once or more
+- **THEN** the message sent to the linked conversation starts after the markers
+
 ### Requirement: Summaries and outcomes
-A host with an active binding SHALL receive in the linked conversation one summary per event when a proposal awaits approval (with the exact approve and decline commands for its reference) and when a booking is confirmed, not confirmed or still pending. A request's arrival SHALL NOT be announced: the guest is offered times first, and the awaiting-approval summary, the host's first message about the request, SHALL name the requester, the purpose and any earlier request it follows. Each summary SHALL be recorded in the transaction of the change it reports and frozen from that event's own records; a summary for a proposal version that is no longer the latest SHALL NOT be sent.
+A host with an active binding SHALL receive in the linked conversation one summary per event when a proposal awaits approval (with the exact approve and decline commands for its reference) and when a booking is confirmed or not confirmed. A booking still pending SHALL NOT be announced to the host, since its confirmation or failure follows (#173). A request's arrival SHALL NOT be announced: the guest is offered times first, and the awaiting-approval summary, the host's first message about the request, SHALL name the requester, the purpose and any earlier request it follows. Each summary SHALL be recorded in the transaction of the change it reports and frozen from that event's own records; a summary for a proposal version that is no longer the latest SHALL NOT be sent.
 
 #### Scenario: Guest starts a request
 - **WHEN** a guest of a host with an active binding starts or revises a request
@@ -167,6 +171,10 @@ A host with an active binding SHALL receive in the linked conversation one summa
 #### Scenario: Proposal awaits approval
 - **WHEN** the requester agrees to a proposal of a host with an active binding
 - **THEN** one summary with the time, mode, place and the exact `approve` and `decline` commands is queued for the linked conversation
+
+#### Scenario: Booking still pending
+- **WHEN** a linked host's booking is still unconfirmed 15 minutes after dispatch
+- **THEN** the guest is told it is still in progress and nothing is sent to the host's linked conversation; the host's next summary is the booking's confirmation or failure
 
 ### Requirement: Truthful outbound delivery
 Every outbound iMessage SHALL be a frozen record dispatched by a job behind the messaging-environment gate. A send whose result is lost SHALL be recorded uncertain and never repeated automatically; a refusal before sending MAY be retried within a bound. A delivery result SHALL NOT change request, proposal or booking state, and a delivery retry SHALL NOT create a booking. The latest failed or uncertain delivery SHALL be visible in the web workspace, where the host can continue.
