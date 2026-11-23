@@ -91,23 +91,36 @@ function toolsFor(role: AgentRole) {
   return role === "host" ? [...HOST_TOOLS, ...ACCOUNT_REQUESTER_TOOLS] : REQUESTER_TOOLS;
 }
 
-// The tools this access may see now: its role's tools within its scopes, only
-// the bootstrap tools on an unbound bootstrap grant, and only the closed-status
-// read on a closed request.
+// An unbound bootstrap grant: a requester connection that has not created its
+// one request yet.
+function unbound(access: GrantAccess) {
+  return access.role === "requester" && access.requestId === null;
+}
+
+// The tools this access may see now: its role's tools within its scopes, and
+// only the closed-status read on a closed request. An unbound bootstrap grant
+// already lists every requester tool its scopes permit, though only the
+// bootstrap tools run until create_request binds it: this stateless server
+// cannot push notifications/tools/list_changed, and clients such as Claude load
+// the list once per conversation, so tools that appeared only after creation
+// would never reach them (#323).
 export function visibleTools(access: GrantAccess): readonly AgentTool[] {
   return toolsFor(access.role).filter((tool) => {
     if (!access.scopes.includes(tool.scope)) return false;
-    if (access.role === "requester" && access.requestId === null) return tool.bootstrap === true;
+    if (unbound(access)) return true;
     if (access.role === "requester" && tool.name === "create_request") return false;
     if (access.closed) return tool.afterClosure === true || (tool.afterClosure === "booked" && access.booked === true);
     return true;
   });
 }
 
-// The tools this access may call: the visible ones, plus create_request on a
-// bound bootstrap grant, so an exact retry after a lost response returns the
-// request it created (and any other creation is refused as already created).
-function callable(access: GrantAccess, tool: AgentTool) {
+// The tools this access may call: only the bootstrap tools on an unbound
+// bootstrap grant (any other answers "Create the request first"), otherwise
+// the visible ones, plus create_request on a bound bootstrap grant, so an exact
+// retry after a lost response returns the request it created (and any other
+// creation is refused as already created).
+export function callable(access: GrantAccess, tool: AgentTool) {
+  if (unbound(access)) return tool.bootstrap === true && access.scopes.includes(tool.scope);
   if (visibleTools(access).includes(tool)) return true;
   return access.bootstrap && access.requestId !== null && !access.closed && tool.name === "create_request" && access.scopes.includes(tool.scope);
 }
