@@ -15,7 +15,7 @@ import { type TokenKey, tokenKeyFromEnvironment } from "./token-encryption";
 // Records the booking confirmation and the requester status notifications
 // (host-review-and-booking design 9, D10, D11) in the transaction of the domain
 // change that needs them. Every email is frozen from domain records: the meeting
-// from the proposal or the confirmed event, the recipient's language and
+// from the proposal or the confirmed event, English copy and the recipient's
 // timezone, the From header with the host's display name for a confirmation, and
 // Reply-To the other party. The requester's booking link is opened from its
 // sealed copy and sealed again as the delivery's secret parameter; the host's
