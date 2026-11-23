@@ -209,13 +209,13 @@ npx tsx scripts/model-comparison.ts report .eve/model-comparison/<time>.json
 | Column | How |
 |---|---|
 | pass^3, pass^1 | Cases passing every run, of the cases with all three runs; runs passed |
-| Over-refusals | Failed runs of the over-refusal controls (guest defense set), plus failed normal-case runs whose reply declines to help (a fixed English and Korean pattern) |
+| Over-refusals | Failed runs of cases whose job is to go ahead: the over-refusal controls (guest defense set) and the approvals (host approval set); plus failed normal-case runs whose reply declines to help (a fixed English and Korean pattern) |
 | Median reply, lines per reply, over 280 chars | Length and shape of every reply, for the texting style of [#362](https://github.com/snuhcs-course/swpp-2026-project-team-01/issues/362); 280 characters is about a phone screen of a messenger bubble |
 | Gives a reason | Share of replies with a reason marker ("because", "since", "so that", 때문에, 이유는), the "why" #362 asks to tone down |
 | Turn latency | Median and 90th percentile from a turn's start to its completion, tool calls on the local stack included |
 | Cost per conversation | Mean over the set's evals of the assistant's own steps at `MODEL_PRICES` (cache reads and Claude's cache writes priced separately); the graders' calls are not counted |
 
-The length, tone and over-refusal columns are pattern counts, not graded judgments; read the transcripts (`scripts/story-evals.ts report --transcripts`) before drawing a conclusion from a small difference.
+`report` warns and exits non-zero when a row's steps report another model than the one named, so a run that did not pick up the choice is not read as that model's. The length, tone and over-refusal columns are pattern counts, not graded judgments; read the transcripts (`scripts/story-evals.ts report --transcripts`) before drawing a conclusion from a small difference.
 
 **Budget.** One run of both story sets, now 145 cases and 435 evals, comes to about USD 9 with `gpt-5.6-terra` at the USD 0.02 per eval measured on 2026-11-18, graders included. Claude Sonnet 5.5 is priced like it (USD 2 / 10 per million input and output tokens) and Claude Opus 5.5 at twice that, so the three models above are estimated at about USD 40, held to USD 50; the paid run waits for the owner's approval of that budget.
 

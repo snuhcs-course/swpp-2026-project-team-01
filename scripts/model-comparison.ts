@@ -67,9 +67,10 @@ function selectSets(value: string) {
 // first, then the env files eve dev loads.
 function hasKey(name: string) {
   if (process.env[name]?.trim()) return true;
-  return [".env.local", ".env"].some((file) => {
+  const set = new RegExp(`^\\s*(?:export\\s+)?${name}\\s*=\\s*\\S`);
+  return [".env.development.local", ".env.local", ".env.development", ".env"].some((file) => {
     const full = path.join(root, file);
-    return existsSync(full) && readFileSync(full, "utf8").split("\n").some((line) => new RegExp(`^${name}=\\S`).test(line));
+    return existsSync(full) && readFileSync(full, "utf8").split("\n").some((line) => set.test(line));
   });
 }
 
@@ -95,6 +96,11 @@ function report(manifest: Manifest) {
   });
   console.log(`\nModel comparison at ${manifest.commit}, started ${manifest.startedAt}\n`);
   console.log(formatTable(rows));
+  // eve reports the model of every step; a row whose steps ran another model
+  // measured the wrong one.
+  const wrong = rows.filter((row) => row.summary.models.some((model) => model !== row.model));
+  for (const row of wrong) console.error(`\nWarning: ${row.model} on ${row.set} has steps from ${row.summary.models.join(", ")}.`);
+  if (wrong.length) process.exitCode = 1;
 }
 
 function flag(args: readonly string[], name: string) {
@@ -128,6 +134,8 @@ function run(args: readonly string[]) {
         stdio: "inherit",
       });
       if (result.error) throw result.error;
+      // Failed evals exit non-zero too; a crash shows as a set with missing runs.
+      if (result.status !== 0) console.log(`eve eval exited with ${result.status ?? result.signal} for ${model} on ${set.name}`);
       manifest.runs.push({ artifact: newestArtifact(started), model, set: set.name });
       writeFileSync(file, `${JSON.stringify(manifest, null, 2)}\n`);
     }

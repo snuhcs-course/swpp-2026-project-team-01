@@ -100,6 +100,12 @@ describe("model comparison metrics", () => {
       unpriced: 0,
     });
     expect(summary.meanCostUsd).toBeCloseTo(0.00188, 8);
+    expect(summary.models).toEqual(["openai/gpt-5.6-terra"]);
+
+    // A withheld approval is an over-refusal too.
+    const approvals = evalIds([{ category: "approve", id: "A1", trials: 1 }, { category: "withhold", id: "W1", trials: 1 }], "requester/story/", 3);
+    const failed = new Map([...approvals.keys()].map((id) => [id, { events: "", failed: ["x"], passed: false }]));
+    expect(summarize(approvals, failed, () => null, PRICES, 3).overRefusals).toBe(1);
 
     const table = formatTable([{ model: "openai/gpt-5.6-terra", set: "guest-story", summary }]);
     expect(table.split("\n")).toHaveLength(3);
