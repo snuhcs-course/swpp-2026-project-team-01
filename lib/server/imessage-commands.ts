@@ -387,7 +387,6 @@ async function decide(
   return { requestId: view.requestId, text: declineText(texts, outcome.result) };
 }
 
-// The decline reply names the other dates only when the decline kept some.
 // The reply to a settings save. The first save ends setup, so it says so
 // plainly with the booking link (issue #368) and adds the one tutorial offer.
 export function savedSettingsText(language: ChannelLanguage, booking: string, firstSave: boolean) {
@@ -395,6 +394,7 @@ export function savedSettingsText(language: ChannelLanguage, booking: string, fi
   return firstSave ? `${texts.setupDone(booking)}\n\n${TUTORIAL_TEXT[language].offer}` : texts.saved(booking);
 }
 
+// The decline reply names the other dates only when the decline kept some.
 function declineText(texts: ReturnType<typeof channelReplies>, result: Record<string, unknown> | null) {
   const kept = typeof result?.keptDates === "number" ? result.keptDates : 0;
   return result?.state === "declined" && kept > 0 ? texts.declinedWithDates(kept) : texts.declined;

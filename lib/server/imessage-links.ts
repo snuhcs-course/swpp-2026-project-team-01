@@ -10,7 +10,7 @@ import {
 } from "../contracts/imessage";
 import { configuredChannels, type MessagingChannel } from "../contracts/messaging-channel";
 import { defaultCalendarRoles, readDefaultRoleCalendars } from "./calendar-roles";
-import { SETUP_OVERVIEW, withSetupStep } from "../contracts/setup-progress";
+import { SETUP_OVERVIEW, withoutSetupStep, withSetupStep } from "../contracts/setup-progress";
 import { hostConversationLanguage } from "./channel-language";
 import { channelReplies } from "./channel-texts";
 import { googleCalendarConfigFromEnvironment, type GoogleCalendarDependencies, type CalendarListEntry } from "./google-calendar";
@@ -24,7 +24,7 @@ import { REQUESTER_LINK_TEXTS } from "./requester-imessage-bindings";
 import { imessageContinuationUrl } from "./imessage-continuation";
 import { photonRegistrar, type PhotonRegistrar } from "./photon";
 import { channelHash, imessageHash } from "./photon-receiver";
-import { calendarUsable, readReadiness } from "./readiness";
+import { calendarUsable, readReadiness, savedSettingsOnce } from "./readiness";
 import { openToken, sealToken, type TokenKey } from "./token-encryption";
 
 // Linking a host's iMessage (host-imessage-channel design 4, 6 and 11; D3, D5,
@@ -387,8 +387,10 @@ async function linkedText(tx: Transaction, hostAccountId: string, options: LinkO
   const roles = await defaultCalendarRoles(tx, hostAccountId, options.liveCalendars ?? null);
   const language = await hostConversationLanguage(tx, hostAccountId);
   const texts = channelReplies(language).onboarding;
-  // Setup starts here, so the message first says what it covers (issue #368).
-  return `${SETUP_OVERVIEW[language]}\n${roles ? texts.rolesDefault(roles.calendar, roles.others) : texts.rolesNeeded}`;
+  const text = roles ? texts.rolesDefault(roles.calendar, roles.others) : texts.rolesNeeded;
+  // Setup starts here, so the message first says what it covers (issue #368);
+  // a host who saved settings before is not starting setup over.
+  return (await savedSettingsOnce(tx, hostAccountId)) ? withoutSetupStep(text) : `${SETUP_OVERVIEW[language]}\n${text}`;
 }
 
 const noInput = z.object({}).strict() as unknown as z.ZodType<Record<string, never>>;
@@ -1000,7 +1002,8 @@ export async function resumeImessageOnboarding(db: Database, key: TokenKey, host
     if (grant?.usable && !(await readReadiness(tx, hostAccountId)).ready) {
       const roles = await defaultCalendarRoles(tx, hostAccountId, live);
       const texts = channelReplies(await hostConversationLanguage(tx, hostAccountId)).onboarding;
-      text = roles ? texts.rolesDefault(roles.calendar, roles.others) : texts.rolesNeeded;
+      const roleText = roles ? texts.rolesDefault(roles.calendar, roles.others) : texts.rolesNeeded;
+      text = (await savedSettingsOnce(tx, hostAccountId)) ? withoutSetupStep(roleText) : roleText;
     }
     await recordOutbound(tx, {
       bindingId: binding.id,

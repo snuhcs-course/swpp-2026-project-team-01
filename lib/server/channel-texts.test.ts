@@ -96,7 +96,7 @@ describe("chat setup guidance", () => {
     expect(en.match(/\?/g)).toHaveLength(1);
     expect(CHANNEL_REPLIES.en.onboarding.rolesDefault("Me", ["Work"])).toContain('You also have "Work". Should I check it for busy times too?');
     const ko = CHANNEL_REPLIES.ko.onboarding.rolesDefault("Me", ["회사"]);
-    expect(ko).toContain('"회사" 캘린더도 있는데, 같이 확인할까요? 아니면 답하지 않으셔도 돼요.');
+    expect(ko).toContain('"회사" 캘린더도 있는데, 같이 확인할까요? 필요 없으면 답하지 않으셔도 돼요.');
     expect(CHANNEL_REPLIES.en.onboarding.rolesDefault("Me")).toContain("If another calendar should count too, just tell me.");
   });
 

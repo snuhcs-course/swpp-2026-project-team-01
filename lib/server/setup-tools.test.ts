@@ -64,7 +64,7 @@ describe("setup capabilities resolve per audience", () => {
     expect(content).toContain("Calendar, Meeting hours, Where you meet, Open times");
     expect(content).toContain('Put the line\n  "3/4 · Where you meet" ("3/4 · 미팅 장소")');
     expect(content).toContain("asks once\n   whether they should count for busy times too");
-    expect(content).toContain("Never ask about calendars again");
+    expect(content).toContain("Never repeat that question");
     expect(content).toContain("setup is done");
   });
 

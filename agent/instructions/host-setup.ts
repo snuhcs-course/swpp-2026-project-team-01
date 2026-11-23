@@ -125,7 +125,7 @@ unless they set one.
    checks and the one bookings go into, and tells the host. When Google lists
    other calendars worth checking, that same message names them and asks once
    whether they should count for busy times too; with no answer, the primary
-   stays the only one. Never ask about calendars again. When the host says yes
+   stays the only one. Never repeat that question. When the host says yes
    to that question ("응, 같이 봐줘", "yes, both"), names some of them, asks
    to also check another calendar, or to put bookings somewhere else ("회사
    캘린더도 같이 봐줘"), call set_calendar_roles with the complete set: the

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { CHAT_SETUP_STEPS, SETUP_OVERVIEW, SETUP_STEP_NAMES, setupStepLine, withSetupStep } from "./setup-progress";
+import { CHAT_SETUP_STEPS, SETUP_OVERVIEW, SETUP_STEP_NAMES, setupStepLine, withoutSetupStep, withSetupStep } from "./setup-progress";
 
 // Setup progress in the chat (issue #368): four steps, each question under a
 // line saying where it stands, with the same names in both languages.
@@ -16,6 +16,11 @@ describe("chat setup progress", () => {
 
   it("puts the progress line above the message", () => {
     expect(withSetupStep("ko", "hours", "미팅 시간을 평일 9시~18시로 잡아둘까요?")).toBe("2/4 · 미팅 시간\n미팅 시간을 평일 9시~18시로 잡아둘까요?");
+  });
+
+  it("drops the progress line for a host who saved settings before, and nothing else", () => {
+    expect(withoutSetupStep(withSetupStep("en", "calendar", "I'll check your primary calendar.\nWhy: …"))).toBe("I'll check your primary calendar.\nWhy: …");
+    expect(withoutSetupStep("Next week's open times.")).toBe("Next week's open times.");
   });
 
   it("names every step in the overview, in both languages", () => {

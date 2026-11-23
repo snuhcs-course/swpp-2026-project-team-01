@@ -19,7 +19,7 @@ export const TUTORIAL_FEEDBACK = {
   ko: {
     approve: "샘플 요청을 승인했어요.",
     decline: "샘플 요청을 거절했어요.",
-    change: "샘플 요청에 변경을 요청했어요.",
+    change: "샘플 요청에 변경을 부탁했어요.",
     end: "튜토리얼을 종료했어요.",
     complete: "튜토리얼이 끝났어요.",
     practice: "연습이었어요. 실제 일정은 만들어지지 않았고, 게스트에게도 알림이 가지 않았어요.",

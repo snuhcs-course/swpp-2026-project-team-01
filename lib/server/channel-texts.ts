@@ -581,7 +581,7 @@ export const CHANNEL_REPLIES = {
           "calendar",
           `기본 캘린더(${calendar})로 일정을 확인하고 예약도 여기에 넣을게요. ${
             others.length
-              ? `${calendarListText(others, "ko")} 캘린더도 있는데, 같이 확인할까요? 아니면 답하지 않으셔도 돼요.`
+              ? `${calendarListText(others, "ko")} 캘린더도 있는데, 같이 확인할까요? 필요 없으면 답하지 않으셔도 돼요.`
               : "다른 캘린더도 같이 봐야 하면 말씀해 주세요."
           } 지금 캘린더를 살펴보고 있어요. 다음은 미팅 시간이에요.\n${PERMISSION_REASONS.ko.calendarRoles}`,
         ),

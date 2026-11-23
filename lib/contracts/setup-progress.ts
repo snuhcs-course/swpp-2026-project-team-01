@@ -31,3 +31,11 @@ export function setupStepLine(language: SetupProgressLanguage, step: ChatSetupSt
 export function withSetupStep(language: SetupProgressLanguage, step: ChatSetupStep, text: string) {
   return `${setupStepLine(language, step)}\n${text}`;
 }
+
+const STEP_LINE = new RegExp(`^\\d/${CHAT_SETUP_STEPS.length} · [^\\n]+\\n`);
+
+// The same message without its progress line, for a host who saved settings
+// before (their readiness can lapse, but setup is not starting over).
+export function withoutSetupStep(text: string) {
+  return text.replace(STEP_LINE, "");
+}
