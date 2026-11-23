@@ -1,15 +1,15 @@
 ## ADDED Requirements
 
 ### Requirement: Inbound-first guest linking
-A guest SHALL link iMessage to a request only by sending a request-owned one-time link code from their own iMessage to the service's line and then confirming the arrived sender on that request's booking page. The service SHALL NOT send the first message to a guest. A code SHALL be valid for 15 minutes, stored only as a keyed hash and a sealed copy, limited to 5 per request per hour, and replaced by a newer code; nothing SHALL be bound before **Confirm and link**.
+A guest SHALL link iMessage to a request only by sending a request-owned one-time link code from their own iMessage to the service's line; the code's arrival SHALL bind the sender to the request with no confirmation on the booking page (`link-on-code` D1). The service SHALL NOT send the first message to a guest. A code SHALL be valid for 15 minutes, stored only as a keyed hash and a sealed copy, limited to 5 per request per hour, single-use, and replaced by a newer code.
 
 #### Scenario: Link from the booking page
-- **WHEN** the guest presses **Get updates in iMessage**, sends the prefilled message, and presses **Confirm and link** on the sender
-- **THEN** the request has one active guest binding and the line replies once in that conversation
+- **WHEN** the guest presses **Get updates in iMessage** and sends the prefilled message
+- **THEN** the request has one active guest binding, the line replies once in that conversation, and the booking page's card shows the linked sender's last four digits with **Unlink iMessage**
 
-#### Scenario: Forwarded code
-- **WHEN** a code arrives from a sender and nobody confirms it before it expires
-- **THEN** no binding exists and the sender receives no request data
+#### Scenario: Expired or used code
+- **WHEN** a code arrives after it expired, was replaced or already linked
+- **THEN** no binding is made and the sender receives no request data
 
 #### Scenario: No outbound first message
 - **WHEN** a guest has never written to the line

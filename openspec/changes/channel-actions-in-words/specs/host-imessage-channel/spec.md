@@ -84,7 +84,7 @@ A host with an active binding SHALL receive in the linked conversation one summa
 A linked host SHALL be able to enter the shared setup discussion with `setup` or in words and answer setup questions in plain text that update the same draft as the web workspace. Sign-in, Google consent and protected fields SHALL stay browser steps; Thyme SHALL send a link for connecting Google Calendar that returns the host to the conversation. Linking SHALL send a welcome by where the host stands: a ready host is told what Thyme can do, a host without a usable Calendar gets the Calendar link, and any other host gets the first setup question. Settings SHALL be saved only for the current settings review, by the host's clear words to the assistant or the exact `confirm <ref>` command, under the same checks as the web confirmation.
 
 #### Scenario: Welcome into setup
-- **WHEN** a host who is not ready confirms the received sender, after either entry
+- **WHEN** a host who is not ready links a sender, after either entry
 - **THEN** the welcome asks for Calendar or the first setup question, and a plain reply joins the shared setup discussion without `setup`
 
 #### Scenario: Back from Google
