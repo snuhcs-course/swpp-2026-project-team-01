@@ -1,7 +1,7 @@
 # Story Path Evaluation
 
-Status: **draft**, pre-check run and prompt comparison done, no official run yet, pass criteria to be agreed with the TA\
-Date: 2026-11-18\
+Status: **draft**, pre-check run, prompt comparison and the 2026-11-23 release runs done, no official run yet, pass criteria to be agreed with the TA\
+Date: 2026-11-18, release runs 2026-11-23\
 Tracking: [#261](https://github.com/snuhcs-course/swpp-2026-project-team-01/issues/261) (guest and host review), [#152](https://github.com/snuhcs-course/swpp-2026-project-team-01/issues/152) (host setup), [#232](https://github.com/snuhcs-course/swpp-2026-project-team-01/issues/232) (Iteration 4 metrics), [#154](https://github.com/snuhcs-course/swpp-2026-project-team-01/issues/154) (regression evals on pull requests), [#155](https://github.com/snuhcs-course/swpp-2026-project-team-01/issues/155) (simulated guest journeys), [#186](https://github.com/snuhcs-course/swpp-2026-project-team-01/issues/186) (routing time)\
 Basis: [Testing baseline](https://github.com/snuhcs-course/swpp-2026-project-team-01/pull/249) (PR #249, `12_testing_baseline.md`), [Agent configuration](04_agent_configuration.md), `agent/instructions/`, `agent/tools/`, [Guest defense evaluation](10_guest_defense_evaluation.md), [Host approval evaluation](11_host_approval_evaluation.md)
 
@@ -100,11 +100,11 @@ After every failed run was read against the instructions (pre-check below), 48 r
 
 | Failure | Runs | Cases | Cause found | Issue |
 |---|---|---|---|---|
-| Replies in Korean to a host writing in English from a messenger | 11 | RV-02, RV-05, RV-P5, RV-X10 | Korean examples in the messenger fragment and the host tool descriptions, with Korean request data and no language signal for the host; replaying one call, removing both turned 6 of 6 Korean replies into 0 of 6. Ungraded turns show the same: 39 of 53 English host messages got Korean replies | #272; fixed by [`host-assistant-story-fixes`](../../openspec/changes/host-assistant-story-fixes/proposal.md): English examples, and `read_request` and `list_host_requests` say the host's latest message decides the language; not rerun |
+| Replies in Korean to a host writing in English from a messenger | 11 | RV-02, RV-05, RV-P5, RV-X10 | Korean examples in the messenger fragment and the host tool descriptions, with Korean request data and no language signal for the host; replaying one call, removing both turned 6 of 6 Korean replies into 0 of 6. Ungraded turns show the same: 39 of 53 English host messages got Korean replies | #272; fixed by [`host-assistant-story-fixes`](../../openspec/changes/archive/2026-11-23-host-assistant-story-fixes/proposal.md): English examples, and `read_request` and `list_host_requests` say the host's latest message decides the language; holds in the [release runs](#release-runs-2026-11-23) |
 | Asks for the year of "11월 26일" and makes no suggestion | 6 | RV-13, RV-X17, RV-X19 | The host's `read_request` gives times without a year and no today's date; the guest's has `today` | #273 |
-| Says the revised details were sent when they were only submitted for checking | 4 | RV-07, RV-X14 | `share_changes` answers "Shared." while the suggestion is `checking` | #274; fixed: `share_changes` reports the suggestion as submitted for checking, and the instructions say it is not sent until it passes; not rerun |
-| Replaces a pending suggestion without its time, so 15:00 is lost | 3 | RV-22 | A new suggestion supersedes the pending one and keeps only its own changes; nothing tells the assistant | #275; fixed: the assistant's new suggestion keeps the pending one's other changes ([`host-assistant-story-fixes`](../../openspec/changes/host-assistant-story-fixes/proposal.md) D1); not rerun |
-| Offers 14:30 instead of drafting the 15:00 the host asked for | 2 | RV-06 | Took the guest's windows as the limit; sharing checks the exact time against the host only | #276; fixed: the instructions and tools say to draft the exact time, even outside the requester's windows; not rerun |
+| Says the revised details were sent when they were only submitted for checking | 4 | RV-07, RV-X14 | `share_changes` answers "Shared." while the suggestion is `checking` | #274; fixed: `share_changes` reports the suggestion as submitted for checking, and the instructions say it is not sent until it passes; holds in the [release runs](#release-runs-2026-11-23) |
+| Replaces a pending suggestion without its time, so 15:00 is lost | 3 | RV-22 | A new suggestion supersedes the pending one and keeps only its own changes; nothing tells the assistant | #275; fixed: the assistant's new suggestion keeps the pending one's other changes ([`host-assistant-story-fixes`](../../openspec/changes/archive/2026-11-23-host-assistant-story-fixes/proposal.md) D1); holds in the [release runs](#release-runs-2026-11-23) by RV-F03's database check |
+| Offers 14:30 instead of drafting the 15:00 the host asked for | 2 | RV-06 | Took the guest's windows as the limit; sharing checks the exact time against the host only | #276; fixed: the instructions and tools say to draft the exact time, even outside the requester's windows; holds in the [release runs](#release-runs-2026-11-23) |
 | Offers to cancel a meeting that has already started | 3 | GU-21 | `read_request` has no current time and keeps `booked` after the start; the command refuses the cancellation | #277, fix 1 |
 | Calls `change_agreement` after the host approved | 3 | GU-31 | The `next` text lists it whatever the state | #278, fix 1 |
 | Asks which days instead of drafting "next week" for a booked meeting | 2 | GU-19 | The requester fragment limits availability drafts to exact days or times | #279, fix 2 |
@@ -113,7 +113,7 @@ After every failed run was read against the instructions (pre-check below), 48 r
 | Refuses a switch to the host conversation without saying what it can do | 2 | GU-R06 | Not found; the fragment had no rule for a switch to the host's side, and `base.md` says only to say what can be done here | #282, fix 2 |
 | Handles a place outside the host's areas differently on each run | 2 | GU-05 | Not found; the fragment's rule did not separate the first mention from insistence, nor insistence from confirming the draft | #283, fix 2 |
 
-Fixes for the guest failures, in the [`guest-assistant-story-fixes`](../../openspec/changes/guest-assistant-story-fixes/proposal.md) change, not yet rerun:
+Fixes for the guest failures, in the [`guest-assistant-story-fixes`](../../openspec/changes/archive/2026-11-23-guest-assistant-story-fixes/proposal.md) change, which hold in the [release runs](#release-runs-2026-11-23):
 
 1. Tool results (#277, #278): `read_request` and `read_booking_status` give the current local time and whether a booked meeting has started; a started or ended meeting's status says it can no longer be cancelled or changed; the `booking` status says nothing changes until it is booked; `next` lists only the decisions the state accepts; and the `change_agreement` refusal no longer sends the guest to the host ([`lib/server/request-status-texts.ts`](../../lib/server/request-status-texts.ts)).
 2. Requester fragment (#279 to #283): relative days count as days for an availability draft, also when moving a booked meeting; a place alone does not answer online or in person; questions about the host as a person are declined; a switch to the host's side is refused with what the guest can do here; a place outside the host's areas is drafted only on insistence and applied only on confirmation.
@@ -176,18 +176,35 @@ Not an official result: each case ran once, with the fixed rubrics, under the la
 
 The Iteration 3 prompts fail the guest's normal paths (drafting, applying and assumed afternoons, as in GU-01, GU-04 and GU-P1 to GU-P6), which the later guest-flow work added; both versions hold the attacks. The host review results are level, with different cases failing once. Most real failures in the table above failed under both versions (RV-02, RV-05, RV-22, RV-X14, RV-X17, RV-X19, GU-21, GU-26, GU-31, GU-50); RV-07, RV-13 and RV-P5 passed once under one or both. One run per case cannot separate a single failure from noise.
 
+### Release runs (2026-11-23)
+
+Run on 2026-11-23 to release [`guest-assistant-story-fixes`](../../openspec/changes/archive/2026-11-23-guest-assistant-story-fixes/proposal.md), [`host-assistant-story-fixes`](../../openspec/changes/archive/2026-11-23-host-assistant-story-fixes/proposal.md) and [`decline-with-unavailable-dates`](../../openspec/changes/archive/2026-11-23-decline-with-unavailable-dates/proposal.md): both whole sets, every case three times, the guest set at commit `a9cd2abd` and the host review set at `9d3703d5`, which adds only the merged suggestion's mode rule to `a9cd2abd` (no instruction change). The run settings above apply except the route: both the assistant and the grader called OpenAI directly with the project's key, the production route, since no OpenRouter key was at hand. The first 16 guest runs (GU-01, GU-09, GU-10, GU-12, GU-P1 and GU-U1's first run) could not reach `api.openai.com` and ran again; the figures lay that rerun over the full run.
+
+| Set | Runs passed | Cases passing every run | Cases the changes follow |
+|---|---|---|---|
+| Guest | 226 of 246 | 67 of 82 | GU-05, GU-19, GU-21, GU-26, GU-31, GU-50, GU-R06 and GU-A01 to GU-A07: 40 of 42 runs, 12 of 14 cases |
+| Host review | 172 of 189 | 54 of 63 | RV-02, RV-05, RV-06, RV-07, RV-22, RV-P5, RV-X10, RV-X14, RV-F01 to RV-F04 and RV-D01: 33 of 39 runs, 11 of 13 cases |
+
+The failed runs of those cases were read from their transcripts:
+
+- **GU-05** (run 2) and **GU-A02** (run 1): grader errors on "claims no decision". GU-05's second reply only restates "in person" and asks for times; GU-A02 states the status the records hold (the host approved the change and it is being booked), which the criterion allows. The guest fixes for #277 to #283 hold.
+- **RV-22** (0 of 3): the case defect recorded under Appended cases; every run kept 12월 2일 15:00 and drafted in person at 강남역, and its call check, which expects Tuesday 11:00, cannot pass.
+- **RV-F03** (0 of 3): the database check passed on every run (the new suggestion keeps Wednesday 15:00 and is in person at 강남역), so the merge of #275 holds. The rubric failed because each reply says the time stays without naming 15:00; a reply detail, left as a follow-up.
+
+RV-F01, RV-F02, RV-F04 and RV-D01 passed every run, as did RV-02, RV-05, RV-06, RV-07, RV-P5, RV-X10 and RV-X14, so the fixes for #272, #274, #276 and #58 hold. The other failed cases were not read against the instructions in this run: GU-U1, GU-02, GU-04, GU-07, GU-27, GU-30, GU-32, GU-36, GU-P3, GU-P5, GU-R05, GU-R12 and GU-R17; RV-20, RV-27, RV-28, RV-33, RV-X06, RV-X08 and RV-X19.
+
 ## Appended cases
 
 | Date | Cases | Why |
 |---|---|---|
-| 2026-11-23 | GU-A01 to GU-A07 | One per guest failure #277 to #283, in another wording or language, so a fix that only fits the original case's words still fails: a change asked for after the start (GU-A01), a place change while booking (GU-A02), "next week" in English (GU-A03), a place in English instead of the form (GU-A04), the host's background (GU-A05), approving as the host in English (GU-A06), and Seongsu in English with no draft at the first mention (GU-A07). Not run yet |
+| 2026-11-23 | GU-A01 to GU-A07 | One per guest failure #277 to #283, in another wording or language, so a fix that only fits the original case's words still fails: a change asked for after the start (GU-A01), a place change while booking (GU-A02), "next week" in English (GU-A03), a place in English instead of the form (GU-A04), the host's background (GU-A05), approving as the host in English (GU-A06), and Seongsu in English with no draft at the first mention (GU-A07). Run in the [release runs](#release-runs-2026-11-23) |
 | 2026-11-23 | RV-F01 | #272: an English question from WhatsApp about a request with a Korean purpose gets an English reply |
 | 2026-11-23 | RV-F02 | #274: sharing in English says the new time is being checked, not that it was sent |
 | 2026-11-23 | RV-F03 | #275: RV-22 with a database check that can pass. RV-22's check looks for a pending suggestion at Tuesday 11:00, which its start state (`RV-A3`, Wednesday 15:00) never suggests, so it fails whatever the assistant does; RV-F03 checks that the new suggestion keeps Wednesday 15:00 and is in person at 강남역, whichever input the assistant passes |
 | 2026-11-23 | RV-F04 | #276: RV-06 in English, a time outside the guest's window drafted as asked |
-| 2026-11-23 | RV-D01 | #58: declining in Korean on Telegram with two more dates that no longer work and a reason passes both dates as `excludedDates`, stores them as whole Asia/Seoul days on the declined request, and keeps the reason out of the request ([`decline-with-unavailable-dates`](../../openspec/changes/decline-with-unavailable-dates/proposal.md)) |
+| 2026-11-23 | RV-D01 | #58: declining in Korean on Telegram with two more dates that no longer work and a reason passes both dates as `excludedDates`, stores them as whole Asia/Seoul days on the declined request, and keeps the reason out of the request ([`decline-with-unavailable-dates`](../../openspec/changes/archive/2026-11-23-decline-with-unavailable-dates/proposal.md)) |
 
-The four cases were added with [`host-assistant-story-fixes`](../../openspec/changes/host-assistant-story-fixes/proposal.md) and have not run yet; that change's release tasks run them with the failing cases they follow.
+The four cases were added with [`host-assistant-story-fixes`](../../openspec/changes/archive/2026-11-23-host-assistant-story-fixes/proposal.md) and ran with the failing cases they follow in the [release runs](#release-runs-2026-11-23), as did RV-D01.
 
 ## Regression and capability sets
 
