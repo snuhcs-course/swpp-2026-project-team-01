@@ -1,7 +1,7 @@
 ## ADDED Requirements
 
 ### Requirement: Pending decisions on the workspace menu
-Where the workspace menu offers the host's Requests, the menu button and its Requests item SHALL show the number of received requests that need the host's decision, as a round count with an accessible text equivalent. The count SHALL exclude sample requests, SHALL be refreshed when the page regains focus, when the menu opens and after the host acts on a request in the same tab, and SHALL disappear when no request needs a decision. A failed read SHALL keep the last count without an error.
+Where the workspace menu offers the host's Requests, the menu button and its Requests item SHALL show the number of received requests that need the host's decision (awaiting approval, holding a suggestion the host has not settled, held by the weekly limit, or with every candidate needing the host), as a round count with an accessible text equivalent that shows 9+ above nine. The count SHALL exclude sample requests, SHALL be refreshed when the page regains focus, when the menu opens and whenever the Requests view in the same tab reloads its requests, and SHALL disappear when no request needs a decision. A failed read SHALL keep the last count without an error.
 
 #### Scenario: A request awaits approval
 - **WHEN** a ready host with one received request awaiting approval opens `/app`
@@ -16,7 +16,7 @@ Where the workspace menu offers the host's Requests, the menu button and its Req
 - **THEN** no count appears
 
 ### Requirement: Booked meeting details on the Dashboard
-Selecting a confirmed Find Me a Time meeting on the Dashboard SHALL show its time, length, mode, place for an in-person meeting or meeting link for an online one, and the guest's name with their email, marked when the address is not confirmed, together with an **Open request** action that opens that request in the host's Requests view. The meeting link SHALL be the join link Google returned for the event, or the requester's own link. A week block for the meeting SHALL show who it is with next to its time.
+Selecting a confirmed Find Me a Time meeting on the Dashboard SHALL show its time, length, mode, place for an in-person meeting or meeting link for an online one, and the guest's name with their email, marked when the address is not confirmed, and the purpose when it differs from the title, together with an **Open request** action that opens that request in the host's Requests view. The meeting link SHALL be the join link Google returned for the event, or the requester's own link. An online meeting with no link SHALL say the link is not set. A week block for the meeting SHALL show who it is with: next to its time in a short block, under the title in a longer one.
 
 #### Scenario: Online meeting with Google Meet
 - **WHEN** the host selects a booked online meeting whose event has a Meet link

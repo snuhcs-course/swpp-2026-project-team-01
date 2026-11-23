@@ -12,9 +12,11 @@
 ## 3. Evaluation
 
 - [x] 3.1 Append GU-A01 to GU-A07 to the guest story set and record them in documentation 13.
-- [ ] 3.2 Run the guest story set three times (GU-05, GU-19, GU-21, GU-26, GU-31, GU-50, GU-R06 and GU-A01 to GU-A07 at least) and record the result in documentation 13. Needs a paid model run.
-- [ ] 3.3 Run the request tools integration suite against a local Supabase stack.
+- [x] 3.2 Run the guest story set three times (GU-05, GU-19, GU-21, GU-26, GU-31, GU-50, GU-R06 and GU-A01 to GU-A07 at least) and record the result in documentation 13. Needs a paid model run.
+  Run on 2026-11-23 (documentation 13, Release runs): 226 of 246 runs, 67 of 82 cases; the listed cases 40 of 42 runs, and the two failed runs (GU-05, GU-A02) were grader errors.
+- [x] 3.3 Run the request tools integration suite against a local Supabase stack.
+  Passed on 2026-11-23: `tests/integration/request-tools.test.ts`, 24 of 24.
 
 ## 4. Archive
 
-- [ ] 4.1 After the run and merge, archive this change into `meeting-requests`.
+- [x] 4.1 After the run and merge, archive this change into `meeting-requests`.
