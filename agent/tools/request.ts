@@ -151,13 +151,13 @@ function hostReviewTools() {
     }),
     evaluate_candidates: defineTool({
       description:
-        "Find feasible times for this request with the host's private basis for each (hours, buffers, trips, the weekly limit). It waits up to 20 seconds. It cannot choose, share or approve anything.",
+        "Find feasible times for this request with the host's private basis for each (hours, buffers, trips, the weekly limit). It waits up to 20 seconds. It cannot choose, share or approve anything, and its times do not limit what the host may suggest: a time the host asks for is drafted with propose_shared_changes as asked.",
       inputSchema: z.object({}),
       execute: (_input, toolCtx) => evaluateCandidatesForHostTool(database(), call(toolCtx)),
     }),
     propose_shared_changes: defineTool({
       description:
-        "Draft changed shared details the host asked for (another time, duration, mode, place or meeting link) for the Review proposed shared changes card. It never shares them: the host presses Share revised details, which checks the time and sends the requester a new version to agree to.",
+        "Draft changed shared details the host asked for (another time, duration, mode, place or meeting link) for the Review proposed shared changes card. Draft exactly what the host asked for, even a time outside the requester's windows or the candidate times: sharing checks that exact time against the host's calendar and rules. A new draft replaces the pending suggestion and keeps its other changes. It never shares them: the host presses Share revised details, or from a linked messenger clearly says to send them, which checks the time and sends the requester a new version only if it passes.",
       inputSchema: proposeSharedChangesToolInput,
       execute: (input, toolCtx) => proposeSharedChangesForTool(database(), call(toolCtx), input),
     }),
@@ -168,31 +168,31 @@ function hostReviewTools() {
     }),
     approve_proposal: defineTool({
       description:
-        "Approve the current proposal because the host, writing from their linked iMessage, WhatsApp or Telegram, clearly approves it in their own words, such as \"looks good, book it\", \"yes\" right after the proposal, or \"화요일 좋아요\". Never call it when the host asks for a change, adds a condition (\"yes, but at 11\"), asks a question, approves only part, or means another proposal; and never for a message typed on the web, where the host presses Approve this proposal. Call read_request first and pass the current proposal's version. It approves exactly that version or nothing, and booking then continues on its own.",
+        "Approve the current proposal because the host, writing from their linked iMessage, WhatsApp or Telegram, clearly approves it in their own words, such as \"looks good, book it\", \"yes\" right after the proposal, or \"Tuesday works\". Never call it when the host asks for a change, adds a condition (\"yes, but at 11\"), asks a question, approves only part, or means another proposal; and never for a message typed on the web, where the host presses Approve this proposal. Call read_request first and pass the current proposal's version. It approves exactly that version or nothing, and booking then continues on its own.",
       inputSchema: approveProposalToolInput,
       execute: (input, toolCtx) => approveProposalForTool(database(), call(toolCtx), input),
     }),
     decline_request: defineTool({
       description:
-        "Decline this request because the host, writing from their linked iMessage, WhatsApp or Telegram, clearly says to decline it in their own words, such as \"decline it\", \"no, I can't take this one\" or \"거절해 주세요\". Never call it when the host hesitates (\"maybe not\"), adds a condition, asks a question, or asks for another time, which propose_shared_changes drafts; and never for a message typed on the web, where the host presses Decline. Call read_request first and pass the current proposal's version, or null when there is none. The requester is told, as from the web.",
+        "Decline this request because the host, writing from their linked iMessage, WhatsApp or Telegram, clearly says to decline it in their own words, such as \"decline it\", \"no, I can't take this one\" or \"please turn it down\". Never call it when the host hesitates (\"maybe not\"), adds a condition, asks a question, or asks for another time, which propose_shared_changes drafts; and never for a message typed on the web, where the host presses Decline. Call read_request first and pass the current proposal's version, or null when there is none. The requester is told, as from the web.",
       inputSchema: declineRequestToolInput,
       execute: (input, toolCtx) => declineRequestForTool(database(), call(toolCtx), input),
     }),
     cancel_booking: defineTool({
       description:
-        "Cancel this request's booked meeting because the host, writing from their linked iMessage, WhatsApp or Telegram, clearly says to cancel it in their own words, such as \"cancel the meeting\" or \"미팅 취소해 주세요\". Never call it when the host hesitates, adds a condition, asks a question, or wants another time, which propose_shared_changes drafts only before booking; and never for a message typed on the web, where the host presses Cancel meeting. The requester is told and the event is removed from the host's calendar.",
+        "Cancel this request's booked meeting because the host, writing from their linked iMessage, WhatsApp or Telegram, clearly says to cancel it in their own words, such as \"cancel the meeting\" or \"call it off\". Never call it when the host hesitates, adds a condition, asks a question, or wants another time, which propose_shared_changes drafts only before booking; and never for a message typed on the web, where the host presses Cancel meeting. The requester is told and the event is removed from the host's calendar.",
       inputSchema: z.object({}),
       execute: (_input, toolCtx) => cancelBookingForHostTool(database(), call(toolCtx)),
     }),
     change_booking: defineTool({
       description:
-        "Reopen this request's booked meeting for a change because the host, writing from their linked iMessage, WhatsApp or Telegram, asks to move it or change its place (\"can we move it to Thursday?\", \"미팅 시간 바꿔 주세요\"). The meeting stays booked until the requester agrees to a new version and the host approves it. Then draft the new details with propose_shared_changes. Never for a message typed on the web, where the host presses Change meeting.",
+        "Reopen this request's booked meeting for a change because the host, writing from their linked iMessage, WhatsApp or Telegram, asks to move it or change its place (\"can we move it to Thursday?\", \"change the meeting time\"). The meeting stays booked until the requester agrees to a new version and the host approves it. Then draft the new details with propose_shared_changes. Never for a message typed on the web, where the host presses Change meeting.",
       inputSchema: z.object({}),
       execute: (_input, toolCtx) => changeBookingForHostTool(database(), call(toolCtx)),
     }),
     share_changes: defineTool({
       description:
-        "Share the pending suggested changes with the requester because the host, writing from their linked iMessage, WhatsApp or Telegram, clearly says to send them, as Share revised details does. Never call it when the host still adjusts them, adds a condition or asks a question, and never for a message typed on the web. Call read_request first and pass the pending suggestion's id. The time is checked first, and the requester gets a new version to agree to.",
+        "Share the pending suggested changes with the requester because the host, writing from their linked iMessage, WhatsApp or Telegram, clearly says to send them, as Share revised details does. Never call it when the host still adjusts them, adds a condition or asks a question, and never for a message typed on the web. Call read_request first and pass the pending suggestion's id. It submits the suggestion for checking and sends nothing yet: the requester gets a new version to agree to only if the time passes the check. Tell the host it is being checked, never that it was sent.",
       inputSchema: suggestionToolInput,
       execute: (input, toolCtx) => resolveChangesForTool(database(), call(toolCtx), "share", input),
     }),
@@ -204,7 +204,7 @@ function hostReviewTools() {
     }),
     switch_conversation: defineTool({
       description:
-        "Switch the host's linked iMessage, WhatsApp or Telegram conversation to another request, or back to setup, when the host asks in words (\"let's talk about 박도현's request\", \"6ADSRV\", \"back to setup\"). Pass setup, the request reference, or the requester's name as the host wrote it. From the host's next message, their text goes to that discussion. It works only for a message from the linked conversation; on the web, the host opens the request from the inbox.",
+        "Switch the host's linked iMessage, WhatsApp or Telegram conversation to another request, or back to setup, when the host asks in words (\"let's talk about Dohyeon's request\", \"6ADSRV\", \"back to setup\"). Pass setup, the request reference, or the requester's name as the host wrote it. From the host's next message, their text goes to that discussion. It works only for a message from the linked conversation; on the web, the host opens the request from the inbox.",
       inputSchema: switchConversationToolInput,
       execute: (input, toolCtx) => switchConversationForTool(database(), { auth: toolCtx.session.auth.current, sessionId: toolCtx.session.id }, input),
     }),
