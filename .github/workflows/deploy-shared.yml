@@ -64,7 +64,7 @@ jobs:
             upsert worker_secret "$WORKER_SECRET"
             echo 'end $do$;'
           } > "$sql_file"
-          supabase db query --linked --file "$sql_file" > /dev/null
+          supabase db query --remote --yes --file "$sql_file" > /dev/null
           rm -f "$sql_file"
       - name: Push hosted configuration
         env:
