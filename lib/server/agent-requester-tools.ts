@@ -256,7 +256,7 @@ export const REQUESTER_TOOLS: readonly AgentTool[] = [
     title: "Allow a trip",
   }),
   requestCommandTool({
-    description: "Choose one candidate time (evaluationId and candidateId from get_request) within what the person allowed. It becomes the current proposal version for agreement.",
+    description: "Choose one candidate time (evaluationId and candidateId from get_request) within what the person allowed. It becomes the current proposal version for agreement. When the person says two or three of the times all work, pass them as candidateIds instead; after agreement the host books one.",
     name: "choose_time",
     command: () => loose(chooseCandidateCommand),
     commandInput: chooseCandidateCommand.input,

@@ -5,6 +5,7 @@ import { approveInput } from "./bookings";
 import { decisionButtons, decisionSuffix, parseCommand, requestRef, requestSummary } from "./imessage-commands";
 import { chooseInput } from "./request-proposals";
 import { inlineKeyboard, parseCallbackData, telegramButtonsOf } from "./telegram";
+import { buttonCommand } from "./whatsapp";
 
 // A guest can agree to several candidate times at once and the host books one
 // (multiple-candidate-times, #146). These pin the pure pieces: the command
@@ -117,6 +118,15 @@ describe("the host's messenger summary of several times", () => {
       { id: `a:${ref}-2-3`, title: "Book time 3" },
     ]);
     expect(decisionButtons(hostView())?.items.map((item) => item.id)).toEqual([`a:${ref}-2`, `d:${ref}-2`, `s:${ref}`]);
+  });
+
+  it("turns each WhatsApp tap back into approve of that time", () => {
+    for (const [index, item] of decisionButtons(hostView(THREE))!.items.entries()) {
+      const command = parseCommand(buttonCommand(item.id)!);
+      expect(command?.name).toBe("approve");
+      expect(decisionSuffix((command as { ref: string }).ref.slice(7))).toEqual({ option: index + 1, version: 2 });
+    }
+    expect(buttonCommand("d:K7Q2MX-2-1")).toBeNull();
   });
 
   it("makes the same buttons a Telegram keyboard, with Decline and details", () => {

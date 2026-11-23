@@ -31,4 +31,6 @@ A button or typed command names one time as `<ref>-<version>-<n>`. WhatsApp allo
 ## Risks
 
 - Agreement waits on the host's calendar once per time, up to three evaluation deadlines in the worst case, while it holds the request lock.
+- Approval's recheck of the chosen time runs under the host's booking advisory lock, as booking revalidation does, so it can delay that host's other approvals for up to one evaluation deadline. It does not count the host's other reserved bookings as busy; booking revalidation does.
+- A listed time that has already started blocks agreement to the others; the guest chooses again.
 - The guest thread shows the host's pick as its own receipt ("The host chose") after the agreement receipt.

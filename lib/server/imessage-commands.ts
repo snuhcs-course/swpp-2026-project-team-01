@@ -383,6 +383,8 @@ async function decide(
 
   if (view.sample && CLOSED.includes(view.state)) return { requestId: view.requestId, text: tutorialCompletionText(language, null) };
   if (CLOSED.includes(view.state)) return { requestId: view.requestId, text: texts.closedNothingChanged(STATE_WORDS[language][view.state]) };
+  // A second tap on a proposal of several times after the host booked one of them.
+  if (kind === "approve" && view.proposal?.pickedFrom?.version === version) return { requestId: view.requestId, text: texts.alreadyApproved };
   if (!view.proposal || view.proposal.version !== version) {
     // A stale tap shows the current proposal, since WhatsApp cannot take the
     // old buttons back (D17). On Telegram the tap's answer says it changed (D8).

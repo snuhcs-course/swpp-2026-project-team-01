@@ -399,6 +399,9 @@ export async function approveProposalForTool(db: Database, call: HostReviewToolC
       if (outcome.error.reason === "time_unavailable") {
         return { approved: false as const, problem: "That time is no longer free on the host's calendar; nothing was approved. Offer the host the other times, or declining." };
       }
+      if (outcome.error.reason !== "start_passed") {
+        return { approved: false as const, problem: "That time is not one of this proposal's times; nothing was approved. Read the request again." };
+      }
       return { approved: false as const, problem: "The proposed time has already started; nothing was approved." };
     default:
       return { approved: false as const, problem: "The proposal changed or still needs the requester's agreement; nothing was approved. Read the request again." };

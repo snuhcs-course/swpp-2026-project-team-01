@@ -34,6 +34,9 @@ export type HostProposal = {
   // host approves one of them by its 1-based number (multiple-candidate-times).
   // Absent for a proposal of one time.
   readonly times?: readonly HostProposalTime[];
+  // The version of several times the host picked this one from, and the
+  // picked time's number.
+  readonly pickedFrom?: { readonly version: number; readonly option: number };
 };
 
 export type HostProposalTime = {

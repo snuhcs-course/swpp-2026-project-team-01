@@ -159,7 +159,7 @@ export async function readHostRequest(db: Database | Transaction, hostAccountId:
   if (!request) return null;
 
   const [proposal] = await db<
-    { agreed_at: Date | null; details: { durationMinutes: number; linkPlan: LinkPlan | null; location: string | null; mode: "online" | "in_person"; times?: readonly ProposalTime[] }; end_at: Date; start_at: Date; version: number }[]
+    { agreed_at: Date | null; details: { durationMinutes: number; linkPlan: LinkPlan | null; location: string | null; mode: "online" | "in_person"; times?: readonly ProposalTime[]; pickedFrom?: { version: number; option: number } }; end_at: Date; start_at: Date; version: number }[]
   >`
     select p.version, p.start_at, p.end_at, p.details, a.agreed_at
     from app.proposals p left join app.agreements a on a.proposal_id = p.id
@@ -206,6 +206,7 @@ export async function readHostRequest(db: Database | Transaction, hostAccountId:
           location: proposal.details.location ?? null,
           mode: proposal.details.mode,
           start: proposal.start_at.toISOString(),
+          ...(proposal.details.pickedFrom ? { pickedFrom: proposal.details.pickedFrom } : {}),
           ...(proposal.details.times && proposal.details.times.length > 1
             ? {
                 times: proposal.details.times.map((time) => ({
