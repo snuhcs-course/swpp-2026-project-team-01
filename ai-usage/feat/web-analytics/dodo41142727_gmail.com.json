@@ -1,0 +1,278 @@
+{
+  "branch": "feat/web-analytics",
+  "user": "dodo41142727@gmail.com",
+  "sessions": {
+    "claude:436f7b3e-a8be-40aa-ab53-4ca3b3e7e780": {
+      "agent": "claude-code",
+      "client": "claude-desktop",
+      "agent_ms": 0,
+      "models": {
+        "claude-opus-5-5": {
+          "input": 42,
+          "cache_read": 2744768,
+          "cache_write_5m": 0,
+          "cache_write_1h": 32716,
+          "output": 16598,
+          "reasoning": 0
+        }
+      },
+      "first": "2026-11-23T04:41:44.949Z",
+      "last": "2026-11-23T04:54:34.854Z"
+    },
+    "claude:436f7b3e-a8be-40aa-ab53-4ca3b3e7e780/workflows/wf_9b7c6cb8-aed/agent-a098e3a68fd73851c": {
+      "agent": "claude-code",
+      "client": "claude-desktop",
+      "agent_ms": 0,
+      "models": {
+        "claude-opus-5-5": {
+          "input": 50,
+          "cache_read": 2836000,
+          "cache_write_5m": 107572,
+          "cache_write_1h": 0,
+          "output": 9012,
+          "reasoning": 0
+        }
+      },
+      "first": "2026-11-23T04:50:59.332Z",
+      "last": "2026-11-23T04:54:54.622Z"
+    },
+    "claude:436f7b3e-a8be-40aa-ab53-4ca3b3e7e780/workflows/wf_9b7c6cb8-aed/agent-a56edeb7d09a29c37": {
+      "agent": "claude-code",
+      "client": "claude-desktop",
+      "agent_ms": 0,
+      "models": {
+        "claude-opus-5-5": {
+          "input": 48,
+          "cache_read": 2766122,
+          "cache_write_5m": 107067,
+          "cache_write_1h": 0,
+          "output": 10238,
+          "reasoning": 0
+        }
+      },
+      "first": "2026-11-23T04:50:57.444Z",
+      "last": "2026-11-23T04:54:57.526Z"
+    },
+    "claude:436f7b3e-a8be-40aa-ab53-4ca3b3e7e780/workflows/wf_9b7c6cb8-aed/agent-a6a4060b2742855d4": {
+      "agent": "claude-code",
+      "client": "claude-desktop",
+      "agent_ms": 0,
+      "models": {
+        "claude-opus-5-5": {
+          "input": 50,
+          "cache_read": 2879074,
+          "cache_write_5m": 101186,
+          "cache_write_1h": 0,
+          "output": 9078,
+          "reasoning": 0
+        }
+      },
+      "first": "2026-11-23T04:50:59.331Z",
+      "last": "2026-11-23T04:54:58.340Z"
+    },
+    "claude:436f7b3e-a8be-40aa-ab53-4ca3b3e7e780/workflows/wf_9b7c6cb8-aed/agent-a7fee094646df2f70": {
+      "agent": "claude-code",
+      "client": "claude-desktop",
+      "agent_ms": 0,
+      "models": {
+        "claude-opus-5-5": {
+          "input": 50,
+          "cache_read": 2914337,
+          "cache_write_5m": 114135,
+          "cache_write_1h": 0,
+          "output": 6955,
+          "reasoning": 0
+        }
+      },
+      "first": "2026-11-23T04:50:58.869Z",
+      "last": "2026-11-23T04:54:46.319Z"
+    },
+    "claude:436f7b3e-a8be-40aa-ab53-4ca3b3e7e780/workflows/wf_9b7c6cb8-aed/agent-a81cb5e4533fe8757": {
+      "agent": "claude-code",
+      "client": "claude-desktop",
+      "agent_ms": 0,
+      "models": {
+        "claude-opus-5-5": {
+          "input": 42,
+          "cache_read": 2299374,
+          "cache_write_5m": 94593,
+          "cache_write_1h": 0,
+          "output": 10154,
+          "reasoning": 0
+        }
+      },
+      "first": "2026-11-23T04:50:59.830Z",
+      "last": "2026-11-23T04:54:25.815Z"
+    },
+    "claude:436f7b3e-a8be-40aa-ab53-4ca3b3e7e780/workflows/wf_9b7c6cb8-aed/agent-ae97869ba53c91a7f": {
+      "agent": "claude-code",
+      "client": "claude-desktop",
+      "agent_ms": 0,
+      "models": {
+        "claude-opus-5-5": {
+          "input": 42,
+          "cache_read": 2230850,
+          "cache_write_5m": 136645,
+          "cache_write_1h": 0,
+          "output": 6579,
+          "reasoning": 0
+        }
+      },
+      "first": "2026-11-23T04:50:52.477Z",
+      "last": "2026-11-23T04:54:53.820Z"
+    },
+    "claude:436f7b3e-a8be-40aa-ab53-4ca3b3e7e780/workflows/wf_de561b97-2ca/agent-a461fceab7cf24c84": {
+      "agent": "claude-code",
+      "client": "claude-desktop",
+      "agent_ms": 0,
+      "models": {
+        "claude-opus-5-5": {
+          "input": 8,
+          "cache_read": 304462,
+          "cache_write_5m": 50955,
+          "cache_write_1h": 0,
+          "output": 807,
+          "reasoning": 0
+        }
+      },
+      "first": "2026-11-23T04:54:36.724Z",
+      "last": "2026-11-23T04:54:57.422Z"
+    },
+    "claude:436f7b3e-a8be-40aa-ab53-4ca3b3e7e780/workflows/wf_de561b97-2ca/agent-a602ccd8fe15b131e": {
+      "agent": "claude-code",
+      "client": "claude-desktop",
+      "agent_ms": 0,
+      "models": {
+        "claude-opus-5-5": {
+          "input": 4,
+          "cache_read": 123875,
+          "cache_write_5m": 50124,
+          "cache_write_1h": 0,
+          "output": 798,
+          "reasoning": 0
+        }
+      },
+      "first": "2026-11-23T04:54:34.675Z",
+      "last": "2026-11-23T04:54:43.801Z"
+    },
+    "claude:436f7b3e-a8be-40aa-ab53-4ca3b3e7e780/workflows/wf_de561b97-2ca/agent-a96cc0265e74ddb7b": {
+      "agent": "claude-code",
+      "client": "claude-desktop",
+      "agent_ms": 0,
+      "models": {
+        "claude-opus-5-5": {
+          "input": 6,
+          "cache_read": 173910,
+          "cache_write_5m": 90557,
+          "cache_write_1h": 0,
+          "output": 522,
+          "reasoning": 0
+        }
+      },
+      "first": "2026-11-23T04:54:31.485Z",
+      "last": "2026-11-23T04:54:55.039Z"
+    },
+    "claude:436f7b3e-a8be-40aa-ab53-4ca3b3e7e780/workflows/wf_de561b97-2ca/agent-ac1c6e27b17ddd452": {
+      "agent": "claude-code",
+      "client": "claude-desktop",
+      "agent_ms": 0,
+      "models": {
+        "claude-opus-5-5": {
+          "input": 6,
+          "cache_read": 214093,
+          "cache_write_5m": 50134,
+          "cache_write_1h": 0,
+          "output": 718,
+          "reasoning": 0
+        }
+      },
+      "first": "2026-11-23T04:54:34.957Z",
+      "last": "2026-11-23T04:54:57.155Z"
+    },
+    "claude:4769e65a-cfda-448d-aeb8-a5fba2b66c85": {
+      "agent": "claude-code",
+      "client": "claude-desktop",
+      "agent_ms": 0,
+      "models": {
+        "claude-opus-5-5": {
+          "input": 62,
+          "cache_read": 5677702,
+          "cache_write_5m": 0,
+          "cache_write_1h": 27494,
+          "output": 11703,
+          "reasoning": 0
+        }
+      },
+      "first": "2026-11-23T04:47:11.592Z",
+      "last": "2026-11-23T04:54:49.980Z"
+    },
+    "claude:643348eb-9247-4783-a5b8-005719e4e5e0": {
+      "agent": "claude-code",
+      "client": "claude-desktop",
+      "agent_ms": 0,
+      "models": {
+        "claude-opus-5-5": {
+          "input": 120,
+          "cache_read": 9516928,
+          "cache_write_5m": 0,
+          "cache_write_1h": 153218,
+          "output": 43085,
+          "reasoning": 0
+        }
+      },
+      "first": "2026-11-23T04:42:00.009Z",
+      "last": "2026-11-23T04:54:52.100Z"
+    },
+    "claude:643348eb-9247-4783-a5b8-005719e4e5e0/agent-a5159984d7e9f9a56": {
+      "agent": "claude-code",
+      "client": "claude-desktop",
+      "agent_ms": 0,
+      "models": {
+        "claude-sonnet-5-5": {
+          "input": 14,
+          "cache_read": 592016,
+          "cache_write_5m": 106457,
+          "cache_write_1h": 0,
+          "output": 4178,
+          "reasoning": 0
+        }
+      },
+      "first": "2026-11-23T04:48:14.916Z",
+      "last": "2026-11-23T04:48:57.873Z"
+    },
+    "claude:899991c5-0394-401a-96b5-b3af5ac5f4ff": {
+      "agent": "claude-code",
+      "client": "claude-desktop",
+      "agent_ms": 0,
+      "models": {
+        "claude-opus-5-5": {
+          "input": 4,
+          "cache_read": 175576,
+          "cache_write_5m": 0,
+          "cache_write_1h": 60310,
+          "output": 872,
+          "reasoning": 0
+        }
+      },
+      "first": "2026-11-23T04:53:22.040Z",
+      "last": "2026-11-23T04:53:37.935Z"
+    },
+    "claude:eff51101-28e3-4686-95ff-7a51a93f516e": {
+      "agent": "claude-code",
+      "client": "claude-desktop",
+      "agent_ms": 0,
+      "models": {
+        "claude-opus-5-5": {
+          "input": 50,
+          "cache_read": 3121641,
+          "cache_write_5m": 0,
+          "cache_write_1h": 23565,
+          "output": 4936,
+          "reasoning": 0
+        }
+      },
+      "first": "2026-11-23T04:41:07.832Z",
+      "last": "2026-11-23T04:54:55.873Z"
+    }
+  }
+}

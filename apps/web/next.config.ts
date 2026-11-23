@@ -2,17 +2,33 @@ import type { NextConfig } from "next";
 
 const development = process.env.NODE_ENV === "development";
 
+// Google Analytics' origins, only when the root layout loads the tag
+// (web-analytics D3). The config loader cannot import local modules, so this
+// repeats analyticsMeasurementId and analyticsContentSecuritySources from
+// apps/web/lib/analytics.ts; analytics.test.ts checks that the two agree.
+const analytics =
+  /^G-[A-Z0-9]+$/.test(process.env.GOOGLE_ANALYTICS_MEASUREMENT_ID?.trim() ?? "") &&
+  process.env.VERCEL?.trim() === "1" &&
+  process.env.VERCEL_ENV?.trim() === "production";
+const analyticsContentSecuritySources = {
+  connect: ["https://*.google-analytics.com", "https://*.analytics.google.com", "https://www.googletagmanager.com"],
+  img: ["https://*.google-analytics.com", "https://www.googletagmanager.com"],
+  script: ["https://www.googletagmanager.com"],
+};
+const analyticsSources = (kind: keyof typeof analyticsContentSecuritySources) =>
+  analytics ? ` ${analyticsContentSecuritySources[kind].join(" ")}` : "";
+
 // A static policy: Next.js inlines its bootstrap scripts, and a per-request nonce
 // would make every page dynamic, so scripts are limited to this origin plus
 // inline. Shiki's highlighter compiles WebAssembly. Development adds eval and the
 // hot-reload socket.
 export const contentSecurityPolicy = [
   "default-src 'self'",
-  `script-src 'self' 'unsafe-inline' 'wasm-unsafe-eval'${development ? " 'unsafe-eval'" : ""}`,
+  `script-src 'self' 'unsafe-inline' 'wasm-unsafe-eval'${development ? " 'unsafe-eval'" : ""}${analyticsSources("script")}`,
   "style-src 'self' 'unsafe-inline'",
-  "img-src 'self' data: blob:",
+  `img-src 'self' data: blob:${analyticsSources("img")}`,
   "font-src 'self' data:",
-  `connect-src 'self'${development ? " ws: wss:" : ""}`,
+  `connect-src 'self'${development ? " ws: wss:" : ""}${analyticsSources("connect")}`,
   "worker-src 'self' blob:",
   "object-src 'none'",
   "base-uri 'self'",

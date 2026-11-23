@@ -200,6 +200,16 @@ Telegram is the transport of the host Telegram channel, proposed on 2026-11-04 i
 
 Never set the bot's token, register its webhook or send a Telegram message from an agent session without the user's approval.
 
+## Google Analytics
+
+Page-view analytics for the web app, proposed on 2026-11-23 in the [`web-analytics` change](../../openspec/changes/web-analytics/proposal.md) (#341). It uses Google Analytics 4 through `gtag.js`, with no Firebase SDK (D1).
+
+- **Property.** One GA4 property with a web data stream for `https://findmeatime.com`, owned by the team's Google account. Grant teammates the Viewer or Analyst role; keep Administrator with the repository owner. A Firebase project can be linked to the same property later; nothing in the app needs it.
+- **Property settings.** In the web stream's enhanced measurement, turn **off** "Page changes based on browser history events": the app sends its own redacted page views, and GA's would carry full addresses (D2). Leave Google signals and ads personalization off, and set data retention to 2 months.
+- **Variable.** `GOOGLE_ANALYTICS_MEASUREMENT_ID` (`G-...`) on the Vercel project's Production environment only. It is read at build time, so redeploy after setting it. Staging (`findmeatime-dev`) stays unmeasured unless it gets a measurement ID of its own.
+- **What is sent.** Page views with the path only, cut to its first segment plus `[redacted]` when deeper (`/booking/[redacted]`), the referrer's origin, and GA's own browser, device and coarse location fields, kept for the 2 months the property setting allows. The [privacy notice](../../apps/web/app/privacy/page.tsx) names Google Analytics; change it together with what the tag sends.
+- **Checking it.** After a deploy, open `/`, `/app` and a booking link, then check GA4 **Reports → Realtime**: the booking page must appear as `/booking/[redacted]`.
+
 ## Model access and runtime
 
 Keep model configuration server-side and call OpenAI directly with the team's own API key; the AI Gateway is not used. The model is `gpt-5.6-terra`, decided 2026-10-19 and recorded in the [foundation design](../../openspec/changes/application-foundation/design.md#5-model-route-and-model). Confirm the model ID, price and tool support against the team's key in the foundation change, while enforcing the agreed [model limits](../../openspec/specs/model-execution/spec.md). Test invalid/refused outputs, provider deadlines, rate/credit failures, durable usage accounting and private-data filtering using synthetic context. A model failure never advances scheduling state or creates approval.
