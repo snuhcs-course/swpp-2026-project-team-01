@@ -16,7 +16,7 @@ A set-up host who sends another host's booking link or @handle in their linked m
 - **THEN** that request continues and no second request is created
 
 ### Requirement: One conversation routes by context
-In a host conversation that also holds the host's sent requests, a message SHALL go to the discussion the host binding has selected, without a picker. `request <ref>` SHALL select a sent request bound to that conversation; a message saying the sender is the host SHALL select setup; a message naming another such request SHALL select it. A host notice SHALL select its received request and a guest notice SHALL select its sent request. A reference SHALL resolve only requests the account received or sent bound to that conversation.
+In a host conversation that also holds the host's sent requests, a message SHALL go to the discussion the host binding has selected, without a picker. `request <ref>` SHALL select a sent request bound to that conversation; a message saying the sender is the host SHALL select setup; another host's booking link or @handle SHALL reach the host role; a message naming another such request SHALL select it, and while a received request is selected only its reference SHALL. A host notice SHALL select its received request and a guest notice SHALL select its sent request, except during the host tutorial. A reference SHALL resolve only requests the account received or sent bound to that conversation.
 
 #### Scenario: Notice moves the conversation
 - **WHEN** a guest notice about a sent request arrives after the host was talking about setup

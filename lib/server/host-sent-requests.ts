@@ -1,6 +1,5 @@
 import { randomUUID } from "node:crypto";
 import { z } from "zod";
-import { isUsableHandle, normalizeHandle } from "../contracts/handles";
 import { ACTIONABLE_REQUEST_STATES, type RequestDetails, type RequestState } from "../contracts/request";
 import type { ConfirmedSettings } from "../contracts/setup";
 import { createAccountRequest, readAccountRequester } from "./account-requests";
@@ -11,7 +10,7 @@ import type { Database, Queryable } from "./database";
 import { emailSourceHash } from "./email-receipts";
 import { encodeDisplayName } from "./entry-documents";
 import { HOST_REVIEW_AUDIENCE, HOST_SETUP_AUDIENCE } from "./eve-auth";
-import { bindHostConversation } from "./host-conversation-bindings";
+import { bindHostConversation, handleFromText } from "./host-conversation-bindings";
 import { findReadyHostByHandle } from "./readiness";
 import { hostAcceptsRequests } from "./request-guard";
 import { requestRef } from "./request-ref";
@@ -31,31 +30,7 @@ import { type TokenKey, tokenKeyFromEnvironment } from "./token-encryption";
 // request as for a received one, and the request's guest notices arrive in the
 // same conversation and select it. Nothing here reaches the other host.
 
-// ---------------------------------------------------------------------------
-// Reading a link or handle
-
-const HANDLE_CHARS = "[A-Za-z0-9_-]+";
-
-// The handle a message names: a booking link on the app's origin or
-// findmeatime.com (https://findmeatime.com/dodo, findmeatime.com/@dodo), an
-// @handle (also the full-width ＠), or a bare handle. Null when it names none.
-export function handleFromText(text: string, appOrigin: string): string | null {
-  const value = text.normalize("NFKC").trim();
-  let appHost = "findmeatime.com";
-  try {
-    appHost = new URL(appOrigin).host.toLowerCase();
-  } catch {
-    // Keep the product domain.
-  }
-  const hosts = [...new Set([appHost, "findmeatime.com", "www.findmeatime.com"])].map((host) => host.replaceAll(".", "\\."));
-  const link = new RegExp(`(?:https?://)?(?:${hosts.join("|")})/@?(${HANDLE_CHARS})(?=$|[/?#\\s.,!)])`, "i").exec(value);
-  const mention = /(?:^|[^\p{L}\p{N}_@])@([A-Za-z0-9_-]+)/u.exec(value);
-  const bare = new RegExp(`^@?(${HANDLE_CHARS})$`).exec(value);
-  const candidate = link?.[1] ?? mention?.[1] ?? bare?.[1];
-  if (!candidate) return null;
-  const handle = normalizeHandle(candidate);
-  return isUsableHandle(handle) ? handle : null;
-}
+export { handleFromText } from "./host-conversation-bindings";
 
 // ---------------------------------------------------------------------------
 // Sent requests, listed apart from received ones (R01 M-8)
@@ -187,6 +162,7 @@ export async function startRequestForTool(deps: StartRequestDependencies, call: 
 
   const account = await readAccountRequester(deps.db, me);
   if (!account) return { problem: "This account cannot send requests now.", started: false };
+  if (!account.timezone) return { problem: "The host's own timezone is not set yet. Ask them to finish setup first; nothing was created.", started: false };
 
   const dedupeKey = `host-start:${call.sessionId}:${call.callId}`;
   try {
@@ -196,6 +172,8 @@ export async function startRequestForTool(deps: StartRequestDependencies, call: 
         select request_id from app.imessage_outbox where dedupe_key = ${dedupeKey} and request_id is not null
       `;
       let requestId = replayed?.request_id ?? null;
+      // Two starts with the same host at once make one request.
+      await tx`select pg_advisory_xact_lock(hashtextextended(${`app.host_start:${me}:${target.hostAccountId}`}, 0))`;
       let continued = Boolean(replayed);
 
       if (!requestId && !input.another) {
@@ -235,7 +213,7 @@ export async function startRequestForTool(deps: StartRequestDependencies, call: 
         select: true,
         welcome: false,
       });
-      if (!bindingId) throw new CommandError("forbidden");
+      if (!bindingId) throw new CommandError("unavailable_configuration");
       // Marks the call as done, for a replay; the turn's reply is the message.
       await tx`
         insert into app.imessage_outbox (channel, dedupe_key, kind, state, recipient_hash, request_id, requester_binding_id, completed_at)
@@ -275,7 +253,8 @@ export async function startRequestForTool(deps: StartRequestDependencies, call: 
   } catch (error) {
     if (error instanceof CommandError) {
       if (error.category === "forbidden") return { problem: UNAVAILABLE, started: false };
-      if (error.category === "invalid_input") return { problem: "The host's own timezone is not set yet. Ask them to finish setup first; nothing was created.", started: false };
+      if (error.category === "unavailable_configuration") return { problem: "This conversation is no longer linked; nothing was created.", started: false };
+      if (error.category !== "rate_limited") return { problem: "The request could not be started; nothing was created. Ask the host to try again.", started: false };
       return { problem: "Too many requests were started just now. Ask the host to try again later; nothing was created.", started: false };
     }
     throw error;

@@ -1,3 +1,4 @@
+import { isUsableHandle, normalizeHandle } from "../contracts/handles";
 import type { Transaction } from "./database";
 import { activeBindingOfHost, bindingRecipient } from "./imessage-links";
 import { activeRequesterBinding, bindRequester } from "./requester-imessage-bindings";
@@ -61,9 +62,46 @@ export type SentSelection = { readonly hostBindingId: string; readonly requestId
 // notice selects a received request (D23).
 export async function selectSentRequest(tx: Transaction, requesterBinding: { readonly request_id: string; readonly sender_hash: string; readonly link_id: string | null }) {
   if (requesterBinding.link_id !== null) return;
+  // As for an awaiting-approval notice, a host practising the tutorial keeps it.
   await tx`
-    update app.imessage_bindings set selected_request_id = ${requesterBinding.request_id}
-    where sender_hash = ${requesterBinding.sender_hash} and state = 'active'
+    update app.imessage_bindings b set selected_request_id = ${requesterBinding.request_id}
+    where b.sender_hash = ${requesterBinding.sender_hash} and b.state = 'active'
+      and not exists (
+        select 1 from app.host_settings s where s.host_account_id = b.host_account_id
+          and s.tutorial_offered and s.tutorial_binding_id = b.id
+      )
+      and not exists (
+        select 1 from app.requests r where r.host_account_id = b.host_account_id and r.is_sample
+          and r.closed_at is null and r.expires_at > now()
+          and (r.id = b.selected_request_id or exists (
+            select 1 from app.host_settings s where s.host_account_id = r.host_account_id and s.tutorial_binding_id = b.id
+          ))
+      )
   `;
 }
 
+// ---------------------------------------------------------------------------
+// Reading a link or handle
+
+const HANDLE_CHARS = "[A-Za-z0-9_-]+";
+
+// The handle a message names: a booking link on the app's origin or
+// findmeatime.com (https://findmeatime.com/dodo, findmeatime.com/@dodo), an
+// @handle (also the full-width ＠), or a bare handle. Null when it names none.
+export function handleFromText(text: string, appOrigin: string): string | null {
+  const value = text.normalize("NFKC").trim();
+  let appHost = "findmeatime.com";
+  try {
+    appHost = new URL(appOrigin).host.toLowerCase();
+  } catch {
+    // Keep the product domain.
+  }
+  const hosts = [...new Set([appHost, "findmeatime.com", "www.findmeatime.com"])].map((host) => host.replaceAll(".", "\\."));
+  const link = new RegExp(`(?:https?://)?(?:${hosts.join("|")})/@?(${HANDLE_CHARS})(?=$|[/?#\\s.,!)])`, "i").exec(value);
+  const mention = /(?:^|[^\p{L}\p{N}_@])@([A-Za-z0-9_-]+)/u.exec(value);
+  const bare = new RegExp(`^@?(${HANDLE_CHARS})$`).exec(value);
+  const candidate = link?.[1] ?? mention?.[1] ?? bare?.[1];
+  if (!candidate) return null;
+  const handle = normalizeHandle(candidate);
+  return isUsableHandle(handle) ? handle : null;
+}

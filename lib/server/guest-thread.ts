@@ -119,6 +119,8 @@ export async function readGuestThread(db: Queryable, requestId: string, current:
              where p.request_id = r.id) as agreed_at,
            p.created_at as profile_at, p.decided_at as profile_decided_at, p.items as profile_items,
            exists (select 1 from app.requester_imessage_bindings b
+                   join app.imessage_bindings h on h.sender_hash = b.sender_hash and h.state = 'active'
+                     and h.host_account_id = p.host_account_id
                    where b.request_id = r.id and b.state = 'active' and b.link_id is null) as profile_messenger,
            exists (select 1 from app.requester_grants g
                    where g.request_id = r.id and g.kind = 'calendar' and g.revoked_at is null) as calendar_grant,

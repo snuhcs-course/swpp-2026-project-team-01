@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { hostRequestsForModel, SENT_NOTE } from "./host-review-tools";
+import { namedSentRequest } from "./imessage-receipts";
 import { handleFromText, START_REQUEST_DESCRIPTION, startRequestForTool, startRequestToolInput } from "./host-sent-requests";
 
 // host-as-guest-messenger (R01 M-1, M-1.1, M-8; #334).
@@ -53,5 +54,24 @@ describe("list_host_requests with sent requests", () => {
     expect(JSON.stringify(result.sent[0])).toContain("박도현");
     expect(result.sentNote).toBe(SENT_NOTE);
     expect(hostRequestsForModel([], "Asia/Seoul").sent).toEqual([]);
+  });
+});
+
+describe("namedSentRequest", () => {
+  const will = { host_name: "Will Smith", request_id: "00000000-0000-4000-8000-000000000002" };
+  const dodo = { host_name: "박도현", request_id: "00000000-0000-4000-8000-000000000003" };
+
+  it("names a sent request by its host's full name only, never by one word", () => {
+    expect(namedSentRequest("I will approve it", [will, dodo], true)).toBeNull();
+    expect(namedSentRequest("About my meeting with Will Smith", [will, dodo], true)).toBe(will);
+    expect(namedSentRequest("박도현님 요청 어떻게 됐어?", [will, dodo], true)).toBe(dodo);
+  });
+
+  it("names nothing by name while a received request is selected", () => {
+    expect(namedSentRequest("About my meeting with Will Smith", [will, dodo], false)).toBeNull();
+  });
+
+  it("goes to the host role when the sender says they are the host", () => {
+    expect(namedSentRequest("I'm the host, show my settings", [will], false)).toBe("host");
   });
 });

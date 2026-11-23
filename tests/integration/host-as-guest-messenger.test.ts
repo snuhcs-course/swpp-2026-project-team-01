@@ -7,7 +7,7 @@ import { bindHostConversation } from "../../lib/server/host-conversation-binding
 import { listSentRequests } from "../../lib/server/host-sent-requests";
 import { requestRef } from "../../lib/server/imessage-commands";
 import { createImessageNoticeHandler } from "../../lib/server/imessage-notice-job";
-import { enqueueHostNotice, guestNoticeKey, IMESSAGE_NOTICE_JOB } from "../../lib/server/imessage-notices";
+import { guestNoticeKey, IMESSAGE_NOTICE_JOB } from "../../lib/server/imessage-notices";
 import { GUEST_TEXTS } from "../../lib/server/imessage-receipts";
 import { imessageHash } from "../../lib/server/photon-receiver";
 import { decideHostProfileCommand, readHostProfileView, recordHostSessionMatch } from "../../lib/server/requester-host-profiles";
@@ -21,8 +21,9 @@ import { createTestRequest, jobFor, runJob, testNotices, testTokenKey } from "./
 // testing baseline R01 M-1, M-2, M-4 to M-6, M-8; #334 and #61), against the
 // local stack and the Photon stand-in: a request the host starts is bound to
 // their host conversation and selected there, so free text reaches it without a
-// picker; `setup` and `request <ref>` switch; a guest notice selects it again
-// and a host notice selects the received request; a guest-host who opts in on
+// picker; `setup` and `request <ref>` switch; a guest notice selects it again;
+// words about a received request stay there and another host's link goes to
+// the host role; a guest-host who opts in on
 // the web gets the request in their host conversation; and nothing reaches the
 // request's host.
 
@@ -153,16 +154,12 @@ describe("a request started from the host conversation", () => {
     expect((await im.bindingOf(host.hostAccountId))?.selected_request_id).toBeNull();
   });
 
-  it("follows the latest notice: a guest notice selects the sent request, a host notice the received one", async () => {
+  it("a guest notice selects the sent request again after the host moved to setup", async () => {
     const host = await linkedHost();
     const target = await otherHost();
     const requestId = await startFromConversation(host.hostAccountId, target);
     await im.deliver({ sender: host.sender, text: "setup" });
-
-    // A received request's notice selects it (D23).
-    const received = await createTestRequest(db, { hostAccountId: host.hostAccountId });
-    await db.begin((tx) => enqueueHostNotice(tx, received.requestId, { kind: "new_request" }));
-    await runJob(db, (await jobFor(db, IMESSAGE_NOTICE_JOB, `notice:new_request:${received.requestId}`)).id, noticeHandler);
+    expect((await im.bindingOf(host.hostAccountId))?.selected_request_id).toBeNull();
 
     // The sent request's guest notice arrives in the same conversation and selects it.
     await db.begin((tx) => enqueueStatusNotice(tx, testNotices, requestId, { kind: "status_declined" }).then(() => undefined));
@@ -170,6 +167,29 @@ describe("a request started from the host conversation", () => {
     await runJob(db, (await jobFor(db, IMESSAGE_NOTICE_JOB, guestNoticeKey(requestId, { kind: "status_declined" }))).id, noticeHandler);
     expect((await sentTo(host.sender, before)).join("\n")).toContain("박도현");
     expect((await im.bindingOf(host.hostAccountId))?.selected_request_id).toBe(requestId);
+  });
+
+  it("keeps the host's words on a received request and sends another host's link to the host role", async () => {
+    const host = await linkedHost();
+    const target = await otherHost("Will Smith");
+    const requestId = await startFromConversation(host.hostAccountId, target, "Will Smith");
+
+    // On a received request, a word of the other host's name moves nothing.
+    const received = await createTestRequest(db, { hostAccountId: host.hostAccountId });
+    await db`update app.requests set state = 'gathering', identified_at = now() where id = ${received.requestId}`;
+    await im.deliver({ sender: host.sender, text: `request ${requestRef(received.requestId)}` });
+    expect((await im.bindingOf(host.hostAccountId))?.selected_request_id).toBe(received.requestId);
+    await im.deliver({ sender: host.sender, text: "I will approve it" });
+    expect(await hostInputs(host.hostAccountId)).toContain("[iMessage] I will approve it");
+    expect(await guestInputs(requestId)).toEqual([]);
+
+    // On the sent request, another host's link goes to setup, where start_request reads it.
+    await im.deliver({ sender: host.sender, text: `request ${requestRef(requestId)}` });
+    expect((await im.bindingOf(host.hostAccountId))?.selected_request_id).toBe(requestId);
+    await im.deliver({ sender: host.sender, text: "Also book me with findmeatime.com/someone-else" });
+    expect(await hostInputs(host.hostAccountId)).toContain("[iMessage] Also book me with findmeatime.com/someone-else");
+    expect(await guestInputs(requestId)).toEqual([]);
+    expect((await im.bindingOf(host.hostAccountId))?.selected_request_id).toBeNull();
   });
 
   it("lists sent requests apart from received ones", async () => {
