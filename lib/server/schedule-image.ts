@@ -106,19 +106,21 @@ function allDayStrip(day: ScheduleImageDay, height: number) {
 }
 
 function grid(image: ScheduleImage) {
+  const mostAllDay = Math.max(0, ...image.days.map((day) => day.allDay.length));
+  const stripHeight = mostAllDay === 0 ? 0 : Math.min(ALL_DAY_SHOWN, mostAllDay) * 30 + (mostAllDay > ALL_DAY_SHOWN ? 20 : 0) + 10;
+  // The strip takes its height from the hours, so the footer always fits.
+  const gridHeight = GRID_HEIGHT - stripHeight;
   const firstHour = Math.floor(minutes(image.grid.start) / 60);
   const lastHour = Math.max(firstHour + 1, Math.ceil(minutes(image.grid.end) / 60));
-  const hourHeight = GRID_HEIGHT / (lastHour - firstHour);
+  const hourHeight = gridHeight / (lastHour - firstHour);
   const labelEvery = hourHeight >= 56 ? 1 : hourHeight >= 28 ? 2 : 3;
   const top = (minute: number) => ((minute - firstHour * 60) / 60) * hourHeight;
   const labels = Array.from({ length: lastHour - firstHour + 1 }, (_, i) => firstHour + i).filter((hour) => (hour - firstHour) % labelEvery === 0);
-  const mostAllDay = Math.max(0, ...image.days.map((day) => day.allDay.length));
-  const stripHeight = mostAllDay === 0 ? 0 : Math.min(ALL_DAY_SHOWN, mostAllDay) * 30 + (mostAllDay > ALL_DAY_SHOWN ? 20 : 0) + 10;
 
   const hourColumn = box(
     { flexDirection: "column", paddingTop: 62 + stripHeight, width: 78 },
     box(
-      { height: GRID_HEIGHT, position: "relative" },
+      { height: gridHeight, position: "relative" },
       ...labels.map((hour) =>
         box({ color: INK.mutedInk, fontFamily: SANS, fontSize: 19, position: "absolute", right: 14, top: top(hour * 60) - 12 }, clockAt(hour * 60)),
       ),
@@ -164,7 +166,7 @@ function grid(image: ScheduleImage) {
         box({ color: INK.mutedInk, fontFamily: SANS, fontSize: 21, fontWeight: 600 }, `${dayShort(day.weekday, "en")} ${Number(day.date.slice(8))}`),
       ),
       ...(stripHeight > 0 ? [allDayStrip(day, stripHeight)] : []),
-      box({ backgroundColor: INK.canvas, borderRadius: 10, height: GRID_HEIGHT, position: "relative" }, ...blocks),
+      box({ backgroundColor: INK.canvas, borderRadius: 10, height: gridHeight, position: "relative" }, ...blocks),
     );
   });
 

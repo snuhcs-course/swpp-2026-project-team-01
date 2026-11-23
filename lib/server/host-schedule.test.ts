@@ -158,6 +158,18 @@ describe("schedule image data", () => {
     expect(image).toMatchObject({ from: "2026-11-23", googleCalendar: "read", grid: { end: "18:00", start: "09:00" }, through: "2026-11-29", timezone: zone });
   });
 
+  it("orders a day's entries by time whatever offset each start was written in", () => {
+    const image = scheduleImageOf(
+      data([
+        event({ end: "2026-11-23T01:00:00.000Z", source: "thyme", start: "2026-11-23T00:00:00.000Z", title: "A" }),
+        event({ end: "2026-11-23T03:00:00.000Z", source: "thyme", start: "2026-11-23T02:00:00.000Z", title: "B" }),
+        event({ end: "2026-11-23T10:30:00+09:00", start: "2026-11-23T09:30:00+09:00", title: "C" }),
+      ]),
+      week,
+    );
+    expect(image.days[0]!.entries.map((entry) => entry.title)).toEqual(["A", "C", "B"]);
+  });
+
   it("cuts a timed event at midnight and widens the grid to cover it", () => {
     // Tuesday 22:00 to Wednesday 01:30 in Seoul.
     const image = scheduleImageOf(data([event({ end: "2026-11-24T16:30:00.000Z", source: "sent", start: "2026-11-24T13:00:00.000Z", title: "Late call" })]), week);

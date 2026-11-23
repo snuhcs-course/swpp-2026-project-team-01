@@ -204,7 +204,8 @@ export function scheduleImageOf(data: DashboardData, range: { from: string; last
   const timeZone = data.timeZone;
   const dates: string[] = [];
   for (let date = range.from; date <= range.last; date = addDays(date, 1)) dates.push(date);
-  const ordered = [...data.events].sort((a, b) => a.start.localeCompare(b.start));
+  // By instant: Google keeps each event's own offset, so the strings do not sort by time.
+  const ordered = [...data.events].sort((a, b) => Date.parse(a.start) - Date.parse(b.start));
 
   const days: ScheduleImageDay[] = dates.map((date) => {
     const opens = dayStart(date, timeZone);
@@ -224,6 +225,8 @@ export function scheduleImageOf(data: DashboardData, range: { from: string; last
         title: shortTitle(event.title),
       }];
     });
+    // Same-format local clocks ("HH:MM", "24:00") sort by time, which the lane layout needs.
+    entries.sort((x, y) => x.start.localeCompare(y.start) || x.end.localeCompare(y.end));
     return { allDay, date, entries, weekday: weekdayOf(date) };
   });
 

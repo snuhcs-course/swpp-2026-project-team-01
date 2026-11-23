@@ -54,6 +54,13 @@ describe("renderScheduleImagePng", () => {
     expect(network).toEqual([]);
   });
 
+  it("keeps the footer when all-day entries and the Google note share the picture", { timeout: 30_000 }, async () => {
+    const png = await renderScheduleImagePng({ ...schedule, googleCalendar: "unavailable" });
+    if (process.env.SCHEDULE_IMAGE_OUT) await writeFile(process.env.SCHEDULE_IMAGE_OUT.replace(/\.png$/, "-google.png"), png);
+
+    expect(png.subarray(0, 8)).toEqual(PNG_SIGNATURE);
+  });
+
   it("renders an empty day without Google Calendar", { timeout: 30_000 }, async () => {
     const png = await renderScheduleImagePng({
       ...schedule,
