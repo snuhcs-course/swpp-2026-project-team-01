@@ -43,3 +43,4 @@ describe("setup field bounds", () => {
     expect(SETUP_FIELD_SCHEMAS.weeklyWindows.safeParse([]).success).toBe(false);
     expect(SETUP_FIELD_SCHEMAS.weeklyWindows.safeParse([{ end: "10:00", start: "10:00", weekday: "monday" }]).success).toBe(false);
   });
+});
