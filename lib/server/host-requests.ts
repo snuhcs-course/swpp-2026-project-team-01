@@ -1,5 +1,5 @@
 import { cancelBookingCommand, changeBookingCommand } from "./booking-cancellation";
-import type { HostCandidate, HostEvaluationSummary, HostRequestItem, HostRequestOperation, HostRequestView, HostSuggestion } from "../contracts/host-request";
+import { type HostCandidate, type HostEvaluationSummary, type HostRequestItem, type HostRequestOperation, type HostRequestView, type HostSuggestion, revisedFromOutcome } from "../contracts/host-request";
 import type { LinkPlan, RequestDetails, RequestState } from "../contracts/request";
 import { isValidTimeZone } from "../contracts/setup";
 import { approveCommand, checkBookingCommand, declineCommand, readBookingStatus } from "./bookings";
@@ -190,10 +190,7 @@ export async function readHostRequest(db: Database | Transaction, hostAccountId:
     },
     evaluation,
     expiresAt: request.expires_at.toISOString(),
-    revisedFrom:
-      request.revised_from_request_id && (request.revised_from_state === "declined" || request.revised_from_state === "expired")
-        ? { outcome: request.revised_from_state, ref: requestRef(request.revised_from_request_id) }
-        : null,
+    revisedFrom: revisedFromView(request.revised_from_request_id, request.revised_from_state),
     hostTimezone,
     needsDecision:
       request.state === "awaiting_host_approval" ||
@@ -230,6 +227,13 @@ export async function readHostRequest(db: Database | Transaction, hostAccountId:
 }
 
 // The host request view's card commands, by operation.
+// The earlier request a revised request follows, when it closed as declined,
+// expired or withdrawn (guest-flow-completion design 5, #59).
+function revisedFromView(requestId: string | null, state: RequestState | null): HostRequestView["revisedFrom"] {
+  const outcome = revisedFromOutcome(state);
+  return requestId && outcome ? { outcome, ref: requestRef(requestId) } : null;
+}
+
 export function hostRequestCommands(): Readonly<Record<HostRequestOperation, CommandDefinition<unknown, unknown>>> {
   return {
     "tutorial.finish": finishSampleCommand,
