@@ -49,7 +49,7 @@ Removing the setup chat leaves these with no messenger counterpart. This change 
 ## Impact
 
 - Code: `lib/server/chat-routes.ts`, `lib/server/recovery.ts`, `apps/web/lib/chat/discussion.ts`, `apps/web/lib/chat/use-host-discussion.ts` (deleted), `apps/web/app/api/chat/*` (deleted), `apps/web/app/_components/host-workspace.tsx`, `playwright.config.ts`.
-- Open changes that still describe a host setup conversation on the web ([`request-page-accordion`](../../request-page-accordion/proposal.md), [`message-first-web-onboarding`](../../message-first-web-onboarding/proposal.md) and [`host-review-and-booking`](../../host-review-and-booking/proposal.md) modify `chat-workspaces`' **Conversation-first entry**) need their deltas reconciled with **No host chat on the web** before they archive.
+- Open changes that still describe a host setup conversation on the web ([`request-page-accordion`](../../request-page-accordion/proposal.md), [`message-first-web-onboarding`](../../message-first-web-onboarding/proposal.md) and [`host-review-and-booking`](../2026-11-24-host-review-and-booking/proposal.md) modify `chat-workspaces`' **Conversation-first entry**) need their deltas reconciled with **No host chat on the web** before they archive.
 - Tests: `lib/server/chat-routes.test.ts` (new), `tests/integration/host-review.test.ts`, `tests/e2e/host-setup.test.ts`, `workspace.test.ts`, `imessage-link.test.ts`, `support/connected-apps.ts` and `support/setup-host.ts`; `streaming.test.ts` and `first-reply.test.ts` deleted.
 - Specs: `conversation-access` and `chat-workspaces` deltas.
 - Docs: the testing baseline rows H03 (W-2, W-5, W-6) and M01 (W-H1), the agent configuration, the decision log, the acceptance record, the page list and the interfaces overview.

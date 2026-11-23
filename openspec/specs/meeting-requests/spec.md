@@ -492,14 +492,18 @@ The guest assistant's request tools SHALL give the current local time in the req
 - **THEN** the assistant asks once whether to cancel the booked meeting and, on a clear yes, calls cancel_booking
 
 ### Requirement: Guest assistant answers within its scope
-The guest assistant SHALL take relative days such as next week or a weekday as days for an availability draft, also when moving a booked meeting. It SHALL still ask online or in person when the host offers either and the guest names only a place. It SHALL decline questions about the host as a person in one sentence and say what it can help with, and SHALL refuse a switch to the host's conversation or an approval as the host in one sentence, offering what the guest can do at this step without pointing them elsewhere to approve. For a place outside the host's areas it SHALL describe the host's places first, draft the other place only when the guest insists, say the host approves the place with the time, and apply it only when the guest confirms.
+The guest assistant SHALL take relative days such as next week or a weekday as days for an availability draft, also when moving a booked meeting. When the host offers online or in person and the guest names a place as where they will meet, it SHALL take that as in person without asking the form and carry that place into the details draft, with a place outside the host's listed areas following the rule for such places below; it SHALL ask online or in person only when the place is mentioned in passing or the same answer leans toward meeting online. It SHALL decline questions about the host as a person in one sentence and say what it can help with, and SHALL refuse a switch to the host's conversation or an approval as the host in one sentence, offering what the guest can do at this step without pointing them elsewhere to approve. For a place outside the host's areas it SHALL describe the host's places first, draft the other place only when the guest insists, say the host approves the place with the time, and apply it only when the guest confirms.
 
 #### Scenario: Moving a booked meeting to next week
 - **WHEN** a guest asks to move a booked meeting to next week
 - **THEN** the assistant reopens it for a change and drafts next Monday to Sunday as availability without asking which days
 
 #### Scenario: A place given instead of the form
-- **WHEN** the host offers online or in person and the guest answers with only a place
+- **WHEN** the host offers online or in person and the guest answers where to meet with one of the host's places
+- **THEN** the assistant drafts in person with that place for the review card and asks no online-or-in-person question
+
+#### Scenario: A place mentioned in passing
+- **WHEN** the host offers online or in person and the guest mentions a place without saying they will meet there, or also leans toward meeting online
 - **THEN** the assistant asks online or in person and records no meeting form
 
 #### Scenario: Asking who the host is
@@ -593,6 +597,90 @@ For an agreed proposal of several times, the host's request view, messenger summ
 #### Scenario: Repeated approval
 - **WHEN** the host's approval is repeated from another interface after one time was booked
 - **THEN** the existing booking is returned and no second time is booked
+
+### Requirement: Booking attempt outcomes
+A request SHALL enter booking only through host approval and SHALL leave it only through its booking's outcome: booked when the event is confirmed; negotiating, with the proposal stale, when revalidation finds a conflict; awaiting host approval, with the approval spent, when revalidation cannot complete or the provider definitively rejects the write; and withdrawn or declined only while no dispatch was committed. The expiry sweep SHALL NOT close a request whose booking is in flight; a reserved booking whose request expired SHALL be cancelled by its own revalidation. Every outcome SHALL advance the request revision.
+
+#### Scenario: Conflict found at booking
+- **WHEN** revalidation finds the approved interval no longer feasible
+- **THEN** the request returns to negotiating, the agreed proposal can no longer be approved, and no event is created
+
+#### Scenario: Expiry while booking is in flight
+- **WHEN** a request's expiry passes while its booking is dispatching
+- **THEN** the request stays booking until reconciliation establishes the outcome
+
+### Requirement: Host-shared changes create a checked proposal
+The host SHALL be able to suggest changed shared details (time, duration, mode, place or meeting link) from the proposal review or through the assistant, and SHALL share them only with an explicit **Share revised details** command at the expected revision. Sharing SHALL apply the details as a new request revision, which voids earlier agreement and approval, and SHALL check the suggested time with the feasibility engine before writing the next proposal version for the requester's agreement. A time that fails the check SHALL create no version and SHALL be explained to the host only. **Dismiss suggestions** SHALL change nothing shared.
+
+#### Scenario: Shared change passes the check
+- **WHEN** the host shares a later time that is feasible
+- **THEN** a new proposal version exists for the requester to agree to, and the earlier agreement cannot authorize booking
+
+#### Scenario: Shared change fails the check
+- **WHEN** the host shares a time that overlaps a busy event
+- **THEN** no proposal version is created, the host sees why privately, and the requester sees only that the request is being negotiated
+
+### Requirement: Host request link
+The host's links to a request, in `/app` and in the host's confirmation email, SHALL name the request by its ID and open the host's authorized workspace. The requester's booking link SHALL NOT be shown or sent to the host.
+
+#### Scenario: Host opens the confirmation's link
+- **WHEN** the host follows **View booking** in their confirmation email
+- **THEN** `/app` opens that request after sign-in, and the URL carries no booking link
+
+### Requirement: Requests started by email
+An authenticated email that starts a new thread in the product inbox and names a ready host's handle in its subject SHALL create one request for that host, identified with the sender's display name and address as an unconfirmed contact, the host's timezone and the message's language, under the same creation bounds as a web start counted per sender address. Creation SHALL send the creation email with the booking link and the confirmation link to that address and SHALL bind the thread to the request. An email naming no ready host SHALL create nothing.
+
+#### Scenario: Requester starts by email
+- **WHEN** an authenticated sender writes a new email whose subject names a ready host
+- **THEN** one request exists for that host with the sender's address as its unconfirmed contact, the creation email goes to that address, and the thread is bound to the request
+
+#### Scenario: Unknown host
+- **WHEN** a new email names no ready host
+- **THEN** no request is created and the thread receives one fixed reply
+
+### Requirement: Continue by email on the booking page
+The booking page SHALL offer **Continue by email** once the contact address is confirmed. Creating a link SHALL show a one-time code, the product inbox and its expiry, recoverable after a reload while pending; **Check email link** SHALL refresh the status; **Unlink email** SHALL end the binding at once without a provider call. An uncertain command SHALL offer **Retry same linking action** with the same retry identity. Email SHALL never be required: the web conversation SHALL stay available.
+
+#### Scenario: Link before confirmation
+- **WHEN** a requester whose contact is not confirmed opens **Continue by email**
+- **THEN** the card asks them to confirm their address first and creates no code
+
+#### Scenario: Unlink during an outage
+- **WHEN** the requester presses **Unlink email** while AgentMail is unreachable
+- **THEN** the binding ends and a later message in that thread is not forwarded
+
+### Requirement: Old options by email
+An email in a bound thread SHALL reach the request's discussion as conversation text only. It SHALL NOT select a candidate, record agreement or approval, or create another request.
+
+#### Scenario: Reply selects an old option
+- **WHEN** a requester replies to an earlier thread message choosing an option of a superseded proposal
+- **THEN** no agreement or booking is recorded, no second request exists, and the reply directs them to the current proposal at the booking link
+
+### Requirement: Agreement rechecks the host's calendars
+Before recording requester agreement, the service SHALL read the host's conflict calendars again for each of the proposal's offered intervals under the same deterministic checks as booking revalidation, without the requester's calendar. When any interval no longer fits, the service SHALL record no agreement and send the host no approval request, and the requester SHALL be told and offered newly evaluated times. A calendar read that fails or exceeds the evaluation deadline SHALL NOT block agreement; booking revalidation remains the check before any event is written.
+
+#### Scenario: Host calendar changed after the times were found
+- **WHEN** the requester agrees to a proposal whose interval became busy on the host's conflict calendars after its evaluation
+- **THEN** no agreement is recorded, the host receives no approval request, the request stays negotiating, and a new evaluation becomes the current times
+
+#### Scenario: Host calendar cannot be read
+- **WHEN** the host's calendars cannot be read during agreement
+- **THEN** agreement is recorded and the request awaits host approval, with booking revalidation still required before the event is created
+
+### Requirement: Offered times as a calendar
+The requester's **Choose a time** card SHALL show the offered times as blocks on a week grid, and on a phone as one day with a day switcher. Details shared by every offered time (time zone, length, place) SHALL be stated once above the grid, and a detail that differs SHALL be stated on the time it applies to. Each offered time SHALL be a keyboard-operable control whose accessible name gives its date and time. Trip-dependent times SHALL be visually distinct and named as depending on the requester's trip, and choosing one SHALL open its trip estimate. **Find other times** and **Edit details** SHALL remain below the grid, and the requester SHALL still be able to tick up to the maximum number of times to offer together, each listed with any note about it, and send them at once. When the requester connected a calendar to the request, their own busy times SHALL be drawn under the offered times without titles or other event details.
+
+#### Scenario: Several days at a glance
+- **WHEN** a requester is offered times on Tuesday, Wednesday and Friday of one week, all 30 minutes in person at one place
+- **THEN** the card shows that week with the times in their day columns, and the time zone, "30 minutes" and the place appear once above the grid
+
+#### Scenario: Phone
+- **WHEN** the same card is shown at phone width
+- **THEN** one day is shown with a switcher for the week's days, each day marked when it has times and its accessible name saying how many
+
+#### Scenario: Connected calendar
+- **WHEN** a requester who connected Google Calendar to this request opens the times card
+- **THEN** their busy times for the shown week are drawn as busy blocks under the offered times, with no event titles
 
 ### Requirement: Unconnected guest calendar receipt
 When a guest settles the Calendar step without connecting a calendar, through **Continue without Google** or a Google sign-in without its Calendar part, the booking page's Calendar receipt SHALL say that the calendar is not connected and that the guest will give their times, and SHALL NOT call the step skipped. While the request is gathering or negotiating the receipt SHALL keep its **Change** action to connect a calendar later.

@@ -34,7 +34,7 @@ The website SHALL open request management on the relevant conversation, with the
 - **THEN** no request details or chat appear, and the page directs the requester to use their private request link and offers only the generic **Resend my booking link** control, with no credential-paste field and no other recovery control
 
 ### Requirement: Google-only MVP host login
-The host workspace SHALL offer Google sign-in through Supabase Auth and SHALL NOT offer email/password, email OTP or magic-link login in the MVP. The application SHALL initiate one Google OAuth consent that requests identity together with the Calendar scopes needed to read selected calendars and create events, with browser-bound PKCE, offline access and a fixed `/auth/callback` return to `/app`, and SHALL record the scopes Google actually granted and the refresh token server-side at sign-in. The deployed Auth configuration SHALL disable email login. First-time Google sign-in SHALL create an active host account whether or not the Calendar scopes were granted. Calendar permission SHALL exist only for granted scopes; login SHALL NOT grant requester authority, and requester contact email fields SHALL remain available.
+The host workspace SHALL offer Google sign-in through Supabase Auth and SHALL NOT offer email/password, email OTP or magic-link login in the MVP. The application SHALL initiate one Google OAuth consent that requests identity together with the Calendar scopes needed to read selected calendars and create events, with browser-bound PKCE, offline access and a `/auth/callback` return to `/app`, and SHALL record the scopes Google actually granted and the refresh token server-side at sign-in. The only other returns SHALL be to a live, undecided agent consent transaction at `/connect/consent`, to a live host chat-link page at `/connect/link/{token}`, or to `/app` after a sign-in started from the iMessage start; sign-in records the return in an HTTP-only cookie after checking the transaction or link, and the callback checks it again. A query parameter or other caller-supplied value SHALL NOT choose any other destination. The deployed Auth configuration SHALL disable email login. First-time Google sign-in SHALL create an active host account whether or not the Calendar scopes were granted. Calendar permission SHALL exist only for granted scopes; login SHALL NOT grant requester authority, and requester contact email fields SHALL remain available.
 
 #### Scenario: First Google sign-in
 - **WHEN** a user completes Google sign-in for the first time
@@ -52,6 +52,13 @@ The host workspace SHALL offer Google sign-in through Supabase Auth and SHALL NO
 - **WHEN** a client submits an email address to the sign-in endpoint
 - **THEN** the request is rejected without sending an authentication email
 
+#### Scenario: Sign-in from agent consent
+- **WHEN** a signed-out host starts sign-in from the consent page of a live transaction
+- **THEN** the callback returns to that consent page instead of `/app`
+
+#### Scenario: Return to a stale transaction
+- **WHEN** the recorded transaction expired or was decided before the callback
+- **THEN** the callback returns to `/app`
 ### Requirement: Single host workspace
 Host sign-in, channel linking, request selection, review and settings SHALL remain inside `/app` as authorized states, cards or dialogs. A host with incomplete setup SHALL complete setup in the verified messaging conversation, with browser authentication and consent returning to the authorized linking or conversation state. A ready host SHALL retain workspace access. The wordmark on every signed-in host page SHALL link to `/app`. While the workspace reads the host's session, it SHALL show the workspace background with a loading status, not the sign-in layout. A return from Google consent begun at Thyme's Calendar link SHALL say that Google Calendar is connected only when the grant can use Calendar.
 

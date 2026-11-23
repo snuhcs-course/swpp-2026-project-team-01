@@ -30,7 +30,7 @@ None.
 
 ### Modified Capabilities
 
-- `host-imessage-channel` (unarchived, in [`host-imessage-channel`](../host-imessage-channel/proposal.md)): the onboarding sign-in asks for consent, and the welcome says why it asks for Calendar again. The capability exists only in unarchived changes, so this change adds its requirement as ADDED and is archived after them.
+- `host-imessage-channel` (unarchived, in [`host-imessage-channel`](../archive/2026-11-24-host-imessage-channel/proposal.md)): the onboarding sign-in asks for consent, and the welcome says why it asks for Calendar again. The capability exists only in unarchived changes, so this change adds its requirement as ADDED and is archived after them.
 
 ## Impact
 

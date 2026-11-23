@@ -14,3 +14,5 @@
 ## 3. Integration
 
 - [x] 3.1 Run lint, typecheck and OpenSpec validation; fix regressions and record any external provider validation still pending.
+
+- [ ] Before archiving, rebase this change's `chat-workspaces` "Conversation-first entry" MODIFIED block onto the main spec: since #391 (and #440) the main text has no host web chat, discussion switch or private chat, and archiving the block as written would bring that wording back.

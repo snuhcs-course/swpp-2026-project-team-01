@@ -138,7 +138,7 @@ After setup the host SHALL be able to open the note review from the web settings
 ### Requirement: Analysis evidence dimensions
 The scan SHALL report preferred start times by weekday and hour, weekly meeting load split into internal and external by attendee email domain, note candidates with the classifier's recommendations, and the most frequent in-person area and venue, each with its sample size. It SHALL read no message bodies or contact lists and store no attendee addresses. A note candidate SHALL stay busy unless the host confirms it as free; the classifier only recommends.
 
-#### Scenario: Note candidates listed
+#### Scenario: Note-like entries listed
 - **WHEN** the scan finds opaque entries with no other attendee
 - **THEN** the host sees them listed with the classifier's recommendation, and they remain busy time until the host confirms them as free
 

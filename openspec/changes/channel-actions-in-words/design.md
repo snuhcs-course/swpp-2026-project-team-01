@@ -2,7 +2,7 @@
 
 ## Context
 
-See [proposal.md](proposal.md). [`host-imessage-channel`](../host-imessage-channel/design.md) design 19 (D23) made approval a tool, `approve_proposal`, that acts only for a message from the linked conversation, and design 21 (D26) did the same for `switch_conversation`. Everything else a host decides in the linked conversation still needed an exact command (design 8), whose fixed replies were English. This change finishes the pattern.
+See [proposal.md](proposal.md). [`host-imessage-channel`](../archive/2026-11-24-host-imessage-channel/design.md) design 19 (D23) made approval a tool, `approve_proposal`, that acts only for a message from the linked conversation, and design 21 (D26) did the same for `switch_conversation`. Everything else a host decides in the linked conversation still needed an exact command (design 8), whose fixed replies were English. This change finishes the pattern.
 
 ## Goals / Non-Goals
 

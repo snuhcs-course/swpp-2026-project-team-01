@@ -36,7 +36,7 @@ Identity and Calendar access requested on one consent screen SHALL be recorded a
 - **THEN** the contact stays as it was until the requester reviews and applies the change, which sends the new address its confirmation email
 
 ### Requirement: Private read-only Calendar access
-A requester Calendar grant SHALL request only calendar-list and read-only event access and SHALL be used only by evaluations of its own request, on the calendars the requester selected, to derive busy intervals under the same rules as host calendars and the places of the requester's events adjacent to in-person candidates. Event titles, attendees, descriptions and locations SHALL NOT be stored, logged, placed in a tool result or model context, or shown to the host or any agent; requester-facing text SHALL refer to an adjacent event only generically.
+A requester Calendar grant SHALL request only calendar-list and read-only event access and SHALL be used only for its own request, on the calendars the requester selected: by that request's evaluations, to derive busy intervals under the same rules as host calendars and the places of the requester's events adjacent to in-person candidates, and to show the requester their own busy times beside that request's offered times. The busy times shown SHALL carry only their start, end and whether they last all day, and SHALL NOT be stored. Event titles, attendees, descriptions and locations SHALL NOT be stored, logged, placed in a tool result or model context, or shown to the host or any agent; requester-facing text SHALL refer to an adjacent event only generically.
 
 #### Scenario: Busy requester interval
 - **WHEN** a selected requester calendar is busy during an otherwise feasible candidate
@@ -49,6 +49,10 @@ A requester Calendar grant SHALL request only calendar-list and read-only event 
 #### Scenario: Grant used for another request
 - **WHEN** an operation for a different request would read the requester's calendar
 - **THEN** that request's own grants are the only ones consulted and the first request's grant is never read
+
+#### Scenario: Busy times beside the offered times
+- **WHEN** a requester with a connected calendar opens the times card for their request
+- **THEN** their busy times for the shown week come back with only start, end and all-day, no title, place or attendee, and nothing is stored
 
 ### Requirement: Request-bound grant lifetime
 A requester grant SHALL last no longer than its request remains open and its booking link unexpired. Closure, link expiry and **Disconnect** SHALL delete the stored token; the service SHALL NOT need to call Google's revocation endpoint. Requester grants MAY use the same OAuth client as host sign-in. A revoked, expired or failing grant SHALL pause evaluations that depend on it until the requester reconnects or replaces it with manual or agent-supplied availability; it SHALL NOT be treated as free time.

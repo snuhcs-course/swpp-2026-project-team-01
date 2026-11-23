@@ -12,3 +12,5 @@
 - [x] Replace the separate host-private chat request screen with in-list details and authorized action controls.
 - [ ] Test accordion keyboard and mobile behavior, data visibility, action availability, stale revisions, and retained command outcomes.
 - [x] Update `DESIGN.md`; complete the capability spec and remaining documentation before archiving.
+
+- [ ] Before archiving, rebase this change's `chat-workspaces` "Conversation-first entry" MODIFIED block onto the main spec: since #391 (and #440) the main text has no host web chat, discussion switch or private chat, and archiving the block as written would bring that wording back.

@@ -21,7 +21,7 @@ The [chat-workspaces](../../../specs/chat-workspaces/spec.md) contract asks for 
 
 ### Modified Capabilities
 
-- `chat-workspaces`: a pending-decision count on the workspace menu, and booked meeting details on the calendar Dashboard. Both are added as new requirements so the still-open [`request-dashboard`](../../request-dashboard/proposal.md) change, which modifies **Host calendar Dashboard**, is not contradicted.
+- `chat-workspaces`: a pending-decision count on the workspace menu, and booked meeting details on the calendar Dashboard. Both are added as new requirements so the still-open [`request-dashboard`](../2026-11-24-request-dashboard/proposal.md) change, which modifies **Host calendar Dashboard**, is not contradicted.
 
 ## Impact
 

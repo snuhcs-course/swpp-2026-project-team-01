@@ -20,7 +20,7 @@ The application coordinates one host and one external requester across web, emai
 | Host iMessage | Photon Spectrum | Verified private binding, native/adapter compatibility, attribution and real-device delivery |
 | Hosting | Recorded Vercel release origin | Runtime placement, consumer ownership and fresh deployment checks |
 
-The selected Supabase project is linked and holds the Phase 1 and Phase 2 migrations, with application objects in a private `app` schema; see [provider setup](technical_specification/03_provider_setup.md#supabase-project). The release origin is deployed, as the [acceptance record](technical_specification/07_acceptance_record.md) shows; provider and named-client readiness remain verification targets. The model ID, dependency versions and runtime hosting are recorded in the [foundation design](../openspec/changes/application-foundation/design.md); record a fresh check before changing any of them.
+The selected Supabase project is linked and holds the Phase 1 and Phase 2 migrations, with application objects in a private `app` schema; see [provider setup](technical_specification/03_provider_setup.md#supabase-project). The release origin is deployed, as the [acceptance record](technical_specification/07_acceptance_record.md) shows; provider and named-client readiness remain verification targets. The model ID, dependency versions and runtime hosting are recorded in the [foundation design](../openspec/changes/archive/2026-11-24-application-foundation/design.md); record a fresh check before changing any of them.
 
 ### Backend decision
 
@@ -51,7 +51,7 @@ The services and providers that carry those responsibilities today, as built in 
   <img src="assets/architecture/system-architecture.png" alt="Find Me a Time deployment view: Host, Requester and MCP clients reach Next.js on Vercel over HTTPS; Next.js calls the eve agent with an internal bearer, and eve calls OpenAI gpt-5.6-terra. iMessage and WhatsApp through Photon Spectrum and AgentMail reach eve by webhook. Both services use Supabase Auth and Postgres, whose pg_net and pg_cron wake the job worker. The server calls Google Calendar and sends email through Cloudflare. GitHub Actions deploys to Vercel and applies migrations to Supabase.">
 </picture>
 
-Next.js and the eve agent are separate Vercel services; Postgres in the private `app` schema holds domain state and durable jobs. The [foundation design](../openspec/changes/application-foundation/design.md) records the call path, data access and job placement. [`system-architecture.html`](assets/architecture/system-architecture.html) is the self-contained source the PNGs were rendered from with [stack-diagram](https://github.com/caru-ini/stack-diagram); update it and re-render both themes when a service or provider changes.
+Next.js and the eve agent are separate Vercel services; Postgres in the private `app` schema holds domain state and durable jobs. The [foundation design](../openspec/changes/archive/2026-11-24-application-foundation/design.md) records the call path, data access and job placement. [`system-architecture.html`](assets/architecture/system-architecture.html) is the self-contained source the PNGs were rendered from with [stack-diagram](https://github.com/caru-ini/stack-diagram); update it and re-render both themes when a service or provider changes.
 
 ## User surfaces and trust boundaries
 

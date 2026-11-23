@@ -80,7 +80,7 @@
 
 ## 4단계 — `host-review-and-booking`
 
-[제안서](../../openspec/changes/host-review-and-booking/proposal.md#decisions)가 D1–D12를 기록합니다. 구현을 맡은 세션이 사용자의 지시(모든 결정을 기록하고 바꿀 수 있게 유지)에 따라 2026-10-22에 이를 정했으며, 아직 팀원 검토를 받은 결정은 없습니다.
+[제안서](../../openspec/changes/archive/2026-11-24-host-review-and-booking/proposal.md#decisions)가 D1–D12를 기록합니다. 구현을 맡은 세션이 사용자의 지시(모든 결정을 기록하고 바꿀 수 있게 유지)에 따라 2026-10-22에 이를 정했으며, 아직 팀원 검토를 받은 결정은 없습니다.
 
 ### 제품 결정
 
@@ -132,7 +132,7 @@
 | 하나의 커밋으로 낸 B 레인 | B 레인 계획 항목 세 개를 하나의 커밋으로 냈습니다. 예약, 발송, 대조가 하나의 모듈이자 하나의 작업이기 때문이며, 이 커밋에는 평가 작업이 가져다 쓰는 A 레인의 공유 변경과 예외용 서버 모듈, 그리고 새 논의 키가 요구하는 호스트 논의의 요청 범위도 들어 있습니다 | 반쪽을 스텁으로 둔 커밋 세 개 | 이 기록; 커밋 메시지 | 이후 변경에서 필요하면 모듈을 나눔 |
 | 하나의 커밋으로 낸 A 레인 카드 | 선택 카드와 전환, 제안서 카드와 제안 카드, 규칙 및 이동 검토를 함께 냈습니다. 하나의 화면, 하나의 카드 모듈, 하나의 브라우저 테스트를 공유하기 때문입니다 | 커밋 세 개 | 이 기록 | — |
 | 이벤트 생성에 따른 참조 | OpenInstinct `agent/lib/google-workspace/calendar.ts` `0c2a7c6e`: 32자리 16진수 이벤트 ID, 참석자가 있을 때 `sendUpdates: "all"`, `409`는 `events.get`으로 다시 읽기 | Google이 지정하는 ID | 풀 리퀘스트 | — |
-| 검토 우회 | PR #30은 2026-10-22에 사용자의 요청으로 CI가 통과한(7개 중 7개) 뒤 팀원 승인 없이 `--admin`으로 squash 병합했습니다 | 승인을 기다림 | squash 커밋 메시지 | 팀원이 나중에 [제안서](../../openspec/changes/host-review-and-booking/proposal.md#decisions)와 이 기록을 기준으로 검토 |
+| 검토 우회 | PR #30은 2026-10-22에 사용자의 요청으로 CI가 통과한(7개 중 7개) 뒤 팀원 승인 없이 `--admin`으로 squash 병합했습니다 | 승인을 기다림 | squash 커밋 메시지 | 팀원이 나중에 [제안서](../../openspec/changes/archive/2026-11-24-host-review-and-booking/proposal.md#decisions)와 이 기록을 기준으로 검토 |
 | 마이그레이션 경로 | `20261022021159_host_review_and_booking.sql`을 2026-10-22에 `anelszynxtvxoxqvzgqt`에 `supabase db push --linked`로 푸시했으며, 이것만 나열한 드라이 런 뒤 사용자의 요청으로 이를 필요로 하는 배포보다 먼저 실행했습니다. 이제 마이그레이션 22개가 적용되어 있습니다 | 시크릿이 아직 설정되지 않은 `Deploy shared Supabase` 워크플로 | [인수 기록](07_acceptance_record.md#phase-4--host-review-and-booking) | 이후 마이그레이션이 CI를 거치도록 워크플로의 저장소 시크릿을 설정 |
 | 프로덕션 배포 | `708381cb`의 `origin/main` 깨끗한 체크아웃에서 `findmeatime-release`에 연결해 `npm ci`(`vercel.ts` 컴파일에는 `eve` 설치가 필요함) 뒤 `vercel deploy --prod` | Git 연동 배포(구성되지 않음) | 인수 기록 | 3단계와 같음 |
 | 프로덕션 인수 확인 | 사용자가 로그인하고 주소를 알려 준 뒤, 사용자 본인의 호스트 계정과 게스트로서의 팀원 두 번째 주소를 사용해 내장 브라우저에서 실행했습니다 | 별도의 테스트 호스트 계정 | [인수 기록](07_acceptance_record.md#production-acceptance-check) | 전용 테스트 호스트가 생기면 그것을 사용 |
@@ -146,7 +146,7 @@
 
 ## 5단계 — `agent-access`
 
-[제안서](../../openspec/changes/agent-access/proposal.md#decisions)가 D1–D16을 기록하고 [설계](../../openspec/changes/agent-access/design.md)가 그 근거를 기록합니다. 구현 세션이 2026-10-22에 모든 결정을 기록하고 변경 가능하게 유지하라는 사용자의 지시에 따라 이를 정했으며, 아직 팀원 검토를 받은 결정은 없습니다.
+[제안서](../../openspec/changes/archive/2026-11-24-agent-access/proposal.md#decisions)가 D1–D16을 기록하고 [설계](../../openspec/changes/archive/2026-11-24-agent-access/design.md)가 그 근거를 기록합니다. 구현 세션이 2026-10-22에 모든 결정을 기록하고 변경 가능하게 유지하라는 사용자의 지시에 따라 이를 정했으며, 아직 팀원 검토를 받은 결정은 없습니다.
 
 ### 제품 결정
 
@@ -230,7 +230,7 @@
 
 ## 6단계 — `host-imessage-channel`
 
-[제안서](../../openspec/changes/host-imessage-channel/proposal.md#decisions)가 D1–D19를 기록합니다. 계획은 어댑터와 발신자 형식, 회선 프로비저닝과 신규 대화 허용량, 코드 만료와 재전송 한도, 딥링크 형식을 이 단계에 배정했습니다. 사용자가 2026-10-23에 D3과 D4를 정했고, 나머지는 구현을 맡은 세션이 사용자의 지시(모든 결정을 기록하고 바꿀 수 있게 유지)에 따라 2026-10-23에 정했으며, 아직 팀원 검토를 받은 결정은 없습니다.
+[제안서](../../openspec/changes/archive/2026-11-24-host-imessage-channel/proposal.md#decisions)가 D1–D19를 기록합니다. 계획은 어댑터와 발신자 형식, 회선 프로비저닝과 신규 대화 허용량, 코드 만료와 재전송 한도, 딥링크 형식을 이 단계에 배정했습니다. 사용자가 2026-10-23에 D3과 D4를 정했고, 나머지는 구현을 맡은 세션이 사용자의 지시(모든 결정을 기록하고 바꿀 수 있게 유지)에 따라 2026-10-23에 정했으며, 아직 팀원 검토를 받은 결정은 없습니다.
 
 **팀원의 초안 PR #23은 채택하지 않았습니다.** PR #23(enu3379, `docs/host-imessage-linking`)은 호스트가 `/app`에서 번호를 입력하면 Thyme이 먼저 문자를 보내고, 두 자리 숫자 답장이 일치하면 번호를 연결합니다. 그러면 Thyme의 첫 메시지가 요청하지 않은 것이 되어 수신자에게는 스팸 배너로 보이고 회선의 일일 신규 대화 한도를 하나 소모하는데, PRD의 수신 우선 연결 코드는 바로 이를 피하기 위한 것이며 사용자는 2026-10-23에 PRD의 설계를 유지하기로 했습니다. 세 부분은 재사용하며 풀 리퀘스트에서 출처를 밝힙니다: Photon 웹훅 서명 검증(원본 본문에 대한 `v0:` HMAC, 5분 허용 구간, 웹훅 ID 확인), `2xx` 이전에 저장하고 처리 뒤 텍스트를 지우는 내구성 있는 수신 이벤트, 간격을 둔 발송 한도. 이 PR의 마이그레이션 타임스탬프는 이미 공유 프로젝트에 적용된 마이그레이션보다 앞서므로 스키마 파일은 하나도 복사하지 않았습니다. PR 자체는 건드리지 않았습니다.
 
@@ -316,7 +316,7 @@
 
 ## 7단계 — `requester-email-channel`
 
-[제안서](../../openspec/changes/requester-email-channel/proposal.md#decisions)가 D1–D11을 기록합니다. 계획은 D1–D4를 이 단계에 배정했고 설계에서 D5–D11이 추가되었습니다. 구현을 맡은 세션이 사용자의 지시(모든 결정을 기록하고 바꿀 수 있게 유지)에 따라 2026-10-22에 이를 정했으며, 아직 팀원 검토를 받은 결정은 없습니다.
+[제안서](../../openspec/changes/archive/2026-11-24-requester-email-channel/proposal.md#decisions)가 D1–D11을 기록합니다. 계획은 D1–D4를 이 단계에 배정했고 설계에서 D5–D11이 추가되었습니다. 구현을 맡은 세션이 사용자의 지시(모든 결정을 기록하고 바꿀 수 있게 유지)에 따라 2026-10-22에 이를 정했으며, 아직 팀원 검토를 받은 결정은 없습니다.
 
 ### 제품 결정
 
@@ -393,7 +393,7 @@
 
 ## 8단계 — `operations-and-release`
 
-[제안서](../../openspec/changes/operations-and-release/proposal.md#decisions)가 D1–D14를 기록합니다. 계획은 D1–D4와 보존 및 삭제 규칙을 이 단계에 배정했고 나머지는 설계에서 제기되었습니다. 구현을 맡은 세션이 사용자의 지시(모든 결정을 기록하고 바꿀 수 있게 유지)에 따라 2026-10-23에 이를 정했으며, 아직 팀원 검토를 받은 결정은 없습니다.
+[제안서](../../openspec/changes/archive/2026-11-24-operations-and-release/proposal.md#decisions)가 D1–D14를 기록합니다. 계획은 D1–D4와 보존 및 삭제 규칙을 이 단계에 배정했고 나머지는 설계에서 제기되었습니다. 구현을 맡은 세션이 사용자의 지시(모든 결정을 기록하고 바꿀 수 있게 유지)에 따라 2026-10-23에 이를 정했으며, 아직 팀원 검토를 받은 결정은 없습니다.
 
 ### 제품 결정
 
@@ -476,7 +476,7 @@
 16. **프로덕션 인수**: [personal-agent 클라이언트](09_agent_clients.md)의 명명된 클라이언트 점검, 통제된 iPhone 실행, 실제 받은편지함 전달, 손님의 받은편지함 확인, 로그인한 설정을 [릴리스 요약](07_acceptance_record.md#release-summary)에 맞춰 기록하고, 이어서 `openspec archive operations-and-release`.
 ## 9단계 — `host-whatsapp-channel`
 
-[제안서](../../openspec/changes/host-whatsapp-channel/proposal.md#decisions)는 D1–D13을 기록합니다. 팀은 WhatsApp Business를 프로덕션 Photon 프로젝트에 연결한 뒤인 2026-11-02에, 이제부터 WhatsApp을 통해 Android 호스트를 지원하기로 결정했습니다. 이 변경을 작성한 세션은 같은 날 그 결정에 따라 D1–D13을 채택했습니다. 이들은 팀원 검토를 기다리는 제안이며, 아직 이를 구현하는 코드는 없습니다. 추적 이슈: #66.
+[제안서](../../openspec/changes/archive/2026-11-24-host-whatsapp-channel/proposal.md#decisions)는 D1–D13을 기록합니다. 팀은 WhatsApp Business를 프로덕션 Photon 프로젝트에 연결한 뒤인 2026-11-02에, 이제부터 WhatsApp을 통해 Android 호스트를 지원하기로 결정했습니다. 이 변경을 작성한 세션은 같은 날 그 결정에 따라 D1–D13을 채택했습니다. 이들은 팀원 검토를 기다리는 제안이며, 아직 이를 구현하는 코드는 없습니다. 추적 이슈: #66.
 
 **이전 경위.** 2026-11-02에 이슈 #62와 PR #63이 iMessage 수신기가 플랫폼이 iMessage가 아닌 모든 이벤트를 버리도록 만들었습니다. 이 변경이 구현되기 전까지 회선으로 오는 WhatsApp 메시지는 확인 응답한 뒤 무시됩니다.
 
@@ -555,7 +555,7 @@
 
 ## 10단계 — `host-telegram-channel`
 
-[제안서](../../openspec/changes/host-telegram-channel/proposal.md#decisions)는 D1–D13을 기록합니다. 2026-11-04에 사용자가 봇 `@findmeatime_bot`을 만들고 호스트 채널을 Telegram에 구성해 달라고 요청했습니다. 이 변경을 작성한 세션은 같은 날 D1–D13을 채택했습니다. 이들은 팀원 검토를 기다리는 제안입니다. 레인 A(작업 2.1–2.4)는 그 검토에 앞서 사용자의 요청으로 웹훅, 레코드, Bot API 전송을 구현하고, 레인 B(작업 3.1과 3.2)는 카드, 연동 단계, `/?flow=telegram`에서 Telegram 보낸 사람을 연결합니다. 레인 C(작업 4.1–4.3)는 버튼, Telegram 부가 기능, 채널의 동작을 구현합니다. 추적 이슈: #111.
+[제안서](../../openspec/changes/archive/2026-11-24-host-telegram-channel/proposal.md#decisions)는 D1–D13을 기록합니다. 2026-11-04에 사용자가 봇 `@findmeatime_bot`을 만들고 호스트 채널을 Telegram에 구성해 달라고 요청했습니다. 이 변경을 작성한 세션은 같은 날 D1–D13을 채택했습니다. 이들은 팀원 검토를 기다리는 제안입니다. 레인 A(작업 2.1–2.4)는 그 검토에 앞서 사용자의 요청으로 웹훅, 레코드, Bot API 전송을 구현하고, 레인 B(작업 3.1과 3.2)는 카드, 연동 단계, `/?flow=telegram`에서 Telegram 보낸 사람을 연결합니다. 레인 C(작업 4.1–4.3)는 버튼, Telegram 부가 기능, 채널의 동작을 구현합니다. 추적 이슈: #111.
 
 **이전 경위.** 2026-11-03에 Meta가 9단계의 WhatsApp Business 계정을 "허용되는 사용 정책 위반"을 이유로 메시지를 한 건도 보내기 전에 비활성화했고, 2026-11-04에 사용자의 요청으로 프로덕션에서 `PHOTON_WHATSAPP_NUMBER`를 제거했으므로 카드는 iMessage만 제공합니다([제공자 설정](03_provider_setup.md#whatsapp-business), PR #110).
 
@@ -698,7 +698,7 @@
 
 ## `imessage-number-registration`
 
-[제안](../../openspec/changes/imessage-number-registration/proposal.md#decisions)은 D1–D3을 기록합니다. 이슈 #94에서 Photon의 공유 회선이 등록된 사용자의 메시지만 전달한다는 것이 확인된 뒤, 사용자가 2026-11-04에 정했습니다.
+[제안](../../openspec/changes/archive/2026-11-24-imessage-number-registration/proposal.md#decisions)은 D1–D3을 기록합니다. 이슈 #94에서 Photon의 공유 회선이 등록된 사용자의 메시지만 전달한다는 것이 확인된 뒤, 사용자가 2026-11-04에 정했습니다.
 
 | # | 선택 | 대안 | 기록 위치 | 바꾸려면 |
 |---|---|---|---|---|
@@ -709,7 +709,7 @@
 
 ## `guest-whatsapp-link`
 
-[제안](../../openspec/changes/guest-whatsapp-link/proposal.md#decisions)은 D1–D4를 기록합니다. 이슈 #117에 대한 사용자의 요청에 따라 변경을 작성한 세션에서 2026-11-04에 정했습니다. 이는 `host-whatsapp-channel`이 제외했던(그 비목표와 위의 2026-11-02 Android 결정) WhatsApp을 통한 요청자 메시징을 범위에 들이고, `imessage-number-registration` 설계 1의 "WhatsApp 시도는 번호를 받지 않는다"를 뒤집습니다. 아직 팀원의 검토를 받지 않았습니다.
+[제안](../../openspec/changes/archive/2026-11-24-guest-whatsapp-link/proposal.md#decisions)은 D1–D4를 기록합니다. 이슈 #117에 대한 사용자의 요청에 따라 변경을 작성한 세션에서 2026-11-04에 정했습니다. 이는 `host-whatsapp-channel`이 제외했던(그 비목표와 위의 2026-11-02 Android 결정) WhatsApp을 통한 요청자 메시징을 범위에 들이고, `imessage-number-registration` 설계 1의 "WhatsApp 시도는 번호를 받지 않는다"를 뒤집습니다. 아직 팀원의 검토를 받지 않았습니다.
 
 | # | 선택 | 대안 | 기록 위치 | 바꾸려면 |
 |---|---|---|---|---|
@@ -741,7 +741,7 @@
 
 ## `agent-decisions-in-words`
 
-[제안](../../openspec/changes/agent-decisions-in-words/proposal.md#decisions)은 D1–D4를 기록합니다. 자연어는 에이전트를 포함해 어디서나 통한다는 사용자의 결정(이슈 #149)에 따라 변경을 작성한 세션에서 2026-11-04에 정했습니다. 이는 `agent-access` D9를 뒤집고 `host:decide`에 대한 D3의 문구를 고칩니다. 아직 팀원의 검토를 받지 않았습니다.
+[제안](../../openspec/changes/archive/2026-11-24-agent-decisions-in-words/proposal.md#decisions)은 D1–D4를 기록합니다. 자연어는 에이전트를 포함해 어디서나 통한다는 사용자의 결정(이슈 #149)에 따라 변경을 작성한 세션에서 2026-11-04에 정했습니다. 이는 `agent-access` D9를 뒤집고 `host:decide`에 대한 D3의 문구를 고칩니다. 아직 팀원의 검토를 받지 않았습니다.
 
 | # | 선택 | 대안 | 기록 위치 | 바꾸려면 |
 |---|---|---|---|---|
@@ -797,7 +797,7 @@ Dohyeon Park이 2026-11-16에 결정했으며, 2026-11-14 UAT 회의가 [이슈 
 
 ## `guest-telegram-link`
 
-[제안](../../openspec/changes/guest-telegram-link/proposal.md#decisions)은 D1–D6을 기록합니다. WhatsApp을 숨긴(#221) 뒤 게스트가 Telegram에서 업데이트를 받게 해 달라는 사용자의 요청에 따라 변경을 작성한 세션에서 2026-11-16에 정했습니다(추적 이슈 #227). 이는 `host-telegram-channel`이 제외했던 Telegram을 통한 요청자 메시징을 범위에 들이고, `guest-whatsapp-link` D4의 "Telegram은 호스트 전용으로 유지"를 대체합니다. 아직 팀원의 검토를 받지 않았습니다.
+[제안](../../openspec/changes/archive/2026-11-24-guest-telegram-link/proposal.md#decisions)은 D1–D6을 기록합니다. WhatsApp을 숨긴(#221) 뒤 게스트가 Telegram에서 업데이트를 받게 해 달라는 사용자의 요청에 따라 변경을 작성한 세션에서 2026-11-16에 정했습니다(추적 이슈 #227). 이는 `host-telegram-channel`이 제외했던 Telegram을 통한 요청자 메시징을 범위에 들이고, `guest-whatsapp-link` D4의 "Telegram은 호스트 전용으로 유지"를 대체합니다. 아직 팀원의 검토를 받지 않았습니다.
 
 | # | 선택 | 대안 | 기록 위치 | 바꾸려면 |
 |---|---|---|---|---|
@@ -824,7 +824,7 @@ Dohyeon Park이 2026-11-16에 결정했으며, 2026-11-14 UAT 회의가 [이슈 
 
 ## `self-service-account-deletion`
 
-[설계](../../openspec/changes/self-service-account-deletion/design.md)는 이슈 #228에 대한 다음 선택을 기록합니다. 그 이슈의 제안 코멘트를 바탕으로, 이를 구현한 세션에서 2026-11-16에 정했습니다. 유예 기간과 예약된 미팅의 처리는 거기서 열린 질문이었으며, 이슈 담당자의 동의를 기다리고 있습니다.
+[설계](../../openspec/changes/archive/2026-11-24-self-service-account-deletion/design.md)는 이슈 #228에 대한 다음 선택을 기록합니다. 그 이슈의 제안 코멘트를 바탕으로, 이를 구현한 세션에서 2026-11-16에 정했습니다. 유예 기간과 예약된 미팅의 처리는 거기서 열린 질문이었으며, 이슈 담당자의 동의를 기다리고 있습니다.
 
 | # | 선택 | 대안 | 기록 위치 | 바꾸려면 |
 |---|---|---|---|---|
@@ -883,7 +883,7 @@ D1과 D3과 함께 감수하는 남은 위험: 코드의 주인이 보내기 전
 
 ## `place-settles-in-person`
 
-[제안서](../../openspec/changes/place-settles-in-person/proposal.md)는 이슈 #378에 대한 이 선택을 기록합니다. 저장소 소유자가 2026-11-23에 이슈에서 정했으며, #280을 위해 `guest-assistant-story-fixes`(PR #357)가 추가한 규칙을 뒤집습니다.
+[제안서](../../openspec/changes/archive/2026-11-24-place-settles-in-person/proposal.md)는 이슈 #378에 대한 이 선택을 기록합니다. 저장소 소유자가 2026-11-23에 이슈에서 정했으며, #280을 위해 `guest-assistant-story-fixes`(PR #357)가 추가한 규칙을 뒤집습니다.
 
 | # | 선택 | 대안 | 기록 위치 | 바꾸려면 |
 |---|---|---|---|---|

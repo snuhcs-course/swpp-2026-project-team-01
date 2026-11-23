@@ -4,7 +4,7 @@ Status: administrator CLI implemented for suspension and restoration; user CLI `
 
 Date: 2026-10-19
 
-The user CLI is `fmat`, decided in the [`agent-access` change](../../openspec/changes/agent-access/design.md#9-user-cli) and described under [User CLI](#user-cli) below. The administrator CLI is described after it.
+The user CLI is `fmat`, decided in the [`agent-access` change](../../openspec/changes/archive/2026-11-24-agent-access/design.md#9-user-cli) and described under [User CLI](#user-cli) below. The administrator CLI is described after it.
 
 ## Separate authority
 
@@ -23,7 +23,7 @@ CLI and MCP expose the same domain semantics without separate scheduling state. 
 
 ## User CLI
 
-Decided in the [`agent-access` proposal](../../openspec/changes/agent-access/proposal.md#decisions) (D4, D14) on 2026-10-22. The package is `@findmeatime/cli` in `cli/`, with the command `fmat`; it needs Node.js 20 or later and has no dependencies. Publishing it to npm waits for the user; until then run it from a checkout with `npm run fmat -- <command>`. It is a client of the MCP endpoints, so every command reaches the same domain operations as the web and keeps no scheduling state.
+Decided in the [`agent-access` proposal](../../openspec/changes/archive/2026-11-24-agent-access/proposal.md#decisions) (D4, D14) on 2026-10-22. The package is `@findmeatime/cli` in `cli/`, with the command `fmat`; it needs Node.js 20 or later and has no dependencies. Publishing it to npm waits for the user; until then run it from a checkout with `npm run fmat -- <command>`. It is a client of the MCP endpoints, so every command reaches the same domain operations as the web and keeps no scheduling state.
 
 | Command | Effect |
 |---|---|
@@ -41,7 +41,7 @@ Administrator suspension and restoration commands land with host accounts so ope
 
 ## Administrator CLI
 
-Decided in the [`host-onboarding` design](../../openspec/changes/host-onboarding/design.md#14-administrator-cli) on 2026-10-19. The CLI is `scripts/admin.ts`, named `fmat-admin` and run as `npm run admin -- <command>` from a checkout; it is not published as a package.
+Decided in the [`host-onboarding` design](../../openspec/changes/archive/2026-11-24-host-onboarding/design.md#14-administrator-cli) on 2026-10-19. The CLI is `scripts/admin.ts`, named `fmat-admin` and run as `npm run admin -- <command>` from a checkout; it is not published as a package.
 
 | Command | Effect |
 |---|---|

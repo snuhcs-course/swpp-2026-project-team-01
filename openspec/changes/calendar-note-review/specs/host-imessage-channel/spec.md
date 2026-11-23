@@ -41,7 +41,7 @@ A linked host SHALL be able to finish setup in the linked conversation without o
 
 #### Scenario: Back from Google
 - **WHEN** a linked host signs in with Google from Thyme's Calendar link
-- **THEN** one message is queued to the linked conversation even if the sign-in is replayed, it does not claim Calendar was granted, and the browser returns to `/app`
+- **THEN** one message is queued to the linked conversation even if the sign-in is replayed, it does not claim Calendar was granted, and the browser returns to `/app`, which says Google Calendar is connected when the grant can use it
 
 #### Scenario: Note review before the image
 - **WHEN** the host answers the place question and the scan has note candidates
