@@ -188,7 +188,7 @@ Not-tested: <known gaps in verification>
 4. `supabase start`를 실행한 뒤 `supabase db reset --local`을 실행합니다. 이로써 전체 마이그레이션 체인이 일회용 로컬 데이터베이스를 다시 만드는지 확인합니다. 리셋은 로컬 데이터를 삭제합니다. 스키마 동작이 바뀌면 관련 앱과 데이터베이스 테스트를 실행합니다.
 5. 스키마 파일, 생성된 마이그레이션, 변경된 `config.toml`은 함께 커밋합니다. 기존 마이그레이션은 이력으로 취급합니다. 이후 변경에는 새 마이그레이션을 만듭니다.
 
-팀이 대상 환경을 연결하고 식별한 뒤에만 원격 Supabase 프로젝트에 마이그레이션을 배포합니다. `supabase db push`를 실행하기 전에 `supabase db push --dry-run`으로 대기 중인 마이그레이션을 검토합니다.
+팀이 대상 환경을 연결하고 식별한 뒤에만 원격 Supabase 프로젝트에 마이그레이션을 배포합니다. `supabase db push --remote`를 실행하기 전에 `supabase db push --remote --dry-run`으로 대기 중인 마이그레이션을 검토합니다(Supabase CLI 3은 `--remote`가 없으면 로컬 데이터베이스에 푸시합니다).
 
 팀 환경: 각 팀원은 자신의 개인 Supabase 프로젝트와 로컬 `eve dev`에서 개발합니다. 공유 프로젝트 `anelszynxtvxoxqvzgqt`는 `main` 병합 시 CI에서만 마이그레이션을 받으며, Studio를 통해 직접 편집하지 않습니다. 마이그레이션을 생성하려면 Docker가 필요하므로, Docker가 있는 팀원은 같은 풀 리퀘스트 안에서 마이그레이션을 생성합니다. 전체 구조와 릴리스 환경을 추가하는 기준은 [환경과 협업](documentations/technical_specification/03_provider_setup.md#environments-and-collaboration)을 참고하십시오.
 

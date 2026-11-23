@@ -186,7 +186,7 @@ This repository uses **pg-delta**, enabled by `[experimental.pgdelta]` in `supab
 4. Run `supabase start`, then `supabase db reset --local` to verify that the full migration chain rebuilds the disposable local database. Reset deletes local data. Run relevant app and database tests when schema behavior changes.
 5. Commit the schema files, generated migration, and any `config.toml` change together. Treat existing migrations as history; make a new migration for later changes.
 
-Only deploy migrations to a remote Supabase project after the team has linked and identified the intended environment. Review the pending migrations with `supabase db push --dry-run` before `supabase db push`.
+Only deploy migrations to a remote Supabase project after the team has linked and identified the intended environment. Review the pending migrations with `supabase db push --remote --dry-run` before `supabase db push --remote` (Supabase CLI 3 pushes to the local database unless `--remote` is given).
 
 Team environments: each teammate develops against their own personal Supabase project and local `eve dev`; the shared project `anelszynxtvxoxqvzgqt` receives migrations only from CI on merge to `main` and is never edited through Studio. Generating a migration needs Docker, so a teammate with Docker generates it inside the same pull request. See [environments and collaboration](documentations/technical_specification/03_provider_setup.md#environments-and-collaboration) for the full structure and the trigger for adding a release environment.
 

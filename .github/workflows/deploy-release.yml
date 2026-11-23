@@ -48,9 +48,9 @@ jobs:
             exit 1
           fi
       - name: Show pending migrations
-        run: supabase db push --dry-run
+        run: supabase db push --remote --dry-run
       - name: Push migrations
-        run: supabase db push --yes
+        run: supabase db push --remote --yes
       - name: Write the worker URL and secret into Vault
         env:
           WORKER_URL: ${{ secrets.WORKER_URL }}
