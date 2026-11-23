@@ -1,0 +1,23 @@
+{
+  "branch": "claude/archive-nearest-open-times",
+  "user": "haisung.choi@gmail.com",
+  "sessions": {
+    "claude:9c77f19f-74b8-4157-9f27-ac3fda3c40b4": {
+      "agent": "claude-code",
+      "client": "claude-desktop",
+      "agent_ms": 0,
+      "models": {
+        "claude-opus-5-5": {
+          "input": 10,
+          "cache_read": 966501,
+          "cache_write_5m": 0,
+          "cache_write_1h": 5013,
+          "output": 1789,
+          "reasoning": 0
+        }
+      },
+      "first": "2026-11-23T03:20:04.461Z",
+      "last": "2026-11-23T03:20:46.016Z"
+    }
+  }
+}
