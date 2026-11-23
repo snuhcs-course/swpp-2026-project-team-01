@@ -1,5 +1,6 @@
 import { readCalendarRoles } from "./calendar-roles";
-import type { RequestState } from "../contracts/request";
+import { bookingJoinUrl } from "../contracts/booking";
+import type { LinkPlan, RequestState } from "../contracts/request";
 import type { Queryable } from "./database";
 import { CalendarAccessError, openHostCalendar, type GoogleCalendarDependencies } from "./google-calendar";
 
@@ -12,6 +13,18 @@ export type DashboardEvent = {
   readonly allDay: boolean;
   readonly location: string | null;
   readonly state?: RequestState;
+  // A Find Me a Time meeting's details, as the host saw them when approving.
+  readonly meeting?: BookedMeeting;
+};
+
+export type BookedMeeting = {
+  readonly requestId: string;
+  readonly durationMinutes: number;
+  readonly mode: "online" | "in_person";
+  // The Meet link Google returned, or the requester's own link; online only.
+  readonly joinUrl: string | null;
+  readonly guest: { readonly name: string; readonly email: string | null; readonly emailConfirmed: boolean };
+  readonly purpose: string | null;
 };
 
 export type DashboardData = {
@@ -20,14 +33,20 @@ export type DashboardData = {
   readonly googleWarning: string | null;
 };
 
-type BookingRow = {
+export type BookingRow = {
   id: string;
+  request_id: string;
   calendar_id: string;
   event_id: string;
   start_at: Date;
   end_at: Date;
   payload: { summary?: unknown; location?: unknown } | null;
-  evidence: { iCalUID?: unknown } | null;
+  evidence: { iCalUID?: unknown; joinUrl?: unknown } | null;
+  details: { mode?: "online" | "in_person"; location?: string | null; linkPlan?: LinkPlan | null } | null;
+  requester_name: string | null;
+  contact_email: string | null;
+  contact_confirmed_email: string | null;
+  purpose: string | null;
 };
 
 type SentRow = {
@@ -40,6 +59,33 @@ type SentRow = {
   event_id: string | null;
   evidence: { iCalUID?: unknown } | null;
 };
+
+// A confirmed booking as a Find Me a Time meeting: its frozen title and place,
+// and the details the host approved (length, mode, join link, guest, purpose).
+export function bookedEvent(booking: BookingRow): DashboardEvent {
+  const mode = booking.details?.mode;
+  const known = mode === "online" || mode === "in_person";
+  const email = booking.contact_email ?? null;
+  return {
+    id: `thyme:${booking.id}`,
+    source: "thyme",
+    title: typeof booking.payload?.summary === "string" && booking.payload.summary ? booking.payload.summary : "Meeting booked by Thyme",
+    start: booking.start_at.toISOString(),
+    end: booking.end_at.toISOString(),
+    allDay: false,
+    location: typeof booking.payload?.location === "string" ? booking.payload.location : mode === "in_person" ? booking.details?.location ?? null : null,
+    ...(known ? {
+      meeting: {
+        durationMinutes: Math.round((booking.end_at.getTime() - booking.start_at.getTime()) / 60_000),
+        guest: { email, emailConfirmed: email !== null && booking.contact_confirmed_email === email, name: booking.requester_name ?? "Guest" },
+        joinUrl: bookingJoinUrl({ linkPlan: booking.details?.linkPlan ?? null, mode }, booking.evidence),
+        mode,
+        purpose: booking.purpose?.trim() || null,
+        requestId: booking.request_id,
+      },
+    } : {}),
+  };
+}
 
 // Only the signed-in host's confirmed bookings and selected conflict calendars
 // reach this projection. Booking events are shown once, even when Google returns
@@ -55,11 +101,14 @@ export async function readHostDashboard(
     from app.host_settings where host_account_id = ${hostAccountId}
   `;
   const bookings = await db<BookingRow[]>`
-    select id, calendar_id, event_id, start_at, end_at, payload, evidence
-    from app.bookings
-    where host_account_id = ${hostAccountId} and state = 'confirmed'
-      and start_at < ${range.end} and end_at > ${range.start}
-    order by start_at
+    select b.id, b.request_id, b.calendar_id, b.event_id, b.start_at, b.end_at, b.payload, b.evidence,
+           p.details, r.requester_name, r.contact_email, r.contact_confirmed_email, r.details ->> 'purpose' as purpose
+    from app.bookings b
+    join app.proposals p on p.id = b.proposal_id
+    join app.requests r on r.id = b.request_id
+    where b.host_account_id = ${hostAccountId} and b.state = 'confirmed'
+      and b.start_at < ${range.end} and b.end_at > ${range.start}
+    order by b.start_at
   `;
   const sent = await db<SentRow[]>`
     select r.id, r.state,
@@ -89,15 +138,7 @@ export async function readHostDashboard(
     ...sent.filter((request) => request.calendar_id && request.event_id).map((request) => `${request.calendar_id}:${request.event_id}`),
   ]);
   const bookedUids = new Set([...bookings, ...sent].map((booking) => booking.evidence?.iCalUID).filter((uid): uid is string => typeof uid === "string"));
-  const events: DashboardEvent[] = bookings.map((booking) => ({
-    id: `thyme:${booking.id}`,
-    source: "thyme",
-    title: typeof booking.payload?.summary === "string" ? booking.payload.summary : "Meeting booked by Thyme",
-    start: booking.start_at.toISOString(),
-    end: booking.end_at.toISOString(),
-    allDay: false,
-    location: typeof booking.payload?.location === "string" ? booking.payload.location : null,
-  }));
+  const events: DashboardEvent[] = bookings.map(bookedEvent);
   events.push(...sent.map((request) => ({
     allDay: false,
     end: request.end_at.toISOString(),

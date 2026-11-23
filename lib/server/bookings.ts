@@ -1,6 +1,6 @@
 import { randomUUID } from "node:crypto";
 import { z } from "zod";
-import type { BookingFailure, BookingReceipt, BookingState, BookingStatusView } from "../contracts/booking";
+import { bookingJoinUrl, type BookingFailure, type BookingReceipt, type BookingState, type BookingStatusView } from "../contracts/booking";
 import type { LinkPlan, RequestDetails, RequestState } from "../contracts/request";
 import type { ConfirmedSettings } from "../contracts/setup";
 import { type NoticeDependencies, enqueueChangeDropped, enqueueConfirmations, enqueueStatusNotice, noticeDependenciesFromEnvironment } from "./booking-notices";
@@ -293,7 +293,7 @@ function receiptOf(row: NonNullable<Awaited<ReturnType<typeof latestBooking>>>, 
 
   const evidence = row.evidence;
   const linkPlan = row.details.linkPlan ?? null;
-  const joinUrl = row.details.mode === "online" ? (evidence.joinUrl ?? (linkPlan?.kind === "requester_link" ? linkPlan.url : null)) : null;
+  const joinUrl = bookingJoinUrl(row.details, evidence);
   const calendarUrl =
     audience === "host" && evidence.htmlLink && /^https:\/\/([a-z0-9-]+\.)*google\.com\//.test(evidence.htmlLink) ? evidence.htmlLink : null;
 
