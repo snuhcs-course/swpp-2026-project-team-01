@@ -156,11 +156,13 @@ Every command prints one JSON object on stdout (`ok`, `result` or `error` with `
 
 | Bound | Limit |
 |---|---|
-| Dynamic registration | 10 per source per hour, 500 per day service-wide |
+| Dynamic registration | 60 per source per hour, 500 per day service-wide |
 | Authorization requests | 30 per source per hour |
-| Token requests | 60 per client per minute |
+| Token requests | 10 per presented code or refresh token per minute, 600 per source per minute |
 | Metadata document fetches | 30 per client ID per hour |
 | Tool calls | 120 per grant per minute |
+
+Neither a source nor a client ID stands for one person. claude.ai registers and redeems from a few shared egress addresses, and every person using a client ID metadata document (or `fmat-cli`) presents the same client ID. So token requests are counted per credential, which has one live value per grant, and per source with room for a hosted agent's egress (600 a minute is a refresh every 10 minutes for 6,000 connected people), not per client ID; a bound per client ID would also let anyone lock a shared client out by sending bad credentials under its ID. Registration per source leaves a hosted agent that falls back to dynamic registration 60 an hour, while the service-wide 500 a day still caps the table. Metadata document fetches stay per client ID, because the fetch is of that one URL and its document is cached. (Revised 2026-11-23, [#320](https://github.com/snuhcs-course/swpp-2026-project-team-01/issues/320); the first choice was 10 registrations per source per hour and 60 token requests per client per minute.)
 
 A bound past its limit answers `429` (`slow_down` at the token endpoint, a tool error at the MCP endpoint) with `Retry-After`. Protocol errors use the OAuth error codes with a fixed description and `Cache-Control: no-store`; nothing echoes a token, code, verifier or booking link, and logs record the category, the client ID and a correlation ID only.
 

@@ -9,6 +9,7 @@ import {
   createRequesterResourceMetadataHandler,
   createRevocationHandler,
 } from "../../lib/server/agent-oauth-routes";
+import { AGENT_LIMITS } from "../../lib/server/agent-limits";
 import { verifyAccessToken } from "../../lib/server/agent-tokens";
 import { createGoogleCallbackHandler, createGoogleSignInHandler } from "../../lib/server/google-sign-in";
 import { createGrantedScopesFetcher } from "../../lib/server/google-token-info";
@@ -121,8 +122,9 @@ describe("registration", () => {
 
   it("bounds registrations per source and grants nothing", async () => {
     const deps = agentDependencies(db);
+    await db`delete from app.agent_protocol_attempts where kind = 'registration'`;
     const clients: string[] = [];
-    for (let index = 0; index < 10; index += 1) clients.push(await registerTestClient(deps));
+    for (let index = 0; index < AGENT_LIMITS.registrationPerSource.limit; index += 1) clients.push(await registerTestClient(deps));
 
     const refused = await createRegistrationHandler(() => deps)(
       new Request(`${ORIGIN}/oauth/register`, {
