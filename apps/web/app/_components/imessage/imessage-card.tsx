@@ -709,7 +709,8 @@ function PendingTelegram({
         <div className="flex flex-wrap items-center gap-2 pt-1">
           {link ? (
             <Button asChild>
-              <a href={link}>
+              {/* A computer opens Telegram's page in a new tab, so this card stays and moves on by itself (#369). */}
+              <a href={link} rel={phone ? undefined : "noopener noreferrer"} target={phone ? undefined : "_blank"}>
                 <MessageCircleIcon aria-hidden />
                 Open Telegram
               </a>
@@ -731,8 +732,11 @@ function PendingTelegram({
           <figcaption className="text-xs text-muted-foreground">Scan with your phone&apos;s camera to open Telegram.</figcaption>
         </figure>
       ) : null}
+      {/* Start links at once (D14), so what it replaces (D5) and the privacy sentence (D13) come before it. */}
+      {status.replaces ? <p className="text-sm">This replaces your {channelName(status.replaces)} link.</p> : null}
+      <p className="text-sm text-muted-foreground">{TELEGRAM_PRIVACY}</p>
       <p className="text-sm text-muted-foreground" role="status">
-        Waiting for you to tap Start. The code works until {when(status.expiresAt)}.
+        Waiting for you to tap Start, which links this Telegram. The code works until {when(status.expiresAt)}.
       </p>
       <CardActions>
         {switchers}

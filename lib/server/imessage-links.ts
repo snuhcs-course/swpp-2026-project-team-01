@@ -19,7 +19,8 @@ import type { Database, Queryable, Transaction } from "./database";
 import { generateLinkCode, hashLinkCode } from "./email-links";
 import { recordOutbound } from "./imessage-outbox";
 import { PERMISSION_REASONS } from "../contracts/permission-reasons";
-import { REQUESTER_LINK_TEXTS } from "./requester-imessage-bindings";
+import { lockOpenRequest } from "./request-guard";
+import { bindRequester, REQUESTER_LINK_TEXTS } from "./requester-imessage-bindings";
 import { imessageContinuationUrl } from "./imessage-continuation";
 import { photonRegistrar, type PhotonRegistrar } from "./photon";
 import { channelHash, imessageHash } from "./photon-receiver";
@@ -49,12 +50,14 @@ import { openToken, sealToken, type TokenKey } from "./token-encryption";
 // the one active binding a host has may be on either channel, so confirming a
 // sender of one channel ends the binding on the other and suppresses what was
 // still queued for it. The fallback code and the contact card are iMessage only.
-// Telegram links the same way (host-telegram-channel design 5 and 6, D5, D6): the
-// card opens telegram.me/<bot>?start=<code>, and /start <code> (or the code as text)
-// from the host's private chat with the bot completes a Telegram attempt. No
-// reply goes out then, so the bot's first message is the welcome after Confirm
-// and link. The sender's first name and @username are sealed beside the sender
-// (sender_name_ciphertext) and shown for confirmation instead of a user ID.
+// Telegram links with the same code (host-telegram-channel design 5 and 6, D5,
+// D6, D14): the card opens telegram.me/<bot>?start=<code>, and /start <code> (or
+// the code as text) from a private chat with the bot binds that sender at once,
+// with no Confirm and link (team decision, 2026-11-23). The welcome is the bot's
+// first message. An attempt from /?flow=telegram has no host yet: it records the
+// sender, replies with the sign-in link, and binds when Google sign-in claims it.
+// The sender's first name and @username are sealed beside the sender
+// (sender_name_ciphertext) and shown in the linked card instead of a user ID.
 
 export const IMESSAGE_LINK_LIMITS = {
   // Link codes a host may create per hour.
@@ -130,6 +133,9 @@ export const LINK_TEXTS = {
   // the link lets the sender sign in from this thread (D19).
   receivedBeforeSignIn: (url: string) =>
     `Got it. To finish, sign in with Google and connect your calendar: ${url}\n${PERMISSION_REASONS.en.googleSignIn}\nThen tap Confirm and link on the page.`,
+  // Telegram binds when that sign-in finishes, with nothing to confirm (host-telegram-channel D14).
+  receivedBeforeSignInTelegram: (url: string) =>
+    `Got it. To finish, sign in with Google and connect your calendar: ${url}\n${PERMISSION_REASONS.en.googleSignIn}\nThis Telegram is linked as soon as you sign in.`,
   refused: "That link code is not valid any more. Start again from Connect iMessage in Find Me a Time.",
   refusedWhatsApp: "That link code is not valid any more. Start again from Connect WhatsApp in Find Me a Time.",
   refusedTelegram: "That link code is not valid any more. Start again from Connect Telegram in Find Me a Time.",
@@ -272,12 +278,16 @@ export function bindingRecipient(keys: readonly TokenKey[], binding: Pick<Active
   return { address: open(binding.sender_ciphertext), spaceId: binding.space_ciphertext ? open(binding.space_ciphertext) : null };
 }
 
+// What binding a sender needs: the keys, the origin its welcome links to and the
+// calendar list its setup question may name.
+export type BindOptions = Pick<LinkOptions, "tokenKey" | "tokenKeys" | "origin" | "liveCalendars">;
+
 // Binds a sender to the host, ending the host's earlier binding, and queues the
 // linked message. The caller holds the host's link lock. A Telegram sender's
 // display name is sealed with it.
 async function bind(
   tx: Transaction,
-  options: LinkOptions,
+  options: BindOptions,
   hostAccountId: string,
   linkId: string,
   sender: string,
@@ -377,7 +387,7 @@ export function calendarConnectUrl(origin: string) {
 // The linked message (D19): a ready host is told what Thyme can do; a host still
 // setting up is welcomed into setup in this conversation, with Calendar first when
 // it is not usable yet, since setup cannot go further without it.
-async function linkedText(tx: Transaction, hostAccountId: string, options: LinkOptions) {
+async function linkedText(tx: Transaction, hostAccountId: string, options: BindOptions) {
   if ((await readReadiness(tx, hostAccountId)).ready) return LINK_TEXTS.linked;
   const [grant] = await tx<{ usable: boolean }[]>`
     select ${calendarUsable(tx)} as usable from app.provider_grants g where g.host_account_id = ${hostAccountId}
@@ -461,14 +471,42 @@ export function confirmImessageLinkCommand(options: LinkOptions): CommandDefinit
         throw new CommandError("stale_revision");
       }
 
-      const sealed = (ciphertext: string) => openToken(options.tokenKeys, { ciphertext, keyId: link.sender_key_id! }, senderContext(link.id));
-      const sender = sealed(link.sender_ciphertext);
-      const spaceId = link.space_ciphertext ? sealed(link.space_ciphertext) : null;
-      const senderName = link.sender_name_ciphertext ? sealed(link.sender_name_ciphertext) : null;
-
-      return { bindingId: await bind(tx, options, hostAccountId, link.id, sender, spaceId, link.channel, senderName) };
+      return { bindingId: await bindRecorded(tx, options, hostAccountId, link) };
     },
   };
+}
+
+type RecordedSender = {
+  readonly id: string;
+  readonly channel: MessagingChannel;
+  readonly sender_ciphertext: string | null;
+  readonly sender_name_ciphertext: string | null;
+  readonly space_ciphertext: string | null;
+  readonly sender_key_id: string | null;
+};
+
+// Binds the sender a received attempt recorded. The caller holds the host's link lock.
+async function bindRecorded(tx: Transaction, options: BindOptions, hostAccountId: string, link: RecordedSender) {
+  const sealed = (ciphertext: string) => openToken(options.tokenKeys, { ciphertext, keyId: link.sender_key_id! }, senderContext(link.id));
+  const sender = sealed(link.sender_ciphertext!);
+  const spaceId = link.space_ciphertext ? sealed(link.space_ciphertext) : null;
+  const senderName = link.sender_name_ciphertext ? sealed(link.sender_name_ciphertext) : null;
+  return bind(tx, options, hostAccountId, link.id, sender, spaceId, link.channel, senderName);
+}
+
+// A Telegram attempt from /?flow=telegram that Google sign-in has just given to
+// the host binds at once (D14). The caller holds the host's link lock and the
+// attempt's. A sender another host holds stays recorded and is not bound.
+export async function bindClaimedTelegram(tx: Transaction, options: BindOptions, hostAccountId: string, linkId: string) {
+  const [link] = await tx<(RecordedSender & { state: string; sender_hash: string | null })[]>`
+    select id, channel, state, sender_hash, sender_ciphertext, sender_name_ciphertext, space_ciphertext, sender_key_id
+    from app.imessage_links where id = ${linkId} and host_account_id = ${hostAccountId}
+    for update
+  `;
+  if (link?.channel !== "telegram" || link.state !== "received" || !link.sender_hash || !link.sender_ciphertext || !link.sender_key_id) return null;
+  const owner = await activeBindingOfSender(tx, link.sender_hash);
+  if (owner && owner.host_account_id !== hostAccountId) return null;
+  return bindRecorded(tx, options, hostAccountId, link);
 }
 
 export const cancelImessageLinkCommand: CommandDefinition<Record<string, never>, { cancelled: true }> = {
@@ -801,7 +839,15 @@ async function openAttemptStatus(
 
     if (link.method === "code") {
       const code = openToken(keys, { ciphertext: link.code_ciphertext!, keyId: link.sealed_key_id! }, codeContext(link.id));
-      return { ...shared, code, expiresAt: link.expires_at.toISOString(), message: attemptMessage(link.channel, code), state: "pending" };
+      return {
+        ...shared,
+        code,
+        expiresAt: link.expires_at.toISOString(),
+        message: attemptMessage(link.channel, code),
+        // Only a Telegram code binds without Confirm and link, so only it says this before the Start (D14).
+        ...(link.channel === "telegram" ? { replaces: linkedChannel && linkedChannel !== link.channel ? linkedChannel : null } : {}),
+        state: "pending",
+      };
     }
 
     const number = openToken(keys, { ciphertext: link.phone_ciphertext!, keyId: link.sealed_key_id! }, codeContext(link.id));
@@ -882,13 +928,55 @@ export async function refusalSentRecently(q: Queryable, recipientHash: string, c
 // and link refuses a sender another host holds. An attempt a guest's booking
 // page made (guest-flow-completion design 1) takes its request's lock, and any
 // sender may arrive too, a host included: a guest binding is separate.
-export async function receiveLinkCode(tx: Transaction, options: Pick<LinkOptions, "tokenKey" | "linkLimits" | "origin">, arrival: LinkArrival): Promise<LinkArrivalOutcome> {
+// A guest's Telegram code binds the sender to the request where it arrives
+// (guest-telegram-link D7), as Confirm and link on the booking page did. The
+// caller holds the request's row lock and its link lock, and has recorded the
+// sender on the attempt.
+async function bindTelegramGuest(tx: Transaction, tokenKey: TokenKey, hostAccountId: string, linkId: string, requestId: string, arrival: LinkArrival) {
+  const [host] = await tx<{ display_name: string | null }[]>`
+    select settings ->> 'displayName' as display_name from app.host_settings where host_account_id = ${hostAccountId}
+  `;
+  const bindingId = await bindRequester(tx, tokenKey, {
+    channel: "telegram",
+    hostName: host?.display_name ?? "your host",
+    linkId,
+    requestId,
+    sender: arrival.sender,
+    senderHash: arrival.senderHash,
+    senderName: arrival.senderName ?? null,
+    spaceId: arrival.spaceId,
+  });
+  await tx`
+    update app.imessage_links
+    set state = 'linked', binding_id = ${bindingId}, ended_at = now(), code_ciphertext = null,
+        sender_ciphertext = null, space_ciphertext = null
+    where id = ${linkId}
+  `;
+  return bindingId;
+}
+
+// A Telegram code binds where it arrives (host-telegram-channel D14,
+// guest-telegram-link D7), so it first takes the locks Confirm and link takes, in
+// the same order: the host's account or the guest's request, then the attempt's.
+// A host who cannot link any more, or a closed request, leaves the code unusable.
+export async function receiveLinkCode(tx: Transaction, options: BindOptions & Pick<LinkOptions, "linkLimits">, arrival: LinkArrival): Promise<LinkArrivalOutcome> {
   const limits = { ...IMESSAGE_LINK_LIMITS, ...options.linkLimits };
-  const [named] = await tx<{ host_account_id: string | null; request_id: string | null; starter_hash: string | null }[]>`
-    select host_account_id, request_id, starter_hash from app.imessage_links where code_hash = ${hashLinkCode(arrival.code)}
+  const [named] = await tx<{ channel: MessagingChannel; host_account_id: string | null; request_id: string | null; starter_hash: string | null }[]>`
+    select channel, host_account_id, request_id, starter_hash from app.imessage_links where code_hash = ${hashLinkCode(arrival.code)}
   `;
 
   if (named) {
+    let request: Awaited<ReturnType<typeof lockOpenRequest>> | null = null;
+    let ownerOpen = true;
+    if (named.channel === "telegram" && arrival.channel === "telegram") {
+      try {
+        if (named.host_account_id) await lockActiveHost(tx, named.host_account_id);
+        else if (named.request_id) request = await lockOpenRequest(tx, named.request_id);
+      } catch (error) {
+        if (!(error instanceof CommandError)) throw error;
+        ownerOpen = false;
+      }
+    }
     await tx`select pg_advisory_xact_lock(hashtextextended(${linkLockKey(named)}, 0))`;
     const [link] = await tx<
       {
@@ -911,10 +999,13 @@ export async function receiveLinkCode(tx: Transaction, options: Pick<LinkOptions
     // sending the code again (a double tap) changes nothing.
     if (link?.received_by_receipt_id === arrival.receiptId) return "link_received";
     if (link?.state === "received" && link.sender_hash === arrival.senderHash) return "link_received";
+    // Start tapped again after a Telegram code bound its sender.
+    if (link?.state === "linked" && link.channel === "telegram" && link.sender_hash === arrival.senderHash) return "link_received";
 
     const owner = link?.host_account_id ? await activeBindingOfSender(tx, arrival.senderHash) : null;
     // Only the channel the attempt was made for completes it (D6).
     const usable =
+      ownerOpen &&
       link?.state === "pending" &&
       link.live &&
       link.channel === arrival.channel &&
@@ -934,9 +1025,18 @@ export async function receiveLinkCode(tx: Transaction, options: Pick<LinkOptions
             received_by_receipt_id = ${arrival.receiptId}, confirm_by = now() + make_interval(mins => ${limits.confirmMinutes})
         where id = ${link.id}
       `;
-      // Telegram gets no reply here: the bot's first message is the welcome
-      // after Confirm and link (design 6).
-      if (arrival.channel === "telegram") return "link_received";
+      // Telegram binds here, with no Confirm and link (D14): the welcome that
+      // binding queues is the bot's first message. Before sign-in there is no
+      // host yet, so the reply carries the sign-in link (D19), and the claim in
+      // the Google callback binds.
+      if (arrival.channel === "telegram" && link.host_account_id) {
+        await bind(tx, options, link.host_account_id, link.id, arrival.sender, arrival.spaceId, "telegram", arrival.senderName ?? null);
+        return "link_received";
+      }
+      if (arrival.channel === "telegram" && link.request_id && request) {
+        await bindTelegramGuest(tx, options.tokenKey, request.host_account_id, link.id, link.request_id, arrival);
+        return "link_received";
+      }
       await recordOutbound(tx, {
         channel: arrival.channel,
         dedupeKey: `receipt:${arrival.receiptId}`,
@@ -950,7 +1050,9 @@ export async function receiveLinkCode(tx: Transaction, options: Pick<LinkOptions
           ? REQUESTER_LINK_TEXTS.received
           : link.host_account_id
           ? LINK_TEXTS.received
-          : LINK_TEXTS.receivedBeforeSignIn(imessageContinuationUrl(options.origin, options.tokenKey, link.id, arrival.senderHash)),
+          : (arrival.channel === "telegram" ? LINK_TEXTS.receivedBeforeSignInTelegram : LINK_TEXTS.receivedBeforeSignIn)(
+              imessageContinuationUrl(options.origin, options.tokenKey, link.id, arrival.senderHash),
+            ),
         tokenKey: options.tokenKey,
       });
       return "link_received";

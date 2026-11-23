@@ -4,7 +4,7 @@ import type { RequesterImessageStatus } from "../contracts/requester-imessage";
 import { readDefaultRoleCalendars } from "./calendar-roles";
 import { json } from "./chat-routes";
 import { CommandError, runCommand, type CommandDefinition } from "./commands";
-import { readConnectAttempt, CLOSED_LINK } from "./connect-link";
+import { connectLinkLinked, readConnectAttempt, CLOSED_LINK } from "./connect-link";
 import { googleCalendarConfigFromEnvironment } from "./google-calendar";
 import { readHostStanding } from "./host-eligibility";
 import { cancelImessageLinkCommand, confirmImessageLinkCommand, linkChannels, linkLockKey, lockHostLinking, readImessageStatus } from "./imessage-links";
@@ -13,11 +13,15 @@ import { confirmRequesterImessageLinkCommand, readRequesterImessageStatus, unlin
 import { crossSiteRefusal, requestAppOrigin, unknownHost } from "./same-origin";
 import { verifiedUserId } from "./supabase-auth";
 
-export type ConnectLinkView = { state: "closed" } | { state: "sign_in" } | { state: "open"; status: Extract<ImessageStatus | RequesterImessageStatus, { state: "pending" | "received" }> };
+export type ConnectLinkView =
+  | { state: "closed" }
+  | { state: "linked" }
+  | { state: "sign_in" }
+  | { state: "open"; status: Extract<ImessageStatus | RequesterImessageStatus, { state: "pending" | "received" }> };
 
 async function authorized(deps: ImessageRouteDependencies, request: Request, token: string) {
   const attempt = await readConnectAttempt(deps.db, deps.tokenKeys, token);
-  if (!attempt) return { state: "closed" as const };
+  if (!attempt) return { state: (await connectLinkLinked(deps.db, deps.tokenKeys, token)) ? ("linked" as const) : ("closed" as const) };
   if (attempt.role === "host") {
     const user = await verifiedUserId(request, deps.auth);
     if (!user) return { state: "sign_in" as const };

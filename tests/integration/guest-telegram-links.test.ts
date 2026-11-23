@@ -29,8 +29,8 @@ import { newTelegramUser, telegramBlocked, telegramCallback, telegramMessage } f
 // Photon stand-in and the Bot API stand-in (guest-telegram-link tasks 2.1 and
 // 2.2): Get updates in Telegram takes no number and registers nothing; the
 // code names the bot and its start link; /start <code> from the guest's private
-// chat records the sender by their Telegram name with no reply, and binds only
-// after Confirm and link, whose welcome is the bot's first message; a code from
+// chat binds the sender by their Telegram name at once, with no Confirm and link
+// (D7), and the welcome is the bot's first message; a code from
 // iMessage voids it; the guest's text reaches the requester discussion marked
 // [Telegram] and the reply and notices go out on Telegram without buttons; a
 // linked guest's /start and button taps reach no discussion; and unlinking,
@@ -113,9 +113,7 @@ async function linkedTelegramGuest(userId: number = newTelegramUser()) {
   expect((await im.deliverTelegram(telegramMessage({ firstName: "Grace", text: `/start ${pending.code}`, userId, username: "grace" })))?.outcome).toBe(
     "link_received",
   );
-  const received = await status(request.requestId);
-  if (received.state !== "received") throw new Error(`Expected a received code, got ${received.state}.`);
-  expect((await asGuest(request.requestId, REQUESTER_IMESSAGE_OPERATIONS.confirm, { linkId: received.linkId })).ok).toBe(true);
+  expect(await status(request.requestId)).toMatchObject({ state: "linked" });
   return { ...request, senderHash: telegramHash(userId), userId };
 }
 
@@ -152,21 +150,14 @@ describe("linking a guest's Telegram", () => {
     expect(attempt).toEqual({ channel: "telegram", line_number: null });
   });
 
-  it("records the sender by name with no reply, and binds only after confirmation", async () => {
+  it("binds the sender by name on Start, with no confirmation, and the welcome is the bot's first message", async () => {
     const request = await createTestRequest(db);
     const userId = newTelegramUser();
     const pending = await pendingTelegram(request.requestId);
 
     const start = telegramMessage({ firstName: "Grace", text: `/start ${pending.code}`, userId, username: "grace" });
     expect((await im.deliverTelegram(start))?.outcome).toBe("link_received");
-    const received = await status(request.requestId);
-    expect(received).toMatchObject({ channel: "telegram", lineNumber: TEST_TELEGRAM_BOT, sender: "Grace (@grace)", state: "received" });
-    expect(await bindingOf(request.requestId)).toBeNull();
-    // The bot never writes first: nothing goes back until Confirm and link.
-    expect(await im.outbox({ recipientHash: telegramHash(userId) })).toEqual([]);
-
-    if (received.state !== "received") throw new Error("Expected received.");
-    expect((await asGuest(request.requestId, REQUESTER_IMESSAGE_OPERATIONS.confirm, { linkId: received.linkId })).ok).toBe(true);
+    // No Confirm and link: the Start binds (D7).
     expect(await bindingOf(request.requestId)).toMatchObject({
       channel: "telegram",
       sender_hash: telegramHash(userId),
@@ -175,7 +166,8 @@ describe("linking a guest's Telegram", () => {
     });
     expect(await status(request.requestId)).toMatchObject({ channel: "telegram", contactCard: null, lineNumber: TEST_TELEGRAM_BOT, sender: "Grace (@grace)", state: "linked" });
 
-    // The welcome is the bot's first message, on Telegram, with no booking link.
+    // The welcome is the bot's first and only message, on Telegram, with no booking link.
+    expect((await im.outbox({ recipientHash: telegramHash(userId) })).map((row) => row.kind)).toEqual(["linked"]);
     const [welcome] = await im.outbox({ kind: "linked", recipientHash: telegramHash(userId) });
     expect((await sendTelegram(welcome!.id)).sent).toEqual([]);
     expect(sentTo(userId)).toEqual([
@@ -201,7 +193,15 @@ describe("linking a guest's Telegram", () => {
     expect(await status(other.requestId)).toMatchObject({ state: "none" });
   });
 
-  it("replaces an iMessage binding on the request when Telegram is confirmed", async () => {
+  it("refuses a Telegram code for a closed request, and binds nothing", async () => {
+    const request = await createTestRequest(db);
+    const pending = await pendingTelegram(request.requestId);
+    await db`update app.requests set closed_at = now() where id = ${request.requestId}`;
+    expect((await im.deliverTelegram(telegramMessage({ text: `/start ${pending.code}`, userId: newTelegramUser() })))?.outcome).toBe("link_refused");
+    expect(await bindingOf(request.requestId)).toBeNull();
+  });
+
+  it("replaces an iMessage binding on the request when Telegram's Start arrives", async () => {
     const request = await createTestRequest(db);
     expect((await asGuest(request.requestId, REQUESTER_IMESSAGE_OPERATIONS.create, { number: "+15557654321" })).ok).toBe(true);
     const imessage = await status(request.requestId);
@@ -214,9 +214,6 @@ describe("linking a guest's Telegram", () => {
 
     const pending = await pendingTelegram(request.requestId);
     await im.deliverTelegram(telegramMessage({ firstName: "Grace", text: pending.code, userId: newTelegramUser() }));
-    const received = await status(request.requestId);
-    if (received.state !== "received") throw new Error("Expected received.");
-    await asGuest(request.requestId, REQUESTER_IMESSAGE_OPERATIONS.confirm, { linkId: received.linkId });
     const bindings = await db<{ channel: string; state: string }[]>`
       select channel, state from app.requester_imessage_bindings where request_id = ${request.requestId} order by created_at
     `;

@@ -141,7 +141,7 @@ export const REQUESTER_TOOLS: readonly AgentTool[] = [
     name: "start_updates_link",
     title: "Start an updates link",
     description:
-      "Start an iMessage or Telegram updates link for this request. iMessage needs the person's own phone number; Telegram needs none. Give the person the browser link to send the code, or start the bot, and confirm; nothing is linked yet.",
+      "Start an iMessage or Telegram updates link for this request. iMessage needs the person's own phone number; Telegram needs none. Give the person the browser link. For iMessage they send the code and confirm; for Telegram, tapping Start in the bot links it at once. Nothing is linked yet.",
     role: "requester",
     scope: "request:write",
     readOnly: false,

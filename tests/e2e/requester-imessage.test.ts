@@ -220,9 +220,8 @@ test("at 1280px a guest links and unlinks WhatsApp updates", async ({ db, page }
 
 // **Get updates in Telegram** (guest-telegram-link design 2): no number, then on
 // a computer the bot, the code, a QR code and **Open Telegram** with the telegram.me
-// start link; the guest's Start shows their Telegram name with where Telegram
-// keeps the chat, and **Confirm and link** binds it on Telegram, with no
-// contact card.
+// start link, with where Telegram keeps the chat; the guest's Start binds it on
+// Telegram at once (D7), shown by their Telegram name, with no contact card.
 const BOT = "findmeatime_e2e_bot";
 
 test("at 1280px a guest links and unlinks Telegram updates by keyboard", async ({ db, page }) => {
@@ -246,15 +245,14 @@ test("at 1280px a guest links and unlinks Telegram updates by keyboard", async (
   expect(new URL(page.url()).pathname).toBe(`/booking/${request.bookingId}`);
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= document.documentElement.clientWidth)).toBe(true);
 
-  const userId = newTelegramUser();
-  await guestStartsBot(db, userId, code);
-  await expect(page.getByRole("heading", { name: "Is this your Telegram?" })).toBeVisible({ timeout: 10_000 });
-  await expect(page.getByText("Grace (@grace)")).toBeVisible();
-  await expect(page.getByText("Telegram keeps bot chats on its servers. Find Me a Time sends your request updates here.")).toBeVisible();
+  // Start links at once (D7), so where Telegram keeps the chat is said before it.
+  await expect(card.getByText("Telegram keeps bot chats on its servers. Find Me a Time sends your request updates here.")).toBeVisible();
   expect(await db`select 1 from app.requester_imessage_bindings where request_id = ${request.requestId}`).toHaveLength(0);
 
-  await pressByKeyboard(page, "Confirm and link");
-  await expect(page.locator('[data-imessage-link="linked"]')).toContainText("Telegram linked: updates go to Grace (@grace)");
+  const userId = newTelegramUser();
+  await guestStartsBot(db, userId, code);
+  await expect(page.locator('[data-imessage-link="linked"]')).toContainText("Telegram linked: updates go to Grace (@grace)", { timeout: 10_000 });
+  await expect(page.getByRole("heading", { name: "Is this your Telegram?" })).toHaveCount(0);
   await expect(page.getByRole("button", { name: "Add to contacts" })).toHaveCount(0);
   const [binding] = await db<{ channel: string; state: string }[]>`select channel, state from app.requester_imessage_bindings where request_id = ${request.requestId}`;
   expect(binding).toEqual({ channel: "telegram", state: "active" });

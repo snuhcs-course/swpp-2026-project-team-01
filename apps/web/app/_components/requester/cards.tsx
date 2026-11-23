@@ -878,8 +878,10 @@ export function ImessageUpdates({ context, onlyLinked = false }: { readonly cont
             role="img"
           />
         ) : null}
+        {/* Start links at once (guest-telegram-link D7), so the privacy sentence comes before it. */}
+        <p className="text-sm text-muted-foreground">{GUEST_TELEGRAM_PRIVACY}</p>
         <p className="text-sm text-muted-foreground" role="status">
-          Waiting for you to tap Start. The code works until {displayTime(new Date(status.expiresAt), context.timezone)}.
+          Waiting for you to tap Start, which links this Telegram. The code works until {displayTime(new Date(status.expiresAt), context.timezone)}.
         </p>
         <GuestCardActions>
           {appLink ? (
@@ -956,7 +958,7 @@ export function ImessageUpdates({ context, onlyLinked = false }: { readonly cont
   );
 }
 
-// Where Telegram keeps the chat, said before Confirm and link (guest-telegram-link design 2).
+// Where Telegram keeps the chat, said before Start links it (guest-telegram-link design 2, D7).
 export const GUEST_TELEGRAM_PRIVACY = "Telegram keeps bot chats on its servers. Find Me a Time sends your request updates here.";
 
 export function ClosedImessageUpdates({ bookingId, timezone }: { readonly bookingId: string; readonly timezone: string }) {

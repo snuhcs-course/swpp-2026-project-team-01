@@ -1,0 +1,23 @@
+{
+  "branch": "feat/telegram-link-on-start",
+  "user": "haisung.choi@gmail.com",
+  "sessions": {
+    "claude:2f80f56a-43e1-4b5f-83c1-a738629c516d": {
+      "agent": "claude-code",
+      "client": "claude-desktop",
+      "agent_ms": 0,
+      "models": {
+        "claude-opus-5-5": {
+          "input": 242,
+          "cache_read": 32511652,
+          "cache_write_5m": 0,
+          "cache_write_1h": 510616,
+          "output": 80863,
+          "reasoning": 0
+        }
+      },
+      "first": "2026-11-23T06:04:09.748Z",
+      "last": "2026-11-23T08:03:51.133Z"
+    }
+  }
+}

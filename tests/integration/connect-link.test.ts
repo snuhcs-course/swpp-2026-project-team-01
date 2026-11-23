@@ -145,7 +145,7 @@ it("starts and confirms a guest Telegram link through the agent", async () => {
 
   const userId = newTelegramUser();
   expect((await im.deliverTelegram(telegramMessage({ firstName: "Grace", text: `/start ${pending.status.code}`, userId })))?.outcome).toBe("link_received");
-  expect(await (await get(token)).json()).toMatchObject({ state: "open", status: { channel: "telegram", sender: "Grace", state: "received" } });
-  expect((await post(token, "confirm")).status).toBe(200);
+  // The Start links at once (guest-telegram-link D7): the page says Linked, with nothing to confirm.
+  expect(await (await get(token)).json()).toEqual({ state: "linked" });
   expect((await client.call("get_request")).structuredContent.updates).toEqual({ channel: "telegram", sender: "Grace", state: "linked" });
 });

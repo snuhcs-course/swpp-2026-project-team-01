@@ -566,7 +566,8 @@
 | D7 | 모든 기기에서 Telegram: Android는 구성되어 있으면 **대신 Telegram 사용(Use Telegram instead)**이 있는 WhatsApp, 아니면 Telegram을 받고, Apple 기기는 **대신 Telegram 사용(Use Telegram instead)**이 있는 iMessage를 받으며, 그 밖의 컴퓨터는 구성된 채널 중에서 묻습니다 | Android에서만 Telegram; 모든 곳에서 Telegram 우선 | 제안서; 설계 6 | `lib/contracts/messaging-channel.ts` |
 | D8 | `callback_data`가 요청과 제안 버전을 명시하는 **Approve**, **Decline**, **Show details** 인라인 버튼. 탭은 정확한 명령이며 바인딩된 발신자의 것만 받아들이고, 오래된 버전은 아무것도 결정하지 않습니다 | 입력한 명령만; 요청은 명시하되 버전은 명시하지 않는 버튼 | 제안서; 설계 7; PRD 10절 | 설계 7 |
 | D10 | 명령 메뉴, 입력 중 표시, 아무것도 필요 없는 알림의 무음 전달, 일반 텍스트를 사용합니다. 사용하지 않음: Mini App, Telegram 로그인, 그룹, 연락처 요청, 결제, `protect_content` | Markdown 또는 HTML 서식; 결정을 위한 Mini App | 제안서; 설계 8 | 설계 8 |
-| D13 | **확인 및 연결(Confirm and link)** 전에 카드가 Telegram이 봇 대화를 자사 서버에 보관한다고 안내하며, 개인정보 처리방침이 Telegram을 명시합니다 | 안내 없음 | 제안서; 설계 11 | 카드의 문구; `/privacy` |
+| D13 | **확인 및 연결(Confirm and link)** 전에(D14부터는 **Start** 전에) 카드가 Telegram이 봇 대화를 자사 서버에 보관한다고 안내하며, 개인정보 처리방침이 Telegram을 명시합니다 | 안내 없음 | 제안서; 설계 11 | 카드의 문구; `/privacy` |
+| D14 | (팀, 2026-11-23; #369, #383.) 호스트의 비공개 대화에서 온 `/start <code>`는 **Confirm and link** 없이 곧바로 연결합니다. 팀은 다른 사람이 코드를 가로챌 가능성이 낮다고 판단했습니다. 도착 처리는 확인 명령과 같은 잠금을 먼저 잡습니다. `/?flow=telegram`에서 온 코드에는 로그인 링크로 답하고, Google 콜백의 claim이 연결합니다. 컴퓨터에서 **Open Telegram**은 새 탭에서 열립니다. 대기 카드가 대체될 연결과 개인정보 문장을 보여 줍니다. iMessage와 WhatsApp은 **Confirm and link**를 유지합니다 | 브라우저 확인을 유지하고 컴퓨터 경로만 고치는 방식(팀 결정 전 #369의 권고) | 제안서; 설계 6 | `lib/server/imessage-links.ts`의 `receiveLinkCode`와 `bindClaimedTelegram`; `lib/server/imessage-start.ts`의 claim |
 
 ### 구현 결정
 
@@ -791,6 +792,7 @@ Dohyeon Park이 2026-11-16에 결정했으며, 2026-11-14 UAT 회의가 [이슈 
 | D4 | 게스트와 연결된 발신자의 Telegram 텍스트와 `/` 명령은 게스트 iMessage와 똑같이 라우팅되며 `[Telegram] `이 붙습니다. 버튼 탭은 게스트에게 닿지 않고, 연결된 게스트의 단독 `/start`는 무시합니다 | Telegram을 호스트 전용으로 유지 | 제안; 설계 4 | `lib/server/imessage-receipts.ts`의 `processReceipt`와 `telegramLinking` |
 | D5 | 차단 업데이트는 발신자의 Telegram 게스트 바인딩을 끝내고, `blocked`로 거부된 전송은 그것이 향한 바인딩을 끝내며 대기 중이던 것을 보류합니다 | 게스트가 연동을 해제할 때까지 바인딩 유지 | 제안; 설계 5 | `lib/server/imessage-outbox.ts`의 `endBlockedRequesterBindings` |
 | D6 | Telegram 게스트에게는 버튼, 입력 중 표시, 반응, 연락처 카드, 창이 없습니다 | 게스트에게 호스트의 Telegram 부가 기능 제공 | 제안; 설계 6 | `lib/server/imessage-outbox.ts`, `imessage-receipts.ts` |
+| D7 | (팀, 2026-11-23; #383.) `host-telegram-channel` D14와 같습니다. 게스트의 `/start <code>`는 **Is this your Telegram?** 단계 없이 열린 요청에 곧바로 연결합니다. 닫힌 요청에는 아무것도 연결하지 않습니다. 카드는 Start 전에 Telegram이 대화를 어디에 보관하는지 알리고, 에이전트의 연결 링크는 연결됨을 알립니다 | 게스트에게 **Confirm and link** 유지(처음 결정한 D3) | 제안; 설계 3 | `lib/server/imessage-links.ts`의 `bindTelegramGuest` |
 
 ## `post-booking-changes`
 

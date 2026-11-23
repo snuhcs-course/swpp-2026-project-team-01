@@ -687,7 +687,7 @@ export async function telegramLinking(tx: Transaction, deps: ImessageReceiptDepe
   const code = findLinkCode(text);
 
   if (code) {
-    return receiveLinkCode(tx, { origin: deps.origin, tokenKey: deps.tokenKey }, {
+    return receiveLinkCode(tx, { origin: deps.origin, tokenKey: deps.tokenKey, tokenKeys: deps.tokenKeys }, {
       channel: "telegram",
       code,
       receiptId: receipt.id,
@@ -733,7 +733,7 @@ export async function processReceipt(
   const code = receipt.text ? findLinkCode(receipt.text) : null;
 
   if (code) {
-    return receiveLinkCode(tx, { origin: deps.origin, tokenKey: deps.tokenKey }, {
+    return receiveLinkCode(tx, { origin: deps.origin, tokenKey: deps.tokenKey, tokenKeys: deps.tokenKeys }, {
       channel: receipt.channel,
       code,
       receiptId: receipt.id,

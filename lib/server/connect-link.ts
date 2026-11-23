@@ -48,8 +48,22 @@ export async function startAgentLink<Input>(context: AgentToolContext, command: 
   const token = sealConnectLink(linkOptions(context.deps).tokenKey, { role: context.access.role, linkId: outcome.result.linkId });
   return { ok: true as const, result: {
     linkUrl: `${context.deps.origin}/connect/link/${token}`, channel: attempt!.channel, expiresAt: attempt!.expires_at.toISOString(),
-    next: "Give the person this link. On that page they send a code from their own phone and confirm. Nothing is linked until they do.",
+    // A Telegram Start links at once (host-telegram-channel D14, guest-telegram-link D7).
+    next: attempt!.channel === "telegram"
+      ? "Give the person this link. On that page they open the bot in their own Telegram and tap Start, which links it. Nothing is linked until they do."
+      : "Give the person this link. On that page they send a code from their own phone and confirm. Nothing is linked until they do.",
   } };
+}
+
+// Whether the token's attempt ended linked while the link is still within its
+// time, so the page says Linked rather than closed after a Telegram Start (D14).
+export async function connectLinkLinked(q: Queryable, keys: readonly TokenKey[], token: string) {
+  const value = openConnectLink(keys, token);
+  if (!value) return false;
+  const [row] = await q<{ id: string }[]>`
+    select id from app.imessage_links where id = ${value.linkId} and method = 'code' and state = 'linked' and expires_at > now()
+  `;
+  return Boolean(row);
 }
 
 export async function readConnectAttempt(q: Queryable, keys: readonly TokenKey[], token: string) {

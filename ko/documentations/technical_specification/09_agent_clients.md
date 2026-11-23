@@ -20,7 +20,7 @@
 
 진입 문서(안내 버전 6)는 서버 추가 전에 동의를 구하고 토큰을 직접 다루지 않도록 안내합니다. 연결 후 호스트 에이전트는 `get_host_status`로 시작하여 `get_setup.nextStep`에 따라 캘린더 연결·선택·분석을 진행하고, 호스트가 동의한 설정만 제안합니다. `update_setup_field`와 `confirm_setup`에는 호스트 본인의 말인 `hostWords`가 필요하며, 이 말은 저장되지 않습니다. 설정 후 예약 링크를 공유하고 요청 확인은 호스트가 요청해야 한다고 알립니다. 에이전트에는 자동 알림이 없습니다.
 
-채팅 연결에는 호스트가 `start_chat_link`(iMessage, WhatsApp, Telegram), 요청자는 요청 생성 후 `start_updates_link`(iMessage 또는 WhatsApp)를 사용합니다. 도구는 한 시도에 한정된 단기 `/connect/link/{token}` 브라우저 링크를 반환합니다. 사용자는 자기 전화로 코드를 보내고 가려진 발신자를 확인한 뒤 **Confirm and link**를 누릅니다. 호스트는 해당 계정 로그인이 필요하며, 요청자 링크는 예약 링크나 요청 내용을 노출하지 않고 해당 시도만 승인합니다. `get_host_status.chat`과 `get_request.updates`는 `none`, `pending`, `linked`를 보고합니다. 에이전트는 연결을 직접 확정하지 않습니다. 요청자가 시간에 동의하면 호스트 승인이 더 필요하고 아직 예약되지 않았으며 이메일로 결과가 온다고 안내합니다. 사용자는 나중에 다시 조회를 요청할 수 있습니다.
+채팅 연결에는 호스트가 `start_chat_link`(iMessage, WhatsApp, Telegram), 요청자는 요청 생성 후 `start_updates_link`(iMessage 또는 WhatsApp)를 사용합니다. 도구는 한 시도에 한정된 단기 `/connect/link/{token}` 브라우저 링크를 반환합니다. 사용자는 자기 전화로 코드를 보내고 가려진 발신자를 확인한 뒤 **Confirm and link**를 누릅니다. Telegram은 봇에서 **Start**를 누르면 곧바로 연결되고 페이지가 연결됨을 알립니다(`host-telegram-channel` D14, `guest-telegram-link` D7). 호스트는 해당 계정 로그인이 필요하며, 요청자 링크는 예약 링크나 요청 내용을 노출하지 않고 해당 시도만 승인합니다. `get_host_status.chat`과 `get_request.updates`는 `none`, `pending`, `linked`를 보고합니다. 에이전트는 연결을 직접 확정하지 않습니다. 요청자가 시간에 동의하면 호스트 승인이 더 필요하고 아직 예약되지 않았으며 이메일로 결과가 온다고 안내합니다. 사용자는 나중에 다시 조회를 요청할 수 있습니다.
 
 ## 호스팅과 예약 요청을 계정 연결 하나로 처리
 

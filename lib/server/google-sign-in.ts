@@ -237,8 +237,10 @@ export function createGoogleCallbackHandler(load: () => GoogleSignInDependencies
       console.error(JSON.stringify({ error: error instanceof Error ? error.name : typeof error, event }));
     };
     if (account.status === "active") {
-      if (continued) await claimContinuedLink(deps.db, deps.tokenKey, account.id, continued).catch(logged("imessage_continue_claim_failed"));
-      else if (started) await claimStartedLink(deps.db, deps.tokenKey, account.id, started).catch(logged("imessage_start_claim_failed"));
+      // A Telegram sender binds as the claim lands (host-telegram-channel D14).
+      const bindOptions = { origin: deps.appOrigin, tokenKey: deps.tokenKey, tokenKeys: [deps.tokenKey] };
+      if (continued) await claimContinuedLink(deps.db, bindOptions, account.id, continued).catch(logged("imessage_continue_claim_failed"));
+      else if (started) await claimStartedLink(deps.db, bindOptions, account.id, started).catch(logged("imessage_start_claim_failed"));
       if (recorded === RETURN_IMESSAGE) {
         await resumeImessageOnboarding(deps.db, deps.tokenKey, account.id, code).catch(logged("imessage_resume_failed"));
       }

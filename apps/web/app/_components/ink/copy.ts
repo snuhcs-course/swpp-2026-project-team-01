@@ -271,7 +271,8 @@ const en = {
       start: "Onboard with Telegram",
       startOpensPhone: "Telegram opens at Thyme's bot. Tap Start, then come back here.",
       startOpensDesktop: "Opens Thyme's bot in Telegram: on this computer, or through a QR code for your phone.",
-      fine: "By tapping Start, you agree to get Telegram messages from Thyme about your meetings. Send /stop to stop anytime.",
+      // Start links at once (host-telegram-channel D14), so the privacy sentence (D13) is said here, before it.
+      fine: "Tapping Start links this Telegram, and you agree to get Telegram messages from Thyme about your meetings. Telegram keeps bot chats on its servers. Send /stop to stop anytime.",
       open: "Open Telegram",
       opensNote: "Telegram opens at Thyme's bot. Tap Start, then come back here.",
       qrTag: "PHONE",

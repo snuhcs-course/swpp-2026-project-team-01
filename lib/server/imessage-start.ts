@@ -9,6 +9,8 @@ import { readReceivedContinuation } from "./imessage-continuation";
 import {
   attemptLineNumber,
   attemptMessage,
+  bindClaimedTelegram,
+  type BindOptions,
   codeContext,
   endOpenAttempts,
   IMESSAGE_LINK_LIMITS,
@@ -34,6 +36,7 @@ import { openToken, sealToken, type TokenKey } from "./token-encryption";
 // attempt records its channel, and the bounds count both channels together.
 // Telegram starts the same way (/?flow=telegram, host-telegram-channel D7): the
 // page opens the telegram.me start link, and the sender is shown by their Telegram name.
+// A Telegram sender needs no Confirm and link (D14): the claim binds it at once.
 
 export const START_COOKIE = "fmat_imessage_start";
 const START_COOKIE_SECONDS = 30 * 60;
@@ -173,7 +176,8 @@ export async function readStartStatus(db: Queryable, options: StartOptions, secr
 // just signed in, ending the host's own open attempt. A received attempt gets a
 // fresh confirmation window, since signing in took part of the first. Returns
 // whether an attempt was claimed; a host who is not active claims nothing.
-export async function claimStartedLink(db: Database, tokenKey: TokenKey, hostAccountId: string, secret: string) {
+export async function claimStartedLink(db: Database, options: BindOptions, hostAccountId: string, secret: string) {
+  const tokenKey = options.tokenKey;
   const starter = starterHash(tokenKey, secret);
 
   return (await db.begin(async (tx) => {
@@ -200,6 +204,7 @@ export async function claimStartedLink(db: Database, tokenKey: TokenKey, hostAcc
           confirm_by = case when state = 'received' then now() + make_interval(mins => ${IMESSAGE_LINK_LIMITS.confirmMinutes}) end
       where id = ${link.id}
     `;
+    await bindClaimedTelegram(tx, options, hostAccountId, link.id);
     return true;
   })) as boolean;
 }
@@ -209,7 +214,8 @@ export async function claimStartedLink(db: Database, tokenKey: TokenKey, hostAcc
 // this browser's attempt, unless another host already holds it. The host has
 // the confirmation window again from now. Another browser's starter cookie for
 // the same attempt then finds it owned and claims nothing.
-export async function claimContinuedLink(db: Database, tokenKey: TokenKey, hostAccountId: string, token: string) {
+export async function claimContinuedLink(db: Database, options: BindOptions, hostAccountId: string, token: string) {
+  const tokenKey = options.tokenKey;
   return (await db.begin(async (tx) => {
     try {
       await lockHostLinking(tx, hostAccountId);
@@ -231,6 +237,7 @@ export async function claimContinuedLink(db: Database, tokenKey: TokenKey, hostA
       set host_account_id = ${hostAccountId}, confirm_by = now() + make_interval(mins => ${IMESSAGE_LINK_LIMITS.confirmMinutes})
       where id = ${link.id}
     `;
+    await bindClaimedTelegram(tx, options, hostAccountId, link.id);
     return true;
   })) as boolean;
 }

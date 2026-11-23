@@ -130,7 +130,14 @@ function Ways({ code, gone, labels, here, t }: { readonly code: SendCode; readon
                 {t.open}
               </button>
             ) : (
-              <a className="primary-btn" href={link}>
+              // Telegram's start link loads Telegram's own page in a browser, so it opens in a new tab and this
+              // page stays to move on by itself (#369).
+              <a
+                className="primary-btn"
+                href={link}
+                rel={code.channel === "telegram" ? "noopener noreferrer" : undefined}
+                target={code.channel === "telegram" ? "_blank" : undefined}
+              >
                 <AppGlyph channel={code.channel} />
                 {t.open}
               </a>

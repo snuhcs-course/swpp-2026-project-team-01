@@ -51,6 +51,10 @@ export type ImessageStatus =
       readonly code: string;
       readonly message: string;
       readonly expiresAt: string;
+      // The channel of a binding this code would replace (D5), if any. A
+      // Telegram Start binds at once (host-telegram-channel D14), so the card
+      // says it before the Start.
+      readonly replaces?: MessagingChannel | null;
     }
   // The code's message arrived; the host confirms the masked sender.
   | {
