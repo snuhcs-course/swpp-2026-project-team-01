@@ -83,7 +83,6 @@ import { IDENTIFY_ACCOUNT_OPERATION, identifyAccountCommand } from "./guest-acco
 import { decideHostProfileCommand, readHostProfileView, recordHostSessionMatch } from "./requester-host-profiles";
 import { supabaseAuthConfigFromEnvironment, type SupabaseAuthConfig, verifiedUserId } from "./supabase-auth";
 import {
-  confirmRequesterImessageLinkCommand,
   createRequesterImessageLinkCommand,
   emailOnlyRequesterCommand,
   readRequesterImessageStatus,
@@ -94,6 +93,9 @@ import { offeredWhatsappNumber, photonConfig } from "./photon";
 import { telegramConfig } from "./telegram";
 import { type AppOrigins, appOriginsFromEnvironment, crossSiteRefusal } from "./same-origin";
 import { sourceHash } from "./signup-limits";
+import { busyRange, MAX_BUSY_DAYS, readRequesterBusy, RequesterBusyUnavailableError } from "./requester-busy";
+import { requesterCalendarConfigFromEnvironment } from "./requester-calendar";
+import { googleCalendarConfigFromEnvironment } from "./google-calendar";
 import { type TokenKey, tokenKeyFromEnvironment } from "./token-encryption";
 
 // The guest's application routes (design decision 2). POST /api/requests/start
@@ -592,7 +594,7 @@ export function requesterCommands(
     registered(useGoogleEmailCommand),
     registered(disconnectCalendarCommand),
     registered(setManualAvailabilityCommand),
-    registered(decideHostProfileCommand()),
+    registered(decideHostProfileCommand({ tokenKey: imessage.tokenKey, tokenKeys: imessage.tokenKeys })),
     registered(selectCalendarsCommand({ tokenKey: contact.tokenKey })),
     registered(resendConfirmationCommand(contact)),
     registered(changeEmailCommand(contact)),
@@ -602,7 +604,6 @@ export function requesterCommands(
     registered(createEmailLinkCommand({ tokenKey: contact.tokenKey })),
     registered(unlinkEmailCommand()),
     registered(createRequesterImessageLinkCommand(imessage)),
-    registered(confirmRequesterImessageLinkCommand(imessage)),
     registered(unlinkRequesterImessageCommand),
     registered(emailOnlyRequesterCommand),
     registered(shareRequesterContactCardCommand(imessage)),
@@ -688,6 +689,35 @@ export function createRequesterCalendarsHandler(load: () => RequesterRouteDepend
     return calendars
       ? requesterJson({ calendars })
       : requesterJson({ code: "calendar_unavailable", error: "Your calendar list could not be read right now." }, 503);
+  };
+}
+
+// GET /api/requests/{bookingId}/busy?from&to&tz: the guest's own busy times
+// for the Choose a time grid (calendar-views design 4), read live with this
+// request's calendars only. Times only; nothing is stored.
+export function createRequesterBusyHandler(load: () => RequesterRouteDependencies = requesterRouteDependenciesFromEnvironment) {
+  return async (request: Request, context: Context) => {
+    const deps = load();
+    const principal = await openRequester(deps.db, (await context.params).bookingId);
+
+    if (!principal) return requestUnavailable();
+
+    const url = new URL(request.url);
+    const range = busyRange(url.searchParams.get("from"), url.searchParams.get("to"));
+    if (!range) return requesterJson({ code: "invalid_range", error: `Choose a period of up to ${MAX_BUSY_DAYS} days.` }, 400);
+
+    try {
+      const busy = await readRequesterBusy(
+        { db: deps.db, hostCalendar: googleCalendarConfigFromEnvironment(), requesterCalendar: requesterCalendarConfigFromEnvironment(), tokenKeys: [deps.tokenKey()] },
+        principal.id,
+        range,
+        url.searchParams.get("tz") ?? "UTC",
+      );
+      return requesterJson(busy);
+    } catch (error) {
+      if (!(error instanceof RequesterBusyUnavailableError)) throw error;
+      return requesterJson({ code: "calendar_unavailable", error: error.message }, 503);
+    }
   };
 }
 

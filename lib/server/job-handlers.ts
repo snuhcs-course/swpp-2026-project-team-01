@@ -1,4 +1,5 @@
 import { createHostDeletionHandler, HOST_DELETION_JOB } from "./account-deletion";
+import { ACCOUNT_REQUESTS_CLOSE_JOB, createAccountRequestsCloseHandler } from "./account-requests-close";
 import { EMAIL_RECEIPT_JOB } from "./agentmail-receiver";
 import { CALENDAR_ANALYSIS_JOB, createCalendarAnalysisHandler } from "./analysis";
 import { BOOKING_CANCEL_JOB, createBookingCancelHandler } from "./booking-cancellation";
@@ -25,6 +26,7 @@ import { createTelegramButtonsHandler, createTelegramTypingHandler, TELEGRAM_TYP
 // Handlers by job kind. The worker claims only kinds registered here, so a job
 // whose handler is not deployed yet stays pending and visible.
 export const JOB_HANDLERS: Readonly<Record<string, JobHandler>> = {
+  [ACCOUNT_REQUESTS_CLOSE_JOB]: createAccountRequestsCloseHandler(),
   [BOOKING_CANCEL_JOB]: createBookingCancelHandler(),
   [BOOKING_JOB]: createBookingHandler(),
   [BOOKING_PENDING_JOB]: createBookingPendingHandler(),

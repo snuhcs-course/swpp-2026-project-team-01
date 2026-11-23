@@ -19,8 +19,9 @@ import { E2E_TOKEN_ENCRYPTION_KEY } from "./support/token-key";
 // services, the local stack and the Photon stand-in. The host's message and the
 // line's sends are driven here through the real receiver and jobs, as Photon and
 // the worker would: a desktop shows the number, the message, Copy and a QR code
-// and opens nothing; the host's message shows the masked sender, and only
-// Confirm and link binds it; unlinking returns to the start; the fallback's code
+// and opens nothing; the host's message links at once (link-on-code D1) and the
+// card shows the sender's last four digits; Not my number on the link step and
+// Unlink on the card return to the start; the fallback's code
 // is typed back and never shown; a phone's card carries the platform's deep link.
 // Every iMessage start asks for the host's number first (imessage-number-registration D1).
 
@@ -114,7 +115,7 @@ async function hasNoHorizontalScroll(page: Page) {
 }
 
 for (const width of [390, 1280]) {
-  test(`at ${width}px a host links iMessage by sending the code and confirming, then unlinks`, async ({ baseURL, context, db, page }) => {
+  test(`at ${width}px a host links iMessage by sending the code, then unlinks`, async ({ baseURL, context, db, page }) => {
     await page.setViewportSize({ height: 800, width });
     const host = await signedInHost(db, context, baseURL!);
     const card = await openCard(page);
@@ -140,23 +141,22 @@ for (const width of [390, 1280]) {
     const again = await openCard(page);
     await expect(again.getByTestId("imessage-link-message")).toHaveText(message);
 
-    // The host sends it; the card polls and shows the masked sender.
+    // The host sends it; it links on arrival, and the card, which polls, moves to
+    // linked by itself with the sender's last four digits (link-on-code D1, D4).
     const sender = newSender();
+    const masked = `•••• ${sender.slice(-4)}`;
     await hostSends(db, sender, message);
-    await expect(again.getByRole("heading", { name: "Is this you?" })).toBeVisible({ timeout: 10_000 });
-    await expect(again).toContainText(sender);
-    expect(await db`select 1 from app.imessage_bindings where host_account_id = ${host.hostAccountId} and state = 'active'`).toHaveLength(0);
-    expect(await sendQueued(db, host.hostAccountId, "link_received")).toEqual([
-      "Got it. Go back to Find Me a Time in your browser and tap Confirm and link to finish.",
-    ]);
-
-    await press(page, "Confirm and link");
-    // Linked: Connected apps lists the sender, and its card, opened expanded, says so.
-    await expect(page.getByRole("dialog", { name: "Connected apps" }).getByRole("list", { name: "Messaging app connections" })).toContainText(sender);
-    await expect(again.getByRole("heading", { name: "iMessage is linked" })).toBeVisible();
+    await expect(again.getByRole("heading", { name: "iMessage is linked" })).toBeVisible({ timeout: 10_000 });
+    await expect(again).toContainText(masked);
+    await expect(again).not.toContainText(sender);
+    await expect(again.getByRole("button", { name: "Confirm and link" })).toHaveCount(0);
+    await expect(page.getByRole("dialog", { name: "Connected apps" }).getByRole("list", { name: "Messaging app connections" })).toContainText(masked);
     expect(await db`select 1 from app.imessage_bindings where host_account_id = ${host.hostAccountId} and state = 'active'`).toHaveLength(1);
+    // No "go back to your browser" reply: the welcome is the line's answer.
+    expect(await db`select 1 from app.imessage_outbox where host_account_id = ${host.hostAccountId} and kind = 'link_received'`).toHaveLength(0);
+    expect(await db`select 1 from app.imessage_outbox where host_account_id = ${host.hostAccountId} and kind = 'linked'`).toHaveLength(1);
 
-    // Confirm and link queued the contact card behind the welcome (D22), so no
+    // Linking queued the contact card behind the welcome (D22), so no
     // Add to contacts while it is on its way; once sent, it can be shared again.
     await expect(again).toContainText("Sending your contact card");
     await expect(again.getByRole("button", { name: "Add to contacts" })).toHaveCount(0);
@@ -165,18 +165,18 @@ for (const width of [390, 1280]) {
     await press(page, "Add to contacts");
     await expect(again).toContainText("Sending your contact card");
 
-    await press(page, "Unlink iMessage");
-    await press(page, "Unlink");
+    // A link the card watched arrive offers Not my number — unlink, one press that
+    // ends it and shows the start again (link-on-code D2).
+    await press(page, "Not my number — unlink");
     await expect(again.getByRole("heading", { name: "Use Find Me a Time from iMessage" })).toBeVisible();
     expect(await db`select 1 from app.imessage_bindings where host_account_id = ${host.hostAccountId} and state = 'active'`).toHaveLength(0);
   });
 }
 
-test("at 1280px a new host chooses iMessage, verifies the sender, then opens the messaging app", async ({ baseURL, context, db, page }) => {
-  await page.setViewportSize({ height: 900, width: 1280 });
-  const host = await signedInHost(db, context, baseURL!, { imessageStep: true });
+// The link step a new host sees: the code is sent, the step moves to connected by
+// itself, and the host opens the messaging app or goes Home.
+async function linkFromStep(page: Page, db: Database) {
   await page.goto("/app");
-
   await expect(page.getByRole("heading", { level: 1, name: "Connect a messaging app" })).toBeVisible({ timeout: 45_000 });
   await expect(page.getByRole("button", { name: "Go to your workspace" })).toHaveCount(0);
   await page.getByRole("button", { name: "iMessage" }).click();
@@ -192,18 +192,38 @@ test("at 1280px a new host chooses iMessage, verifies the sender, then opens the
 
   const sender = newSender();
   await hostSends(db, sender, message);
-  await expect(page.getByRole("heading", { name: "Is this you?" })).toBeVisible({ timeout: 10_000 });
-  await expect(page.getByText(sender)).toBeVisible();
-  expect(await db`select 1 from app.imessage_bindings where host_account_id = ${host.hostAccountId} and state = 'active'`).toHaveLength(0);
+  // No Is this you? and no Confirm and link: the step shows the link by itself.
+  await expect(page.getByRole("heading", { name: "Your iMessage is connected." })).toBeVisible({ timeout: 10_000 });
+  await expect(page.getByText(`•••• ${sender.slice(-4)}`)).toBeVisible();
+  await expect(page.getByRole("button", { name: "Confirm and link" })).toHaveCount(0);
+  return sender;
+}
 
-  await page.getByRole("button", { name: "Confirm and link" }).click();
-  await expect(page.getByRole("heading", { name: "Your iMessage is connected." })).toBeVisible();
+test("at 1280px a new host chooses iMessage, sends the code, then opens the messaging app", async ({ baseURL, context, db, page }) => {
+  await page.setViewportSize({ height: 900, width: 1280 });
+  const host = await signedInHost(db, context, baseURL!, { imessageStep: true });
+  await linkFromStep(page, db);
   expect(await db`select 1 from app.imessage_bindings where host_account_id = ${host.hostAccountId} and state = 'active'`).toHaveLength(1);
 
   await expect(page.getByRole("link", { name: "Open iMessage" })).toHaveAttribute("href", `sms:${LINE}`);
   await page.getByRole("link", { name: "Go to Home" }).click();
   await expect(page).toHaveURL("/app?view=dashboard");
   await expect(page.getByRole("region", { name: "Calendar" })).toBeVisible();
+});
+
+// A code that leaked links whoever sent it first (link-on-code D3); the linked
+// step offers Not my number, which unlinks it (D2).
+test("at 1280px a new host unlinks a number that is not theirs from the link step", async ({ baseURL, context, db, page }) => {
+  await page.setViewportSize({ height: 900, width: 1280 });
+  const host = await signedInHost(db, context, baseURL!, { imessageStep: true });
+  await linkFromStep(page, db);
+  expect(await db`select 1 from app.imessage_bindings where host_account_id = ${host.hostAccountId} and state = 'active'`).toHaveLength(1);
+
+  await press(page, "Not my number — unlink");
+  // The channel choice comes back for a new code.
+  await expect(page.getByRole("heading", { level: 1, name: "Connect a messaging app" })).toBeVisible({ timeout: 10_000 });
+  await expect(page.getByRole("button", { name: "Not my number — unlink" })).toHaveCount(0);
+  await expect.poll(async () => (await db`select 1 from app.imessage_bindings where host_account_id = ${host.hostAccountId} and state = 'active'`).length).toBe(0);
 });
 
 test("a new host cannot defer messaging into web setup", async ({ baseURL, context, db, page }) => {

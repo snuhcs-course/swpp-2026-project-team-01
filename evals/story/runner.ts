@@ -1,6 +1,7 @@
 import type { EveEvalContext } from "eve/evals";
 import { defineEval } from "eve/evals";
 import { includes, satisfies } from "eve/evals/expect";
+import { CAPABILITY, evalTrials } from "../tags";
 import { nextWeek } from "./fixtures";
 import { grade, NO_DECISION_CRITERION } from "./grader";
 import { type EvalContext, type EvalTurn, guestSession, type HostChannel, hostReviewSession, linkHost, selectedRequestOf } from "./sessions";
@@ -73,7 +74,7 @@ export function storyEval(entry: StoryCase, trial: number, set: string) {
   return defineEval({
     description: `${entry.id} (${entry.category}, ${entry.shape}) run ${trial}`,
     metadata: { caseId: entry.id, category: entry.category, group: entry.group ?? null, shape: entry.shape, source: entry.source, trial },
-    tags: [entry.conversation, "live-model", set, entry.category, entry.shape, `case:${entry.id}`],
+    tags: [entry.conversation, "live-model", CAPABILITY, set, entry.category, entry.shape, `case:${entry.id}`],
     timeoutMs: 120_000 + 90_000 * (entry.turns.length + (entry.prelude?.length ?? 0)),
     async test(t) {
       const language = entry.language === "en" ? "en" : "ko";
@@ -171,5 +172,5 @@ export function storyEval(entry: StoryCase, trial: number, set: string) {
 }
 
 export function storyEvals(cases: readonly StoryCase[], set: string) {
-  return cases.flatMap((entry) => Array.from({ length: entry.trials ?? DEFAULT_TRIALS }, (_, index) => storyEval(entry, index + 1, set)));
+  return cases.flatMap((entry) => Array.from({ length: evalTrials(entry.trials ?? DEFAULT_TRIALS) }, (_, index) => storyEval(entry, index + 1, set)));
 }

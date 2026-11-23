@@ -8,7 +8,7 @@ import { CommandError, commandFailure, type CommandContext } from "./commands";
 import type { Database, Transaction } from "./database";
 import { lockOpenRequest, hostAcceptsRequests } from "./request-guard";
 import { localPatchSchema, updateDetailsCommand } from "./request-reviews";
-import { admitCreation, CREATION_LIMITS, type CreationLimits, identifyDraft, insertDraftRequest } from "./request-start";
+import { admitCreation, type CreationLimits, identifyDraft, insertDraftRequest, NETWORK_CREATION_LIMITS } from "./request-start";
 import type { TokenKey } from "./token-encryption";
 
 // The one-future-request grant (agent-access D12, the agent-client-authorization
@@ -57,7 +57,7 @@ export async function createRequestForGrant(
   input: CreateRequestInput,
 ): Promise<CreateRequestOutcome> {
   const correlationId = randomUUID();
-  const limits = { ...CREATION_LIMITS, ...deps.limits };
+  const limits = { ...NETWORK_CREATION_LIMITS, ...deps.limits };
 
   try {
     return (await deps.db.begin(async (tx) => {
@@ -100,7 +100,9 @@ export async function createIdentifiedAgentRequest(
   deps: { readonly origin: string; readonly tokenKey: TokenKey },
   hostAccountId: string,
   sourceHash: string,
-  input: Omit<CreateRequestInput, "retryKey">,
+  // accountVerifiedEmail: the address is the account's Google-verified one
+  // (account-requests.ts), stored as the confirmed contact.
+  input: Omit<CreateRequestInput, "retryKey"> & { readonly accountVerifiedEmail?: boolean },
   context: Pick<CommandContext<unknown>, "correlationId" | "retryKey">,
 ) {
   const language = input.language ?? "en";
@@ -114,7 +116,7 @@ export async function createIdentifiedAgentRequest(
   const identified = await identifyDraft(
     tx,
     await lockOpenRequest(tx, requestId),
-    { email: input.email, language, name: input.name, timezone: input.timezone },
+    { accountVerifiedEmail: input.accountVerifiedEmail, email: input.email, language, name: input.name, timezone: input.timezone },
     { origin: deps.origin, tokenKey: deps.tokenKey },
   );
 

@@ -1,4 +1,5 @@
 import { randomUUID } from "node:crypto";
+import { saveHostNotesCommand } from "../../../lib/server/host-notes";
 import { GOOGLE_CALENDAR_SCOPES } from "../../../lib/contracts/google-scopes";
 import { createCalendarAnalysisHandler } from "../../../lib/server/analysis";
 import type { Database } from "../../../lib/server/database";
@@ -89,6 +90,14 @@ export async function acceptSuggestions(db: Database, hostAccountId: string, ide
     });
     if (!result.ok) throw new Error(`Accepting ${field} failed: ${JSON.stringify(result)}`);
   }
+
+  // The last step, the notes for Thyme (host-preference-notes), answered with none.
+  const notes = await runCommand(hostCommandDeps(db, hostAccountId), saveHostNotesCommand(), {
+    input: { notes: "" },
+    resourceId: hostAccountId,
+    retryKey: randomUUID(),
+  });
+  if (!notes.ok) throw new Error(`Saving the notes failed: ${JSON.stringify(notes)}`);
 }
 
 // A host whose settings are confirmed, as the linked messenger confirms them:

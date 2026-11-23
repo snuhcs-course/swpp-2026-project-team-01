@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { displaySender } from "../contracts/imessage";
+import { maskedSender } from "../contracts/imessage";
 import { type GuestChannel, guestLinkMessage, REQUESTER_IMESSAGE_OPERATIONS, type RequesterImessageStatus } from "../contracts/requester-imessage";
 import { type CommandDefinition, CommandError } from "./commands";
 import type { Queryable, Transaction } from "./database";
@@ -12,12 +12,11 @@ import {
   IMESSAGE_LINK_LIMITS,
   linkLockKey,
   NUMBER_INPUT,
-  senderContext,
   telegramDisplayName,
 } from "./imessage-links";
 import { recordOutbound } from "./imessage-outbox";
 import type { PhotonRegistrar } from "./photon";
-import { activeRequesterBinding, bindRequester, endRequesterBindings, requesterBindingName, requesterBindingRecipient } from "./requester-imessage-bindings";
+import { activeRequesterBinding, endRequesterBindings, requesterBindingName, requesterBindingRecipient } from "./requester-imessage-bindings";
 import { assertIdentified, lockOpenRequest } from "./request-guard";
 import { openToken, sealToken, type TokenKey } from "./token-encryption";
 
@@ -27,9 +26,9 @@ import { openToken, sealToken, type TokenKey } from "./token-encryption";
 //   - request.imessage_link.create makes a one-time FMAT- code the request owns
 //     (hashed, and sealed so a reload shows it again), valid 15 minutes, at most
 //     5 an hour; the card opens Messages with guestLinkMessage(code);
-//   - the receipt job's receiveLinkCode (imessage-links.ts) records the sender;
-//   - request.imessage_link.confirm binds the recorded sender after the guest
-//     saw it masked; nothing is bound before;
+//   - the receipt job's receiveLinkCode (imessage-links.ts) binds the sender as
+//     soon as the code arrives and queues the welcome (link-on-code D1); the
+//     card, which polls while the code is pending, then shows the binding;
 //   - request.imessage_link.unlink ends the binding and voids an open attempt,
 //     in the database only.
 // Lock order: the request row, then the request's advisory link lock, which
@@ -37,7 +36,7 @@ import { openToken, sealToken, type TokenKey } from "./token-encryption";
 // WhatsApp links the same way (guest-whatsapp-link design 2 and 4): create takes
 // a channel, registers the number as for iMessage but keeps no assigned number,
 // and the card opens wa.me at whatsappNumber; only a WhatsApp message completes
-// the attempt, and confirming binds the sender on that channel. A request has
+// the attempt, and binds the sender on that channel. A request has
 // one open attempt and one active binding across both channels.
 // Telegram links the same way (guest-telegram-link design 2 and 3): create takes
 // channel telegram with no number, nothing is registered, and the card opens
@@ -132,60 +131,6 @@ export function createRequesterImessageLinkCommand(
   };
 }
 
-export function confirmRequesterImessageLinkCommand(options: RequesterLinkOptions): CommandDefinition<{ linkId: string }, { bindingId: string }> {
-  return {
-    input: z.object({ linkId: z.uuid() }).strict(),
-    operation: REQUESTER_IMESSAGE_OPERATIONS.confirm,
-    async run(tx, context) {
-      const requestId = assertRequest(context);
-      const request = await lockRequestLinking(tx, requestId);
-
-      const [link] = await tx<
-        {
-          id: string;
-          channel: GuestChannel;
-          state: string;
-          open: boolean;
-          sender_hash: string | null;
-          sender_ciphertext: string | null;
-          sender_name_ciphertext: string | null;
-          space_ciphertext: string | null;
-          sender_key_id: string | null;
-        }[]
-      >`
-        select id, channel, state, confirm_by > now() as open, sender_hash, sender_ciphertext, sender_name_ciphertext, space_ciphertext, sender_key_id
-        from app.imessage_links where id = ${context.input.linkId} and request_id = ${requestId}
-        for update
-      `;
-      if (!link || link.state !== "received" || !link.open || !link.sender_hash || !link.sender_ciphertext || !link.sender_key_id) {
-        throw new CommandError("stale_revision");
-      }
-
-      const sealed = (ciphertext: string) => openToken(options.tokenKeys, { ciphertext, keyId: link.sender_key_id! }, senderContext(link.id));
-      const [host] = await tx<{ display_name: string | null }[]>`
-        select settings ->> 'displayName' as display_name from app.host_settings where host_account_id = ${request.host_account_id}
-      `;
-      const bindingId = await bindRequester(tx, options.tokenKey, {
-        channel: link.channel,
-        hostName: host?.display_name ?? "your host",
-        linkId: link.id,
-        requestId,
-        sender: sealed(link.sender_ciphertext),
-        senderHash: link.sender_hash,
-        senderName: link.sender_name_ciphertext ? sealed(link.sender_name_ciphertext) : null,
-        spaceId: link.space_ciphertext ? sealed(link.space_ciphertext) : null,
-      });
-      await tx`
-        update app.imessage_links
-        set state = 'linked', binding_id = ${bindingId}, ended_at = now(), code_ciphertext = null,
-            sender_ciphertext = null, space_ciphertext = null
-        where id = ${link.id}
-      `;
-      return { bindingId };
-    },
-  };
-}
-
 // **Unlink iMessage** ends the binding and an open attempt; **Cancel** on an
 // open attempt (pendingOnly) ends only the attempt. A closed request still lets
 // the guest unlink, so the request row is locked without the open check.
@@ -249,7 +194,8 @@ export function shareRequesterContactCardCommand(options: RequesterLinkOptions):
 }
 
 // The card's status: an open attempt first, also while a sender is linked
-// (confirming it moves the link to the new sender), then the binding.
+// (its code arriving moves the link to the new sender), then the binding, whose
+// sender is masked or, on Telegram, named (link-on-code D4).
 export async function readRequesterImessageStatus(
   db: Queryable,
   keys: readonly TokenKey[],
@@ -270,43 +216,20 @@ export async function readRequesterImessageStatus(
     {
       id: string;
       channel: GuestChannel;
-      state: "pending" | "received";
+      state: "pending";
       code_ciphertext: string | null;
       sealed_key_id: string | null;
-      sender_ciphertext: string | null;
-      sender_name_ciphertext: string | null;
-      sender_key_id: string | null;
       expires_at: Date;
-      confirm_by: Date | null;
       line_number: string | null;
     }[]
   >`
-    select id, channel, state, code_ciphertext, sealed_key_id, sender_ciphertext, sender_name_ciphertext, sender_key_id, expires_at, confirm_by, line_number
+    select id, channel, state, code_ciphertext, sealed_key_id, expires_at, line_number
     from app.imessage_links
-    where request_id = ${requestId}
-      and ((state = 'pending' and expires_at > now()) or (state = 'received' and confirm_by > now()))
+    where request_id = ${requestId} and state = 'pending' and expires_at > now()
   `;
 
   try {
-    if (link?.state === "received") {
-      const open = (ciphertext: string) => openToken(keys, { ciphertext, keyId: link.sender_key_id! }, senderContext(link.id));
-      // A Telegram sender shows by name, never by user ID (host-telegram-channel design 3).
-      const sender =
-        link.channel === "telegram"
-          ? link.sender_name_ciphertext
-            ? open(link.sender_name_ciphertext)
-            : telegramDisplayName(null, null)
-          : displaySender(open(link.sender_ciphertext!));
-      return {
-        channel: link.channel,
-        confirmBy: link.confirm_by!.toISOString(),
-        lineNumber: numberOf(link.channel),
-        linkId: link.id,
-        sender,
-        state: "received",
-      };
-    }
-    if (link?.state === "pending") {
+    if (link) {
       const code = openToken(keys, { ciphertext: link.code_ciphertext!, keyId: link.sealed_key_id! }, codeContext(link.id));
       return {
         channel: link.channel,
@@ -330,7 +253,7 @@ export async function readRequesterImessageStatus(
     sender =
       binding.channel === "telegram"
         ? (requesterBindingName(keys, binding) ?? sender)
-        : displaySender(requesterBindingRecipient(keys, binding).address);
+        : maskedSender(requesterBindingRecipient(keys, binding).address);
   } catch {
     // Sealed under a key the service no longer holds: still linked.
   }

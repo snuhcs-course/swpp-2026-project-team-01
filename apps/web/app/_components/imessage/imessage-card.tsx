@@ -23,7 +23,7 @@ import {
   whatsAppLinkFor,
 } from "@lib/contracts/messaging-channel";
 import { AlertCircleIcon, CheckIcon, CopyIcon, MessageCircleIcon, RotateCcwIcon } from "lucide-react";
-import { type FormEvent, useCallback, useEffect, useId, useMemo, useState } from "react";
+import { type FormEvent, useCallback, useEffect, useId, useMemo, useRef, useState } from "react";
 import { renderSVG } from "uqr";
 import { channelCopy, COPY } from "@/app/_components/ink/copy";
 import { NumberForm } from "@/app/_components/ink/number-form";
@@ -42,25 +42,29 @@ import { cn } from "@/lib/utils";
 //     only answer a host's first message on Photon's shared lines.
 //   - pending: the message to send, with Open Messages to try again on a phone;
 //     the card polls until the message arrives. Opening Messages changes nothing.
-//   - received: the masked sender with Confirm and link and This isn't me.
+//     The message links on arrival (link-on-code D1), so the card goes straight to
+//     linked, and what linking agrees to (WhatsApp's notice, Telegram's privacy)
+//     is said here, beside the code.
 //   - fallback: the masked number, the send's state and a protected code field,
 //     for an attempt the server already holds.
 //   - linked: a small status pill naming the channel and the masked sender; it
 //     opens to the latest failed or uncertain message, Add to contacts and Unlink
-//     behind an inline confirmation, and starts open while a message failed.
+//     behind an inline confirmation, and starts open while a message failed. A
+//     link the card just watched arrive opens with Not my number — unlink, one
+//     tap that ends it and shows the start again (link-on-code D2).
 // A command whose answer was lost offers Try again with the same retry key.
 // The same card links WhatsApp (host-whatsapp-channel design 5 and 6, D5 to D7,
 // D12): which channel "none" offers follows the device (Android gets WhatsApp
 // only; iPhone, iPad and Mac get iMessage with Use WhatsApp instead; any other
 // computer first asks which app the host uses), an attempt or a binding shows
 // its own channel, WhatsApp opens wa.me on a phone and shows its QR code on a
-// computer, Confirm and link says what it replaces and what Thyme will send on
-// WhatsApp, and a WhatsApp binding offers no Add to contacts or fallback code.
+// computer, the code says what Thyme will send on WhatsApp, and a WhatsApp
+// binding offers no Add to contacts or fallback code.
 // Telegram links the same way (host-telegram-channel design 6, D6, D7, D13): Connect Telegram makes the code and,
 // on a phone, opens telegram.me/<bot>?start=<code> at once, where Start sends /start <code>; on a computer the card shows
 // Open Telegram, the link's QR code and Copy. Every device can switch to Telegram (Use Telegram instead), the app
-// question lists each configured channel, the received sender is the Telegram name, and the card says where
-// Telegram keeps bot chats before Confirm and link.
+// question lists each configured channel, the linked sender is the Telegram name, and the card says where
+// Telegram keeps bot chats beside the code.
 // iMessage asks for the host's number first (imessage-number-registration D1, D3): Photon's shared lines read
 // only registered numbers, so "none" on iMessage is the number field, the server registers the number, and the
 // code is addressed to the number Photon assigned. The number is kept while the card is open.
@@ -152,6 +156,8 @@ export function ImessageCard({ onLater, expandedInitially = false }: { readonly 
   const [error, setError] = useState<string | null>(null);
   const [lost, setLost] = useState<Pending | null>(null);
   const [confirmUnlink, setConfirmUnlink] = useState(false);
+  // The card watched this code link (pending, then linked), so it offers the one-tap way back (link-on-code D2).
+  const [justLinked, setJustLinked] = useState(false);
   // A linked channel shows as a small status pill until the host opens it.
   const [expanded, setExpanded] = useState(expandedInitially);
   const platform = useMessagesPlatform();
@@ -170,6 +176,17 @@ export function ImessageCard({ onLater, expandedInitially = false }: { readonly 
     return next;
   }, []);
 
+  // A pending code that turns linked while the card is open: open the card with the way back.
+  const shownState = status?.state;
+  const previousState = useRef(shownState);
+  useEffect(() => {
+    if (previousState.current === "pending" && shownState === "linked") {
+      setJustLinked(true);
+      setExpanded(true);
+    }
+    previousState.current = shownState;
+  }, [shownState]);
+
   useEffect(() => {
     void reload();
   }, [reload]);
@@ -185,14 +202,6 @@ export function ImessageCard({ onLater, expandedInitially = false }: { readonly 
     const timer = window.setInterval(() => void reload(), POLL_MS);
     return () => window.clearInterval(timer);
   }, [reload, waiting]);
-
-  // A received sender not confirmed in time: refresh when the window closes.
-  const confirmBy = status?.state === "received" ? status.confirmBy : null;
-  useEffect(() => {
-    if (!confirmBy) return;
-    const timer = window.setTimeout(() => void reload(), Math.max(0, Date.parse(confirmBy) - Date.now()) + 1000);
-    return () => window.clearTimeout(timer);
-  }, [confirmBy, reload]);
 
   const run = useCallback(async (pending: Pending) => {
     setBusy(pending.operation);
@@ -395,29 +404,6 @@ export function ImessageCard({ onLater, expandedInitially = false }: { readonly 
       );
     }
 
-    case "received":
-      return (
-        <CardShell description="We got your message. Check that it came from you before linking." label={channelName(status.channel)} title="Is this you?">
-          {notice}
-          <p className="text-sm">
-            Sent from <span className="font-medium tabular-nums">{status.sender}</span>
-          </p>
-          {status.replaces ? <p className="text-sm">This replaces your {channelName(status.replaces)} link.</p> : null}
-          {status.channel === "whatsapp" ? <p className="text-sm text-muted-foreground">{WHATSAPP_OPT_IN}</p> : null}
-          {status.channel === "telegram" ? <p className="text-sm text-muted-foreground">{TELEGRAM_PRIVACY}</p> : null}
-          <CardActions>
-            <Button disabled={busy !== null} onClick={() => void command("imessage.link.confirm", { linkId: status.linkId })} type="button">
-              <CheckIcon aria-hidden />
-              {busy === "imessage.link.confirm" ? "Linking..." : "Confirm and link"}
-            </Button>
-            <QuietButton disabled={busy !== null} onClick={() => void command("imessage.link.cancel")}>
-              This isn&apos;t me
-            </QuietButton>
-          </CardActions>
-          <p className="text-xs text-muted-foreground">Confirm by {when(status.confirmBy)}.</p>
-        </CardShell>
-      );
-
     case "fallback":
       return (
         <FallbackCode
@@ -472,7 +458,22 @@ export function ImessageCard({ onLater, expandedInitially = false }: { readonly 
               state={status.contactCard?.state ?? null}
             />
           ) : null}
-          {confirmUnlink ? (
+          {justLinked ? (
+            <CardActions>
+              <QuietButton
+                disabled={busy !== null}
+                onClick={async () => {
+                  if (await command("imessage.unlink")) {
+                    setJustLinked(false);
+                    setExpanded(false);
+                  }
+                }}
+              >
+                {busy === "imessage.unlink" ? "Unlinking..." : status.channel === "telegram" ? "Not my Telegram — unlink" : "Not my number — unlink"}
+              </QuietButton>
+              <QuietButton onClick={() => setExpanded(false)}>Hide</QuietButton>
+            </CardActions>
+          ) : confirmUnlink ? (
             <CardActions>
               <span className="text-sm">Unlink {status.sender}? You'll stop getting messages there.</span>
               <Button
@@ -515,10 +516,11 @@ export function deliveryNotice(delivery: ImessageDelivery, name: string) {
   } Continue here; nothing about your requests changed.`;
 }
 
-// Where Telegram keeps the chat, said before Confirm and link (host-telegram-channel D13).
+// Where Telegram keeps the chat, said beside the code, since it links on arrival (host-telegram-channel D13,
+// link-on-code D1).
 export const TELEGRAM_PRIVACY = COPY.en.link.privacyTelegram;
 
-// What Thyme sends on WhatsApp, said before Confirm and link (D12).
+// What Thyme sends on WhatsApp, said beside the code (D12, link-on-code D1).
 export const WHATSAPP_OPT_IN =
   "Thyme will message you on WhatsApp about your requests. If you have not written for a day, it sends a short notice instead.";
 
@@ -656,6 +658,7 @@ export function PendingCode({
           </figcaption>
         </figure>
       ) : null}
+      {whatsapp ? <p className="text-sm text-muted-foreground">{WHATSAPP_OPT_IN}</p> : null}
       <p className="text-sm text-muted-foreground" role="status">
         Waiting for your message. The code works until {when(status.expiresAt)}.
       </p>
@@ -733,6 +736,7 @@ function PendingTelegram({
           <figcaption className="text-xs text-muted-foreground">Scan with your phone&apos;s camera to open Telegram.</figcaption>
         </figure>
       ) : null}
+      <p className="text-sm text-muted-foreground">{TELEGRAM_PRIVACY}</p>
       <p className="text-sm text-muted-foreground" role="status">
         Waiting for you to tap Start. The code works until {when(status.expiresAt)}.
       </p>

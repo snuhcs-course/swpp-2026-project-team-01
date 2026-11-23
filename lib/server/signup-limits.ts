@@ -6,9 +6,14 @@ import type { TokenKey } from "./token-encryption";
 // the creation of a host account for a Google identity that has none; at most
 // SIGNUP_LIMIT_PER_SOURCE per source address and SIGNUP_LIMIT_SERVICE service-wide
 // in any rolling 24 hours. Only a keyed hash of the address is stored.
-
-export const SIGNUP_LIMIT_PER_SOURCE = 3;
-export const SIGNUP_LIMIT_SERVICE = 100;
+//
+// Hotfix 2026-11-23: both bounds are lifted, so sign-up is unbounded. Hosts who
+// share one network (a campus, an office or a mobile carrier NAT) share one source
+// address, so three sign-ups there blocked everyone else on it for a day, and the
+// team chose not to cap new hosts service-wide either. Attempts are still recorded,
+// so a bound can be restored by setting these numbers again.
+export const SIGNUP_LIMIT_PER_SOURCE = Number.POSITIVE_INFINITY;
+export const SIGNUP_LIMIT_SERVICE = Number.POSITIVE_INFINITY;
 
 export type SignUpLimits = {
   readonly perSource: number;

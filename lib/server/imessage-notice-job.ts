@@ -11,6 +11,7 @@ import { awaitingAgreementVersion, type GuestNotice, guestNoticeKey, type HostNo
 import { agreementNoticeText, readAgreementSummary } from "./agreement-notice";
 import { recordOutbound } from "./imessage-outbox";
 import type { WhatsAppButtons } from "./photon";
+import { selectSentRequest } from "./host-conversation-bindings";
 import { activeRequesterBinding, requesterBindingRecipient } from "./requester-imessage-bindings";
 import type { JobHandler } from "./jobs";
 import type { HostRequestView } from "../contracts/host-request";
@@ -159,6 +160,9 @@ async function recordGuestNotice(tx: Transaction, deps: NoticeJobDependencies, r
     text,
     tokenKey: deps.tokenKey,
   });
+  // In the guest-host's own host conversation the notice selects its request,
+  // so the next plain reply goes to it (host-as-guest-messenger, R01 M-6).
+  await selectSentRequest(tx, binding);
   return { queued: true };
 }
 

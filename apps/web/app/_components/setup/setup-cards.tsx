@@ -2,6 +2,7 @@
 
 import { type CSSProperties, type ReactNode, useEffect, useRef, useState } from "react";
 import { AnalysisCard, NotesStep, scanNeedsHost } from "./analysis-card";
+import { AssistantNotesStep } from "./assistant-notes-card";
 import { CalendarRolesCard, ConnectCalendarCard } from "./calendar-cards";
 import { focusCard } from "./card";
 import { LocationStep, ModeStep, TransportStep } from "./question-cards";
@@ -47,6 +48,8 @@ function StepView({ step }: { readonly step: StepTarget }) {
       return <TripsStep />;
     case "identity":
       return <IdentityStep />;
+    case "assistantNotes":
+      return <AssistantNotesStep />;
     case "review":
       return <ReviewCard />;
   }

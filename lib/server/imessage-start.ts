@@ -9,6 +9,8 @@ import { readReceivedContinuation } from "./imessage-continuation";
 import {
   attemptLineNumber,
   attemptMessage,
+  type BindOptions,
+  bindReceivedAttempt,
   codeContext,
   endOpenAttempts,
   IMESSAGE_LINK_LIMITS,
@@ -28,8 +30,10 @@ import { openToken, sealToken, type TokenKey } from "./token-encryption";
 // to this browser through an HttpOnly cookie whose value only this browser holds
 // (the database keeps its keyed hash), and the receipt job records the sender as
 // for any attempt. Signing in with Google in the same browser gives the open
-// attempt to the host (claimStartedLink); Confirm and link on /app binds it, so
-// nothing is bound before an authenticated browser saw the masked sender.
+// attempt to the host (claimStartedLink); a sender that already arrived is bound
+// then (link-on-code D3), and a code still pending binds when it arrives, so a
+// sender is only bound to a host who signed in in the browser that showed the
+// code, or from the sign-in link Thyme sent that sender (D19).
 // The start also links WhatsApp (/?flow=whatsapp, host-whatsapp-channel D7): the
 // attempt records its channel, and the bounds count both channels together.
 // Telegram starts the same way (/?flow=telegram, host-telegram-channel D7): the
@@ -38,11 +42,14 @@ import { openToken, sealToken, type TokenKey } from "./token-encryption";
 export const START_COOKIE = "fmat_imessage_start";
 const START_COOKIE_SECONDS = 30 * 60;
 
-export const IMESSAGE_START_LIMITS = {
-  // Starts per source address, and across the service, per rolling hour.
-  perSourceHour: 5,
+// Starts per source address, and across the service, per rolling hour.
+// Hotfix 2026-11-23: no bound counts a network (source) address any more. People on one
+// shared network (a campus, an office or a carrier NAT) present one address, so a
+// per-address bound blocked them all at once.
+export const IMESSAGE_START_LIMITS: { readonly perSourceHour: number; readonly serviceHour: number } = {
+  perSourceHour: Number.POSITIVE_INFINITY,
   serviceHour: 100,
-} as const;
+};
 
 export type StartOptions = {
   readonly tokenKey: TokenKey;
@@ -170,11 +177,12 @@ export async function readStartStatus(db: Queryable, options: StartOptions, secr
 }
 
 // The sign-in callback's side: gives this browser's open attempt to the host who
-// just signed in, ending the host's own open attempt. A received attempt gets a
-// fresh confirmation window, since signing in took part of the first. Returns
-// whether an attempt was claimed; a host who is not active claims nothing.
-export async function claimStartedLink(db: Database, tokenKey: TokenKey, hostAccountId: string, secret: string) {
-  const starter = starterHash(tokenKey, secret);
+// just signed in, ending the host's own open attempt, and binds its sender if
+// the code already arrived (link-on-code D3). Returns whether an attempt was
+// claimed and not voided (its sender linked to another host meanwhile); a host
+// who is not active claims nothing.
+export async function claimStartedLink(db: Database, options: BindOptions, hostAccountId: string, secret: string) {
+  const starter = starterHash(options.tokenKey, secret);
 
   return (await db.begin(async (tx) => {
     try {
@@ -194,22 +202,18 @@ export async function claimStartedLink(db: Database, tokenKey: TokenKey, hostAcc
     if (!link) return false;
 
     await endOpenAttempts(tx, hostAccountId, "voided");
-    await tx`
-      update app.imessage_links
-      set host_account_id = ${hostAccountId},
-          confirm_by = case when state = 'received' then now() + make_interval(mins => ${IMESSAGE_LINK_LIMITS.confirmMinutes}) end
-      where id = ${link.id}
-    `;
-    return true;
+    await tx`update app.imessage_links set host_account_id = ${hostAccountId} where id = ${link.id}`;
+    return (await bindReceivedAttempt(tx, options, hostAccountId, link.id)) !== "voided";
   })) as boolean;
 }
 
 // The Google callback's side of the sign-in link in Thyme's reply (D19): the
-// attempt it names moves to the signed-in host, as claimStartedLink does for
-// this browser's attempt, unless another host already holds it. The host has
-// the confirmation window again from now. Another browser's starter cookie for
-// the same attempt then finds it owned and claims nothing.
-export async function claimContinuedLink(db: Database, tokenKey: TokenKey, hostAccountId: string, token: string) {
+// attempt it names moves to the signed-in host and its sender is bound, as
+// claimStartedLink does for this browser's attempt, unless another host already
+// holds it. Another browser's starter cookie for the same attempt then finds it
+// linked and claims nothing.
+export async function claimContinuedLink(db: Database, options: BindOptions, hostAccountId: string, token: string) {
+  const tokenKey = options.tokenKey;
   return (await db.begin(async (tx) => {
     try {
       await lockHostLinking(tx, hostAccountId);
@@ -226,11 +230,7 @@ export async function claimContinuedLink(db: Database, tokenKey: TokenKey, hostA
     if (!link || (link.host_account_id !== null && link.host_account_id !== hostAccountId)) return false;
 
     if (link.host_account_id === null) await endOpenAttempts(tx, hostAccountId, "voided");
-    await tx`
-      update app.imessage_links
-      set host_account_id = ${hostAccountId}, confirm_by = now() + make_interval(mins => ${IMESSAGE_LINK_LIMITS.confirmMinutes})
-      where id = ${link.id}
-    `;
-    return true;
+    await tx`update app.imessage_links set host_account_id = ${hostAccountId} where id = ${link.id}`;
+    return (await bindReceivedAttempt(tx, options, hostAccountId, link.id)) !== "voided";
   })) as boolean;
 }

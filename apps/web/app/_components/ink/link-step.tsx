@@ -13,14 +13,15 @@ import {
 import { type ReactNode, useCallback, useEffect, useRef, useState } from "react";
 import { appLinkFor, readStatus, rememberedLater, sendCommand } from "@/app/_components/imessage/imessage-card";
 import { Brand, InkStage } from "./chrome";
-import { channelCopy, COPY, type Locale, replacesText } from "./copy";
+import { channelCopy, COPY, type Locale } from "./copy";
 import { AppGlyph, ExternalIcon, StatusMark } from "./icons";
 import { NumberForm } from "./number-form";
 import { clock, isPhone, MessagePreview, type SendCode, SendPanel, shownNumber, useNow, usePlatform } from "./send";
 
 // After Google sign-in, an incomplete host chooses a configured messaging app and verifies its sender before
-// setup continues in that conversation. A pending or received attempt resumes here, including one started from
-// the landing page. The channel-specific proof, deep link and confirmation use the existing link commands.
+// setup continues in that conversation. A pending attempt resumes here, including one started from the landing
+// page. The code links as soon as its message arrives (link-on-code D1): the step polls while it is pending and
+// moves to Linked by itself, naming the sender with Not my number — unlink as the way back (D2).
 // An iMessage code needs the host's number first (imessage-number-registration D1, D3): Photon's shared lines
 // read only registered numbers, so the step asks for it, the server registers it, and the code it makes is
 // addressed to the number Photon assigned. The number is kept for this visit, so a new code needs no new entry.
@@ -147,7 +148,7 @@ export function LinkStep({
         setShown("chat");
         return;
       }
-      if (ready && first?.state !== "received" && first?.state !== "pending") {
+      if (ready && first?.state !== "pending") {
         setShown("chat");
         return;
       }
@@ -170,17 +171,15 @@ export function LinkStep({
     return () => window.clearInterval(id);
   }, [shown, state, take]);
 
-  const expired = state !== "received" && state !== "linked" && code !== null && Date.parse(code.expiresAt) <= now;
+  const expired = state !== "linked" && code !== null && Date.parse(code.expiresAt) <= now;
   const screen =
-    state === "received"
-      ? "confirm"
-      : state === "linked"
-        ? "connected"
-        : asking
-          ? "ask"
-          : askingNumber
-            ? "number"
-            : !code
+    state === "linked"
+      ? "connected"
+      : asking
+        ? "ask"
+        : askingNumber
+          ? "number"
+          : !code
             ? "nocode"
             : expired && phone
               ? "expired"
@@ -224,10 +223,10 @@ export function LinkStep({
     );
   }
 
-  // The channel on screen: the sender's or binding's, the one whose number is asked, else the code's, else
-  // the one asked for.
+  // The channel on screen: the binding's, the one whose number is asked, else the code's, else the one
+  // asked for.
   const channel: MessagingChannel =
-    status.state === "received" || status.state === "linked"
+    status.state === "linked"
       ? status.channel
       : screen === "number"
         ? (wanted ?? "imessage")
@@ -264,6 +263,14 @@ export function LinkStep({
           </button>
         ))
       : null;
+  // Nothing is confirmed after the code arrives (link-on-code D1), so the screens that show the code say
+  // what linking agrees to: WhatsApp's notice outside the 24-hour window and Telegram's bot-chat storage.
+  const terms =
+    channel === "whatsapp" ? (
+      <p className="lede small">{c.link.optIn}</p>
+    ) : channel === "telegram" ? (
+      <p className="lede small">{c.link.privacyTelegram}</p>
+    ) : null;
   const notice = error ? (
     <p className="field-help error" role="alert">
       {error}
@@ -286,6 +293,7 @@ export function LinkStep({
                   code={code!}
                   foot={
                     <>
+                      {terms}
                       {switcher}
                       {skip(c.link.altDesktop)}
                       <span className="fine" style={{ maxWidth: "64ch" }}>
@@ -370,6 +378,7 @@ export function LinkStep({
           </h1>
           <p className="lede small">{c.link.ledePhone}</p>
           <MessagePreview code={code!} t={c.send} />
+          {terms}
           <a className="primary-btn wide" href={link ?? "#"} onClick={() => setOpened(true)}>
             <AppGlyph channel={code!.channel} />
             {c.send.open}
@@ -430,51 +439,6 @@ export function LinkStep({
       );
       break;
 
-    case "confirm": {
-      const received = status as Extract<ImessageStatus, { state: "received" }>;
-      body = (
-        <main className="handoff verify">
-          <StatusMark state="done" />
-          <h1 ref={heading} tabIndex={-1}>
-            {c.link.confirmTitle}
-          </h1>
-          <p className="lede">{c.link.confirmLede}</p>
-          <div className="code">
-            <span className="code-label">{c.link.sentFrom}</span>
-            <span className="code-digits">{received.sender}</span>
-            <span className="code-left">{c.link.confirmWithin(clock(Date.parse(received.confirmBy) - now))}</span>
-          </div>
-          {received.replaces ? (
-            <p className="lede small">{replacesText(c, received.replaces)}</p>
-          ) : null}
-          {received.channel === "whatsapp" ? <p className="lede small">{c.link.optIn}</p> : null}
-          {received.channel === "telegram" ? <p className="lede small">{c.link.privacyTelegram}</p> : null}
-          <div className="verify-actions">
-            <button
-              aria-disabled={busy !== null}
-              className="primary-btn"
-              onClick={() => busy === null && void command("imessage.link.confirm", { linkId: received.linkId })}
-              type="button"
-            >
-              {busy === "imessage.link.confirm" ? c.link.linking : c.link.confirm}
-            </button>
-            <button
-              className="link-btn"
-              disabled={busy !== null}
-              onClick={async () => {
-                if (await command("imessage.link.cancel")) await newCode(received.channel);
-              }}
-              type="button"
-            >
-              {c.link.notMe}
-            </button>
-          </div>
-          {notice}
-        </main>
-      );
-      break;
-    }
-
     case "connected": {
       const linked = status as Extract<ImessageStatus, { state: "linked" }>;
       const appUrl = linked.channel === "telegram"
@@ -496,6 +460,25 @@ export function LinkStep({
             {appUrl ? <a className="primary-btn" href={appUrl}>{c.link.openConnected(channelName(linked.channel))}</a> : null}
             <a className="link-btn faint" href="/app?view=dashboard">{c.link.goHome}</a>
           </div>
+          {/* The sender is on screen at once, so a code that leaked and linked someone else ends here; the
+              channel choice comes back for a new code (link-on-code D2). */}
+          <p className="alt">
+            <button
+              className="link-btn"
+              disabled={busy !== null}
+              onClick={async () => {
+                if (await command("imessage.unlink")) {
+                  setCode(null);
+                  setOpened(false);
+                  setAsking(true);
+                }
+              }}
+              type="button"
+            >
+              {busy === "imessage.unlink" ? c.link.unlinking : c.link.notMine}
+            </button>
+          </p>
+          {notice}
         </main>
       );
       break;

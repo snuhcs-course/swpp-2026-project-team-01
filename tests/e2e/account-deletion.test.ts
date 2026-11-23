@@ -47,7 +47,7 @@ for (const width of [390, 1280]) {
     const card = dialog.getByRole("region", { name: "Delete account" });
     // Settings loads its state after opening; the first load compiles routes.
     await expect(card.getByText("Your account will be deleted in 7 days.")).toBeVisible({ timeout: 30_000 });
-    await expect(card.getByText(/Meetings already in a calendar stay there/)).toBeVisible();
+    await expect(card.getByText(/Meetings you host stay in your calendar/)).toBeVisible();
 
     const confirmation = card.getByLabel(`Type @${handle} to confirm`);
     await confirmation.fill("not-my-handle");

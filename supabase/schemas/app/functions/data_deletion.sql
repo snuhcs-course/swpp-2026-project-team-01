@@ -112,7 +112,11 @@ $$;
 -- except its handle history and suspension audit, and its Auth user. The account
 -- row stays, suspended, nameless and marked deleted, so a handle the host held
 -- is never assigned to another host and restoration is refused. A booking whose
--- write may exist is refused: its outcome must be known first.
+-- write may exist is refused: its outcome must be known first. Requests the
+-- account sent to other hosts as a guest are not deleted here: one
+-- account_requests_close job withdraws the open ones and cancels the booked
+-- meetings still to come, with the usual notices to their hosts
+-- (guest-account-history D3).
 CREATE FUNCTION "app"."operator_delete_host"(
   "target" text,
   "operator_name" text,
@@ -129,6 +133,7 @@ DECLARE
   was_deleted timestamptz;
   auth_user uuid;
   reference record;
+  sent uuid[];
 BEGIN
   IF target ~ '^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$' THEN
     account_id := target::uuid;
@@ -161,6 +166,35 @@ BEGIN
   END IF;
 
   SELECT g.auth_user_id INTO auth_user FROM app.google_identities g WHERE g.host_account_id = account_id;
+
+  -- Read before the catalog loop deletes the account's request matches.
+  sent := array(
+    SELECT r.id FROM app.requester_host_profiles p
+    JOIN app.requests r ON r.id = p.request_id
+    WHERE p.host_account_id = account_id AND r.host_account_id <> account_id
+      AND (
+        r.state IN ('gathering', 'negotiating', 'awaiting_host_approval', 'booking')
+        OR EXISTS (SELECT 1 FROM app.bookings b WHERE b.request_id = r.id AND b.state = 'confirmed' AND b.start_at > now())
+      )
+    ORDER BY r.id
+  );
+
+  IF cardinality(sent) > 0 THEN
+    INSERT INTO app.jobs (kind, payload, dedupe_key, producer_environment, max_attempts)
+    VALUES (
+      'account_requests_close',
+      jsonb_build_object('requestIds', to_jsonb(sent)),
+      'account:' || account_id,
+      CASE
+        WHEN EXISTS (
+          SELECT 1 FROM vault.decrypted_secrets WHERE name = 'worker_url' AND coalesce(decrypted_secret, '') <> ''
+        ) THEN 'production'
+        ELSE 'local'
+      END,
+      20
+    )
+    ON CONFLICT (kind, dedupe_key) DO NOTHING;
+  END IF;
 
   PERFORM app.delete_request_records(array(SELECT r.id FROM app.requests r WHERE r.host_account_id = account_id));
   PERFORM app.delete_discussion_records(array(

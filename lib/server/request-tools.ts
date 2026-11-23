@@ -5,6 +5,7 @@ import {
   CLARIFICATION_CATEGORIES,
   type ClarificationCategory,
   type LinkPlan,
+  MAX_PROPOSAL_TIMES,
   type RequestDetails,
   type RequestLanguage,
   type RequesterProposal,
@@ -17,9 +18,10 @@ import type { LocationAnswer, MeetingMode } from "../contracts/setup";
 import { displayTime, isValidTimeZone } from "../contracts/timezone";
 import type { CommandErrorCategory } from "../contracts/command-errors";
 import { readBookingStatus } from "./bookings";
-import { type Actor, type CommandDefinition, runCommand } from "./commands";
+import { type Actor, type CommandDefinition, runCommand, savedCommandResult } from "./commands";
 import type { Database, Queryable, Transaction } from "./database";
 import { encodeDisplayName } from "./entry-documents";
+import { guestNotesView } from "./host-notes";
 import { awaitEvaluation } from "./evaluation";
 import { REQUESTER_AUDIENCE } from "./eve-auth";
 import { detailsComplete, readyForTimes, standingBookingOf, withdrawRequestCommand } from "./request-lifecycle";
@@ -46,6 +48,9 @@ import {
   localPatchSchema,
   type PatchProblem,
   requestLanguage,
+  type InferredParts,
+  splitStatedPatch,
+  type StatedSplit,
   type StoredReview,
   storedPatch,
   storedReview,
@@ -251,6 +256,10 @@ function minimizedProposal(proposal: RequesterProposal, timezone: string) {
     meetingLink: linkPlanLabel(proposal.linkPlan),
     mode: proposal.mode,
     time: window(proposal, timezone),
+    // Several times the guest is offering at once; the host books one of them.
+    ...(proposal.times && proposal.times.length > 1
+      ? { times: proposal.times.map((time) => ({ location: time.location, mode: time.mode, time: window(time, timezone) })) }
+      : {}),
     version: proposal.version,
   };
 }
@@ -259,6 +268,9 @@ type RequestRow = {
   contact_email: string | null;
   details: Partial<RequestDetails>;
   display_name: string | null;
+  // The host's notes for Thyme (host-preference-notes); only the requester
+  // read_request below gives them to the guest's assistant.
+  assistant_notes: string | null;
   offer: { durationMinutes?: number; meetingMode?: MeetingMode; location?: LocationAnswer | null } | null;
   expires_at: Date;
   revision: number;
@@ -268,6 +280,7 @@ type RequestRow = {
 async function requestRow(q: Queryable, id: string) {
   const [row] = await q<RequestRow[]>`
     select r.details, r.state, r.revision, r.expires_at, r.contact_email, s.settings ->> 'displayName' as display_name,
+           (select a.assistant_notes from app.host_accounts a where a.id = r.host_account_id) as assistant_notes,
            jsonb_build_object('durationMinutes', s.settings -> 'durationMinutes', 'meetingMode', s.settings -> 'meetingMode',
                               'location', s.settings -> 'location') as offer
     from app.requests r left join app.host_settings s on s.host_account_id = r.host_account_id
@@ -341,7 +354,7 @@ export async function readRequestForTool(db: Database, call: RequestToolCall) {
       lessPreferredWindows: (details.lessPreferredWindows ?? []).map((entry) => window(entry, timezone)),
       preferredWeeklyWindows: details.preferredWeeklyWindows ?? [],
     },
-    host: { displayName: encodeDisplayName(row.display_name ?? "Your host"), offer: hostOffer(row.offer) },
+    host: { displayName: encodeDisplayName(row.display_name ?? "Your host"), notes: guestNotesView(row.assistant_notes), offer: hostOffer(row.offer) },
     missing: missingFields(details, hostListsPlaces(row.offer)),
     next: nextSteps(row.state, phase, changing),
     pendingReview: review ? minimizedReview(storedReview(review, language), timezone) : null,
@@ -394,9 +407,13 @@ export const draftRequestReviewToolInput = z.object({
   details: localPatchSchema
     .optional()
     .describe(
-      "Omit for question and unknown. windows are required availability; preferredWindows and lessPreferredWindows are date-specific soft preferences; preferredWeeklyWindows are recurring weekday/start/end soft preferences for this request. Preferences never remove other times. Date-specific windows use local dates (YYYY-MM-DD); weekly windows use weekdays. All start/end clock times use HH:MM in the requester's timezone. Set inferredTime when using newly assumed morning or afternoon bounds. Omit durationMinutes unless stated.",
+      "Omit for question and unknown. windows are required availability; preferredWindows and lessPreferredWindows are date-specific soft preferences; preferredWeeklyWindows are recurring weekday/start/end soft preferences for this request. Preferences never remove other times. Date-specific windows use local dates (YYYY-MM-DD); weekly windows use weekdays. All start/end clock times use HH:MM in the requester's timezone. Set inferredTime when using newly assumed morning or afternoon bounds. Omit durationMinutes unless the guest stated one or host.notes give a length for this kind of meeting.",
     ),
   inferredTime: z.boolean().optional().describe("True if a time-of-day boundary was inferred, so the guest must review it before it is applied."),
+  inferredMode: z
+    .boolean()
+    .optional()
+    .describe("True if online or in person was taken from a place the guest named rather than said, so the guest confirms the form and place before they are applied."),
   clarifications: z
     .array(z.string())
     .max(CLARIFICATION_CATEGORIES.length)
@@ -425,9 +442,16 @@ const PROBLEM_MESSAGES: Readonly<Record<PatchProblem, string>> = {
   unsupported_clarification: "Use only the listed clarification categories. Nothing was recorded.",
 };
 
+type Applied = Awaited<ReturnType<typeof applyAndEvaluate>>;
+
 export type DraftRequestReviewToolResult =
   | { readonly recorded: true; readonly review: ReturnType<typeof minimizedReview> }
-  | ({ readonly review: ReturnType<typeof minimizedReview> } & Awaited<ReturnType<typeof applyAndEvaluate>>)
+  | ({
+      readonly review: ReturnType<typeof minimizedReview> | null;
+      readonly appliedFields: readonly string[];
+      // Why the part that would wait on the card could not be drafted.
+      readonly heldProblem?: PatchProblem;
+    } & Applied)
   | { readonly recorded: false; readonly problem: PatchProblem; readonly question: string };
 
 function rejected(problem: PatchProblem, language: RequestLanguage): DraftRequestReviewToolResult {
@@ -437,6 +461,29 @@ function rejected(problem: PatchProblem, language: RequestLanguage): DraftReques
     recorded: false,
   };
 }
+
+// What the guest is told was applied, in words the assistant can repeat.
+const APPLIED_LABELS: Readonly<Record<string, string>> = {
+  durationMinutes: "length",
+  lessPreferredWindows: "less preferred times",
+  linkPlan: "meeting link",
+  location: "place",
+  mode: "online or in person",
+  preferredWeeklyWindows: "weekly preferences",
+  preferredWindows: "preferred times",
+  purpose: "purpose",
+  travelMode: "travel",
+  windows: "available times",
+};
+
+function appliedLabels(patch: ReviewPatch) {
+  return Object.keys(patch).map((key) => APPLIED_LABELS[key] ?? key);
+}
+
+const APPLIED_NOTE =
+  "In one line, say what was applied and that the guest can change it by saying so; do not ask them to confirm it.";
+const HELD_NOTE =
+  "The rest waits on the review card: say what you assumed or what would change, and ask the guest to confirm it or press Apply these details.";
 
 export async function draftRequestReviewForTool(
   db: Database,
@@ -464,29 +511,92 @@ export async function draftRequestReviewForTool(
   const fence = async (tx: Transaction, locked: string) => {
     if (!(await fenced(tx, locked, call.sessionId))) throw new RequestToolDeniedError();
   };
-  const outcome = await runCommand({ authenticate: async () => actorOf(id), db }, draftReviewCommand(fence), {
-    expectedRevision: null,
-    input: commandInput as DraftReviewInput,
-    resourceId: id,
-    retryKey: `tool:${call.callId}`,
-  });
+  const draft = async (draftInput: DraftReviewInput, retryKey: string): Promise<DraftReviewResult> => {
+    const outcome = await runCommand({ authenticate: async () => actorOf(id), db }, draftReviewCommand(fence), {
+      expectedRevision: null,
+      input: draftInput,
+      resourceId: id,
+      retryKey,
+    });
+    if (!outcome.ok) throw new RequestToolDeniedError();
+    return outcome.result;
+  };
 
-  if (!outcome.ok) throw new RequestToolDeniedError();
-
-  const result: DraftReviewResult = outcome.result;
+  // The whole draft is validated first, as one review, so nothing is applied
+  // from a draft that would be rejected; it is also the card if nothing applies.
+  const tool = `tool:${call.callId}`;
+  const result = await draft(commandInput as DraftReviewInput, tool);
   if (!result.recorded) return rejected(result.problem, language);
+  if (!patch) return { recorded: true, review: minimizedReview(result.review, timezone) };
 
-  // The guest only said which days or times they prefer, once the meeting has
-  // everything else: their own words are the decision, so the draft is applied
-  // at once and the times are found, with no review card (guest-flow-completion
-  // U21). Any other change waits for Apply these details.
-  const onlyTimeConditions = patch !== null && Object.keys(patch).length > 0 && Object.keys(patch).every((field) => ["windows", "preferredWindows", "lessPreferredWindows", "preferredWeeklyWindows"].includes(field));
-  if (input.intent === "availability" && !input.inferredTime && onlyTimeConditions && row.state !== "draft" && missingFields(row.details, hostListsPlaces(row.offer)).length === 0) {
-    const applied = await applyAndEvaluate(db, call, result.review.id, `tool:${call.callId}:apply`, options);
-    return { ...applied, review: minimizedReview(result.review, timezone) };
+  // What the guest stated applies at once, as their own words are the decision
+  // (apply-stated-details, #411; guest-flow-completion U21 for times). What the
+  // assistant inferred, a change to a value the request holds, and contact
+  // details stay on the review card.
+  const split = await statedSplit(db, id, result.review, patch, row.details, { mode: input.inferredMode, time: input.inferredTime }, tool);
+  if (split === "settled") return { recorded: true, review: minimizedReview(result.review, timezone) };
+  const { applied, changes, held } = split;
+  // With something on the card, a stated part that changes nothing stays on it.
+  if (!applied || (held && !changes)) return { recorded: true, review: minimizedReview(result.review, timezone) };
+
+  if (!held) {
+    const done = await applyAndEvaluate(db, call, result.review.id, `${tool}:apply`, options);
+    if (!done.recorded) return { ...done, appliedFields: [], review: minimizedReview(result.review, timezone) };
+    return { ...done, appliedFields: appliedLabels(applied), message: `${done.message} ${APPLIED_NOTE}`, review: null };
   }
 
-  return { recorded: true, review: minimizedReview(result.review, timezone) };
+  // Both: the stated part becomes its own review and is applied, then the rest
+  // is drafted again for the card. Times are found once the card is settled, so
+  // they never ignore what the guest is still confirming.
+  const stated = await draft({ ...commandInput, patch: applied } as DraftReviewInput, `${tool}:stated`);
+  if (!stated.recorded) return { recorded: true, review: minimizedReview(result.review, timezone) };
+  const done = await applyAndEvaluate(db, call, stated.review.id, `${tool}:apply`, { ...options, findTimes: false });
+  if (!done.recorded) {
+    // Nothing was applied: the whole draft goes back on the card, so the held
+    // part is not lost with the stated one.
+    const restored = await draft(commandInput as DraftReviewInput, `${tool}:restore`);
+    return { ...done, appliedFields: [], review: restored.recorded ? minimizedReview(restored.review, timezone) : null };
+  }
+
+  const rest = await draft({ ...commandInput, patch: held } as DraftReviewInput, `${tool}:held`);
+  if (!rest.recorded) {
+    const problem = rest.problem === "ambiguous_local_time" ? clarificationQuestion("ambiguous_local_time", language) : PROBLEM_MESSAGES[rest.problem];
+    return { ...done, appliedFields: appliedLabels(applied), heldProblem: rest.problem, message: `Applied. ${APPLIED_NOTE} The rest is not on a card: ${problem}`, review: null };
+  }
+  return {
+    ...done,
+    appliedFields: appliedLabels(applied),
+    message: `Applied. ${APPLIED_NOTE} ${HELD_NOTE}`,
+    review: minimizedReview(rest.review, timezone),
+  };
+}
+
+// The split of a draft into what applies at once and what waits on the card.
+// A retried call decides from what its first attempt recorded, never from the
+// request as that attempt (or the guest, since) left it: the stated review
+// names the stated part, an apply of the whole draft means nothing was held,
+// and a whole draft resolved with neither was settled by the guest.
+async function statedSplit(
+  db: Database,
+  id: string,
+  review: StoredReview,
+  patch: ReviewPatch,
+  details: Partial<RequestDetails>,
+  inferred: InferredParts,
+  tool: string,
+): Promise<StatedSplit | "settled"> {
+  const actor = actorOf(id);
+  const stated = await savedCommandResult<DraftReviewResult>(db, actor, `${tool}:stated`);
+  if (stated?.recorded && stated.review.patch) {
+    const applied = stated.review.patch;
+    const rest = Object.entries(patch).filter(([key, value]) => value !== undefined && !(key in applied));
+    return { applied, changes: true, held: rest.length > 0 ? (Object.fromEntries(rest) as ReviewPatch) : null };
+  }
+  if (await savedCommandResult(db, actor, `${tool}:apply`)) return { applied: patch, changes: true, held: null };
+
+  const [current] = await db<{ state: string }[]>`select state from app.request_reviews where id = ${review.id}`;
+  if (current?.state !== "pending") return "settled";
+  return splitStatedPatch(details, patch, inferred);
 }
 
 // ---------------------------------------------------------------------------
@@ -638,13 +748,14 @@ async function applyAndEvaluate(
   call: RequestToolCall,
   reviewId: string,
   retryKey: string,
-  options: { readonly waitMs?: number } = {},
+  options: { readonly waitMs?: number; readonly findTimes?: boolean } = {},
 ) {
   const contact = { origin: appOriginFromEnvironment(), tokenKey: tokenKeyFromEnvironment() };
   const { id, outcome } = await decide(db, call, applyReviewCommand(contact), { reviewId }, retryKey);
   if (!outcome.ok) return refused(outcome.error.category);
 
   const row = await requestRow(db, id);
+  if (options.findTimes === false) return { message: "Applied.", recorded: true as const, state: row.state };
   if (!readyForTimes(row.state, row.details)) {
     return { message: "Applied. Something is still missing before times can be found.", recorded: true as const, state: row.state };
   }
@@ -656,20 +767,33 @@ async function applyAndEvaluate(
   return { evaluation, message: "Applied. Describe the times found.", recorded: true as const, state: row.state };
 }
 
-export const chooseTimeToolInput = z.object({ candidateId: z.string().min(1).max(64) });
+export const chooseTimeToolInput = z.object({
+  candidateId: z.string().min(1).max(64).optional().describe("The one time the guest named."),
+  candidateIds: z
+    .array(z.string().min(1).max(64))
+    .min(2)
+    .max(MAX_PROPOSAL_TIMES)
+    .optional()
+    .describe(`In place of candidateId: two to ${MAX_PROPOSAL_TIMES} times the guest said all work for them. The host picks one, and only that one is booked.`),
+});
 
 export async function chooseTimeForTool(db: Database, call: RequestToolCall, input: z.infer<typeof chooseTimeToolInput>): Promise<DecisionResult> {
   const id = await authorizeRequestTool(db, call);
   const evaluation = await readCurrentEvaluation(db, id);
   if (!evaluation) return { message: "There are no current times to choose from: find times first.", recorded: false };
 
-  const { outcome } = await decide(db, call, chooseCandidateCommand, { candidateId: input.candidateId, evaluationId: evaluation.id });
+  if ((input.candidateId === undefined) === (input.candidateIds === undefined)) {
+    return { message: "Give either one candidateId or two or three candidateIds.", recorded: false };
+  }
+  const chosen = input.candidateIds ? { candidateIds: input.candidateIds } : { candidateId: input.candidateId! };
+  const { outcome } = await decide(db, call, chooseCandidateCommand, { ...chosen, evaluationId: evaluation.id });
   if (!outcome.ok) return refused(outcome.error.category);
   if (outcome.result.outcome === "needs_meeting_link") {
     return { message: "This online time needs a meeting link first: ask whether Google Meet is fine or for their own link.", recorded: false };
   }
+  const several = input.candidateIds ? ` It offers ${input.candidateIds.length} times; after the guest agrees, the host picks one of them to book.` : "";
   return {
-    message: `Proposal version ${outcome.result.version} is ready for the guest's agreement. Nothing is agreed yet.`,
+    message: `Proposal version ${outcome.result.version} is ready for the guest's agreement. Nothing is agreed yet.${several}`,
     recorded: true,
     state: "negotiating",
   };

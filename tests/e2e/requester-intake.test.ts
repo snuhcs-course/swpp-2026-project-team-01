@@ -138,7 +138,8 @@ for (const viewport of [
     await openCardCount(page, 0);
     const composer = page.getByPlaceholder("Write to Thyme");
     await typeInto(page, composer, "Talk about compilers, online.");
-    // What the assistant's draft_request_review records for that answer.
+    // A pending review, as draft_request_review leaves one for a value it
+    // inferred (stated details apply at once, #411), to exercise the card.
     const [{ revision }] = await db<{ revision: number }[]>`select revision from app.requests where id = ${request!.id}`;
     await db`
       insert into app.request_reviews (request_id, base_revision, intent, patch, clarifications)
@@ -154,8 +155,9 @@ for (const viewport of [
     await expect.poll(() => runEvaluations(db, request!.id)).toBe(1);
     await expect(page.getByRole("heading", { name: "Choose a time" })).toBeVisible();
     await openCardCount(page, 1);
+    // The week grid lists the times of the shown week (calendar-views design 3).
     const times = page.getByRole("list", { name: "Candidate times" }).getByRole("listitem");
-    baseExpect(await times.count()).toBeGreaterThan(1);
+    baseExpect(await times.count()).toBeGreaterThan(0);
     await expect(page.getByText(/Asia\/Seoul \(GMT\+9\) · 30 minutes · Online/).first()).toBeVisible();
     await noHorizontalScroll(page);
 
