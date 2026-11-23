@@ -13,3 +13,13 @@ test("the number screen names WhatsApp for a WhatsApp code and keeps the field's
   }
   expect(channelCopy(COPY.en, "whatsapp").number.heading).toBe("Which number do you use for WhatsApp?");
 });
+
+// Back from Thyme's Calendar link, /app says Calendar is connected and setup continues in the linked app (#360).
+test("the Calendar return names Google Calendar and the linked app", () => {
+  for (const [channel, name] of [["imessage", "iMessage"], ["whatsapp", "WhatsApp"], ["telegram", "Telegram"]] as const) {
+    const link = channelCopy(COPY.en, channel).link;
+    expect(link.calendarConnected).toBe("Google Calendar is connected.");
+    expect(link.calendarConnectedLede).toBe(`Setup continues in ${name}. Thyme just sent you the next step there.`);
+    expect(link.calendarConnected).not.toBe(link.connected);
+  }
+});

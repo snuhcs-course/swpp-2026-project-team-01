@@ -8,7 +8,7 @@ On 2026-11-04 a message sent from an iPhone to the production iMessage number ne
 
 ## What Changes
 
-- **Number first.** Every iMessage link start asks for the person's mobile number before the link code: the `/app` link step and the Connect iMessage card for hosts, the landing's `/?flow=imessage` start, and **Get updates in iMessage** for guests. The rest of the flow is unchanged: the person sends the prefilled message, the browser shows the masked sender, and **Confirm and link** binds it.
+- **Number first.** Every iMessage link start asks for the person's mobile number before the link code: the `/app` link step and the Connect iMessage card for hosts, the landing's `/?flow=imessage` start, and **Get updates in iMessage** for guests. The rest of the flow is unchanged: the person sends the prefilled message, the browser shows the masked sender, and **Confirm and link** binds it. Superseded by [`link-on-code`](../link-on-code/proposal.md) D1 and D4: the code now binds on arrival, and the linked screen shows the sender's last four digits with **Not my number — unlink**.
 - **Registration.** Creating an iMessage link attempt registers the entered number as a shared user of the Photon project (`POST /projects/{projectId}/users/`, idempotent on the number) and keeps the shared-pool number Photon assigned. The screens address the message to that number.
 - **WhatsApp unchanged.** WhatsApp Business uses its own number and asks for no number.
 

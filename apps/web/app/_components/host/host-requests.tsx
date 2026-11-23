@@ -11,10 +11,12 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { GuestCard, GuestCardActions } from "@/app/_components/guest/guest-card";
 import { WorkspaceMenu } from "@/app/_components/workspace-menu";
 import { HostSettingsDialog } from "@/app/_components/host-settings-dialog";
+import { SentRequestConversation } from "./sent-request-conversation";
 import { Button } from "@/components/ui/button";
 import { postHostCommand, readHostRequest, readWorkspaceRequests } from "@/lib/chat/host-requests";
 import { announceRequestsChanged } from "@/lib/chat/pending-decisions";
 import { errorMessage } from "@/lib/chat/use-host-discussion";
+import { HostWordmark } from "@/app/_components/host-wordmark";
 import {
   BookingCard,
   type HostCardContext,
@@ -80,7 +82,7 @@ export function HostRequests({ onOpenDashboard, request }: { readonly onOpenDash
   return (
     <div className="flex h-dvh min-h-0 flex-col bg-background text-foreground">
       <header className="flex shrink-0 items-center justify-between gap-3 px-5 py-3 sm:px-8">
-        <h1 className="wordmark-lockup min-w-0">Find Me a Time</h1>
+        <HostWordmark className="min-w-0" />
         <div className="flex items-center"><HostSettingsDialog /><WorkspaceMenu onSelectDashboard={onOpenDashboard} onSelectRequests={openInbox} /></div>
       </header>
       {notice ? <ErrorNotice message={notice} onDismiss={() => setNotice(null)} /> : null}
@@ -136,7 +138,7 @@ function Inbox({ initialRequest, onNotice }: { readonly initialRequest: string |
         <h2 className="pt-4 text-[clamp(36px,3.5vw,50px)] leading-[1.12] font-bold tracking-[-0.045em] [font-family:var(--font-open-sans),var(--font-geist-sans),Arial,sans-serif]" id="inbox-heading">
           Requests
         </h2>
-        <p className="mt-3 mb-7 text-[15px] text-muted-foreground">Every meeting request you sent or received, in one place.</p>
+        <p className="mt-3 mb-7 text-[15px] text-muted-foreground">Every meeting request you sent or received, in one place. Open, booked and closed requests stay here while your account exists.</p>
         <div aria-label="Filter requests" className="mb-5 flex w-fit max-w-full gap-1 rounded-full bg-secondary p-1" role="group">
           {([[
             "all", "All", items?.length ?? 0,
@@ -192,6 +194,9 @@ function Inbox({ initialRequest, onNotice }: { readonly initialRequest: string |
 
 function RequestListCard({ item, onChanged, onNotice, onToggle, open }: { readonly item: WorkspaceRequestItem; readonly onChanged: (tutorialCompletion?: TutorialCompletion) => void; readonly onNotice: (message: string) => void; readonly onToggle: () => void; readonly open: boolean }) {
   const received = item.direction === "received";
+  // An open sent request continues on its request page; any other sent request
+  // expands to its conversation, read only (guest-account-history D2).
+  const opensPage = !received && item.active && item.bookingPath !== null;
   const status = item.needsDecision ? "Needs your decision" : !received && item.state === "awaiting_host_approval" ? "Awaiting host approval" : STATE_LABELS[item.state];
   const content = (
     <>
@@ -206,15 +211,14 @@ function RequestListCard({ item, onChanged, onNotice, onToggle, open }: { readon
       {item.purpose ? <span className="truncate text-sm text-body">{item.purpose}</span> : null}
       <span className="mt-4 flex w-full items-center justify-between gap-3 text-xs text-muted-foreground">
         <span>{item.proposalStart ? displayTime(new Date(item.proposalStart), Intl.DateTimeFormat().resolvedOptions().timeZone) : "Time not set yet"}</span>
-        {received ? <ChevronDownIcon aria-hidden className={`size-4 shrink-0 transition-transform ${open ? "rotate-180" : ""}`} /> : item.bookingPath ? <ChevronRightIcon aria-hidden className="size-4 shrink-0" /> : null}
+        {opensPage ? <ChevronRightIcon aria-hidden className="size-4 shrink-0" /> : <ChevronDownIcon aria-hidden className={`size-4 shrink-0 transition-transform ${open ? "rotate-180" : ""}`} />}
       </span>
-      {!received && !item.bookingPath ? <span className="mt-1 text-xs text-muted-foreground">Private request link expired</span> : null}
     </>
   );
   const className = "flex w-full min-w-0 flex-col rounded-2xl bg-card px-5 py-4 text-left hover:bg-accent focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring";
   if (received) return <div className="overflow-hidden rounded-2xl bg-card"><button aria-controls={`request-panel-${item.requestId}`} aria-expanded={open} className={className} onClick={onToggle} type="button">{content}</button>{open ? <RequestPanel onChanged={onChanged} onUnavailable={() => onNotice("That request is not available.")} requestId={item.requestId} /> : null}</div>;
-  if (item.bookingPath) return <a className={className} href={item.bookingPath}>{content}</a>;
-  return <div className="flex w-full min-w-0 flex-col rounded-2xl bg-card px-5 py-4 text-left">{content}</div>;
+  if (opensPage) return <a className={className} href={item.bookingPath!}>{content}</a>;
+  return <div className="overflow-hidden rounded-2xl bg-card"><button aria-controls={`request-panel-${item.requestId}`} aria-expanded={open} className={className} onClick={onToggle} type="button">{content}</button>{open ? <SentRequestConversation bookingPath={item.bookingPath} requestId={item.requestId} /> : null}</div>;
 }
 
 // ---------------------------------------------------------------------------

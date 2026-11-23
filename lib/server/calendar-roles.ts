@@ -264,11 +264,14 @@ export async function readDefaultRoleCalendars(db: Queryable, hostAccountId: str
 }
 
 // The same role command validates the live primary and publishes the analysis.
-export async function defaultCalendarRoles(tx: Transaction, hostAccountId: string, live: readonly CalendarListEntry[] | null) {
+// Returns the booking calendar's name and, only when this call saved the
+// default, the other calendars recommendCalendarRoles would also check, so the
+// chat asks about them once (issue #361). Roles saved before ask nothing again.
+export async function defaultCalendarRoles(tx: Transaction, hostAccountId: string, live: readonly CalendarListEntry[] | null): Promise<{ calendar: string; others: string[] } | null> {
   await lockActiveHost(tx, hostAccountId);
   await lockCalendarRoles(tx, hostAccountId);
   const existing = await readCalendarRoles(tx, hostAccountId);
-  if (existing) return existing.bookingCalendar.summary;
+  if (existing) return { calendar: existing.bookingCalendar.summary, others: [] };
   if (!live) return null;
   const primary = live.find(entry => entry.primary);
   if (!primary || !isWritable(primary)) return null;
@@ -277,5 +280,13 @@ export async function defaultCalendarRoles(tx: Transaction, hostAccountId: strin
     expectedRevision: 0, input: { bookingCalendarId: primary.id, conflictCalendarIds: [primary.id] },
     resourceId: hostAccountId, retryKey: `default-roles:${hostAccountId}`,
   });
-  return primary.summary;
+  return { calendar: primary.summary, others: otherConflictCandidates(live) };
+}
+
+// The calendars besides the primary that recommendCalendarRoles suggests
+// checking for conflicts: owner, writer and reader calendars, without generated
+// (holiday, birthday, week-number) and free/busy-only ones.
+export function otherConflictCandidates(live: readonly CalendarListEntry[]) {
+  const recommended = new Set(recommendCalendarRoles(live).conflict.map(entry => entry.id));
+  return live.filter(entry => !entry.primary && recommended.has(entry.id)).map(entry => entry.summary);
 }

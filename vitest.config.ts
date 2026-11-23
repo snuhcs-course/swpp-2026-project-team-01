@@ -16,7 +16,7 @@ export default defineConfig({
         test: {
           name: "unit",
           environment: "node",
-          include: ["{agent,apps,cli,lib}/**/*.test.{ts,tsx}"],
+          include: ["{agent,apps,cli,evals,lib}/**/*.test.{ts,tsx}"],
         },
       },
       {

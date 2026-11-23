@@ -1,7 +1,7 @@
 import { randomUUID } from "node:crypto";
 import { z } from "zod";
 import { bookingJoinUrl, type BookingFailure, type BookingReceipt, type BookingState, type BookingStatusView } from "../contracts/booking";
-import type { LinkPlan, RequestDetails, RequestState } from "../contracts/request";
+import { type LinkPlan, MAX_PROPOSAL_TIMES, type ProposalTime, type RequestDetails, type RequestState } from "../contracts/request";
 import { isCalendarDate, MAX_DECLINED_DATES, withDeclinedDates } from "../contracts/declined-dates";
 import { type ConfirmedSettings, isValidTimeZone } from "../contracts/setup";
 import { type NoticeDependencies, enqueueChangeDropped, enqueueConfirmations, enqueueStatusNotice, noticeDependenciesFromEnvironment } from "./booking-notices";
@@ -28,7 +28,8 @@ import { type TokenKey, tokenKeyFromEnvironment } from "./token-encryption";
 // and 11).
 //
 // request.approve records the host's approval of the exact current, agreed
-// version and reserves a booking under the request lock and the per-host
+// version (for a version of several times, of the one the host picked, which
+// first becomes its own agreed version: multiple-candidate-times) and reserves a booking under the request lock and the per-host
 // advisory lock, then publishes the `booking` job. The job:
 //   1. revalidates a reserved booking under both locks, on its own connection:
 //      the request is still booking and unexpired, the approval and agreement
@@ -107,6 +108,8 @@ export async function lockHostRequest(tx: Transaction, actor: Actor, requestId: 
 type LatestProposal = {
   readonly id: string;
   readonly version: number;
+  readonly evaluation_id: string;
+  readonly candidate_id: string;
   readonly start_at: Date;
   readonly end_at: Date;
   readonly details: {
@@ -114,13 +117,15 @@ type LatestProposal = {
     readonly location: string | null;
     readonly linkPlan: LinkPlan | null;
     readonly durationMinutes: number;
+    readonly times?: readonly ProposalTime[];
+    readonly pickedFrom?: { readonly version: number; readonly option: number };
   };
   readonly agreed: boolean;
 };
 
 export async function latestProposalOf(tx: Transaction | Database, requestId: string) {
   const [row] = await tx<LatestProposal[]>`
-    select p.id, p.version, p.start_at, p.end_at, p.details,
+    select p.id, p.version, p.evaluation_id, p.candidate_id, p.start_at, p.end_at, p.details,
            exists (select 1 from app.agreements a where a.proposal_id = p.id) as agreed
     from app.proposals p
     where p.request_id = ${requestId}
@@ -140,7 +145,14 @@ async function settingsOf(tx: Transaction, hostAccountId: string) {
 // ---------------------------------------------------------------------------
 // request.approve
 
-const approveInput = z.object({ version: z.number().int().min(1) }).strict();
+export const approveInput = z
+  .object({
+    version: z.number().int().min(1),
+    // For a proposal of several times, the 1-based number of the time the host
+    // books (multiple-candidate-times). A proposal of one time needs none.
+    option: z.number().int().min(1).max(MAX_PROPOSAL_TIMES).optional(),
+  })
+  .strict();
 
 export type ApproveResult = {
   readonly bookingId: string;
@@ -149,7 +161,83 @@ export type ApproveResult = {
   readonly repeated: boolean;
 };
 
-export const approveCommand: CommandDefinition<z.infer<typeof approveInput>, ApproveResult> = {
+// A version names a booking when it is the booked version or the version of
+// several times the host picked it from.
+function namesVersion(row: { readonly version: number; readonly picked_from: number | null }, version: number) {
+  return row.version === version || row.picked_from === version;
+}
+
+// The host picked one time of a proposal of several (multiple-candidate-times):
+// that time is read again on the host's calendars, the way agreement read every
+// time, and, if it still fits, becomes the next version on its own, carrying
+// the guest's agreement, since the guest agreed to it as one of those times.
+async function pickTime(
+  tx: Transaction,
+  loadEvaluation: () => EvaluationDependencies,
+  requestId: string,
+  revision: number,
+  retryKey: string,
+  latest: LatestProposal,
+  option: number | undefined,
+  now: Date,
+) {
+  const times = latest.details.times ?? [];
+  if (times.length < 2) {
+    if (option !== undefined && option !== 1) throw new CommandError("invalid_input");
+    return latest;
+  }
+  if (option === undefined) throw new CommandError("invalid_input", { reason: "time_choice_required" });
+  const time = times[option - 1];
+  if (!time) throw new CommandError("invalid_input");
+  if (Date.parse(time.start) <= now.getTime()) throw new CommandError("invalid_input", { reason: "start_passed" });
+
+  const check = await checkInterval(
+    tx,
+    loadEvaluation(),
+    requestId,
+    { end: new Date(time.end), start: new Date(time.start) },
+    { place: time.mode === "in_person" ? (time.location ?? null) : null, requesterCalendar: false },
+  );
+  // As at agreement, a provider failure does not block: booking revalidation
+  // still checks the interval before any event is written.
+  if (!check.ok && check.problem !== "unavailable") throw new CommandError("invalid_input", { reason: "time_unavailable" });
+
+  const { times: _times, ...rest } = latest.details;
+  const details = {
+    ...rest,
+    end: time.end,
+    linkPlan: time.linkPlan,
+    location: time.location,
+    mode: time.mode,
+    pickedFrom: { option, version: latest.version },
+    start: time.start,
+  };
+  const [picked] = await tx<{ id: string }[]>`
+    insert into app.proposals (request_id, version, evaluation_id, candidate_id, start_at, end_at, details)
+    values (${requestId}, ${latest.version + 1}, ${latest.evaluation_id}, ${time.candidateId}, ${time.start}, ${time.end},
+            ${tx.json(details as unknown as Parameters<typeof tx.json>[0])})
+    returning id
+  `;
+  await tx`
+    insert into app.agreements (proposal_id, request_revision, retry_key)
+    values (${picked!.id}, ${revision}, ${`pick:${retryKey}`.slice(0, 200)})
+  `;
+  return {
+    ...latest,
+    agreed: true,
+    candidate_id: time.candidateId,
+    details,
+    end_at: new Date(time.end),
+    id: picked!.id,
+    start_at: new Date(time.start),
+    version: latest.version + 1,
+  };
+}
+
+export function approveCommandWith(
+  loadEvaluation: () => EvaluationDependencies = evaluationDependenciesFromEnvironment,
+): CommandDefinition<z.infer<typeof approveInput>, ApproveResult> {
+  return {
   input: approveInput,
   operation: APPROVE_OPERATION,
   async run(tx, context) {
@@ -160,33 +248,34 @@ export const approveCommand: CommandDefinition<z.infer<typeof approveInput>, App
     // retry key, observes the live booking instead of making another (AC-06).
     // A confirmed booking of an earlier version is a change after booking
     // (post-booking-changes design 5): it stands while the change is booked.
-    const lives = await tx<{ booking_id: string; state: BookingState; version: number; calendar_id: string; event_id: string }[]>`
-      select b.id as booking_id, b.state, p.version, b.calendar_id, b.event_id
+    const lives = await tx<{ booking_id: string; state: BookingState; version: number; picked_from: number | null; calendar_id: string; event_id: string }[]>`
+      select b.id as booking_id, b.state, p.version, (p.details -> 'pickedFrom' ->> 'version')::int as picked_from, b.calendar_id, b.event_id
       from app.bookings b join app.proposals p on p.id = b.proposal_id
       where b.request_id = ${request.id} and b.state in ('reserved', 'dispatching', 'confirmed')
     `;
-    const standing = lives.find((row) => row.state === "confirmed" && row.version !== context.input.version) ?? null;
+    const standing = lives.find((row) => row.state === "confirmed" && !namesVersion(row, context.input.version)) ?? null;
     const live = lives.find((row) => row !== standing) ?? null;
     if (live) {
-      if (live.version !== context.input.version) throw new CommandError("stale_revision", { reason: "proposal_superseded" });
+      if (!namesVersion(live, context.input.version)) throw new CommandError("stale_revision", { reason: "proposal_superseded" });
       return { bookingId: live.booking_id, repeated: true, revision: request.revision, state: live.state };
     }
 
     if (!request.open) throw new CommandError("request_closed");
     assertRevision(request.revision, context.expectedRevision);
 
-    const latest = await latestProposalOf(tx, request.id);
-    if (!latest || latest.version !== context.input.version) {
+    const current = await latestProposalOf(tx, request.id);
+    if (!current || current.version !== context.input.version) {
       throw new CommandError("stale_revision", { reason: "proposal_superseded" });
     }
     // Only an agreed version awaiting the host: agreement is the requester's.
-    if (request.state !== "awaiting_host_approval" || !latest.agreed) throw new CommandError("stale_revision");
-
-    const [clock] = await tx<{ now: Date }[]>`select clock_timestamp() as now`;
-    if (latest.start_at.getTime() <= clock!.now.getTime()) throw new CommandError("invalid_input", { reason: "start_passed" });
+    if (request.state !== "awaiting_host_approval" || !current.agreed) throw new CommandError("stale_revision");
 
     const settings = await settingsOf(tx, request.host_account_id);
     if (!settings?.bookingCalendar?.id) throw new CommandError("unavailable_configuration");
+
+    const [clock] = await tx<{ now: Date }[]>`select clock_timestamp() as now`;
+    const latest = await pickTime(tx, loadEvaluation, request.id, request.revision, context.retryKey, current, context.input.option, clock!.now);
+    if (latest.start_at.getTime() <= clock!.now.getTime()) throw new CommandError("invalid_input", { reason: "start_passed" });
 
     const [approval] = await tx<{ id: string }[]>`
       insert into app.approvals (request_id, proposal_id, host_account_id, request_revision, retry_key)
@@ -221,7 +310,10 @@ export const approveCommand: CommandDefinition<z.infer<typeof approveInput>, App
 
     return { bookingId, repeated: false, revision: request.revision + 1, state: "reserved" };
   },
-};
+  };
+}
+
+export const approveCommand = approveCommandWith();
 
 // ---------------------------------------------------------------------------
 // request.decline
@@ -792,8 +884,9 @@ export function createBookingHandler(load: () => BookingDependencies = bookingDe
   };
 }
 
-// The 15-minute pending notice (D2): sent once, only while the booking is still
-// dispatching.
+// The 15-minute pending notice (D2): sent once to the guest, only while the
+// booking is still dispatching. The host gets none (#173): booking_confirmed
+// or booking_failed follows once the write resolves.
 export function createBookingPendingHandler(load: () => NoticeDependencies = noticeDependenciesFromEnvironment): JobHandler {
   return async (tx: Transaction, job: ClaimedJob) => {
     const bookingId = typeof job.payload.bookingId === "string" ? job.payload.bookingId : null;
@@ -805,8 +898,6 @@ export function createBookingPendingHandler(load: () => NoticeDependencies = not
       where b.id = ${bookingId}
     `;
     if (booking?.state !== "dispatching") return { sent: false };
-
-    await enqueueHostNotice(tx, booking.request_id, { bookingId, kind: "booking_pending" });
 
     await enqueueStatusNotice(tx, load(), booking.request_id, {
       bookingId,

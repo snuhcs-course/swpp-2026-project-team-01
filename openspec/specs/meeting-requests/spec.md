@@ -25,7 +25,7 @@ Ready public hosts SHALL accept requests without requester signup. The service S
 - **THEN** the requester can explicitly select a candidate, review the resulting exact proposal, and separately confirm agreement before host review
 
 ### Requirement: Protected request continuation
-The identifier in `/booking/[bookingId]` SHALL be a server-generated random UUID and SHALL be the requester's only credential for that request: holding the link authorizes exactly that request, with no separate token, cookie exchange or URL fragment. The service SHALL look the identifier up only by its hash, SHALL NOT derive it from any guessable value and SHALL keep it out of referrers, search indexes, shared calendar descriptions and full request logs. Any recoverable copy SHALL be kept only sealed with the application's encryption key and SHALL be opened only to email the link to the request's contact on creation or contact change, to resend it to the request's verified contact, to recover an exact creation retry, or to return the requester's own browser to the request after Google consent. A link SHALL expire within thirty days of request creation and SHALL lose mutation and OAuth authority on request closure, after which it SHALL permit only a minimal terminal status and confirmed-booking receipt read, excluding private discussion and historical provider context. A lost link SHALL be resent only to the request's previously verified contact.
+The identifier in `/booking/[bookingId]` SHALL be a server-generated random UUID and SHALL be the requester's only credential for that request: holding the link authorizes exactly that request, with no separate token, cookie exchange or URL fragment. The service SHALL look the identifier up only by its hash, SHALL NOT derive it from any guessable value and SHALL keep it out of referrers, search indexes, shared calendar descriptions and full request logs. Any recoverable copy SHALL be kept only sealed with the application's encryption key and SHALL be opened only to email the link to the request's contact on creation or contact change, to resend it to the request's verified contact, to recover an exact creation retry, or to return the requester's own browser to the request after Google consent. A link SHALL expire within thirty days of request creation and SHALL lose mutation and OAuth authority on request closure, after which it SHALL permit only a minimal terminal status and confirmed-booking receipt read, excluding private discussion and historical provider context, except that a booked request's link SHALL keep the requester's conversation with the assistant, so the requester can ask about, cancel or change the meeting on the web through the assistant's booking tools. A lost link SHALL be resent only to the request's previously verified contact.
 
 #### Scenario: Unknown or expired identifier
 - **WHEN** a booking link with an unknown, malformed or expired identifier is opened
@@ -36,8 +36,12 @@ The identifier in `/booking/[bookingId]` SHALL be a server-generated random UUID
 - **THEN** no booking link is sent
 
 #### Scenario: Final receipt after asynchronous booking
-- **WHEN** a valid unexpired booking link is opened after the request closes
-- **THEN** only its final status and confirmed booking receipt are readable, and mutation and new OAuth actions are rejected
+- **WHEN** a valid unexpired booking link is opened after the request was declined, withdrawn, expired or cancelled
+- **THEN** only its final status is readable, and mutation and new OAuth actions are rejected
+
+#### Scenario: Booked meeting keeps its conversation
+- **WHEN** a valid unexpired booking link is opened after the meeting was booked
+- **THEN** the page shows the confirmed receipt and the requester's conversation with an open composer, and the requester can ask the assistant to cancel or change the meeting there, while the request's other mutations and new OAuth actions are rejected
 
 #### Scenario: Database read without the key
 - **WHEN** someone reads the stored booking-link records without the application's encryption key
@@ -330,7 +334,11 @@ A proposal for an online meeting SHALL record its link plan as either a Google M
 
 ### Requirement: Optional sample request after host onboarding
 
-The service SHALL offer a newly onboarded host one optional request-review tutorial after the first successful setup save. The host SHALL be able to accept or skip it on the web or in their linked Telegram, iMessage, or WhatsApp chat.
+The service SHALL offer a newly onboarded host one optional request-review tutorial after the first successful setup save. The offer SHALL say in one line, before asking, that a pretend guest sends a sample request for the host to approve or change and that no real person is messaged, with the same meaning in English and Korean. The host SHALL be able to accept or skip it on the web or in their linked Telegram, iMessage, or WhatsApp chat.
+
+#### Scenario: The offer explains the tutorial
+- **WHEN** the first setup save offers the tutorial
+- **THEN** the offer says that a pretend guest sends a sample request, that the host tries approving or changing it, and that nobody real gets a message, then asks whether to try it
 
 #### Scenario: Practice reviewing a request
 
@@ -343,3 +351,237 @@ The service SHALL offer a newly onboarded host one optional request-review tutor
 - **WHEN** the host approves, declines, asks to change the sample, or asks to end the tutorial
 - **THEN** the tutorial ends and the sample disappears from the inbox
 - **AND** it creates no booking, sends no guest notification, and uses no request creation or meeting quota
+
+### Requirement: Request another host from the host's messenger
+A set-up host who sends another host's booking link or @handle in their linked messenger conversation SHALL be able to start a request to that host as their account, using the account's name, Google-verified address, host timezone and host conflict calendars without asking for them, or continue the account's open request with that host unless they ask for another meeting. The host's own link SHALL start nothing, and an unknown, unready or paused host SHALL get a neutral reply. The request's guest conversation SHALL be the host's linked conversation, and the request's guest notices SHALL arrive there. Nothing about the host's settings, calendars or other requests SHALL reach the other host.
+
+#### Scenario: Link starts a request
+- **WHEN** a linked host sends `findmeatime.com/dodo` or "Book a meeting with @dodo"
+- **THEN** a request to @dodo is created as the account, its host calendars count, and the host's next message reaches that request's discussion
+
+#### Scenario: Own link
+- **WHEN** a host sends their own booking link or handle
+- **THEN** no request is created and they are told it is their own link
+
+#### Scenario: Existing request continues
+- **WHEN** the account already has an open request with that host and does not ask for another meeting
+- **THEN** that request continues and no second request is created
+
+### Requirement: One conversation routes by context
+In a host conversation that also holds the host's sent requests, a message SHALL go to the discussion the host binding has selected, without a picker. `request <ref>` SHALL select a sent request bound to that conversation; a message saying the sender is the host SHALL select setup; another host's booking link or @handle SHALL reach the host role; a message naming another such request SHALL select it, and while a received request is selected only its reference SHALL. A host notice SHALL select its received request and a guest notice SHALL select its sent request, except during the host tutorial. A reference SHALL resolve only requests the account received or sent bound to that conversation.
+
+#### Scenario: Notice moves the conversation
+- **WHEN** a guest notice about a sent request arrives after the host was talking about setup
+- **THEN** the host's next plain message goes to that sent request
+
+#### Scenario: Another host's request
+- **WHEN** the host sends `request <ref>` for a request that is neither theirs nor bound to their conversation
+- **THEN** nothing is selected for it and nothing reaches that request
+
+### Requirement: Received and sent requests listed apart
+When the host asks about their requests in conversation, the service SHALL list the requests they received and the requests they sent to other hosts apart, each by person, purpose and status.
+
+#### Scenario: Both kinds open
+- **WHEN** a host with a received and a sent request asks what meetings they have
+- **THEN** the list tool returns both, received and sent apart
+
+### Requirement: A guest-host's updates in their host conversation
+A guest whose request is linked to their host account SHALL be able to choose, with the host settings card, that the request's notices and replies use their linked host conversation, and to turn it off again. The choice SHALL be offered only while the account has a linked messenger.
+
+#### Scenario: Opt in
+- **WHEN** the guest-host chooses **Updates in your host conversation**
+- **THEN** the request is bound to their host conversation, its notices arrive there, and `request <ref>` there resolves it
+
+### Requirement: Agreement notice in the guest's linked chat
+When a guest with an active iMessage, WhatsApp or Telegram binding agrees to a proposal, and when a guest links such a chat while their agreement waits for the host's approval, the service SHALL send that chat one English message of what the guest sent: the people, the purpose, the date and time with the guest's timezone named, the duration, and online or the place. It SHALL say the request waits for the host's approval and is not booked, or, for a change to a booked meeting, that the booked meeting stands until then, and SHALL NOT contain the booking link. Each agreed version SHALL send at most one such message per binding, and a version the guest reopened or the host decided before it was sent SHALL send none. WhatsApp's 24-hour window rule SHALL apply as for every guest notice.
+
+#### Scenario: Linked guest agrees
+- **WHEN** a guest with a linked iMessage agrees to the current proposal
+- **THEN** one message there lists the people, purpose, time with the zone, length and place or online, says it waits for the host's approval and is not booked, and has no booking link
+
+#### Scenario: Guest links after agreeing
+- **WHEN** a guest agrees and then links their WhatsApp from the waiting card
+- **THEN** that chat receives the same message once
+
+#### Scenario: Retried agreement notice
+- **WHEN** the notice job runs again for the same version and binding
+- **THEN** no second message is sent
+
+### Requirement: Guest composer availability
+The booking page composer SHALL be locked, saying the step above must be finished first, only before the fixed steps first hand the guest over to the assistant and only while one of those steps is open. The guest SHALL count as handed over once the Calendar step was settled, the request has a purpose, or the guest has written in the request's conversation, and SHALL stay handed over when the Calendar step reopens. A Calendar step that reopens after the handover SHALL appear where the thread is now, with the assistant's line saying it is open again and what to do, while the composer stays usable. A request that has ended while its page is open SHALL close the composer with the reason.
+
+#### Scenario: Before the handover
+- **WHEN** an identified guest opens the booking page with the Calendar step not yet settled and has not written to the assistant
+- **THEN** the composer is locked and says to finish the step above
+
+#### Scenario: Calendar step reopens after the handover
+- **WHEN** a guest who has been writing to the assistant signs in with Google again and grants Calendar, or turns off manual availability
+- **THEN** the Calendar card opens at the end of the thread under the assistant's line about it, and the composer stays usable
+
+#### Scenario: No step to finish
+- **WHEN** no fixed step is open
+- **THEN** the composer is not locked
+
+#### Scenario: Request ended on an open page
+- **WHEN** the request reaches its deadline while its booking page is open
+- **THEN** the composer is closed and says the request expired
+
+### Requirement: One default meeting length
+The service SHALL use one default meeting length of 60 minutes wherever no one has given a length: the host setup starter default for meeting length, the host's offer on the guest's web page when the host's settings hold no length, the tutorial's sample request, and the starting value of the host's change form when neither the current proposal nor the request has a length. A length the host saved, a length inferred from the host's calendars, and a length a guest or host stated SHALL take precedence over the default, and the default SHALL NOT rewrite a host's confirmed settings.
+
+#### Scenario: Starter default for a sparse calendar
+- **WHEN** a host's calendar scan counted fewer than 5 meetings
+- **THEN** the meeting length suggestion is 60 minutes, labeled as a starter default
+
+#### Scenario: Saved length kept
+- **WHEN** a host confirmed a 30-minute meeting length before the default changed
+- **THEN** their requests and offer keep 30 minutes
+
+#### Scenario: Sample request
+- **WHEN** the host accepts the request-review tutorial
+- **THEN** the sample request asks for a 60-minute meeting
+
+### Requirement: Signed-in account as a guest
+A signed-in, active account that opens another host's booking link SHALL be able to start a guest request without creating another account or typing its contact details: **Continue as {name}** SHALL identify the request with the account's display name and its Google-verified sign-in address as the confirmed contact, and SHALL link the request to that account. Identification by account SHALL require a valid account session that is not the request's host, and SHALL grant the session no authority over the request beyond that identification; the booking identifier SHALL remain the request's only credential. When the account already has an open, linked request with that host and a live private link, the booking link SHALL offer to continue it. The guest page of a request linked to the signed-in account SHALL link back to `/app`, and neither role's state SHALL change by moving between them.
+
+#### Scenario: Continue as the account
+- **WHEN** a signed-in host opens another host's booking link and chooses **Continue as {name}**
+- **THEN** the request is identified with the account's name and verified address, linked to the account, and opens on its guest page, and no new account or sign-in is created
+
+#### Scenario: Request's own host
+- **WHEN** identification by account is attempted for a request whose host is the signed-in account
+- **THEN** it is refused and the request stays a draft
+
+#### Scenario: No session
+- **WHEN** identification by account is attempted without a valid account session
+- **THEN** it is refused and the request stays a draft
+
+#### Scenario: Resume an open request
+- **WHEN** a signed-in host with an open, linked request to another host opens that host's booking link
+- **THEN** the landing offers **Continue your request**, which opens that request's guest page
+
+#### Scenario: Return to the workspace
+- **WHEN** the signed-in account opens the guest page of its linked request and follows **Back to your workspace**
+- **THEN** `/app` shows its own setup and request review unchanged, and the sent request appears in Requests
+
+#### Scenario: Another account's request
+- **WHEN** a signed-in account opens a booking link it holds for a request that is not linked to it
+- **THEN** the guest page works under the link as for any guest and shows no workspace link
+
+### Requirement: Guest request tools state what the request allows
+The guest assistant's request tools SHALL give the current local time in the requester's timezone and, for a booked meeting, whether it is upcoming, started or ended. Their status and next-step texts SHALL name only the decisions the request's current state accepts: reopening an agreement only while the request waits for the host's approval, cancelling or changing a booked meeting only before it starts, no decision while a first approved meeting is being booked or once the request is closed, and, while an approved change to a booked meeting is being booked, no change to it but cancelling the booked meeting before it starts or dropping the change. No tool result SHALL tell the guest to contact the host directly.
+
+#### Scenario: Cancelling a meeting that has started
+- **WHEN** a guest asks to cancel a booked meeting after its start
+- **THEN** the assistant says it can no longer be cancelled or changed here, does not ask whether to cancel it, and calls no cancel or change tool
+
+#### Scenario: Changing the time while the meeting is being booked
+- **WHEN** a guest asks to change the time after the host approved and before the meeting is booked
+- **THEN** the assistant calls no decision tool and says nothing changes until it is booked, after which it can be changed here
+
+#### Scenario: Cancelling a booked meeting while its change is being booked
+- **WHEN** a guest with a booked meeting asks to cancel it after the host approved a change and before the new version is booked
+- **THEN** the assistant asks once whether to cancel the booked meeting and, on a clear yes, calls cancel_booking
+
+### Requirement: Guest assistant answers within its scope
+The guest assistant SHALL take relative days such as next week or a weekday as days for an availability draft, also when moving a booked meeting. It SHALL still ask online or in person when the host offers either and the guest names only a place. It SHALL decline questions about the host as a person in one sentence and say what it can help with, and SHALL refuse a switch to the host's conversation or an approval as the host in one sentence, offering what the guest can do at this step without pointing them elsewhere to approve. For a place outside the host's areas it SHALL describe the host's places first, draft the other place only when the guest insists, say the host approves the place with the time, and apply it only when the guest confirms.
+
+#### Scenario: Moving a booked meeting to next week
+- **WHEN** a guest asks to move a booked meeting to next week
+- **THEN** the assistant reopens it for a change and drafts next Monday to Sunday as availability without asking which days
+
+#### Scenario: A place given instead of the form
+- **WHEN** the host offers online or in person and the guest answers with only a place
+- **THEN** the assistant asks online or in person and records no meeting form
+
+#### Scenario: Asking who the host is
+- **WHEN** a guest asks what the host is like
+- **THEN** the assistant declines in one sentence without describing the host and says what it can help with
+
+#### Scenario: Asking to approve as the host
+- **WHEN** a guest asks to switch to the host's conversation to approve
+- **THEN** the assistant says it cannot, offers to agree to or change the current proposal, and does not send the guest to the host's account
+
+#### Scenario: Insisting on a place outside the host's areas
+- **WHEN** a guest asks for a place the host does not list and then says again that they want it
+- **THEN** the first reply describes the host's places and drafts nothing, the second drafts the place and says the host approves it with the time, and nothing is applied until the guest confirms
+
+### Requirement: Assistant replacement suggestions keep pending changes
+A suggestion the host's assistant drafts while another suggestion is pending SHALL supersede it and SHALL keep each of its changes that the new suggestion does not change. A new meeting mode SHALL drop the pending place or meeting link that the mode does not use. A new place without a mode SHALL make the suggestion in person, dropping the pending meeting link, and a new meeting link without a mode SHALL make it online, dropping the pending place. A new place and meeting link without a mode SHALL keep the pending mode. The stored suggestion SHALL NOT pair a meeting mode with the place or meeting link of the other mode. A suggestion from the **Request changes** editor or the host's own agent SHALL replace the pending one as it is.
+
+#### Scenario: Keep the pending time
+- **WHEN** a suggestion moving the meeting to Wednesday 15:00 is pending and the host tells the assistant to make it in person at 강남역 and keep the time
+- **THEN** the pending suggestion is superseded and the new one holds Wednesday 15:00, in person, at 강남역
+
+#### Scenario: Change of mode
+- **WHEN** a pending suggestion holds an in-person place and the host tells the assistant to make the meeting online
+- **THEN** the new suggestion is online and holds no place
+
+#### Scenario: New place without a mode
+- **WHEN** a pending suggestion is online with a meeting link and the host tells the assistant to make it at 강남역
+- **THEN** the new suggestion is in person at 강남역 and holds no link
+
+#### Scenario: New link without a mode
+- **WHEN** a pending suggestion is in person at a place and the host gives the assistant a meeting link
+- **THEN** the new suggestion is online with that link and holds no place
+
+#### Scenario: Mode and the other mode's detail
+- **WHEN** a pending suggestion is online and the host's assistant drafts a place and a meeting link without a mode
+- **THEN** the new suggestion is online with that link and holds no place
+
+#### Scenario: Editor replaces
+- **WHEN** a suggestion is pending and the host submits **Request changes** with only a new duration
+- **THEN** the new suggestion holds only that duration
+
+### Requirement: Other dates named when declining
+A host declining a request SHALL be able to name up to 14 other dates that no longer work, in the decline confirmation that **Decline request** opens on the proposal review (offering dates from today in the host's time zone), after the reference of a typed `decline` command in their linked conversation, or in words to their assistant in that conversation. Each date SHALL be kept, once, as the whole local day in the host's time zone in the declined request's excluded times, which its revised request leaves out of every search; a day that has already ended SHALL NOT be kept. No reason SHALL be asked for, stored or passed on, and the decline SHALL refuse any input other than the dates. A decline that keeps a booked meeting SHALL store no dates.
+
+#### Scenario: Host names two more days
+- **WHEN** the host in Asia/Seoul declines and names 3 and 5 December
+- **THEN** the declined request's excluded times hold both days from 00:00 to 24:00 Asia/Seoul, and the guest's revised request offers no time on them and gives no reason
+
+#### Scenario: Typed command with dates
+- **WHEN** the host sends `decline K7Q2MX-3 2026-12-03 2026-12-05` from their linked conversation
+- **THEN** the request is declined with those two days kept, and the reply says the guest's next request leaves them out without saying why
+
+#### Scenario: A reason is never kept
+- **WHEN** the host writes "decline it, Dec 3 doesn't work either, I'm travelling"
+- **THEN** the assistant declines with 3 December as the only added input, and nothing about travelling is stored on the request
+
+#### Scenario: Too many or malformed dates
+- **WHEN** a decline names 15 dates, a date that does not exist, or an extra field
+- **THEN** nothing is declined and the input is refused
+
+### Requirement: Several candidate times in one agreement
+A requester SHALL be able to make one proposal version of up to three distinct candidate times from the current evaluation and agree to all of them at once, on the web, through the guest's assistant and through the requester's agent. Agreement SHALL read the host's conflict calendars again for every listed time, and a time that no longer fits SHALL record no agreement and offer newly evaluated times. Agreement SHALL mean that any listed time works for the requester; the request SHALL await host approval as for one time, and the requester's **Change** SHALL reopen it as for one time.
+
+#### Scenario: Guest offers three times
+- **WHEN** the requester ticks three current candidate times, offers them and agrees to the resulting proposal
+- **THEN** one proposal version lists the three times, the request awaits host approval, and the host is asked once
+
+#### Scenario: Fourth time
+- **WHEN** the requester tries to offer four times in one proposal
+- **THEN** the input is rejected and no proposal is created
+
+#### Scenario: One of the times became busy
+- **WHEN** one of the listed times is busy on the host's calendars when the requester agrees
+- **THEN** no agreement is recorded, the host is sent nothing, and new times are found
+
+### Requirement: Host books one of the agreed times
+For an agreed proposal of several times, the host's request view, messenger summary, messenger assistant and host agent tools SHALL show every time, numbered, and the host SHALL approve by naming one of them. Approval SHALL read the host's conflict calendars again for the chosen time; a time that no longer fits SHALL approve nothing and leave the other times available. A chosen time that fits SHALL become the next proposal version on its own, carrying the requester's agreement, and SHALL be approved and booked as a proposal of one time. An approval that names no time SHALL be rejected without change.
+
+#### Scenario: Host books the second time
+- **WHEN** the host presses **Book this time** on the second of three agreed times
+- **THEN** that time is checked, becomes the agreed current version, and is booked; the other times are not booked
+
+#### Scenario: Chosen time became busy
+- **WHEN** the host books a time that is now busy on their calendar
+- **THEN** nothing is approved, the host is told, and they can book another listed time or decline
+
+#### Scenario: Messenger approval without a time
+- **WHEN** the host approves a proposal of several times in the messenger without naming which
+- **THEN** nothing is approved and the reply lists the numbered times with a button for each where the channel has buttons
+
+#### Scenario: Repeated approval
+- **WHEN** the host's approval is repeated from another interface after one time was booked
+- **THEN** the existing booking is returned and no second time is booked

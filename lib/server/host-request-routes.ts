@@ -4,6 +4,7 @@ import { HOST_REQUEST_OPERATIONS } from "../contracts/host-request";
 import { type ChatRouteDependencies, chatDependenciesFromEnvironment, json } from "./chat-routes";
 import { runCommand } from "./commands";
 import { readHostStanding } from "./host-eligibility";
+import { guestEventsResponse } from "./requester-routes";
 import { hostRequestCommands, listHostRequests, readHostRequest } from "./host-requests";
 import { crossSiteRefusal } from "./same-origin";
 import { verifiedUserId } from "./supabase-auth";
@@ -14,9 +15,14 @@ import { listWorkspaceRequests } from "./workspace-requests";
 //   GET  /api/host/requests                          the inbox
 //   GET  /api/host/requests/{requestId}               the host projection
 //   POST /api/host/requests/{requestId}/commands      a card's command
+//   GET  /api/host/workspace-requests/{requestId}/conversation
+//                                                     a sent request's own
+//                                                     conversation, read only
 // Each authenticates the Supabase session and the host's eligibility itself;
 // another host's request, a draft and an unknown ID answer the same 404. No
-// route reads the requester's conversation: it is theirs alone (D6).
+// route reads the conversation of a request the host received: it is the
+// requester's alone (D6). The conversation route serves only a request the
+// signed-in account sent as its guest (guest-account-history D2).
 
 type Context = { readonly params: Promise<{ readonly requestId: string }> };
 
@@ -122,5 +128,35 @@ export function createHostRequestCommandHandler(load: () => ChatRouteDependencie
     return outcome.ok
       ? json({ request: view, result: outcome.result }, outcome.replayed ? 200 : 201)
       : json({ error: outcome.error, request: view }, COMMAND_STATUS[outcome.error.category]);
+  };
+}
+
+// GET /api/host/workspace-requests/{requestId}/conversation: the account's own
+// guest conversation of a request it sent, whatever its state, for as long as
+// the account exists (guest-account-history D2). Only a request matched to the
+// account by a verified Google subject or account session qualifies; any other
+// ID answers the same 404. The stream is read once, never followed, and the
+// conversation cannot be written to from here.
+export function createSentRequestConversationHandler(load: () => ChatRouteDependencies = chatDependenciesFromEnvironment) {
+  return async (request: Request, context: Context) => {
+    const deps = load();
+    const host = await hostOf(deps, request);
+    if (!host.hostAccountId) return host.refusal!;
+
+    const id = requestIdSchema.safeParse((await context.params).requestId);
+    if (!id.success) return unavailable();
+
+    const [match] = await deps.db<{ id: string }[]>`
+      select r.id
+      from app.requester_host_profiles p
+      join app.requests r on r.id = p.request_id
+      where p.request_id = ${id.data} and p.host_account_id = ${host.hostAccountId}
+        and r.host_account_id <> ${host.hostAccountId} and r.state <> 'draft'
+    `;
+    if (!match) return unavailable();
+
+    const url = new URL(request.url);
+    url.searchParams.delete("follow");
+    return guestEventsResponse(deps, { id: match.id, type: "requester_request" }, new Request(url, { signal: request.signal }));
   };
 }

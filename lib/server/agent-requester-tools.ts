@@ -22,7 +22,7 @@ import { cancelBookingCommand, changeBookingCommand } from "./booking-cancellati
 import type { CommandDefinition } from "./commands";
 import { readReadiness } from "./readiness";
 import { withdrawRequestCommand } from "./request-lifecycle";
-import { agreeCommand, allowTripCommand, chooseCandidateCommand, evaluateCommand } from "./request-proposals";
+import { agreeCommand, allowTripCommand, changeAgreementCommand, chooseCandidateCommand, evaluateCommand } from "./request-proposals";
 import { localPatchSchema, updateDetailsCommand } from "./request-reviews";
 import { readRequesterView } from "./requester-routes";
 import { isValidTimeZone } from "../contracts/timezone";
@@ -32,7 +32,8 @@ import { isValidTimeZone } from "../contracts/timezone";
 // the grant reaches only its one request, in the requester projection without
 // the conversation, the thread or any link. Commands are the booking page's
 // own, as the request's requester. With request:decide the agent may agree to
-// the current proposal and withdraw (D10); the host still approves. After closure only get_request remains, with
+// the current proposal, reopen that agreement until the host approves (the
+// web's Change, #331) and withdraw (D10); the host still approves. After closure only get_request remains, with
 // the closed status and the receipt (D11).
 
 export const FIND_TIMES_WAIT_MS = 15_000;
@@ -72,6 +73,16 @@ async function projection(context: AgentToolContext, requestId: string) {
   return view ? { ...agentRequesterProjection(view, requestId), updates: chatStatus(await readRequesterImessageStatus(context.deps.db, options.tokenKeys, requestId, options.lineNumber, options.whatsappNumber, options.telegramUsername)) } : null;
 }
 
+// Whether the request now awaits the host's approval; a failed read keeps the
+// command's own refusal.
+async function awaitingApproval(context: AgentToolContext, requestId: string) {
+  try {
+    return (await readRequesterView(context.deps.db, requestId))?.request.state === "awaiting_host_approval";
+  } catch {
+    return false;
+  }
+}
+
 // A command of any input, as a tool holds it; the tool's own schema checked the input.
 function loose<Input, Result>(command: CommandDefinition<Input, Result>) {
   return command as unknown as CommandDefinition<unknown, unknown>;
@@ -94,6 +105,13 @@ function requestCommandTool(spec: {
   // Whether it may run on a closed request (a booked meeting's cancellation).
   readonly afterClosure?: "booked";
   readonly afterCommand?: (context: AgentToolContext, result: unknown) => Promise<unknown>;
+  // What the agent tells the person now, by the command's outcome, so it never
+  // reports an agreement or a reopening that did not happen (#381).
+  readonly next?: (result: unknown) => string | undefined;
+  // The refusal's next step while the request awaits the host's approval.
+  readonly whileAwaitingApproval?: string;
+  // The next step of a stale_revision refusal, in place of the generic one.
+  readonly staleNextAction?: string;
 }): AgentTool {
   const commandInput = spec.commandInput;
 
@@ -121,14 +139,58 @@ function requestCommandTool(spec: {
         resourceId: requestId,
         retryKey: args.retryKey,
       });
-      if (!outcome.ok) return commandError(outcome.error);
+      if (!outcome.ok) {
+        const refusal = commandError(outcome.error);
+        if (spec.whileAwaitingApproval && !refusal.ok && outcome.error.category === "invalid_input" && !outcome.error.reason && (await awaitingApproval(context, requestId))) {
+          return { ...refusal, message: "The request waits for the host's approval, so it cannot change now.", nextAction: spec.whileAwaitingApproval };
+        }
+        if (spec.staleNextAction && !refusal.ok && outcome.error.category === "stale_revision" && !outcome.error.reason) return { ...refusal, nextAction: spec.staleNextAction };
+        return refusal;
+      }
       const extra = spec.afterCommand ? await spec.afterCommand(context, outcome.result) : undefined;
-      return ok({ ...(spec.name === "agree_to_proposal" && typeof outcome.result === "object" && outcome.result !== null && "outcome" in outcome.result && outcome.result.outcome === "agreed" ? { next: "The person agreed to this time. Tell them the host must still approve, nothing is booked yet, and the outcome arrives by email. They can ask you to check again with get_request." } : {}), outcome: outcome.result, ...(extra === undefined ? {} : { evaluation: extra }), request: await projection(context, requestId) });
+      const next = spec.next?.(outcome.result);
+      return ok({ ...(next ? { next } : {}), outcome: outcome.result, ...(extra === undefined ? {} : { evaluation: extra }), request: await projection(context, requestId) });
     },
     scope: spec.scope,
     title: spec.title,
   };
 }
+
+function outcomeOf(result: unknown) {
+  return typeof result === "object" && result !== null && "outcome" in result ? (result as { outcome: unknown; version?: unknown }) : null;
+}
+
+const REOPEN_FIRST =
+  "Ask whether the person wants to change the agreed time or details. If they do, call change_agreement first, then retry; otherwise tell them the request still waits for the host's approval.";
+
+export const AGREED_NEXT =
+  "The person agreed to this time. Tell them the host must still approve, nothing is booked yet, and the outcome arrives by email. They can ask you to check again with get_request.";
+
+export function chooseNext(result: unknown) {
+  const chosen = outcomeOf(result);
+  if (chosen?.outcome === "proposed") {
+    return `Proposal version ${String(chosen.version)} is chosen, but nothing is agreed and the host has not been asked yet. Show the person this exact time and details; only when they accept it, call agree_to_proposal with version ${String(chosen.version)}. Until then do not say it is agreed or waiting for the host.`;
+  }
+  if (chosen?.outcome === "needs_meeting_link") {
+    return "Nothing was chosen: this online time needs a meeting link plan first. Ask the person for their meeting link and set it with update_request_details, then find times and choose again. Do not say a time is chosen or agreed.";
+  }
+  return undefined;
+}
+
+export function agreeNext(result: unknown) {
+  const agreed = outcomeOf(result);
+  if (agreed?.outcome === "agreed") return AGREED_NEXT;
+  if (agreed?.outcome === "time_unavailable") {
+    const search = (agreed as { evaluationId?: unknown }).evaluationId
+      ? "read get_request for the new times once they are found, and offer them"
+      : "no new search could start now, so call find_times again in a little while and offer the times it finds";
+    return `Nothing was agreed: this time is no longer free on the host's calendar, and the host was not asked. Tell the person so; ${search}. Do not say it is agreed or waiting for the host.`;
+  }
+  return undefined;
+}
+
+export const CHANGE_AGREEMENT_NEXT =
+  "The agreement is reopened: the request is back to choosing a time and the host can no longer approve the earlier time. Change the details with update_request_details or find times with find_times, choose one, and agree again only when the person accepts that exact new time. Tell the person the earlier time is no longer waiting for the host.";
 
 async function waitForTimes(context: AgentToolContext, result: unknown) {
   const evaluationId = (result as { evaluationId?: string } | null)?.evaluationId;
@@ -230,12 +292,13 @@ export const REQUESTER_TOOLS: readonly AgentTool[] = [
   },
   requestCommandTool({
     description:
-      "Change the meeting details (purpose, durationMinutes, mode, location or meetingLink, windows in local time, travelMode). input.timezone names the zone the windows are in. Changing details after a proposal returns the request to choosing a time.",
+      "Change the meeting details (purpose, durationMinutes, mode, location or meetingLink, windows in local time, travelMode). input.timezone names the zone the windows are in. Changing details after a proposal returns the request to choosing a time. While the request waits for the host's approval, call change_agreement first, only when the person asked to change it.",
     name: "update_request_details",
     command: (context) => loose(updateDetailsCommand({ origin: context.deps.origin, tokenKey: context.deps.tokenKey() })),
     commandInput: z.object({ details: localPatchSchema.omit({ contactEmail: true, contactName: true }), timezone: z.string().min(1).max(64).refine(isValidTimeZone, "Not an IANA timezone.") }).strict(),
     scope: "request:write",
     title: "Update the request details",
+    whileAwaitingApproval: REOPEN_FIRST,
   }),
   requestCommandTool({
     afterCommand: waitForTimes,
@@ -244,6 +307,7 @@ export const REQUESTER_TOOLS: readonly AgentTool[] = [
     command: () => loose(evaluateCommand),
     commandInput: null,
     scope: "request:write",
+    whileAwaitingApproval: REOPEN_FIRST,
     title: "Find times",
   }),
   requestCommandTool({
@@ -256,12 +320,15 @@ export const REQUESTER_TOOLS: readonly AgentTool[] = [
     title: "Allow a trip",
   }),
   requestCommandTool({
-    description: "Choose one candidate time (evaluationId and candidateId from get_request) within what the person allowed. It becomes the current proposal version for agreement.",
+    description:
+      "Choose one candidate time (evaluationId and candidateId from get_request) within what the person allowed. It becomes the current proposal version for agreement; choosing is not agreeing, and the host is not asked until agree_to_proposal records the agreement. When the person says two or three of the times all work, pass them as candidateIds instead; after agreement the host books one.",
     name: "choose_time",
     command: () => loose(chooseCandidateCommand),
     commandInput: chooseCandidateCommand.input,
+    next: chooseNext,
     scope: "request:write",
     title: "Choose a time",
+    whileAwaitingApproval: REOPEN_FIRST,
   }),
   requestCommandTool({
     description:
@@ -269,8 +336,21 @@ export const REQUESTER_TOOLS: readonly AgentTool[] = [
     name: "agree_to_proposal",
     command: () => loose(agreeCommand()),
     commandInput: agreeCommand().input,
+    next: agreeNext,
     scope: "request:decide",
     title: "Agree to the proposal",
+  }),
+  requestCommandTool({
+    description:
+      "Reopen the agreed request, as Change on the booking page does, while it waits for the host's approval (state awaiting_host_approval), only when the person asked to change its time or details. It returns to choosing a time at a new revision: the host can no longer approve the earlier time, and a new time needs a new agreement. Afterwards update_request_details, find_times, choose_time and agree_to_proposal work as usual. Not after the host approved: a booked meeting is changed with change_booking.",
+    name: "change_agreement",
+    command: () => loose(changeAgreementCommand),
+    commandInput: null,
+    next: () => CHANGE_AGREEMENT_NEXT,
+    scope: "request:decide",
+    staleNextAction:
+      "Read get_request again. If it still waits for the host's approval, retry with its current revision as expectedRevision and a new retryKey. Otherwise there is nothing to reopen: tell the person what is current. While the host's approval is being booked nothing changes, and a booked meeting is changed with change_booking.",
+    title: "Change the agreement",
   }),
   requestCommandTool({
     description: "Withdraw the request for good. Only when the person asked to cancel it.",
