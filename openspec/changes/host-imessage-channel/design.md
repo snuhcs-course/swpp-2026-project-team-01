@@ -148,7 +148,7 @@ The host instructions gain one fragment: a message starting with `[iMessage]` ca
 | Proposal awaits approval | `request.agree` | the time in the host's timezone, duration, mode and place, the reference, and the exact `approve <ref>` and `decline <ref>` |
 | Booking confirmed | the booking job records the event | the confirmed time and "It's on your calendar." |
 | Booking not confirmed | the booking job fails | that the booking was not confirmed and to check `/app` |
-| Booking still pending | the 15-minute pending check finds it still dispatching | that it is taking longer than usual and to check `/app` |
+| Booking still pending | no longer sent (#173, 2026-11-23): the confirmation or failure follows | (`bookingSlow` still renders a notice queued before the change) |
 
 Each is keyed by the event (`notice:{kind}:{request}:{version or booking}`), so a retried transaction or job queues it once, and an awaiting-approval summary whose version is no longer the latest is skipped. The `/app` iMessage card shows the latest failed or uncertain message with its time ("A message to your iMessage could not be delivered. Continue here."), and the host's web review is unaffected: a delivery result never changes request or booking state, and a delivery retry cannot create a booking (FR-28).
 

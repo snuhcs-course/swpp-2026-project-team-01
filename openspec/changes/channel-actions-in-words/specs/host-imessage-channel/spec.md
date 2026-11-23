@@ -81,7 +81,7 @@ In the linked iMessage, WhatsApp or Telegram conversation, the assistant SHALL b
 - **THEN** nothing is switched and the assistant asks which one, naming each
 
 ### Requirement: Summaries and outcomes
-A host with an active binding SHALL receive in the linked conversation one summary per event when a proposal awaits approval (saying the host may approve or decline in their own words, with decision buttons where the channel has them) and when a booking is confirmed, not confirmed or still pending. A request's arrival SHALL NOT be announced: the guest is offered times first, and the awaiting-approval summary, the host's first message about the request, SHALL name the requester, the purpose and any earlier request it follows. Each summary SHALL be recorded in the transaction of the change it reports and frozen from that event's own records; a summary for a proposal version that is no longer the latest SHALL NOT be sent.
+A host with an active binding SHALL receive in the linked conversation one summary per event when a proposal awaits approval (saying the host may approve or decline in their own words, with decision buttons where the channel has them) and when a booking is confirmed or not confirmed. A booking still pending SHALL NOT be announced to the host: its confirmation or failure follows once the write resolves (#173). A request's arrival SHALL NOT be announced: the guest is offered times first, and the awaiting-approval summary, the host's first message about the request, SHALL name the requester, the purpose and any earlier request it follows. Each summary SHALL be recorded in the transaction of the change it reports and frozen from that event's own records; a summary for a proposal version that is no longer the latest SHALL NOT be sent.
 
 #### Scenario: Guest starts a request
 - **WHEN** a guest of a host with an active binding starts or revises a request
@@ -90,6 +90,10 @@ A host with an active binding SHALL receive in the linked conversation one summa
 #### Scenario: Proposal awaits approval
 - **WHEN** the requester agrees to a proposal of a host with an active binding
 - **THEN** one summary with the time, mode and place, saying the host may approve or decline in their own words and naming no command, is queued for the linked conversation
+
+#### Scenario: Booking still pending
+- **WHEN** a linked host's booking is still unconfirmed 15 minutes after dispatch
+- **THEN** the guest is told it is still in progress and nothing is sent to the host's linked conversation; the host's next summary is the booking's confirmation or failure once the write resolves
 
 ### Requirement: Setup over iMessage
 A linked host SHALL be able to enter the shared setup discussion with `setup` or in words and answer setup questions in plain text that update the same draft as the web workspace. Sign-in, Google consent and protected fields SHALL stay browser steps; Thyme SHALL send a link for connecting Google Calendar that returns the host to the conversation. Linking SHALL send a welcome by where the host stands: a ready host is told what Thyme can do, a host without a usable Calendar gets the Calendar link, and any other host gets the first setup question. Settings SHALL be saved only for the current settings review, by the host's clear words to the assistant or the exact `confirm <ref>` command, under the same checks as the web confirmation.
