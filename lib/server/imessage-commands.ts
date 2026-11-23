@@ -384,7 +384,13 @@ async function decide(
   const input = dates.length > 0 ? { excludedDates: dates } : {};
   const outcome = await run(deps, message, declineCommand(() => deps.notices), view.requestId, input, view.revision);
   if (!outcome.ok) return { requestId: view.requestId, text: decisionRefusal(deps, outcome.error.category, current, language) };
-  return { requestId: view.requestId, text: dates.length > 0 && outcome.result.state === "declined" ? texts.declinedWithDates(dates.length) : texts.declined };
+  return { requestId: view.requestId, text: declineText(texts, outcome.result) };
+}
+
+// The decline reply names the other dates only when the decline kept some.
+function declineText(texts: ReturnType<typeof channelReplies>, result: Record<string, unknown> | null) {
+  const kept = typeof result?.keptDates === "number" ? result.keptDates : 0;
+  return result?.state === "declined" && kept > 0 ? texts.declinedWithDates(kept) : texts.declined;
 }
 
 function decisionRefusal(deps: CommandDependencies, category: string, current: string | null, language: ChannelLanguage) {
@@ -501,7 +507,7 @@ async function savedDecisionReply(
     case "request.approve":
       return { requestId, text: saved.result?.repeated ? texts.alreadyApproved : texts.approved };
     case "request.decline":
-      return { requestId, text: texts.declined };
+      return { requestId, text: declineText(texts, saved.result) };
     case "request.share_changes":
       return { requestId, text: texts.shared };
     case "request.dismiss_changes":

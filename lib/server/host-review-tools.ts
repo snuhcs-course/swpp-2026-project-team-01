@@ -413,8 +413,8 @@ export async function declineRequestForTool(
       : {
           declined: true as const,
           message:
-            dates.length > 0
-              ? `Declined. The requester is told; nothing was booked. If they write again, their next request leaves out the ${dates.length} other date(s) the host named, and no reason is given.`
+            outcome.result.keptDates > 0
+              ? `Declined. The requester is told; nothing was booked. If they write again, their next request leaves out the ${outcome.result.keptDates} other date(s) the host named, and no reason is given.`
               : "Declined. The requester is told; nothing was booked.",
         };
   }

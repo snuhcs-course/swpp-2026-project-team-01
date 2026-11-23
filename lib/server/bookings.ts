@@ -226,7 +226,10 @@ export const approveCommand: CommandDefinition<z.infer<typeof approveInput>, App
 // ---------------------------------------------------------------------------
 // request.decline
 
-export type DeclineResult = { readonly state: "declined" | "booked"; readonly revision: number };
+// keptDates counts the named days the decline added to the request's excluded
+// times (an ended or already-listed day is not counted), so a retried
+// receipt can answer as the first attempt did.
+export type DeclineResult = { readonly state: "declined" | "booked"; readonly revision: number; readonly keptDates: number };
 
 // The other dates that no longer work, beside the declined time
 // (decline-with-unavailable-dates, #58): at most 14 dates, YYYY-MM-DD in the
@@ -243,18 +246,22 @@ export const declineInput = z.object({ excludedDates: declinedDatesSchema }).str
 export type DeclineInput = z.infer<typeof declineInput>;
 
 // Adds the named dates, as whole days in the host's zone, to a request's
-// excluded times, which its revised request leaves out of every search.
+// excluded times, which its revised request leaves out of every search, and
+// returns how many days it added.
 async function excludeDeclinedDates(tx: Transaction, request: HostLockedRequest, dates: readonly string[]) {
-  if (dates.length === 0) return;
+  if (dates.length === 0) return 0;
   const [row] = await tx<{ timezone: string | null }[]>`
     select settings->>'timezone' as timezone from app.host_settings where host_account_id = ${request.host_account_id}
   `;
   const zone = row?.timezone && isValidTimeZone(row.timezone) ? row.timezone : "UTC";
   const excludedTimes = withDeclinedDates(request.details.excludedTimes, dates, zone);
+  const added = excludedTimes.length - (request.details.excludedTimes?.length ?? 0);
+  if (added === 0) return 0;
   await tx`
     update app.requests set details = details || ${tx.json({ excludedTimes } as unknown as Parameters<typeof tx.json>[0])}
     where id = ${request.id}
   `;
+  return added;
 }
 
 export function declineCommand(loadNotices: () => NoticeDependencies = noticeDependenciesFromEnvironment): CommandDefinition<
@@ -275,16 +282,16 @@ export function declineCommand(loadNotices: () => NoticeDependencies = noticeDep
       if (await standingBookingOf(tx, request.id)) {
         await dropChange(tx, request.id, "declined");
         await enqueueChangeDropped(tx, loadNotices(), request.id, "declined");
-        return { revision: request.revision + 1, state: "booked" };
+        return { keptDates: 0, revision: request.revision + 1, state: "booked" };
       }
 
       if (request.state === "booking") await cancelReservedBooking(tx, request.id, "declined");
 
       if (!(await closeRequest(tx, request.id, "declined", { fromBooking: true }))) throw new CommandError("request_closed");
-      await excludeDeclinedDates(tx, request, [...new Set(input.excludedDates ?? [])]);
+      const keptDates = await excludeDeclinedDates(tx, request, [...new Set(input.excludedDates ?? [])]);
       await enqueueStatusNotice(tx, loadNotices(), request.id, { kind: "status_declined" });
 
-      return { revision: request.revision + 1, state: "declined" };
+      return { keptDates, revision: request.revision + 1, state: "declined" };
     },
   };
 }
