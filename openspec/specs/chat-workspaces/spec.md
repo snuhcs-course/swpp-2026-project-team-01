@@ -6,27 +6,27 @@ Provide a conversation-first workspace that keeps scheduling progress and decisi
 ## Requirements
 
 ### Requirement: Conversation-first entry
-The website SHALL open incomplete host setup and request management on the relevant conversation, with the current next action and a message composer available without navigating through structured forms. A ready host who opens `/app` without a specific request or workspace view SHALL see the calendar Dashboard. Navigation SHALL remain available through a compact, keyboard-operable control. Structured controls SHALL remain reachable from a secondary, clearly labeled surface. A protected request opened without valid authority SHALL show only the generic unavailable view with the link resend control that the meeting-request contract requires.
+The website SHALL open requester request management on the relevant conversation, with the current next action and a message composer available without navigating through structured forms. The host's web workspace SHALL have no conversation: host setup and host request discussion happen in the host's linked messenger, and an incomplete host SHALL be led to link one first. A ready host who opens `/app` without a specific request or workspace view SHALL see the calendar Dashboard. Navigation SHALL remain available through a compact, keyboard-operable control. Structured controls SHALL remain reachable from a secondary, clearly labeled surface. A protected request opened without valid authority SHALL show only the generic unavailable view with the link resend control that the meeting-request contract requires.
 
 #### Scenario: Resume host setup
-- **WHEN** an active host returns to incomplete setup
-- **THEN** the current conversation, server-derived progress, and next action appear first, the composer remains reachable in the initial phone viewport, and manual settings remain accessible
+- **WHEN** an active host returns to incomplete setup on the web
+- **THEN** the web leads them to link a messenger, or, when one is linked, to finish setup with Thyme there, with no setup questions or composer on the web
 
 #### Scenario: Return after setup
 - **WHEN** a ready host signs in and opens `/app` without a request or a workspace view
 - **THEN** the calendar Dashboard appears, with the existing Settings dialog and workspace menu reachable
 
 #### Scenario: Resume request
-- **WHEN** a requester or host opens an active meeting request
+- **WHEN** a requester opens an active meeting request
 - **THEN** the permitted conversation and current request status appear first, with structured editing in a secondary surface
 
 #### Scenario: Browse host requests
 - **WHEN** a host opens the meeting inbox
-- **THEN** request conversations appear as selectable artifacts in the conversation workspace without a permanent sidebar
+- **THEN** received and sent requests appear as selectable cards without a permanent sidebar, and a received request expands to its details and permitted decisions with no conversation
 
 #### Scenario: Switch host discussion visibility
-- **WHEN** a host reviews a request with shared and private discussions
-- **THEN** a labeled switch shows one discussion at a time and never exposes the private discussion to a requester
+- **WHEN** a host reviews a received request
+- **THEN** no discussion switch or private chat appears on the web, and the requester's conversation stays reachable only through its authorized requester path
 
 #### Scenario: Use compact navigation
 - **WHEN** a ready host opens the workspace menu by pointer or keyboard
@@ -101,11 +101,11 @@ The host workspace SHALL offer Google sign-in through Supabase Auth and SHALL NO
 
 #### Scenario: First Google sign-in
 - **WHEN** a user completes Google sign-in for the first time
-- **THEN** the service creates an active host account and the workspace opens the setup conversation with the Calendar access granted on that screen
+- **THEN** the service creates an active host account with the Calendar access granted on that screen, and `/app` asks them to link a messenger, where setup continues with Thyme
 
 #### Scenario: Calendar scopes unchecked at sign-in
 - **WHEN** the user completes Google sign-in but unchecks the Calendar scopes on the consent screen
-- **THEN** the active host account is still created and setup offers **Connect Google Calendar** before calendar analysis or booking-destination selection, without blocking unrelated settings
+- **THEN** the active host account is still created, and setup in the messenger asks for Calendar access through the browser consent link before calendar analysis or booking-destination selection, without blocking unrelated settings
 
 #### Scenario: Invalid or cancelled return
 - **WHEN** Google login is cancelled, the code is replayed or the callback arrives in another browser
@@ -213,7 +213,7 @@ The host's web workspace SHALL offer no chat with the assistant: no setup conver
 
 #### Scenario: Ready host on the workspace
 - **WHEN** a ready host opens the workspace instead of the Dashboard
-- **THEN** the share links, the sample request offer and the messaging card appear as cards, with no composer or messages
+- **THEN** the share links and the sample request offer appear as cards, with the messaging card until the host links a messenger or chooses Maybe later, and with no composer or messages
 
 ### Requirement: Pending decisions on the workspace menu
 Where the workspace menu offers the host's Requests, the menu button and its Requests item SHALL show the number of received requests that need the host's decision (awaiting approval, holding a suggestion the host has not settled, held by the weekly limit, or with every candidate needing the host), as a round count with an accessible text equivalent that shows 9+ above nine. The count SHALL exclude sample requests, SHALL be refreshed when the page regains focus, when the menu opens and whenever the Requests view in the same tab reloads its requests, and SHALL disappear when no request needs a decision. A failed read SHALL keep the last count without an error.

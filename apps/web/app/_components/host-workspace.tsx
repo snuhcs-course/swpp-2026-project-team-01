@@ -1,6 +1,6 @@
 "use client";
 
-import { AlertCircleIcon, XIcon } from "lucide-react";
+import { AlertCircleIcon } from "lucide-react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useCallback, useEffect, useState } from "react";
 import { HostRequests } from "@/app/_components/host/host-requests";
@@ -21,13 +21,9 @@ import { Button } from "@/components/ui/button";
 // `?request={requestId}`, opens the request inbox and a request's view in the
 // same column instead (host-review-and-booking design 3).
 
-// While a scan is pending the analysis card polls, since no turn or action
-// would otherwise reveal its result.
-const ANALYSIS_POLL_MS = 4000;
-
-// The Connect iMessage card (H11) follows the share links once setup is ready,
-// until the host links or chooses Maybe later, which this browser remembers; the
-// menu's iMessage item opens it at any step.
+// The messaging card (H11) follows the share links once setup is ready, until
+// the host links or chooses Maybe later, which this browser remembers;
+// `?view=imessage` opens it at any step. An incomplete host always sees it.
 
 export function HostWorkspace({ dashboardAvailable = false }: { readonly dashboardAvailable?: boolean }) {
   const params = useSearchParams();
@@ -51,14 +47,6 @@ function SetupWorkspace({ initialImessageOpen, onOpenDashboard, onOpenRequests }
   useEffect(() => {
     void reloadSetup();
   }, [reloadSetup]);
-
-  const analyzing = setup.state?.nextAction === "analyzing";
-
-  useEffect(() => {
-    if (!analyzing) return;
-    const timer = window.setInterval(() => void reloadSetup(), ANALYSIS_POLL_MS);
-    return () => window.clearInterval(timer);
-  }, [analyzing, reloadSetup]);
 
   const [imessageLater, setImessageLater] = useState(false);
   const [imessageOpened, setImessageOpened] = useState(initialImessageOpen);
@@ -84,7 +72,7 @@ function SetupWorkspace({ initialImessageOpen, onOpenDashboard, onOpenRequests }
       </header>
 
       <main aria-label="Workspace" className="min-h-0 flex-1 overflow-y-auto">
-        {setup.loadError && !setupState ? <ErrorNotice message={setup.loadError} /> : null}
+        {setup.loadError && !setupState ? <ErrorNotice message={setup.loadError} onRetry={() => void reloadSetup()} /> : null}
         <div className="mx-auto flex w-full max-w-2xl flex-col gap-4 px-4 pt-2 pb-8 sm:px-6">
           <SetupProvider value={setupValue}>
             {handoff ? (
@@ -102,11 +90,15 @@ function SetupWorkspace({ initialImessageOpen, onOpenDashboard, onOpenRequests }
             ) : null}
             {showImessage ? (
               <ImessageCard
-                onLater={() => {
-                  rememberLater();
-                  setImessageLater(true);
-                  setImessageOpened(false);
-                }}
+                onLater={
+                  handoff
+                    ? undefined
+                    : () => {
+                        rememberLater();
+                        setImessageLater(true);
+                        setImessageOpened(false);
+                      }
+                }
               />
             ) : null}
           </SetupProvider>
@@ -116,16 +108,16 @@ function SetupWorkspace({ initialImessageOpen, onOpenDashboard, onOpenRequests }
   );
 }
 
-function ErrorNotice({ message }: { readonly message: string }) {
-  const [shown, setShown] = useState(true);
-  if (!shown) return null;
+// A failed setup load keeps a way to try again, since nothing else on the page
+// would reload it.
+function ErrorNotice({ message, onRetry }: { readonly message: string; readonly onRetry: () => void }) {
   return (
     <div className="mx-auto w-full max-w-2xl px-4 pt-2 sm:px-6" role="alert">
       <div className="flex items-start gap-3 rounded-2xl bg-[color-mix(in_srgb,var(--destructive)_8%,var(--surface))] p-4 text-sm">
         <AlertCircleIcon aria-hidden className="mt-0.5 size-4 shrink-0 text-destructive" />
         <p className="min-w-0 flex-1">{message}</p>
-        <Button aria-label="Dismiss" onClick={() => setShown(false)} size="icon-sm" type="button" variant="ghost">
-          <XIcon aria-hidden className="size-4" />
+        <Button onClick={onRetry} size="sm" type="button" variant="outline">
+          Try again
         </Button>
       </div>
     </div>

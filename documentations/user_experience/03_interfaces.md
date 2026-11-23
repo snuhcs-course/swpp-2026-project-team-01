@@ -151,7 +151,7 @@ All channels inherit the PRD's privacy and lifecycle rules. Changed proposals re
 
 The [chat workspace specification](../../openspec/specs/chat-workspaces/spec.md) owns the agreed contextual-artifact and explicit-decision behavior. The [page list](04_page_list.md) describes the proposed host and requester workspaces.
 
-The implementation must verify website setup, requester conversation, email, MCP, CLI, and full iMessage journeys independently. Unconfirmed web chat text has no agreement or approval authority; channel decisions require the verified, current-proposal confirmation mechanism described above.
+The implementation must verify the website's sign-in, messenger link and settings (setup itself happens in the messenger), requester conversation, email, MCP, CLI, and full iMessage journeys independently. Unconfirmed web chat text has no agreement or approval authority; channel decisions require the verified, current-proposal confirmation mechanism described above.
 
 
 ### Proposed web confirmation receipt
@@ -175,7 +175,7 @@ The private booking conversation offers **Get updates in iMessage** beside **Con
 
 ## Optional iMessage contact card
 
-Right after **Confirm and link**, Thyme shares its contact card once, a few seconds after the welcome, and **Add to contacts** stays in the connected card as an optional action to share it again; the conversation already exists because the host sent the link message, so the card arrives as a reply. Explain before the action that it requests a card in the linked conversation and the recipient chooses whether to save it. Setup and web chat remain available without this choice.
+Right after **Confirm and link**, Thyme shares its contact card once, a few seconds after the welcome, and **Add to contacts** stays in the connected card as an optional action to share it again; the conversation already exists because the host sent the link message, so the card arrives as a reply. Explain before the action that it requests a card in the linked conversation and the recipient chooses whether to save it. Setup in the linked conversation continues without this choice.
 
 Show queued, provider-accepted, failed, revoked or uncertain status. For acceptance, ask the host to check iMessage and choose whether to save; never report delivery or saving as confirmed. For uncertainty, ask them to check the existing conversation and offer **Check contact status**, without a resend button. A failed status read hides **Add to contacts** until status can be verified. Reload restores the persisted request, and a new verified link starts with its own status. Unlinking does not recall a card already sent. Live device appearance and profile-name behavior remain subject to [provider acceptance](../technical_specification/03_provider_setup.md#display-name-contact-cards-and-profile-sync).
 

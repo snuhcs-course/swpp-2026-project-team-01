@@ -41,6 +41,8 @@ Removing the setup chat leaves these with no messenger counterpart. This change 
 
 - **Restart Thyme.** Terminal recovery of a failed host discussion (setup or a request) ran only from the web (`POST /api/chat/recover`). A messenger receipt that meets `recovery_required` records the input and waits, so a failed discussion stays stuck until server-side recovery exists.
 - **Messenger texts that send the host to `/app` for setup.** "Open /app to set up", "Still needed: … or open /app", "Your settings review is too long for a message. Review and confirm it at /app", "I couldn't save that here. Open /app", and `get_setup`'s "connect Google Calendar at /app". The web has no setup questions to finish there now. The Calendar consent itself still works through `/auth/sign-in?consent=calendar`, and the settings dialog keeps hours, the weekly limit, the preferred place and accepting requests.
+- **The model's setup guidance for Calendar steps.** `setupNextStep` in `lib/server/setup-tools.ts` tells the model to have the host "connect Google Calendar at /app" and "choose their calendars at /app". An incomplete, linked host who opens `/app` sees the link step's connected screen, with no Calendar control, and the workspace no longer shows the connect and calendar-choice cards. The messenger has better routes, the consent link (`calendarConnectUrl`) and `set_calendar_roles`, but this change does not rewrite the guidance.
+- **Setup cards that a ready host still meets.** A ready host with pending changes still gets the review or step cards on `/app?view=…`, but no browser test covers that path any more.
 - **A live-model browser check.** The only browser journey against the real model was the web first reply; none runs against a messenger.
 
 

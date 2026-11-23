@@ -169,7 +169,7 @@ findmeatime.com/?flow=imessage (Telegram은 ?flow=telegram)
 - 호스트에게 가는 서비스 메시지(캡션·요약·알림)는 호스트가 마지막으로 쓴 메시지의 언어를 따릅니다(channel-language.ts:26). 한국어로 답한 뒤에는 한국어로 나갑니다. 표의 문구는 영어판입니다.
 - 새 요청이 들어온 순간의 메신저 알림은 더 이상 보내지 않습니다(#122, 코드 주석 "No longer queued"). 호스트의 첫 메시지는 게스트가 시간에 동의한 뒤의 "Ready for your approval." 요약입니다.
 - 호스트가 게스트에게 자유 질문을 보내는 도구가 없습니다. 호스트가 바꿀 수 있는 것은 공유 세부(시간·길이·방식·장소·링크) 제안뿐입니다.
-- 결정(2026-11-23, [#326](https://github.com/snuhcs-course/swpp-2026-project-team-01/issues/326)): 호스트 웹에는 Thyme과의 채팅이 없습니다. 요청에 대한 질문은 메신저에서 합니다. 웹은 Approve, Decline, Request changes, 규칙 카드(주간 한도 예외, 이동 시간 입력), Cancel / Change meeting(M01 W-H1)을 유지하며, [`remove-host-web-chat` 변경](../../openspec/changes/archive/2026-11-23-remove-host-web-chat/proposal.md)으로 `/api/chat` 경로가 요청을 거절합니다. 호스트가 웹에서 할 수 있는 일은 메신저에서도 할 수 있어야 합니다: 메신저에는 아직 allow_host_trip과 waive_weekly_limit이 없습니다(M-8.1, M-8.3; #327).
+- 결정(2026-11-23, [#326](https://github.com/snuhcs-course/swpp-2026-project-team-01/issues/326)): 호스트 웹에는 Thyme과의 채팅이 없습니다. 요청에 대한 질문은 메신저에서 합니다. 웹은 Approve, Decline, Request changes, 규칙 카드(주간 한도 예외, 이동 시간 입력), Cancel / Change meeting(M01 W-H1)을 유지하며, [`remove-host-web-chat` 변경](../../openspec/changes/archive/2026-11-23-remove-host-web-chat/proposal.md)으로 `/api/chat` 경로를 마운트하지 않으며, 서버 코드에 남은 호스트 채팅 어댑터는 요청을 거절합니다. 호스트가 웹에서 할 수 있는 일은 메신저에서도 할 수 있어야 합니다: 메신저에는 아직 allow_host_trip과 waive_weekly_limit이 없습니다(M-8.1, M-8.3; #327).
 
 ### Web · 요청 검토
 
