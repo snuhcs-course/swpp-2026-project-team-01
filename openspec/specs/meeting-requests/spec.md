@@ -344,6 +344,21 @@ The service SHALL offer a newly onboarded host one optional request-review tutor
 - **THEN** the tutorial ends and the sample disappears from the inbox
 - **AND** it creates no booking, sends no guest notification, and uses no request creation or meeting quota
 
+### Requirement: One default meeting length
+The service SHALL use one default meeting length of 60 minutes wherever no one has given a length: the host setup starter default for meeting length, the host's offer on the guest's web page when the host's settings hold no length, the tutorial's sample request, and the starting value of the host's change form when neither the current proposal nor the request has a length. A length the host saved, a length inferred from the host's calendars, and a length a guest or host stated SHALL take precedence over the default, and the default SHALL NOT rewrite a host's confirmed settings.
+
+#### Scenario: Starter default for a sparse calendar
+- **WHEN** a host's calendar scan counted fewer than 5 meetings
+- **THEN** the meeting length suggestion is 60 minutes, labeled as a starter default
+
+#### Scenario: Saved length kept
+- **WHEN** a host confirmed a 30-minute meeting length before the default changed
+- **THEN** their requests and offer keep 30 minutes
+
+#### Scenario: Sample request
+- **WHEN** the host accepts the request-review tutorial
+- **THEN** the sample request asks for a 60-minute meeting
+
 ### Requirement: Signed-in account as a guest
 A signed-in, active account that opens another host's booking link SHALL be able to start a guest request without creating another account or typing its contact details: **Continue as {name}** SHALL identify the request with the account's display name and its Google-verified sign-in address as the confirmed contact, and SHALL link the request to that account. Identification by account SHALL require a valid account session that is not the request's host, and SHALL grant the session no authority over the request beyond that identification; the booking identifier SHALL remain the request's only credential. When the account already has an open, linked request with that host and a live private link, the booking link SHALL offer to continue it. The guest page of a request linked to the signed-in account SHALL link back to `/app`, and neither role's state SHALL change by moving between them.
 

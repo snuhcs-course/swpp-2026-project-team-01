@@ -191,7 +191,7 @@ describe("modelProjection", () => {
     expect(text).not.toContain("alice@example.test");
     expect(text).not.toMatch(/token|ciphertext/i);
     expect(projected.fields.noteExclusions.draft).toEqual({ accepted: true, source: "stated", value: { count: 1 } });
-    expect(projected.fields.durationMinutes.suggestion).toMatchObject({ source: "starter_default", value: 30 });
+    expect(projected.fields.durationMinutes.suggestion).toMatchObject({ source: "starter_default", value: 60 });
     expect(projected.analysis?.evidence?.noteLikeCount).toBe(1);
     expect(projected.roles).toEqual({ bookingCalendar: '"Work"', conflictCalendars: ['"Work"'] });
     expect(projected.calendar.calendars).toEqual([{ access: "owner", index: 0, name: '"Work"', primary: true, recommended: ["conflict", "booking"] }]);
