@@ -28,6 +28,8 @@ export async function makeHostReady(
     bookingCalendar: { accessRole: "owner", id: `${handle}@example.test`, summary: "Work", verifiedAt: new Date().toISOString() },
     displayName,
     handle,
+    // Confirmation records where each value came from; the setup reply reads it.
+    provenance: {},
   };
 
   await db.begin(async (tx) => {

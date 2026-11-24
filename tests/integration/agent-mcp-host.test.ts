@@ -185,7 +185,7 @@ describe("host tools", () => {
     const { handler, token } = await hostWithRequest(["host:read"]);
     const list = await rpc(handler, { method: "tools/list", token });
     const names = (list.body!.result as { tools: { name: string; inputSchema: Record<string, unknown> }[] }).tools.map((tool) => tool.name);
-    expect(names).toEqual(["get_host_status", "get_setup", "list_requests", "get_request"]);
+    expect(names).toEqual(["get_host_status", "get_setup", "list_requests", "get_schedule", "get_request"]);
 
     const write = await rpc(handler, { method: "tools/call", params: { arguments: {}, name: "suggest_changes" }, token });
     expect(write.response.status).toBe(403);

@@ -50,6 +50,7 @@ const REQUESTER_TOOLS = [
   "cancel_booking",
   "change_booking",
   "resend_booking_link",
+  "use_host_calendars",
 ];
 
 beforeAll(async () => {

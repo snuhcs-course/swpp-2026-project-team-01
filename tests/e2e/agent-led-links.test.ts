@@ -143,7 +143,9 @@ for (const role of ["host", "requester"] as const) test(`${role} starts a link t
   await receive(db, sender, message, origin);
   // The code links on arrival (link-on-code D1): the page, which polls, says so by
   // itself, with nothing to confirm and no sender named.
-  await expect(page.getByRole("status")).toHaveText("Linked. You can go back to your agent.", { timeout: 15_000 });
+  // The pending card has two status regions (Copy's feedback and the waiting
+  // line), so the linked one is found by its text rather than by role alone.
+  await expect(page.getByRole("status").filter({ hasText: "Linked. You can go back to your agent." })).toBeVisible({ timeout: 15_000 });
   await expect(page.getByRole("button", { name: "Confirm and link" })).toHaveCount(0);
   await expect(page.getByText(sender.slice(-4))).toHaveCount(0);
   await page.screenshot({ path: testInfo.outputPath(`${role}-linked.png`) });
@@ -182,6 +184,7 @@ for (const role of ["host", "requester"] as const) test(`${role} starts a link t
   await writeFile(evidencePath, JSON.stringify(evidence, null, 2));
   await testInfo.attach(`${role}-actual-tool-results`, { path: evidencePath, contentType: "application/json" });
   await page.screenshot({ path: testInfo.outputPath(`${role}-linked.png`) });
+  // A linked attempt's page keeps saying it is linked rather than closed (link-on-code D1).
   await page.goto(started.linkUrl);
-  await expect(page.getByRole("status")).toHaveText("This link is no longer open. Ask your agent to start again.");
+  await expect(page.getByRole("status")).toHaveText("Linked. You can go back to your agent.");
 });
