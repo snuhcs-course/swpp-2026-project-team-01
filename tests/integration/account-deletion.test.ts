@@ -226,7 +226,7 @@ describe("cancelling by signing in", () => {
     const states = Object.fromEntries((await accountEmailsOf(host.hostAccountId)).map((email) => [email.kind, email.state]));
     expect(states.account_deletion_scheduled).toBe("suppressed");
     expect(states.account_deletion_cancelled).toBe("accepted");
-    expect(cloudflare.messagesTo(identity!.email).map((email) => email.subject)).toEqual(["Your account deletion is cancelled"]);
+    expect(cloudflare.messagesTo(identity!.email).map((email) => email.subject)).toEqual(["Your account deletion was cancelled"]);
   });
 });
 

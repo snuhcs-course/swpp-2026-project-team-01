@@ -114,7 +114,7 @@ test.describe("on Android", () => {
 
     const sender = newWhatsAppSender();
     await hostSendsOnWhatsApp(db, sender, message);
-    await expect(page.getByRole("heading", { name: "Your WhatsApp is connected." })).toBeVisible({ timeout: 10_000 });
+    await expect(page.getByRole("heading", { name: "Your WhatsApp is linked." })).toBeVisible({ timeout: 10_000 });
     await expect(page.getByText(`•••• ${sender.slice(-4)}`)).toBeVisible();
     await expect(page.getByRole("button", { name: "Confirm and link" })).toHaveCount(0);
     expect(await activeChannel(db, host.hostAccountId)).toEqual([{ channel: "whatsapp" }]);

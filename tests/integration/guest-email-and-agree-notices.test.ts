@@ -13,7 +13,7 @@ import { emailHarness } from "./support/email";
 import { type FakeAgentMail, startFakeAgentMail } from "./support/fake-agentmail";
 import { type FakeGoogle, startFakeGoogle } from "./support/fake-google";
 import { type FakePhoton, startFakePhoton } from "./support/fake-photon";
-import { imessageHarness } from "./support/imessage";
+import { imessageHarness, textOf } from "./support/imessage";
 import { newSender, TEST_LINE, TEST_WHATSAPP_NUMBER } from "./support/photon";
 import { makeHostReady } from "./support/ready-host";
 import { createTestRequest, runJob, testTokenKey, uniqueEmail } from "./support/requests";
@@ -216,11 +216,19 @@ async function agreementNotices(requestId: string) {
     order by created_at
   `;
   for (const job of jobs) await runJob(db, job.id, noticeHandler);
-  return db<{ text: string | null; dedupe_key: string }[]>`
-    select text, dedupe_key from app.imessage_outbox where request_id = ${requestId} and kind = 'notice' and dedupe_key like 'guest-notice:agreement_sent:%'
+  const rows = await db<{ id: string; dedupe_key: string; state: string }[]>`
+    select id, dedupe_key, state from app.imessage_outbox where request_id = ${requestId} and kind = 'notice' and dedupe_key like 'guest-notice:agreement_sent:%'
     order by created_at
   `;
+  // The outbox seals its text, so a queued notice is sent through the fake
+  // provider once and what it carried is kept for the assertions.
+  for (const row of rows) {
+    if (row.state === "queued") sentTexts.set(row.id, textOf((await im.send(row.id)).sent).join("\n"));
+  }
+  return rows.map((row) => ({ dedupe_key: row.dedupe_key, text: sentTexts.get(row.id) ?? null }));
 }
+
+const sentTexts = new Map<string, string>();
 
 describe("the agreement notice in the guest's linked chat (#179)", () => {
   it("sends what the guest agreed to, once, without the booking link", async () => {

@@ -1,6 +1,6 @@
 "use client";
 
-import { type ChangeEvent, type FormEvent, useLayoutEffect, useRef, useState } from "react";
+import { type ChangeEvent, type FormEvent, useId, useLayoutEffect, useRef, useState } from "react";
 import { cn } from "@/lib/utils";
 import { COUNTRY_CODES, type CountryCode, nationalDigits, PLACEHOLDER, reformat, validLocal } from "./phone";
 
@@ -28,17 +28,19 @@ const CARD_FIELD =
   "min-h-11 rounded-md border border-input bg-card px-3 text-base outline-none focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50";
 
 export function NumberForm({
-  id,
+  id: prefix,
   look,
   onSubmit,
   t,
 }: {
-  // Prefixes the field IDs, so two forms never share one.
+  // Prefixes the field IDs; a per-instance suffix keeps two forms with the same
+  // prefix (the Connected apps card and a card on the page) from sharing one.
   readonly id: string;
   readonly look: "ink" | "card";
   readonly onSubmit: SubmitNumber;
   readonly t: NumberCopy;
 }) {
+  const id = `${prefix}-${useId().replaceAll(":", "")}`;
   const input = useRef<HTMLInputElement>(null);
   const [cc, setCc] = useState<CountryCode>("+82");
   const [value, setValue] = useState("");

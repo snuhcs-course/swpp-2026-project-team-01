@@ -18,7 +18,7 @@ for (const width of [390, 1280]) {
     await expect(page.getByText(/90 days after it closed/)).toBeVisible();
     await expect(page.getByText(/including the Limited Use requirements/)).toBeVisible();
     await expect(page.getByText(/AES-256-GCM/)).toBeVisible();
-    await expect(page.getByText(/A host deletes their account in Settings/)).toBeVisible();
+    await expect(page.getByText(/You delete your account in Settings/)).toBeVisible();
     await expect(page.getByText(/support@findmeatime\.com/).first()).toBeVisible();
     expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
 

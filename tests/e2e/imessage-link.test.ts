@@ -193,7 +193,7 @@ async function linkFromStep(page: Page, db: Database) {
   const sender = newSender();
   await hostSends(db, sender, message);
   // No Is this you? and no Confirm and link: the step shows the link by itself.
-  await expect(page.getByRole("heading", { name: "Your iMessage is connected." })).toBeVisible({ timeout: 10_000 });
+  await expect(page.getByRole("heading", { name: "Your iMessage is linked." })).toBeVisible({ timeout: 10_000 });
   await expect(page.getByText(`•••• ${sender.slice(-4)}`)).toBeVisible();
   await expect(page.getByRole("button", { name: "Confirm and link" })).toHaveCount(0);
   return sender;

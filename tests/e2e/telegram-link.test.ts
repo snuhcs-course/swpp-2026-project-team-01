@@ -124,7 +124,7 @@ test.describe("on Android", () => {
     await expect(page.getByText(PRIVACY)).toBeVisible();
 
     await hostStartsBot(db, newTelegramUser(), code);
-    await expect(page.getByRole("heading", { name: "Your Telegram is connected." })).toBeVisible({ timeout: 10_000 });
+    await expect(page.getByRole("heading", { name: "Your Telegram is linked." })).toBeVisible({ timeout: 10_000 });
     await expect(page.getByText("Dohyeon (@dohyeon)")).toBeVisible();
     expect(await activeChannel(db, host.hostAccountId)).toEqual([{ channel: "telegram" }]);
 

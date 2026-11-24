@@ -269,7 +269,7 @@ describe("an existing request within delegation", () => {
     expect(agreed.structuredContent.request).toMatchObject({ state: "awaiting_host_approval" });
     const waitingRevision = (agreed.structuredContent.request as { revision: number }).revision;
 
-    const locked = await call(agent, token, handle, "update_request_details", { input: { details: { purpose: "A longer chat" }, timezone: "Asia/Seoul" }, retryKey: "details-0101" });
+    const locked = await call(agent, token, handle, "update_request_details", { expectedRevision: waitingRevision, input: { details: { purpose: "A longer chat" }, timezone: "Asia/Seoul" }, retryKey: "details-0101" });
     expect(locked.isError).toBe(true);
     expect(locked.structuredContent.error?.nextAction).toContain("call change_agreement first");
 
@@ -277,7 +277,7 @@ describe("an existing request within delegation", () => {
     expect(reopened.isError).toBe(false);
     expect(reopened.structuredContent.request).toMatchObject({ revision: waitingRevision + 1, state: "negotiating" });
 
-    const changed = await call(agent, token, handle, "update_request_details", { input: { details: { purpose: "A longer chat" }, timezone: "Asia/Seoul" }, retryKey: "details-0102" });
+    const changed = await call(agent, token, handle, "update_request_details", { expectedRevision: waitingRevision + 1, input: { details: { purpose: "A longer chat" }, timezone: "Asia/Seoul" }, retryKey: "details-0102" });
     expect(changed.isError).toBe(false);
     expect(changed.structuredContent.request).toMatchObject({ details: expect.objectContaining({ purpose: "A longer chat" }) });
 

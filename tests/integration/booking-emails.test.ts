@@ -74,7 +74,7 @@ describe("the confirmation", () => {
     const [requesterCopy] = cloudflare.messagesTo(request.contactEmail);
     const [hostCopy] = cloudflare.messagesTo(request.calendarId);
     expect(requesterCopy).toMatchObject({ from: "Ada Lovelace <no-reply@findmeatime.com>", reply_to: request.calendarId });
-    expect(requesterCopy!.subject).toBe("Talk about compilers between Ada Lovelace and Grace Hopper");
+    expect(requesterCopy!.subject).toBe("Your meeting with Ada Lovelace is booked: Talk about compilers");
     expect(requesterCopy!.text).toContain(`http://localhost:3000/booking/${request.link}`);
     expect(requesterCopy!.text).toContain("Join meeting: https://meet.google.com/");
     expect(requesterCopy!.attachments?.[0]).toMatchObject({ disposition: "attachment", filename: "invite.ics", type: "text/calendar; method=REQUEST; charset=UTF-8" });

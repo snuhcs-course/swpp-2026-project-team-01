@@ -120,6 +120,22 @@ export async function savedCommandResult<Result>(db: Queryable, actor: Actor, re
   return saved?.result ?? null;
 }
 
+// The saved result of one command under a retry key, only when the key was
+// used for that operation on that resource.
+export async function savedCommandOutcome<Result>(
+  db: Queryable,
+  actor: Actor,
+  retryKey: string,
+  operation: string,
+  resourceId: string,
+): Promise<{ readonly result: Result } | null> {
+  const [saved] = await db<{ result: Result }[]>`
+    select result from app.command_outcomes
+    where actor = ${actorKey(actor)} and retry_key = ${retryKey} and operation = ${operation} and resource_id = ${resourceId}
+  `;
+  return saved ?? null;
+}
+
 export function missingConfiguration(
   names: readonly string[],
   env: Readonly<Record<string, string | undefined>> = process.env,

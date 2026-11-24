@@ -1,5 +1,5 @@
 import { randomUUID } from "node:crypto";
-import { afterAll, beforeAll, describe, expect, it } from "vitest";
+import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 import { CLARIFICATION_QUESTIONS } from "../../lib/contracts/clarifications";
 import { applyReviewCommand, dismissReviewCommand, draftReviewCommand, updateDetailsCommand } from "../../lib/server/request-reviews";
 import { draftRequestReviewForTool } from "../../lib/server/request-tools";
@@ -20,10 +20,15 @@ const contact = { origin: ORIGIN, tokenKey: testTokenKey };
 let google: FakeGoogle;
 
 beforeAll(async () => {
+  // draft_request_review applies what the guest stated (#411), which needs the
+  // app origin and token key as the requester tool runs in production.
+  vi.stubEnv("APP_ORIGIN", ORIGIN);
+  vi.stubEnv("TOKEN_ENCRYPTION_KEY", testTokenKey.key.toString("base64"));
   google = await startFakeGoogle();
 });
 
 afterAll(async () => {
+  vi.unstubAllEnvs();
   await google.close();
   await db.end();
 });
