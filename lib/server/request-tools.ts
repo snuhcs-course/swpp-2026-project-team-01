@@ -1,3 +1,4 @@
+import { randomUUID } from "node:crypto";
 import { z } from "zod";
 import { clarificationQuestion } from "../contracts/clarifications";
 import { CALENDAR_PRIVACY_REPLY, EVALUATION_FAILURE_MESSAGES, nearestTimesMessage, noMatchMessage, type RequesterEvaluationView, TIMES_SHOWN } from "../contracts/feasibility";
@@ -18,7 +19,7 @@ import type { LocationAnswer, MeetingMode } from "../contracts/setup";
 import { displayTime, isValidTimeZone } from "../contracts/timezone";
 import type { CommandErrorCategory } from "../contracts/command-errors";
 import { readBookingStatus } from "./bookings";
-import { type Actor, type CommandDefinition, runCommand, savedCommandResult } from "./commands";
+import { type Actor, type CommandDefinition, runCommand, savedCommandOutcome, savedCommandResult } from "./commands";
 import type { Database, Queryable, Transaction } from "./database";
 import { encodeDisplayName } from "./entry-documents";
 import { guestNotesView } from "./host-notes";
@@ -723,6 +724,11 @@ async function decide<Input, Result>(
   retryKey = `tool:${call.callId}`,
 ) {
   const id = await authorizeRequestTool(db, call);
+  // A retried tool call replays what its first attempt decided: the request
+  // has moved on since, so deciding again at the current revision would not
+  // match the saved outcome's key and be refused as a retry conflict.
+  const saved = await savedCommandOutcome<Result>(db, actorOf(id), retryKey, command.operation, id);
+  if (saved) return { id, outcome: { correlationId: randomUUID(), ok: true as const, replayed: true, result: saved.result } };
   // The revision the decision is made at is the one the assistant reads now;
   // a proposal or review it names carries its own staleness check.
   const { revision } = await requestRow(db, id);
