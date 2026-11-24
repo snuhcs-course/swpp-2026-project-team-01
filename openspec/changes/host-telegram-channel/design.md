@@ -81,7 +81,7 @@ Anything else, including groups, supergroups, channels and messages from other b
 
 The ID is hashed as `telegram:<id>` under the existing sender key, so it never matches an iMessage or WhatsApp hash, and sealed for replies.
 
-Telegram does not reveal a user's phone number to a bot, and this channel never asks for it. What the browser shows for the linked account (for confirmation until D14) is the sender's `first_name` and, when present, `@username`. They are sealed with the receipt and shown as the host's own profile, for example "Dohyeon (@dohyeon)". A text message's body is never parsed for an identity.
+Telegram does not reveal a user's phone number to a bot, and this channel never asks for it. What the browser shows for confirmation is the sender's `first_name` and, when present, `@username`. They are sealed with the receipt and shown as the host's own profile, for example "Dohyeon (@dohyeon)". A text message's body is never parsed for an identity. Superseded by [`link-on-code`](../link-on-code/proposal.md) D1 and D4: the code now binds on arrival, and the linked screen shows the sender's Telegram name with **Not my Telegram — unlink**.
 
 ### 4. Records
 
@@ -96,22 +96,19 @@ The migration is generated with `supabase db schema declarative sync --no-apply`
 
 ### 5. One channel per host
 
-Unchanged from Phase 9 D5, across three channels. The binding index is per host, so a second active binding cannot exist. **Confirm and link** ends the earlier binding in the same transaction, and whatever was still waiting or queued for it becomes `suppressed` with category `replaced`. Before the tap, the card names the channel being replaced: "This replaces your iMessage link."
+Unchanged from Phase 9 D5, across three channels. The binding index is per host, so a second active binding cannot exist. **Confirm and link** ends the earlier binding in the same transaction, and whatever was still waiting or queued for it becomes `suppressed` with category `replaced`. Before the tap, the card names the channel being replaced: "This replaces your iMessage link." Superseded by [`link-on-code`](../link-on-code/proposal.md) D1: the code now binds on arrival.
 
 ### 6. Linking
 
+**Connect Telegram** creates an attempt with channel `telegram` and the same `FMAT-` code, expiry, attempt limits and confirmation window as iMessage D5. It then opens `https://telegram.me/findmeatime_bot?start=<code>` in the same tab, where `<code>` is the code as created; Telegram allows 64 characters of `A–Z a–z 0–9 _ -`. Every Telegram link uses `telegram.me`, Telegram's own alias of `t.me` with the same paths and `start` payload: on 2026-11-18 the SNU campus Wi-Fi's DNS sent `t.me` alone to an address that never answered, so **Open Telegram** timed out on a computer there, while `telegram.me` opened. Superseded by [`link-on-code`](../link-on-code/proposal.md) D1: the code now binds on arrival, so there is no confirmation window.
 **Connect Telegram** creates an attempt with channel `telegram` and the same `FMAT-` code, expiry, attempt limits and confirmation window as iMessage D5. It then opens `https://telegram.me/findmeatime_bot?start=<code>`, where `<code>` is the code as created; Telegram allows 64 characters of `A–Z a–z 0–9 _ -`. Every Telegram link uses `telegram.me`, Telegram's own alias of `t.me` with the same paths and `start` payload: on 2026-11-18 the SNU campus Wi-Fi's DNS sent `t.me` alone to an address that never answered, so **Open Telegram** timed out on a computer there, while `telegram.me` opened.
 
-- **On a phone,** the link opens in the same tab, and the phone hands it to Telegram at the bot with **Start**. The tap sends `/start <code>` from the host's account.
-- **On a computer,** the card shows **Open Telegram** (the same link), a QR code of it and **Copy**. **Open Telegram** opens in a new tab: a browser loads Telegram's own launch page for the link, and in the same tab that page replaced the linking page, which then never showed the outcome (#369). A host who opens the bot without the link can send the code as text, which links the same way.
+- **On a phone,** the link opens Telegram at the bot with **Start**, in the same tab: the system hands it to the Telegram app and the page stays. The tap sends `/start <code>` from the host's account.
+- **On a computer,** the card shows **Open Telegram** (the same link), a QR code of it and **Copy**. **Open Telegram** opens the link in a new tab: `telegram.me` is a web page (Telegram's launch page with **START BOT**), so in the same tab it replaced the Find Me a Time page that waits for the Start and then shows **Confirm and link**, and the host could not finish (issue #369, 2026-11-23). A host who opens the bot without the link can send the code as text, which links the same way.
 
-A receipt whose text is `/start <code>` or the bare code, from a private chat, completes the pending attempt with that code only when the attempt's channel is `telegram`. A code arriving on another channel voids the attempt, as Phase 9 D6 does. The linking message never reaches the model or a transcript.
+A receipt whose text is `/start <code>` or the bare code, from a private chat, completes the pending attempt with that code only when the attempt's channel is `telegram`. A code arriving on another channel voids the attempt, as Phase 9 D6 does. The sender and their display name are then shown in the browser for **Confirm and link**. Until the tap, the sender has no host authority, and the linking message never reaches the model or a transcript. Superseded by [`link-on-code`](../link-on-code/proposal.md) D1: the code now binds on arrival.
 
-**Binding on Start (D14, team decision 2026-11-23).** The completed attempt binds its sender at once, with no **Confirm and link**: the team judged that nobody else is likely to take over the code. `receiveLinkCode` first takes the locks the confirmation command takes, in its order (the host's account share lock, then the host's link lock), so an arrival and a browser command never wait on each other in reverse; a suspended host leaves the code unusable, and it is voided and refused. It then records the sender and calls the same `bind` the command calls, ending the host's binding on any other channel. The browser polls and moves to linked. Before **Start**, the waiting card names the link this one replaces and says where Telegram keeps the chat (design 11). The same sender sending the code again after it bound changes nothing and gets no refusal.
-
-The welcome that binding queues is the bot's first message. It is a reply in a chat the host started, so Telegram delivers it. `/start` with no payload, or from a sender with no attempt, gets the unlinked-sender reply (counted per channel), which points to `findmeatime.com/app`.
-
-**Before sign-in.** A code from `/?flow=telegram` has no host yet, so it records the sender as before and the bot replies with the sign-in link of iMessage D19, which works in any browser: the host may have left the start page for Telegram. The Google callback's claim, from this browser's cookie or from that link, gives the attempt to the host and binds the recorded sender in the same transaction (`bindClaimedTelegram`), unless another host holds that sender; then the attempt stays received and binds nothing.
+After confirmation, the welcome is the bot's first message. It is a reply in a chat the host started, so Telegram delivers it. `/start` with no payload, or from a sender with no attempt, gets the unlinked-sender reply (counted per channel), which points to `findmeatime.com/app`.
 
 **The device rule (D7)** extends `channelOffer` and `shownChannel` in `lib/contracts/messaging-channel.ts` to a list of configured channels. Telegram is configured when `TELEGRAM_BOT_USERNAME` is set.
 
@@ -193,7 +190,7 @@ The host channel's instruction fragment names Telegram's prefix and its buttons.
 
 ### 11. Privacy
 
-Bot chats use Telegram's client–server encryption, not end-to-end encryption, and are stored on Telegram's servers. While the code waits for **Start**, which links at once (D14), the card says: "Telegram keeps bot chats on its servers. Find Me a Time sends your request summaries here." The privacy policy gains Telegram as a processor for hosts who link it, beside Photon. `stop`, `/stop`, unlinking in `/app` or blocking the bot ends the binding. The service never deletes Telegram's copy of the chat, since a bot cannot delete messages older than 48 hours; the policy says so.
+Bot chats use Telegram's client–server encryption, not end-to-end encryption, and are stored on Telegram's servers. Before **Confirm and link**, the card says: "Telegram keeps bot chats on its servers. Find Me a Time sends your request summaries here." The privacy policy gains Telegram as a processor for hosts who link it, beside Photon. `stop`, `/stop`, unlinking in `/app` or blocking the bot ends the binding. The service never deletes Telegram's copy of the chat, since a bot cannot delete messages older than 48 hours; the policy says so. Superseded by [`link-on-code`](../link-on-code/proposal.md) D1: the code now binds on arrival, so the sentence is shown with the start link, before the person taps **Start**.
 
 ## Risks / Trade-offs
 

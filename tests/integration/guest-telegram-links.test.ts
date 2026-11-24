@@ -9,7 +9,6 @@ import { photonConfig } from "../../lib/server/photon";
 import { channelHash } from "../../lib/server/photon-receiver";
 import { REQUESTER_LINK_TEXTS } from "../../lib/server/requester-imessage-bindings";
 import {
-  confirmRequesterImessageLinkCommand,
   createRequesterImessageLinkCommand,
   readRequesterImessageStatus,
   shareRequesterContactCardCommand,
@@ -29,8 +28,8 @@ import { newTelegramUser, telegramBlocked, telegramCallback, telegramMessage } f
 // Photon stand-in and the Bot API stand-in (guest-telegram-link tasks 2.1 and
 // 2.2): Get updates in Telegram takes no number and registers nothing; the
 // code names the bot and its start link; /start <code> from the guest's private
-// chat binds the sender by their Telegram name at once, with no Confirm and link
-// (D7), and the welcome is the bot's first message; a code from
+// chat binds the sender, with their Telegram name, as soon as it arrives
+// (link-on-code D1), and the welcome is the bot's first message; a code from
 // iMessage voids it; the guest's text reaches the requester discussion marked
 // [Telegram] and the reply and notices go out on Telegram without buttons; a
 // linked guest's /start and button taps reach no discussion; and unlinking,
@@ -50,7 +49,7 @@ const options = {
   whatsappNumber: TEST_WHATSAPP_NUMBER,
 };
 const commands: Readonly<Record<string, CommandDefinition<unknown, unknown>>> = Object.fromEntries(
-  [createRequesterImessageLinkCommand(options), confirmRequesterImessageLinkCommand(options), unlinkRequesterImessageCommand, shareRequesterContactCardCommand(options)].map(
+  [createRequesterImessageLinkCommand(options), unlinkRequesterImessageCommand, shareRequesterContactCardCommand(options)].map(
     (command) => [command.operation, command as unknown as CommandDefinition<unknown, unknown>],
   ),
 );
@@ -150,14 +149,13 @@ describe("linking a guest's Telegram", () => {
     expect(attempt).toEqual({ channel: "telegram", line_number: null });
   });
 
-  it("binds the sender by name on Start, with no confirmation, and the welcome is the bot's first message", async () => {
+  it("binds the sender on arrival and shows them by name", async () => {
     const request = await createTestRequest(db);
     const userId = newTelegramUser();
     const pending = await pendingTelegram(request.requestId);
 
     const start = telegramMessage({ firstName: "Grace", text: `/start ${pending.code}`, userId, username: "grace" });
     expect((await im.deliverTelegram(start))?.outcome).toBe("link_received");
-    // No Confirm and link: the Start binds (D7).
     expect(await bindingOf(request.requestId)).toMatchObject({
       channel: "telegram",
       sender_hash: telegramHash(userId),
@@ -193,27 +191,19 @@ describe("linking a guest's Telegram", () => {
     expect(await status(other.requestId)).toMatchObject({ state: "none" });
   });
 
-  it("refuses a Telegram code for a closed request, and binds nothing", async () => {
-    const request = await createTestRequest(db);
-    const pending = await pendingTelegram(request.requestId);
-    await db`update app.requests set closed_at = now() where id = ${request.requestId}`;
-    expect((await im.deliverTelegram(telegramMessage({ text: `/start ${pending.code}`, userId: newTelegramUser() })))?.outcome).toBe("link_refused");
-    expect(await bindingOf(request.requestId)).toBeNull();
-  });
-
-  it("replaces an iMessage binding on the request when Telegram's Start arrives", async () => {
+  it("replaces an iMessage binding on the request when the Telegram code arrives", async () => {
     const request = await createTestRequest(db);
     expect((await asGuest(request.requestId, REQUESTER_IMESSAGE_OPERATIONS.create, { number: "+15557654321" })).ok).toBe(true);
     const imessage = await status(request.requestId);
     if (imessage.state !== "pending") throw new Error("Expected pending.");
-    await im.deliver({ sender: newSender(), text: imessage.message });
-    const imessageReceived = await status(request.requestId);
-    if (imessageReceived.state !== "received") throw new Error("Expected received.");
-    await asGuest(request.requestId, REQUESTER_IMESSAGE_OPERATIONS.confirm, { linkId: imessageReceived.linkId });
+    expect((await im.deliver({ sender: newSender(), text: imessage.message })).outcome).toBe("link_received");
     expect(await bindingOf(request.requestId)).toMatchObject({ channel: "imessage", state: "active" });
 
     const pending = await pendingTelegram(request.requestId);
-    await im.deliverTelegram(telegramMessage({ firstName: "Grace", text: pending.code, userId: newTelegramUser() }));
+    // While the Telegram code is pending, the iMessage binding stands.
+    expect(await bindingOf(request.requestId)).toMatchObject({ channel: "imessage", state: "active" });
+    expect((await im.deliverTelegram(telegramMessage({ firstName: "Grace", text: pending.code, userId: newTelegramUser() })))?.outcome).toBe("link_received");
+    expect(await status(request.requestId)).toMatchObject({ channel: "telegram", sender: "Grace", state: "linked" });
     const bindings = await db<{ channel: string; state: string }[]>`
       select channel, state from app.requester_imessage_bindings where request_id = ${request.requestId} order by created_at
     `;

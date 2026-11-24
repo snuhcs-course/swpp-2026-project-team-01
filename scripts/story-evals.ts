@@ -19,6 +19,7 @@ import { fileURLToPath } from "node:url";
 import { HOST_REVIEW_STORY_CASES } from "../evals/host-review/story-cases";
 import { GUEST_STORY_CASES } from "../evals/requester/story-cases";
 import { DEFAULT_TRIALS } from "../evals/story/runner";
+import { type EvalRun, evalIds as evalIdsOf, readRuns } from "../evals/comparison/metrics";
 import type { StoryCase } from "../evals/story/types";
 
 const root = fileURLToPath(new URL("../", import.meta.url));
@@ -28,32 +29,10 @@ const SETS = [
 ] as const;
 const PROMPTS = "agent/instructions";
 
-type Run = { readonly passed: boolean; readonly failed: readonly string[]; readonly file: string };
+type Run = EvalRun;
 
-// storyEvals() numbers evals in case order, each case `trials` times.
 function evalIds(cases: readonly StoryCase[], prefix: string) {
-  const ids = new Map<string, { readonly case: StoryCase; readonly trial: number }>();
-  let index = 0;
-  for (const entry of cases) {
-    for (let trial = 1; trial <= (entry.trials ?? DEFAULT_TRIALS); trial++) ids.set(`${prefix}${String(index++).padStart(4, "0")}`, { case: entry, trial });
-  }
-  return ids;
-}
-
-function readRuns(directories: readonly string[]) {
-  const runs = new Map<string, Run>();
-  for (const directory of directories) {
-    for (const line of readFileSync(path.join(directory, "results.jsonl"), "utf8").split("\n")) {
-      if (!line.trim()) continue;
-      const result = JSON.parse(line) as { id: string; verdict: string; assertions?: { key: string; passed: boolean }[] };
-      runs.set(result.id, {
-        failed: (result.assertions ?? []).filter((assertion) => !assertion.passed).map((assertion) => assertion.key),
-        file: path.join(directory, "evals", `${result.id}.events.ndjson`),
-        passed: result.verdict === "passed",
-      });
-    }
-  }
-  return runs;
+  return evalIdsOf(cases, prefix, DEFAULT_TRIALS);
 }
 
 function transcript(file: string) {
@@ -92,7 +71,7 @@ function report(directories: readonly string[], transcripts: boolean) {
       console.log(`  ${row.entry.id} (${row.entry.category}, ${row.entry.shape}): ${row.runs.filter((run) => run.passed).length}/${row.runs.length}`);
       for (const run of row.runs.filter((run) => !run.passed)) {
         console.log(`   run ${run.trial}: ${run.failed.join(" | ")}`);
-        if (transcripts) console.log(transcript(run.file).join("\n"));
+        if (transcripts) console.log(transcript(run.events).join("\n"));
       }
     }
   }

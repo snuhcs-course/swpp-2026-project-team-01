@@ -15,9 +15,11 @@ import { type TokenKey, tokenKeyFromEnvironment } from "./token-encryption";
 // Records the booking confirmation and the requester status notifications
 // (host-review-and-booking design 9, D10, D11) in the transaction of the domain
 // change that needs them. Every email is frozen from domain records: the meeting
-// from the proposal or the confirmed event, the recipient's language and
+// from the proposal or the confirmed event, English copy and the recipient's
 // timezone, the From header with the host's display name for a confirmation, and
-// Reply-To the other party. The requester's booking link is opened from its
+// Reply-To the other party; the requester's confirmation instead replies to the
+// product inbox when there is one, so the guest's answer reaches Thyme's
+// conversation for the request (guest-email-and-agree-notices design 2). The requester's booking link is opened from its
 // sealed copy and sealed again as the delivery's secret parameter; the host's
 // copy links to the request in /app and carries no booking link. A requester
 // status notice goes from the product inbox with no booking link, in the
@@ -163,7 +165,13 @@ export async function enqueueConfirmations(tx: Transaction, deps: NoticeDependen
   const link = await requesterBookingUrl(tx, deps, requestId);
 
   if (link) {
-    const parameters: BookingEmailParameters = { ...requesterMeeting, audience: "requester", ...(meeting.changed ? { changed: true } : {}) };
+    const inbox = deps.inboxId?.trim().toLowerCase() || null;
+    const parameters: BookingEmailParameters = {
+      ...requesterMeeting,
+      audience: "requester",
+      ...(meeting.changed ? { changed: true } : {}),
+      ...(inbox ? { replyToAssistant: true } : {}),
+    };
     await enqueueEmail(tx, {
       attachments: attachmentFor(requesterMeeting),
       dedupeKey: `${meeting.bookingId}:requester`,
@@ -172,7 +180,7 @@ export async function enqueueConfirmations(tx: Transaction, deps: NoticeDependen
       language: parties.language,
       parameters,
       recipient: parties.requesterEmail,
-      replyTo: parties.hostEmail,
+      replyTo: inbox ?? parties.hostEmail,
       requestId,
       secrets: { bookingUrl: link },
       tokenKey: deps.tokenKey,

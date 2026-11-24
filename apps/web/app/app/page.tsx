@@ -8,13 +8,15 @@ import { HostWorkspace } from "@/app/_components/host-workspace";
 import { HostDashboard } from "@/app/_components/host-dashboard";
 import { LinkStep } from "@/app/_components/ink/link-step";
 import { WorkspaceMenu } from "@/app/_components/workspace-menu";
-import { SignInCard, WorkspaceLoading } from "@/app/_components/sign-in-card";
+import { SignInCard } from "@/app/_components/sign-in-card";
+import { WorkspaceLoading } from "@/app/_components/workspace-loading";
+import { HostWordmark } from "@/app/_components/host-wordmark";
 
 // The single host page. Signed out, it offers Google sign-in; a suspended
 // account sees why it cannot continue; an active host gets the conversation,
 // whose empty setup session this visit opens on the server, after the iMessage
-// link step when it applies.
-type SearchParams = Promise<{ sign_in?: string; deletion?: string; view?: string; request?: string }>;
+// link step when it applies; a visit that shows the dashboard opens none.
+type SearchParams = Promise<{ calendar?: string; sign_in?: string; deletion?: string; view?: string; request?: string }>;
 
 // Authentication must run before any reusable page shell can be served.
 export const instant = false;
@@ -48,7 +50,7 @@ async function Workspace({ searchParams }: { readonly searchParams: SearchParams
     return (
       <main className="mx-auto flex min-h-dvh w-full max-w-md flex-col justify-center gap-4 px-4">
         <div className="flex items-center justify-between">
-          <h1 className="wordmark-lockup">Find Me a Time</h1>
+          <HostWordmark />
           <WorkspaceMenu />
         </div>
         <p>This host account is suspended, so the workspace is unavailable. Contact support to restore it.</p>
@@ -63,8 +65,9 @@ async function Workspace({ searchParams }: { readonly searchParams: SearchParams
   if (!params.request && (params.view === "dashboard" || (atDefaultPage && !offerTutorial))) {
     return <HostDashboard />;
   }
+  await standing.openSetupSession();
   return (
-    <LinkStep locale="en" ready={standing.ready}>
+    <LinkStep calendarConnected={params.calendar === "connected"} locale="en" ready={standing.ready}>
       <HostWorkspace dashboardAvailable={standing.ready} />
     </LinkStep>
   );

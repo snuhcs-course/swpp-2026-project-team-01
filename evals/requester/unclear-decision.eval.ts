@@ -6,7 +6,7 @@ import { NAMES_A_CONTROL, readRequestProjection, requesterSession, requesterStub
 // and no proposal names no time, so nothing is chosen or agreed; the assistant
 // asks which time, in words.
 export default defineEval({
-  tags: ["requester", "live-model"],
+  tags: ["requester", "live-model", "capability"],
   async test(t) {
     const { send } = await requesterSession(t, requesterStubs(readRequestProjection(THREE_TIMES)));
     const turn = await send("[iMessage] ok book it");

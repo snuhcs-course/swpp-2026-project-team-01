@@ -34,7 +34,7 @@ export function linkOptions(deps: AgentToolDependencies): LinkOptions {
 export function chatStatus(status: ImessageStatus | RequesterImessageStatus) {
   return {
     channel: "channel" in status ? status.channel : null,
-    state: status.state === "linked" ? "linked" : ["pending", "received", "fallback"].includes(status.state) ? "pending" : "none",
+    state: status.state === "linked" ? "linked" : ["pending", "fallback"].includes(status.state) ? "pending" : "none",
     sender: "sender" in status ? status.sender : null,
   };
 }
@@ -48,22 +48,8 @@ export async function startAgentLink<Input>(context: AgentToolContext, command: 
   const token = sealConnectLink(linkOptions(context.deps).tokenKey, { role: context.access.role, linkId: outcome.result.linkId });
   return { ok: true as const, result: {
     linkUrl: `${context.deps.origin}/connect/link/${token}`, channel: attempt!.channel, expiresAt: attempt!.expires_at.toISOString(),
-    // A Telegram Start links at once (host-telegram-channel D14, guest-telegram-link D7).
-    next: attempt!.channel === "telegram"
-      ? "Give the person this link. On that page they open the bot in their own Telegram and tap Start, which links it. Nothing is linked until they do."
-      : "Give the person this link. On that page they send a code from their own phone and confirm. Nothing is linked until they do.",
+    next: "Give the person this link. On that page they send a code from their own phone, and it links as soon as it arrives. They can unlink a wrong number from the app.",
   } };
-}
-
-// Whether the token's attempt ended linked while the link is still within its
-// time, so the page says Linked rather than closed after a Telegram Start (D14).
-export async function connectLinkLinked(q: Queryable, keys: readonly TokenKey[], token: string) {
-  const value = openConnectLink(keys, token);
-  if (!value) return false;
-  const [row] = await q<{ id: string }[]>`
-    select id from app.imessage_links where id = ${value.linkId} and method = 'code' and state = 'linked' and expires_at > now()
-  `;
-  return Boolean(row);
 }
 
 export async function readConnectAttempt(q: Queryable, keys: readonly TokenKey[], token: string) {
@@ -72,10 +58,23 @@ export async function readConnectAttempt(q: Queryable, keys: readonly TokenKey[]
   const [row] = await q<{ id: string; host_account_id: string | null; request_id: string | null }[]>`
     select id, host_account_id, request_id from app.imessage_links
     where id = ${value.linkId} and method = 'code' and expires_at > now()
-      and (state = 'pending' or (state = 'received' and confirm_by > now()))
+      and state = 'pending'
   `;
   if (!row || (value.role === "host" ? !row.host_account_id : !row.request_id)) return null;
   return { ...row, role: value.role };
+}
+
+// Whether the token's attempt has linked (link-on-code D1): the page then says
+// so instead of calling the link closed. It names no sender.
+export async function connectAttemptLinked(q: Queryable, keys: readonly TokenKey[], token: string) {
+  const value = openConnectLink(keys, token);
+  if (!value) return false;
+  const [row] = await q<{ id: string }[]>`
+    select id from app.imessage_links
+    where id = ${value.linkId} and method = 'code' and state = 'linked'
+      and (${value.role} = 'host' and host_account_id is not null or ${value.role} = 'requester' and request_id is not null)
+  `;
+  return Boolean(row);
 }
 
 export const CLOSED_LINK = "This link is no longer open. Ask your agent to start again.";

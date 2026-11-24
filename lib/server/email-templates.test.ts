@@ -5,7 +5,7 @@ const bookingUrl = "https://findmeatime.com/booking/6f1c2b9e-0d4a-4f1e-8a59-3c3a
 const confirmUrl = "https://findmeatime.com/booking/confirm/abcdefghijklmnopqrstuvwxyz012345";
 
 describe("email templates", () => {
-  it.each(["en", "ko"] as const)("renders the %s creation email with both links in HTML and text", (language) => {
+  it.each(["en", "ko"] as const)("renders creation email in English for a %s request", (language) => {
     const email = renderEmail("request_creation", language, { hostName: "Ada", requesterName: "Grace" }, { bookingUrl, confirmUrl });
 
     for (const body of [email.html, email.text]) {
@@ -13,12 +13,16 @@ describe("email templates", () => {
       expect(body).toContain(confirmUrl);
     }
     expect(email.subject).toContain("Ada");
-    expect(email.html).toContain(`lang="${language}"`);
+    expect(email.html).toContain('lang="en"');
+    expect(email.text).toContain("Optional email confirmation");
   });
 
-  it("names the actions in the request's language", () => {
-    expect(renderEmail("request_creation", "en", {}, { bookingUrl, confirmUrl }).text).toContain("Confirm this address");
-    expect(renderEmail("request_creation", "ko", {}, { bookingUrl, confirmUrl }).text).toContain("이 주소 확인하기");
+  it("uses the same English actions for booking and optional email confirmation", () => {
+    const email = renderEmail("request_creation", "ko", {}, { bookingUrl, confirmUrl });
+    expect(email.text).toContain("Continue my request");
+    expect(email.text).toContain("Confirm email address");
+    expect(email.text).toContain("This step is optional");
+    expect(email.html).toContain("#2C3E63");
   });
 
   it("leaves out the confirmation link for an address already confirmed", () => {
@@ -33,6 +37,7 @@ describe("email templates", () => {
 
     expect(email.text).toContain(bookingUrl);
     expect(email.html).not.toContain("/booking/confirm/");
+    expect(email.html).toContain('lang="en"');
   });
 
   it("escapes parameters in HTML", () => {

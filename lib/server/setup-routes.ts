@@ -9,6 +9,7 @@ import { CalendarAccessError, type CalendarListEntry, openHostCalendar } from ".
 import { checkHandle } from "./handles";
 import { chooseTutorialCommand } from "./host-tutorial";
 import { HostIneligibleError, readHostStanding } from "./host-eligibility";
+import { saveHostNotesCommand } from "./host-notes";
 import { type AppOrigins, appOriginsFromEnvironment, crossSiteRefusal } from "./same-origin";
 import { readSetupState, type SetupDependencies, setupDependenciesFromEnvironment } from "./setup";
 import { confirmSettingsCommand, suggestImageWindowsCommand, updateDraftCommand } from "./setup-commands";
@@ -164,6 +165,11 @@ export function createSetupCommandHandler(load: () => SetupRouteDependencies = s
           break;
         case "setup.set_up_manually":
           outcome = await run(setUpManuallyCommand);
+          break;
+        case "setup.save_assistant_notes":
+          // Saved at once and never through the draft: notes are not scheduling
+          // policy, so nothing is confirmed or rechecked (host-preference-notes).
+          outcome = await run(saveHostNotesCommand());
           break;
         case "setup.update_draft":
           outcome = await run(updateDraftCommand);

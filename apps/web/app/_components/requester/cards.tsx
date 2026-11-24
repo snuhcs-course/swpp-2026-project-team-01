@@ -356,23 +356,31 @@ export function CalendarSelectionCard({ context }: { readonly context: Requester
 // settings this request uses; nothing is used before **Use these settings**,
 // and **Not now** keeps the card from returning.
 const HOST_PROFILE_LINES: Readonly<Record<HostProfileItem, { readonly label: string; readonly line: string }>> = {
-  calendars: { label: "Calendars", line: "Check your busy time on the calendars you use as a host." },
+  calendars: { label: "Calendars", line: "Check your busy time on the calendars you use as a host, and offer times in your usual hours and lighter weeks first." },
   details: { label: "Basic details", line: "Fill in your time zone and travel mode." },
 };
+
+const MESSENGER_LINE = {
+  label: "Updates in your host conversation",
+  line: "Get this request's updates, and reply, in the messenger you use with Thyme as a host.",
+} as const;
 
 export function HostProfileCard({ context, onDone }: { readonly context: RequesterCardContext; readonly onDone: () => void }) {
   const profile = context.view.hostProfile;
   const [chosen, setChosen] = useState<Set<HostProfileItem>>(
     () => new Set(profile?.decided ? profile.items : (profile?.offered ?? [])),
   );
+  // #61: the request's updates in the account's own linked host conversation.
+  const [messenger, setMessenger] = useState(() => (profile?.decided ? profile.messenger.on : (profile?.messenger.offered ?? false)));
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   if (!profile) return null;
+  const offersMessenger = profile.messenger.offered || profile.messenger.on;
 
-  async function decide(items: readonly HostProfileItem[]) {
+  async function decide(items: readonly HostProfileItem[], useMessenger: boolean) {
     setBusy(true);
-    const outcome = await context.run("request.host_profile.decide", { items });
+    const outcome = await context.run("request.host_profile.decide", offersMessenger ? { items, messenger: useMessenger } : { items });
     setBusy(false);
     if (outcome.ok) onDone();
     else setError(outcome.error.message);
@@ -406,12 +414,26 @@ export function HostProfileCard({ context, onDone }: { readonly context: Request
             </span>
           </label>
         ))}
+        {offersMessenger ? (
+          <label className="flex min-h-11 items-start gap-2">
+            <input checked={messenger} className="mt-1 size-4" onChange={(event) => setMessenger(event.target.checked)} type="checkbox" />
+            <span className="min-w-0 break-words">
+              {MESSENGER_LINE.label}
+              <span className="block text-sm text-muted-foreground">{MESSENGER_LINE.line}</span>
+            </span>
+          </label>
+        ) : null}
       </fieldset>
       <GuestCardActions>
-        <Button className="min-h-11" disabled={busy || chosen.size === 0} onClick={() => void decide([...chosen])} type="button">
+        <Button
+          className="min-h-11"
+          disabled={busy || (chosen.size === 0 && !(offersMessenger && messenger))}
+          onClick={() => void decide([...chosen], messenger)}
+          type="button"
+        >
           Use these settings
         </Button>
-        <Button className="min-h-11" disabled={busy} onClick={() => void decide([])} type="button" variant="outline">
+        <Button className="min-h-11" disabled={busy} onClick={() => void decide([], false)} type="button" variant="outline">
           Not now
         </Button>
       </GuestCardActions>
@@ -433,25 +455,45 @@ const QUIET_ACTION = "h-8 min-h-8 px-1 text-xs";
 // The request's status as one line in the thread, not a standing card (DESIGN.md:
 // one thing to think about at once): from identification, where the booking
 // link went, with **Send the email again** or **Use verified Google email** as
-// quiet text actions, and that confirming is optional.
+// quiet text actions, and that confirming is optional. When the email bounced
+// or was suppressed, **Change email** opens a one-field form that replaces the
+// address and sends the link there (guest-email-and-agree-notices design 1).
 export function SentLine({ context }: { readonly context: RequesterCardContext }) {
   const [busy, setBusy] = useState(false);
   const [sentAgain, setSentAgain] = useState(false);
+  const [changing, setChanging] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const { confirmation, connection, contact } = context.view;
 
   if (!contact) return null;
 
-  async function command(operation: string, done?: () => void) {
+  async function command(operation: string, done?: () => void, input?: unknown) {
     setBusy(true);
     setError(null);
-    const outcome = await context.run(operation);
+    const outcome = await context.run(operation, input);
     setBusy(false);
     if (!outcome.ok) setError(outcome.error.message);
+    else if ((outcome.result as { status?: string } | null)?.status === "limited") setError(LIMITED_EMAIL);
     else done?.();
   }
 
   const retryLater = confirmation?.retryAt ? Date.parse(confirmation.retryAt) > Date.now() : false;
+  const bounced = !contact.confirmed && (confirmation?.delivery === "rejected" || confirmation?.delivery === "suppressed");
+
+  if (changing) {
+    return (
+      <ChangeEmailForm
+        busy={busy}
+        current={contact.email}
+        error={error}
+        onCancel={() => {
+          setChanging(false);
+          setError(null);
+        }}
+        onSubmit={(email) => void command(CHANGE_EMAIL_OPERATION, () => setChanging(false), { email })}
+      />
+    );
+  }
 
   return (
     <div className="flex min-h-8 min-w-0 flex-wrap items-center gap-x-2 gap-y-1 px-1 text-sm" data-guest-receipt="status" role="note">
@@ -463,6 +505,11 @@ export function SentLine({ context }: { readonly context: RequesterCardContext }
         <span className="text-muted-foreground">· Address confirmed</span>
       ) : (
         <>
+          {bounced ? (
+            <Button className={QUIET_ACTION} disabled={busy || retryLater} onClick={() => setChanging(true)} type="button" variant="link">
+              Change email
+            </Button>
+          ) : null}
           {connection.canUseGoogleEmail ? (
             <Button className={QUIET_ACTION} disabled={busy} onClick={() => void command("contact.use_google_email")} type="button" variant="link">
               Use verified Google email
@@ -483,6 +530,62 @@ export function SentLine({ context }: { readonly context: RequesterCardContext }
       )}
       <ErrorLine message={error} />
     </div>
+  );
+}
+
+export const CHANGE_EMAIL_OPERATION = "contact.change_email";
+const LIMITED_EMAIL = "Too many emails were sent just now. Try again in a minute.";
+
+// The address a bounced booking link goes to instead.
+export function ChangeEmailForm({
+  busy,
+  current,
+  error,
+  onCancel,
+  onSubmit,
+}: {
+  readonly busy: boolean;
+  readonly current: string;
+  readonly error: string | null;
+  readonly onCancel: () => void;
+  readonly onSubmit: (email: string) => void;
+}) {
+  const id = useId();
+  const [email, setEmail] = useState("");
+  const usable = /^[^\s@<>,"]+@[^\s@<>,"]+\.[^\s@<>,"]+$/.test(email.trim()) && email.trim().toLowerCase() !== current.toLowerCase();
+
+  return (
+    <form
+      className="flex min-w-0 flex-col gap-2 px-1 text-sm"
+      data-guest-receipt="change-email"
+      noValidate
+      onSubmit={(event) => {
+        event.preventDefault();
+        if (usable) onSubmit(email.trim());
+      }}
+    >
+      <label className="font-medium" htmlFor={`${id}-email`}>
+        Your booking link could not be delivered to {current}. Where should it go?
+      </label>
+      <div className="flex flex-wrap gap-2">
+        <input
+          autoComplete="email"
+          className="min-h-11 min-w-48 flex-1 rounded-md border bg-background px-3"
+          id={`${id}-email`}
+          inputMode="email"
+          onChange={(event) => setEmail(event.target.value)}
+          type="email"
+          value={email}
+        />
+        <Button className="min-h-11" disabled={busy || !usable} type="submit">
+          Send the link here
+        </Button>
+        <Button className="min-h-11" disabled={busy} onClick={onCancel} type="button" variant="outline">
+          Cancel
+        </Button>
+      </div>
+      <ErrorLine message={error} />
+    </form>
   );
 }
 
@@ -623,8 +726,8 @@ export function EmailLinkLine({ context }: { readonly context: RequesterCardCont
 // iMessage to the line; on a phone Messages opens at once with it written,
 // elsewhere a QR code opens it on an iPhone, and a Mac also gets **Open
 // Messages on this Mac** (D17). The card polls until the message
-// arrives, then shows the masked sender with **Confirm and link**; only that
-// click binds. Linked, a line names the masked sender with **Unlink iMessage**.
+// arrives, and the message itself binds (link-on-code D1): the card moves
+// straight to a line naming the masked sender with **Unlink iMessage** (D2).
 // Like email, it is never required; nothing shows when the deployment has no
 // line. The button first asks for the guest's number (imessage-number-registration
 // D1, D3): the server registers it with Photon, whose shared lines read only
@@ -663,7 +766,8 @@ export function ImessageUpdates({ context, onlyLinked = false }: { readonly cont
     void check();
   }, [check]);
 
-  // While the code waits for its message, the card checks again.
+  // While the code waits for its message, the card checks again, and so moves from the code straight to
+  // linked once the message arrives (link-on-code D1).
   useEffect(() => {
     if (status?.state !== "pending" && !(status?.state === "linked" && status.contactCard?.state === "queued")) return;
     const timer = window.setInterval(() => void check(), 3000);
@@ -833,27 +937,6 @@ export function ImessageUpdates({ context, onlyLinked = false }: { readonly cont
     );
   }
 
-  if (status.state === "received") {
-    return (
-      <InnerStep description={`Your message arrived from ${status.sender}. Link it only if that is you.`} title={`Is this your ${channelName(status.channel)}?`}>
-        {status.channel === "telegram" ? <p className="text-sm text-muted-foreground">{GUEST_TELEGRAM_PRIVACY}</p> : null}
-        <GuestCardActions>
-          <Button
-            disabled={busy}
-            onClick={() => void command(REQUESTER_IMESSAGE_OPERATIONS.confirm, { linkId: status.linkId })}
-            type="button"
-          >
-            Confirm and link
-          </Button>
-          <Button disabled={busy} onClick={() => void command(REQUESTER_IMESSAGE_OPERATIONS.unlink, { pendingOnly: true })} type="button" variant="ghost">
-            This isn't me
-          </Button>
-        </GuestCardActions>
-        <ErrorLine message={error} />
-      </InnerStep>
-    );
-  }
-
   if (telegram) {
     return (
       <InnerStep
@@ -878,10 +961,9 @@ export function ImessageUpdates({ context, onlyLinked = false }: { readonly cont
             role="img"
           />
         ) : null}
-        {/* Start links at once (guest-telegram-link D7), so the privacy sentence comes before it. */}
         <p className="text-sm text-muted-foreground">{GUEST_TELEGRAM_PRIVACY}</p>
         <p className="text-sm text-muted-foreground" role="status">
-          Waiting for you to tap Start, which links this Telegram. The code works until {displayTime(new Date(status.expiresAt), context.timezone)}.
+          Waiting for you to tap Start. The code works until {displayTime(new Date(status.expiresAt), context.timezone)}.
         </p>
         <GuestCardActions>
           {appLink ? (
@@ -958,7 +1040,8 @@ export function ImessageUpdates({ context, onlyLinked = false }: { readonly cont
   );
 }
 
-// Where Telegram keeps the chat, said before Start links it (guest-telegram-link design 2, D7).
+// Where Telegram keeps the chat, said beside the code, since the code links as soon as it arrives
+// (guest-telegram-link design 2, link-on-code D1).
 export const GUEST_TELEGRAM_PRIVACY = "Telegram keeps bot chats on its servers. Find Me a Time sends your request updates here.";
 
 export function ClosedImessageUpdates({ bookingId, timezone }: { readonly bookingId: string; readonly timezone: string }) {
@@ -1020,7 +1103,13 @@ export function AwaitingCard({ context }: { readonly context: RequesterCardConte
   return (
     <>
       <GuestCard
-        description={agreed ? `You agreed to ${displayTime(new Date(agreed.start), context.timezone)}` : "You agreed"}
+        description={
+          agreed?.times && agreed.times.length > 1
+            ? `You agreed to ${agreed.times.length} times: ${agreed.times.map((time) => displayTime(new Date(time.start), context.timezone)).join("; ")}. The host books one.`
+            : agreed
+              ? `You agreed to ${displayTime(new Date(agreed.start), context.timezone)}`
+              : "You agreed"
+        }
         id="awaiting"
         label="Request"
         title={`Waiting for ${context.view.host.displayName} to approve`}

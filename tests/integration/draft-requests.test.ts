@@ -3,6 +3,7 @@ import { generateText } from "ai";
 import { MockLanguageModelV4 } from "ai/test";
 import { afterAll, describe, expect, it } from "vitest";
 import { isHostVisibleRequestState } from "../../lib/contracts/request";
+import { DEFAULT_MEETING_MINUTES } from "../../lib/contracts/setup";
 import { hashBookingId } from "../../lib/server/booking-links";
 import { createAppAuth } from "../../lib/server/eve-auth";
 import { signInternalBearer } from "../../lib/server/internal-bearer";
@@ -339,7 +340,7 @@ describe("request.identify", () => {
       ["calendar", "answered", "Skipped"],
       ["meeting", "open", undefined],
     ]);
-    expect(state.meeting).toEqual({ durationMinutes: 30, meetingMode: expect.any(String), venue: null });
+    expect(state.meeting).toEqual({ durationMinutes: DEFAULT_MEETING_MINUTES, meetingMode: expect.any(String), venue: null });
   });
 
   it("refuses an invalid email and an identification after the host stopped taking requests", async () => {

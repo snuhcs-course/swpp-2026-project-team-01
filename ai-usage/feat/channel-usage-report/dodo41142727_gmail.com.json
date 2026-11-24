@@ -1,0 +1,23 @@
+{
+  "branch": "feat/channel-usage-report",
+  "user": "dodo41142727@gmail.com",
+  "sessions": {
+    "claude:09793419-d8c9-4130-98ab-835b84bde74b": {
+      "agent": "claude-code",
+      "client": "claude-desktop",
+      "agent_ms": 0,
+      "models": {
+        "claude-opus-5-5": {
+          "input": 120,
+          "cache_read": 8980004,
+          "cache_write_5m": 0,
+          "cache_write_1h": 99336,
+          "output": 45312,
+          "reasoning": 0
+        }
+      },
+      "first": "2026-11-23T04:59:53.850Z",
+      "last": "2026-11-23T05:25:18.236Z"
+    }
+  }
+}

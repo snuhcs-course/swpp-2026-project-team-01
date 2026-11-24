@@ -10,8 +10,6 @@
 - [x] 2.2 Route guest Telegram messages with the `[Telegram] ` prefix, ignore a guest's bare `/start`, keep button taps off the guest path, and end guest bindings on a blocking update or a `blocked` send. Verify integration tests for routing, a notice, unlinking and blocking.
 - [x] 2.3 Add **Get updates in Telegram** to the guest card, and verify a Playwright guest journey for Telegram on a computer.
 
-- [x] 2.4 Bind a guest's Telegram on Start with no **Confirm and link** (D7, #383): lock the request as the command did, bind with `bindRequester`, refuse a code for a closed request, say where Telegram keeps the chat before Start, and update the integration and Playwright tests
-
 ## 3. Documents
 
 - [x] 3.1 Update the copy that names guest channels, the PRD's channel paragraph, the guest UX documents and the decision log, and regenerate their `ko/` mirrors (the UX documents have none on `main`).
@@ -24,3 +22,5 @@
 
 - [ ] 5.1 Teammate review of D1–D6.
 - [ ] 5.2 Link a real guest's Telegram on production and record it in the acceptance record.
+
+  Open: needs a person to link a real guest's Telegram on production; kept unarchived on 2026-11-23.

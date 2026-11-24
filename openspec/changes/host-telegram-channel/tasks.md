@@ -21,8 +21,6 @@ Before each group, read the [Phase 10 reference files](../../../documentations/t
 - [x] 3.1 Take channel `telegram` in `imessage.link.create`, complete Telegram attempts only from Telegram receipts with `/start <code>` or the code, keep the display name for confirmation, and end any other binding on confirmation ([design 5](design.md#5-one-channel-per-host), [design 6](design.md#6-linking)). Verify integration tests for a code bound only after confirmation, `/start` without a code, a code from the wrong channel, the replacement of an iMessage binding and exact retries.
 - [x] 3.2 Extend the device rule in `lib/contracts/messaging-channel.ts` to three configured channels, and add the Telegram card states, **Use Telegram instead**, the QR code, the replacement notice and the privacy sentence in the card, the link step and `/?flow=telegram`. Verify unit tests for the rule and the `telegram.me` link, and Playwright runs with Android, iPhone and Windows user agents, with and without WhatsApp configured.
 
-- [x] 3.3 Bind a Telegram host on Start with no **Confirm and link** (D14, #369): bind in `receiveLinkCode` after the confirmation command's locks, reply to a code from `/?flow=telegram` with the sign-in link and bind it in the Google callback's claim, open **Open Telegram** in a new tab on a computer, say the replaced link and the privacy sentence before Start, and say linked on the connect link; update the integration and Playwright tests
-
 ## 4. Buttons, extras and channel behavior (Lane C)
 
 - [x] 4.1 Add the decision buttons, callback admission and answers, and button retirement ([design 7](design.md#7-inline-buttons)). Verify integration tests for an approval from a button, a decline, a stale tap, a tap from another user, a replayed callback after restart and the keyboard removed after a decision.
@@ -34,8 +32,12 @@ Before each group, read the [Phase 10 reference files](../../../documentations/t
 - [x] 5.1 Capture one real Telegram update on the production webhook and update the parser's fixture from it (blocked on the user: it needs the webhook registered and a message sent to the bot).
 - [ ] 5.2 On a controlled Android phone and an iPhone against the production deployment: link, select a request, revise, approve with a button, decline, tap a stale button, replay after restart, and block and unblock the bot. Record AC-32, AC-33 and AC-34 with device, Telegram and browser versions.
 
+  Open: needs a person with a controlled Android phone and iPhone on production; kept unarchived on 2026-11-23 until AC-32 to AC-34 are recorded.
+
 ## 6. Release (blocked on the user)
 
 - [x] 6.1 Set the bot's name, description and picture in @BotFather; set `TELEGRAM_BOT_TOKEN`, `TELEGRAM_BOT_USERNAME` and `TELEGRAM_WEBHOOK_SECRET` on Vercel Production.
 - [x] 6.2 Apply the migration through the shared-project workflow; deploy; run `npm run telegram:webhook` against production.
 - [ ] 6.3 Archive the change after `host-imessage-channel` and `host-whatsapp-channel` with `openspec archive host-telegram-channel`, closing #111.
+
+  Open: waits for 5.2 and for `host-imessage-channel` and `host-whatsapp-channel` to be archived.

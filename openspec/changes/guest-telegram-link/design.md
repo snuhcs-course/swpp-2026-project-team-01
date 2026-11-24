@@ -24,7 +24,7 @@ The migration is generated with `supabase db schema declarative sync --no-apply`
 
 **Get updates in Telegram** runs `request.imessage_link.create` with `{ channel: "telegram" }` and no number: nothing is registered with Photon, and the attempt keeps no `line_number`. A Telegram `pending` carries the bot's username as `lineNumber` and the bare code as `message`, as the host's Telegram card reads them (`host-telegram-channel` design 6), so `telegramLinkFor(lineNumber, message)` is the start link. On a phone the card opens it at once and offers **Open Telegram**; elsewhere it shows the bot, the code, a QR code of the link, **Open Telegram** (Telegram Desktop or Telegram Web) and **Copy**.
 
-While a Telegram code waits for Start, which links at once (D7), the card says where Telegram keeps the chat: "Telegram keeps bot chats on its servers. Find Me a Time sends your request updates here." On a computer **Open Telegram** opens in a new tab, so the booking page stays. A Telegram `linked` line says "Telegram linked: updates go to <name>" with **Unlink Telegram** and no contact card.
+A Telegram `received` shows the sender's sealed name; before **Confirm and link** the card says where Telegram keeps the chat: "Telegram keeps bot chats on its servers. Find Me a Time sends your request updates here." A Telegram `linked` line says "Telegram linked: updates go to <name>" with **Unlink Telegram** and no contact card. Superseded by [`link-on-code`](../link-on-code/proposal.md) D1: the code now binds on arrival, so the sentence is shown with the start link, before the person taps **Start**.
 
 Creating a code voids the request's open attempt on any channel, and confirming binds the sender with the attempt's channel, ending the request's earlier binding on any channel.
 
@@ -32,9 +32,7 @@ The requester agent's `start_updates_link` takes `{ channel: "telegram" }` witho
 
 ## 3. Linking
 
-A guest's Telegram attempt completes exactly as a host's (`host-telegram-channel` design 6): `telegramLinking` finds the code in `/start <code>` or in the text, and `receiveLinkCode` completes the attempt only when its channel is `telegram` and the update came from a private chat, sealing the sender, the chat and the display name. A code arriving on another channel voids the attempt.
-
-**Binding on Start (D7, team decision 2026-11-23).** As for hosts (`host-telegram-channel` D14), the completed attempt binds at once, with no **Is this your Telegram?** step. `receiveLinkCode` first locks the request row as **Confirm and link** did (`lockOpenRequest`), then the request's link lock; a closed request leaves the code unusable, so it is voided and refused. It then records the sender and binds it with `bindRequester`, ending the request's earlier binding on any channel, and marks the attempt linked. The welcome that binding queues is the bot's first message (`REQUESTER_LINK_TEXTS.linked`); nothing else goes out on arrival. The booking page polls and moves to "Telegram linked", and a connect link from `start_updates_link` says linked rather than closed.
+A guest's Telegram attempt completes exactly as a host's (`host-telegram-channel` design 6): `telegramLinking` finds the code in `/start <code>` or in the text, and `receiveLinkCode` completes the attempt only when its channel is `telegram` and the update came from a private chat, sealing the sender, the chat and the display name. A code arriving on another channel voids the attempt. As for hosts, no reply goes out on arrival; the bot's first message is the welcome after **Confirm and link** (`REQUESTER_LINK_TEXTS.linked`). Superseded by [`link-on-code`](../link-on-code/proposal.md) D1: the code now binds on arrival.
 
 A bare `/start` from a sender with no active Telegram binding of either kind still gets the unlinked-sender reply. From a sender with an active Telegram guest binding it does nothing: it is the bot's Start button, pressed again.
 

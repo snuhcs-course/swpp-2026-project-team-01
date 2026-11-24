@@ -96,6 +96,12 @@ export type OpenRequesterView = {
   readonly hostProfile: RequesterHostProfileView | null;
   readonly pendingReview: RequesterReviewView | null;
   readonly conversation: RequesterConversationView;
+  // Whether the fixed steps have handed the guest over to Thyme
+  // (guest-flow-completion U9): the Calendar step was settled, the request has
+  // a purpose, or the guest has written in this conversation. It stays true
+  // when the Calendar step reopens later (#373), so the composer locks only
+  // before the first handover.
+  readonly handedOver: boolean;
   // Whether the request began as a public-page intake whose transcript the page shows.
   readonly hasIntakeTranscript: boolean;
   // The latest evaluation at the request's current revision (pending included),
@@ -128,6 +134,9 @@ export type ClosedRequesterView = {
   readonly host: { readonly displayName: string; readonly handle: string | null };
   readonly booking: BookingStatusView | null;
   readonly timezone: string;
+  // A booked meeting's conversation, which stays open to the guest on the web
+  // so they can ask about, cancel or change it (post-booking-changes, #329).
+  readonly conversation?: RequesterConversationView;
 };
 
 export type RequesterView = OpenRequesterView | ClosedRequesterView;
@@ -142,6 +151,10 @@ export type RequesterHostProfileView = {
   readonly offered: readonly HostProfileItem[];
   readonly items: readonly HostProfileItem[];
   readonly decided: boolean;
+  // The request's notices and replies in the guest-host's own linked host
+  // conversation (#61): offered while the account has one; on while this
+  // request is bound to it.
+  readonly messenger: { readonly offered: boolean; readonly on: boolean };
 };
 
 // The commands the booking page posts to /api/requests/{bookingId}/commands, as
@@ -159,6 +172,7 @@ export const REQUESTER_OPERATIONS = [
   "request.agree",
   "request.withdraw",
   "contact.resend_confirmation",
+  "contact.change_email",
   "contact.use_google_email",
   "calendar.disconnect",
   "calendar.select",

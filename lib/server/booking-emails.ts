@@ -1,7 +1,7 @@
 import type { RequestLanguage } from "../contracts/request";
 
 // The booking confirmation and the requester status notifications
-// (host-review-and-booking design 9), in English and Korean, each rendered as
+// (host-review-and-booking design 9), rendered with English copy and
 // HTML with a plain-text alternative from the delivery's frozen parameters. The
 // requester's booking link is the only secret parameter and is rendered at
 // dispatch. The confirmation's presentation follows the interfaces document: a
@@ -63,6 +63,9 @@ export type BookingEmailParameters = MeetingParameters & {
   readonly changed?: boolean;
   // Why a change after booking was dropped.
   readonly reason?: "declined" | "expired";
+  // The requester's confirmation replies to the product inbox, so a reply
+  // reaches Thyme rather than the host (guest-email-and-agree-notices design 2).
+  readonly replyToAssistant?: boolean;
 };
 
 // The parts of a proposal the host can change.
@@ -163,9 +166,8 @@ function offsetLabel(instant: Date, timeZone: string) {
   return part?.value ?? "GMT";
 }
 
-// "Monday, 2 November 2026, 10:00–10:30 (Asia/Seoul, GMT+9)", or in Korean
-// "2026년 11월 2일 월요일 10:00–10:30 (Asia/Seoul, GMT+9)": the date and clock in
-// the recipient's zone, with the zone named.
+// "Monday, 2 November 2026, 10:00–10:30 (Asia/Seoul, GMT+9)": the date and clock
+// in the recipient's zone, with the zone named.
 export function whenLine(start: string, end: string, timeZone: string, language: RequestLanguage) {
   const from = new Date(start);
   const to = new Date(end);
@@ -190,6 +192,7 @@ const LABELS = {
     online: "Online",
     organizer: "Organizer",
     support: "Replying to this email reaches the other participant.",
+    supportAssistant: "Reply to this email to reach Thyme, your scheduling assistant, about this meeting.",
     what: "What",
     when: "When",
     where: "Where",
@@ -203,6 +206,7 @@ const LABELS = {
     online: "온라인",
     organizer: "주최자",
     support: "이 메일에 답장하면 상대방에게 전달됩니다.",
+    supportAssistant: "이 미팅에 대해서는 이 메일에 답장해 일정 도우미 Thyme에게 물어보세요.",
     what: "무엇",
     when: "언제",
     where: "어디",
@@ -210,10 +214,11 @@ const LABELS = {
   },
 } as const;
 
-function confirmationSubject(parameters: BookingEmailParameters, language: RequestLanguage) {
-  return language === "ko"
-    ? `${parameters.hostName} 와 ${parameters.requesterName} 사이의 ${parameters.title}`
-    : `${parameters.title} between ${parameters.hostName} and ${parameters.requesterName}`;
+function confirmationSubject(parameters: BookingEmailParameters) {
+  if (parameters.changed) return `Your meeting details changed: ${parameters.title}`;
+  return parameters.audience === "host"
+    ? `Meeting booked with ${parameters.requesterName}: ${parameters.title}`
+    : `Your meeting with ${parameters.hostName} is booked: ${parameters.title}`;
 }
 
 type Block = { readonly label: string; readonly lines: readonly string[] };
@@ -268,7 +273,7 @@ function page(language: RequestLanguage, title: string, body: readonly string[])
 
 function renderConfirmation(language: RequestLanguage, parameters: BookingEmailParameters, viewUrl: string): RenderedBookingEmail {
   const labels = LABELS[language];
-  const subject = confirmationSubject(parameters, language);
+  const subject = confirmationSubject(parameters);
   const lead = parameters.changed
     ? language === "ko"
       ? "미팅이 변경되었고 캘린더 일정도 바뀌었습니다."
@@ -277,7 +282,9 @@ function renderConfirmation(language: RequestLanguage, parameters: BookingEmailP
       ? "미팅이 확정되어 캘린더에 추가되었습니다."
       : "Your meeting is confirmed and in the calendar.";
   const meeting = blocks(parameters, language);
+  const bookingAction = parameters.audience === "host" ? "Open request" : labels.bookingAction;
   const join = parameters.mode === "online" && parameters.joinUrl ? parameters.joinUrl : null;
+  const support = parameters.audience === "requester" && parameters.replyToAssistant ? labels.supportAssistant : labels.support;
 
   const html = page(language, subject, [
     `<p><strong style="display:inline-block;border:1px solid #111;border-radius:999px;padding:2px 10px">${escapeHtml(labels.confirmed)}</strong></p>`,
@@ -286,19 +293,19 @@ function renderConfirmation(language: RequestLanguage, parameters: BookingEmailP
       (block) =>
         `<p><strong>${escapeHtml(block.label)}</strong><br>${block.lines.map((line) => escapeHtml(line)).join("<br>")}</p>`,
     ),
-    button(viewUrl, labels.bookingAction),
+    button(viewUrl, bookingAction),
     ...(join ? [button(join, labels.join)] : []),
-    `<p style="color:#555;font-size:14px">${escapeHtml(labels.support)}</p>`,
+    `<p style="color:#555;font-size:14px">${escapeHtml(support)}</p>`,
   ]);
   const text = [
     labels.confirmed,
     lead,
     "",
     ...meeting.flatMap((block) => [`${block.label}:`, ...block.lines, ""]),
-    `${labels.bookingAction}: ${viewUrl}`,
+    `${bookingAction}: ${viewUrl}`,
     ...(join ? [`${labels.join}: ${join}`] : []),
     "",
-    labels.support,
+    support,
     "",
     "Find Me a Time",
   ].join("\n");
@@ -427,7 +434,7 @@ function statusCopy(
         action: "Review the new proposal",
         ...(changes.length > 0 ? { changes: { label: "What changed", lines: changes } } : {}),
         paragraphs: [
-          changes.length > 0 ? `${host} sent back changed meeting details.` : `${host} sent back changed meeting details: ${when}.`,
+          changes.length > 0 ? `${host} suggested changes to your meeting request.` : `${host} suggested changes to your meeting request: ${when}.`,
           byReply
             ? "Nothing is agreed yet. Reply to agree, or to ask for something else."
             : "Nothing is agreed yet. Open your booking page to review the new proposal and agree to it.",
@@ -452,8 +459,8 @@ function statusCopy(
       return {
         action: "Check booking status",
         paragraphs: [
-          `${host} approved your meeting (${when}), and we are still confirming it with Google Calendar.`,
-          byReply ? "It is not booked yet. We'll tell you when it is." : "It is not booked yet. Your booking page will show the outcome.",
+          `${host} approved your proposed time (${when}). We are still checking Google Calendar, so the meeting is not booked yet.`,
+          byReply ? "We'll let you know when the booking is confirmed." : "Your booking page will show the outcome.",
         ],
         subject: `Your meeting with ${host} is still being booked`,
       };
@@ -462,8 +469,8 @@ function statusCopy(
         action: "View booking",
         paragraphs: [
           parameters.reason === "declined"
-            ? `${host} kept your meeting as it was, so the change you asked for was not made. It stays at ${when}.`
-            : `Your change to the meeting wasn't settled in time, so it stays as it was: ${when}.`,
+            ? `${host} declined your change request. Your existing booking remains unchanged: ${when}.`
+            : `Your change request was not confirmed in time. Your existing booking remains unchanged: ${when}.`,
         ],
         subject: `Your meeting with ${host} stays as booked`,
       };
@@ -533,10 +540,11 @@ function renderStatus(
 // notice without one is the product inbox's notice.
 export function renderBookingEmail(
   template: BookingEmailTemplate,
-  language: RequestLanguage,
+  _language: RequestLanguage,
   parameters: BookingEmailParameters,
   secrets: { readonly bookingUrl?: string },
 ): RenderedBookingEmail {
+  const language: RequestLanguage = "en";
   const viewUrl = parameters.audience === "host" ? parameters.viewUrl : secrets.bookingUrl;
 
   if (template === "booking_confirmation") {

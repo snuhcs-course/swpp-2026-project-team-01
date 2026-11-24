@@ -9,7 +9,8 @@ import { startStoryRuntime, stopStoryRuntime } from "./story/runtime";
 // the local database and a fake Google this setup starts (story/runtime.ts),
 // before eve starts its dev server. They need the local Supabase stack
 // (`supabase start`), a model key and FMAT_EVAL_AUDIENCE: requester for
-// evals/requester (`npm run eval` sets it), host_review for evals/host-review.
+// evals/requester (`npm run eval` sets it), host_review for evals/host-review,
+// host_setup for evals/host-setup.
 export default defineEvalConfig({
   maxConcurrency: 2,
   setup: async () => {

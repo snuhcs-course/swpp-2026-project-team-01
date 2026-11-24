@@ -49,6 +49,7 @@ const REQUESTER_TOOLS = [
   "withdraw_request",
   "cancel_booking",
   "change_booking",
+  "resend_booking_link",
 ];
 
 beforeAll(async () => {

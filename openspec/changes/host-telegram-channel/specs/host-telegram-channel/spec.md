@@ -16,7 +16,7 @@ The service SHALL accept Telegram updates at `POST /telegram/webhook` only when 
 - **THEN** the second delivery is answered `200` and creates no second receipt or job
 
 ### Requirement: Telegram sender identity
-The Telegram sender SHALL be the numeric user ID of the update's `from`. An update SHALL count only when its chat is private, the chat ID equals the sender and the sender is not a bot. The sender SHALL be stored only as a keyed hash in a namespace separate from iMessage and WhatsApp senders, and sealed for replies. The service SHALL NOT request or store a Telegram user's phone number. The display name shown for confirmation SHALL come from the update's `first_name` and `username`, never from message text.
+The Telegram sender SHALL be the numeric user ID of the update's `from`. An update SHALL count only when its chat is private, the chat ID equals the sender and the sender is not a bot. The sender SHALL be stored only as a keyed hash in a namespace separate from iMessage and WhatsApp senders, and sealed for replies. The service SHALL NOT request or store a Telegram user's phone number. The display name shown on the linked screen SHALL come from the update's `first_name` and `username`, never from message text.
 
 #### Scenario: Group message
 - **WHEN** a message reaches the bot from a group, supergroup or channel
@@ -27,23 +27,16 @@ The Telegram sender SHALL be the numeric user ID of the update's `from`. An upda
 - **THEN** the two senders have different hashes and neither one's binding applies to the other
 
 ### Requirement: Linking Telegram by a start link
-An authenticated active host SHALL be able to create a Telegram link attempt whose one-time code, expiry and limits are those of the iMessage channel. **Connect Telegram** SHALL create the code and then open `https://telegram.me/<bot username>?start=<code>`. On a computer it SHALL also show the link as a QR code and a copy action, and SHALL open the link in a new tab so the linking page stays open. A private Telegram message whose text is `/start <code>` or the code, for the pending unexpired code of an active host, SHALL bind its sender to that host at once, with no confirmation in the browser, and the browser SHALL then show the Telegram name as linked. A code from the start before sign-in SHALL record its sender, reply with the sign-in link, and bind that sender when Google sign-in gives the attempt to a host, unless another host holds the sender. A code arriving on another channel SHALL void the attempt. The bot SHALL NOT send the first message, except the reply carrying the sign-in link to a code from the start before sign-in, and a linking message SHALL never reach the model or a transcript.
+An authenticated active host SHALL be able to create a Telegram link attempt whose one-time code, expiry and limits are those of the iMessage channel. **Connect Telegram** SHALL create the code and then open `https://telegram.me/<bot username>?start=<code>`. On a computer it SHALL also show the link as a QR code and a copy action. Only a private Telegram message whose text is `/start <code>` or the code, for the pending unexpired code, SHALL bind its sender to the host as soon as it arrives, with no confirmation in the browser; the page that showed the link SHALL show **Linked** with the Telegram name and **Not my Telegram — unlink** (`link-on-code` D1, D2). A code arriving on another channel SHALL void the attempt. The bot SHALL NOT send the first message, and a linking message SHALL never reach the model or a transcript.
+An authenticated active host SHALL be able to create a Telegram link attempt whose one-time code, expiry and limits are those of the iMessage channel. **Connect Telegram** SHALL create the code and then open `https://telegram.me/<bot username>?start=<code>`. On a computer it SHALL also show the link as a QR code and a copy action, and **Open Telegram** SHALL open the link in a new tab so the page that shows **Confirm and link** stays open. Only a private Telegram message whose text is `/start <code>` or the code, for the pending unexpired code, SHALL record its sender for confirmation. The sender SHALL be bound only after the host confirms the shown Telegram name in the authenticated browser. A code arriving on another channel SHALL void the attempt. The bot SHALL NOT send the first message, and a linking message SHALL never reach the model or a transcript.
 
 #### Scenario: Link from a phone
 - **WHEN** the host taps **Connect Telegram** and taps **Start** in Telegram
-- **THEN** that Telegram account is bound to the host with no confirmation in the browser, the browser shows it as linked, and the bot's first message is the welcome in the chat the host started
+- **THEN** that Telegram account is bound to the host, the bot's first message is the welcome in the chat the host started, and the page moves to **Linked** by itself
 
 #### Scenario: Link from a computer
-- **WHEN** a host on a computer clicks **Open Telegram** and taps **Start** in Telegram Desktop or Telegram Web
-- **THEN** Telegram's page opens in a new tab, the Telegram account is bound, and the linking page that stayed open shows it as linked
-
-#### Scenario: Start before sign-in
-- **WHEN** a visitor starts from Telegram before sign-in, taps **Start**, and then signs in with Google from that browser or from the link in the bot's reply
-- **THEN** the sender is bound to the signed-in host when the sign-in finishes, with no confirmation in the browser
-
-#### Scenario: Second Start
-- **WHEN** the bound sender taps **Start** again with the same code
-- **THEN** nothing changes and no refusal is sent
+- **WHEN** a host on a computer clicks **Open Telegram**, taps **Start** in Telegram Desktop or Telegram Web and returns to the browser
+- **THEN** Telegram opened in a new tab, the Find Me a Time page still shows **Is this you?** with **Confirm and link**, and confirming binds that Telegram account
 
 #### Scenario: Start without a code
 - **WHEN** someone opens the bot and taps **Start** with no code
@@ -65,10 +58,10 @@ The linking card, the link step after sign-in and the landing's start before sig
 - **THEN** it offers **Connect iMessage** with **Use Telegram instead**
 
 ### Requirement: One messaging channel across three
-A host SHALL have at most one active messaging binding across iMessage, WhatsApp and Telegram. Before confirmation, or for Telegram before **Start**, the browser SHALL name the link being replaced. Binding SHALL end the earlier binding in the same transaction and suppress messages queued for it that have not been dispatched. No summary SHALL go to two channels.
+A host SHALL have at most one active messaging binding across iMessage, WhatsApp and Telegram. Linking SHALL end the earlier binding in the same transaction and suppress messages queued for it that have not been dispatched. No summary SHALL go to two channels.
 
 #### Scenario: iMessage host links Telegram
-- **WHEN** a host linked on iMessage taps **Start** with a Telegram code
+- **WHEN** a host linked on iMessage links a Telegram sender
 - **THEN** the iMessage binding ends, later summaries go only to Telegram, and the iMessage sender gets the unlinked-sender reply if it writes again
 
 ### Requirement: Decision buttons bound to a proposal
@@ -114,8 +107,8 @@ The outbox SHALL record Telegram sends with the iMessage channel's states and SH
 - **THEN** the row is retried after that delay and sent once
 
 ### Requirement: Telegram privacy notice
-While a Telegram code waits for **Start**, which links at once, the browser SHALL say that Telegram keeps bot chats on its servers and that request summaries will be sent there. The privacy policy SHALL name Telegram as a processor for hosts who link it. Unlinking, `stop` and blocking the bot SHALL each end the binding and every later message.
+On the screen that shows the start link, before the host taps **Start**, the browser SHALL say that Telegram keeps bot chats on its servers and that request summaries will be sent there. The privacy policy SHALL name Telegram as a processor for hosts who link it. Unlinking, `stop` and blocking the bot SHALL each end the binding and every later message.
 
 #### Scenario: Notice before linking
-- **WHEN** the browser shows a Telegram code waiting for **Start**
-- **THEN** the Telegram storage sentence is shown with it, before anything is linked
+- **WHEN** the browser shows a Telegram start link
+- **THEN** the Telegram storage sentence is shown with it, before the host taps **Start**

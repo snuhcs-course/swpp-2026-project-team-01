@@ -10,7 +10,10 @@ import { ensureHostAccount, type HostAccount } from "./host-accounts";
 import { claimContinuedLink, claimStartedLink, clearStartCookie, startSecretOf } from "./imessage-start";
 import { continuationCookie, continuationOf } from "./imessage-continuation";
 import { resumeImessageOnboarding } from "./imessage-links";
+import { readDefaultRoleCalendars } from "./calendar-roles";
+import { googleCalendarConfigFromEnvironment } from "./google-calendar";
 import { recordGoogleGrant } from "./provider-grants";
+import { calendarUsable } from "./readiness";
 import { type AppOrigins, appOriginsFromEnvironment, crossSiteRefusal, requestAppOrigin, unknownHost } from "./same-origin";
 import { admitSignUp, SIGNUP_LIMITS, SignUpLimitError, type SignUpLimits, sourceHash } from "./signup-limits";
 import { createRequestAuthClient, type SupabaseAuthConfig, supabaseAuthConfigFromEnvironment } from "./supabase-auth";
@@ -124,7 +127,9 @@ export async function completeGoogleSignIn(
 // transaction again and returns there, otherwise to /app. No query parameter
 // ever chooses the destination. Sign-in started from Thyme's iMessage links
 // (`return=imessage`, host-imessage-channel D19) records "imessage" instead, so
-// the callback tells the linked conversation to carry on; it still returns to /app.
+// the callback tells the linked conversation to carry on; it still returns to
+// /app, as /app?calendar=connected once the Calendar grant is usable, so the
+// link step says Calendar is connected rather than confirming the link again.
 export const RETURN_COOKIE = "fmat_auth_return";
 const RETURN_IMESSAGE = "imessage";
 const RETURN_SECONDS = 10 * 60;
@@ -227,22 +232,36 @@ export function createGoogleCallbackHandler(load: () => GoogleSignInDependencies
       return auth.redirect(caught instanceof SignUpLimitError ? `${origin}/app?sign_in=limited` : failed, clear);
     }
 
-    // An attempt from the iMessage start moves to the host, whose link step then
-    // asks for Confirm and link (D15): the one named by the sign-in link in
-    // Thyme's reply (D19), else this browser's. A sign-in begun from Thyme's
+    // An attempt from the iMessage start moves to the host, and a sender that
+    // already arrived is bound (D15, link-on-code D3): the one named by the
+    // sign-in link in Thyme's reply (D19), else this browser's. A sign-in begun from Thyme's
     // Calendar link tells the linked conversation to carry on (D19). Sign-in has
     // succeeded either way; a lost claim only means linking again from /app, and
     // a lost message only means the host writes first.
     const logged = (event: string) => (error: unknown) => {
       console.error(JSON.stringify({ error: error instanceof Error ? error.name : typeof error, event }));
     };
+    let calendarReturn = false;
     if (account.status === "active") {
-      // A Telegram sender binds as the claim lands (host-telegram-channel D14).
-      const bindOptions = { origin: deps.appOrigin, tokenKey: deps.tokenKey, tokenKeys: [deps.tokenKey] };
-      if (continued) await claimContinuedLink(deps.db, bindOptions, account.id, continued).catch(logged("imessage_continue_claim_failed"));
-      else if (started) await claimStartedLink(deps.db, bindOptions, account.id, started).catch(logged("imessage_start_claim_failed"));
-      if (recorded === RETURN_IMESSAGE) {
+      // A claim may bind the sender, which saves the default calendar roles from
+      // the live list as an arriving code does (link-on-code design 5).
+      const liveCalendars = continued || started
+        ? await readDefaultRoleCalendars(deps.db, account.id, { config: googleCalendarConfigFromEnvironment(), tokenKeys: [deps.tokenKey] })
+        : null;
+      const bindOptions = { liveCalendars, origin, tokenKey: deps.tokenKey, tokenKeys: [deps.tokenKey] };
+      const claimed = continued
+        ? await claimContinuedLink(deps.db, bindOptions, account.id, continued).catch(logged("imessage_continue_claim_failed"))
+        : started
+          ? await claimStartedLink(deps.db, bindOptions, account.id, started).catch(logged("imessage_start_claim_failed"))
+          : false;
+      // A claim that linked the conversation has queued its welcome, which
+      // already says what comes next, and a claimed code still to be sent gets
+      // it on arrival; a second "you're back" would repeat it.
+      if (recorded === RETURN_IMESSAGE && !claimed) {
         await resumeImessageOnboarding(deps.db, deps.tokenKey, account.id, code).catch(logged("imessage_resume_failed"));
+        // Only Thyme's Calendar link: the sign-in link in Thyme's reply records the
+        // same return but still ends in Confirm and link, which keeps its words.
+        if (!continued) calendarReturn = await calendarConnected(deps.db, account.id).catch(() => false);
       }
     }
 
@@ -252,8 +271,17 @@ export function createGoogleCallbackHandler(load: () => GoogleSignInDependencies
       return auth.redirect(`${origin}/connect/link/${encodeURIComponent(linkToken!)}`, clear);
     }
     const consent = recorded && !linkToken && recorded !== RETURN_IMESSAGE && (await isLiveHostTransaction(deps.db, recorded)) ? `${origin}/connect/consent?transaction=${recorded}` : null;
-    return auth.redirect(consent ?? `${origin}/app`, clear);
+    return auth.redirect(consent ?? `${origin}/app${calendarReturn ? "?calendar=connected" : ""}`, clear);
   };
+}
+
+// Whether the host's Google grant can use Calendar now, by the same predicate
+// readiness uses, so /app never says Calendar is connected when it is not.
+async function calendarConnected(db: Database, hostAccountId: string) {
+  const [row] = await db<{ usable: boolean }[]>`
+    select ${calendarUsable(db)} as usable from app.provider_grants g where g.host_account_id = ${hostAccountId}
+  `;
+  return row?.usable === true;
 }
 
 // POST /auth/sign-out: ends the Supabase session and its cookies, then returns to

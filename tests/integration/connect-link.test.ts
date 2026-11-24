@@ -43,14 +43,16 @@ function post(token: string, action: string, cookie = "", extra = {}) {
 }
 
 for (const role of ["host", "requester"] as const) describe(`${role} link started through MCP`, () => {
-  it("confirms only after receipt, reports status, queues the usual welcome and closes the token", async () => {
+  // link-on-code D1: the code links as soon as it arrives; the page only shows the
+  // code, then "linked", and nothing is confirmed there.
+  it("links on receipt, reports status, queues the usual welcome and shows the token as linked", async () => {
     const client = await connected(role);
     const stateTool = role === "host" ? "get_host_status" : "get_request";
     const stateKey = role === "host" ? "chat" : "updates";
     expect((await client.call(stateTool)).structuredContent[stateKey]).toMatchObject({ state: "none" });
     const started = await client.start();
     expect(started.isError).toBe(false);
-    expect(started.structuredContent).toMatchObject({ channel: "imessage", next: "Give the person this link. On that page they send a code from their own phone and confirm. Nothing is linked until they do." });
+    expect(started.structuredContent).toMatchObject({ channel: "imessage", next: "Give the person this link. On that page they send a code from their own phone, and it links as soon as it arrives. They can unlink a wrong number from the app." });
     expect(JSON.stringify(started.structuredContent)).not.toContain("/booking/");
     const token = tokenOf(started);
     const cookie = role === "host" ? client.host.cookie : "";
@@ -58,20 +60,20 @@ for (const role of ["host", "requester"] as const) describe(`${role} link starte
     const pending = await (await get(token, cookie)).json();
     expect(pending).toMatchObject({ state: "open", status: { state: "pending" } });
     expect((await client.call(stateTool)).structuredContent[stateKey]).toMatchObject({ channel: "imessage", state: "pending", sender: null });
-    expect((await post(token, "confirm", cookie)).status).toBe(409);
+    // There is no confirm action any more.
+    expect((await post(token, "confirm", cookie)).status).toBe(400);
     const sender = newSender();
     expect((await im.deliver({ sender, text: pending.status.message })).outcome).toBe("link_received");
-    const received = await (await get(token, cookie)).json();
-    expect(received).toMatchObject({ state: "open", status: { state: "received", sender } });
-    const confirmed = await post(token, "confirm", cookie);
-    expect(confirmed.status).toBe(200);
-    expect(await confirmed.json()).toEqual({ state: "linked", message: "Linked. You can go back to your agent." });
-    expect((await client.call(stateTool)).structuredContent[stateKey]).toMatchObject({ channel: "imessage", state: "linked", sender });
-    expect(await (await get(token, cookie)).json()).toEqual({ state: "closed" });
-    expect((await post(token, "confirm", cookie)).status).toBe(410);
+    const linked = await (await get(token, cookie)).json();
+    expect(linked).toEqual({ state: "linked" });
+    // The page polls without a session too; "linked" names no sender.
+    expect(await (await get(token)).json()).toEqual({ state: "linked" });
+    expect((await client.call(stateTool)).structuredContent[stateKey]).toMatchObject({ channel: "imessage", state: "linked", sender: `•••• ${sender.slice(-4)}` });
+    expect((await post(token, "cancel", cookie)).status).toBe(410);
     const outbox = role === "host" ? await im.outbox({ hostAccountId: client.host.hostAccountId }) : await db<{ kind: string }[]>`select kind from app.imessage_outbox where request_id = ${client.request.requestId}`;
     expect(outbox.some(row => row.kind === "linked")).toBe(true);
-    expect(JSON.stringify(received)).not.toMatch(/\/booking\/|purpose|requestId/);
+    expect(outbox.some(row => row.kind === "link_received")).toBe(false);
+    expect(JSON.stringify(linked)).not.toContain(sender.slice(-4));
   });
 
   it("ends cancelled, expired and replaced attempts without affecting a new attempt", async () => {
@@ -88,7 +90,7 @@ for (const role of ["host", "requester"] as const) describe(`${role} link starte
     const payload = openConnectLink([testTokenKey], third)!;
     await db`update app.imessage_links set expires_at = now() - interval '1 second' where id = ${payload.linkId}`;
     expect(await (await get(third, cookie)).json()).toEqual({ state: "closed" });
-    expect((await post(third, "confirm", cookie)).status).toBe(410);
+    expect((await post(third, "cancel", cookie)).status).toBe(410);
   });
 
   it("preserves the unconfigured-channel and hourly-limit guards", async () => {
@@ -105,7 +107,7 @@ it("rejects another host's session and foreign-origin mutations", async () => {
   const other = await signInHost(db);
   const token = tokenOf(await client.start());
   expect(await (await get(token, other.cookie)).json()).toEqual({ state: "closed" });
-  expect((await post(token, "confirm", other.cookie)).status).toBe(410);
+  expect((await post(token, "cancel", other.cookie)).status).toBe(410);
   const foreign = await page(new Request(`${ORIGIN}/connect/link/${token}/confirm`, { method: "POST", headers: { origin: "https://evil.example" } }), token);
   expect(foreign.status).toBe(403);
 });
@@ -115,7 +117,7 @@ it("cannot retarget a requester token to another attempt or pass an attempt ID",
   const first = tokenOf(await client.start());
   const second = tokenOf(await client.start());
   const secondId = openConnectLink([testTokenKey], second)!.linkId;
-  expect((await post(first, "confirm", "", { linkId: secondId })).status).toBe(400);
+  expect((await post(first, "cancel", "", { linkId: secondId })).status).toBe(400);
   const wrongRole = sealConnectLink(testTokenKey, { role: "host", linkId: secondId });
   expect(await (await get(wrongRole)).json()).toEqual({ state: "closed" });
   const parts = second.split(".");
@@ -130,9 +132,9 @@ it("refuses starting updates for a closed request", async () => {
 });
 
 // guest-telegram-link task 2.1: the guest's agent starts Telegram without a
-// number; the page shows the bot and the code, and confirming binds the
-// Telegram sender by name.
-it("starts and confirms a guest Telegram link through the agent", async () => {
+// number; the page shows the bot and the code, and the code binds the Telegram
+// sender by name as it arrives (link-on-code D1).
+it("starts a guest Telegram link through the agent and links it on arrival", async () => {
   const client = await connected("requester");
   expect((await client.call("start_updates_link", { channel: "telegram", number: newSender(), retryKey: randomUUID() })).isError).toBe(true);
   const started = await client.call("start_updates_link", { channel: "telegram", retryKey: randomUUID() });
@@ -145,7 +147,6 @@ it("starts and confirms a guest Telegram link through the agent", async () => {
 
   const userId = newTelegramUser();
   expect((await im.deliverTelegram(telegramMessage({ firstName: "Grace", text: `/start ${pending.status.code}`, userId })))?.outcome).toBe("link_received");
-  // The Start links at once (guest-telegram-link D7): the page says Linked, with nothing to confirm.
   expect(await (await get(token)).json()).toEqual({ state: "linked" });
   expect((await client.call("get_request")).structuredContent.updates).toEqual({ channel: "telegram", sender: "Grace", state: "linked" });
 });

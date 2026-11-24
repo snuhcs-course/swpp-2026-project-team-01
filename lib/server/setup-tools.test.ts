@@ -1,11 +1,13 @@
 import { type DynamicResolveContext, serializeModelInputSchema } from "eve/tools";
 import { describe, expect, it } from "vitest";
 import hostSetupInstructions from "../../agent/instructions/host-setup";
+import hostImessageInstructions from "../../agent/instructions/host-imessage";
+import requestTools from "../../agent/tools/request";
 import setupTools from "../../agent/tools/setup";
 import { STARTER_DEFAULTS } from "../contracts/setup";
 import { buildFieldViews } from "./setup";
 import type { SetupStateView } from "./setup";
-import { draftSettingsToolInput, isHostSetupSession, modelProjection, type SessionPrincipal } from "./setup-tools";
+import { authorizeSetupTool, changeSettingsToolInput, draftSettingsToolInput, isHostSetupSession, modelProjection, saveAssistantNotesToolInput, type SessionPrincipal } from "./setup-tools";
 
 function principal(attributes: Record<string, string>, principalType = "user"): SessionPrincipal {
   return { attributes, principalId: "4f1c7a52-2b8e-4a36-9b1d-0e6a7d1f2c33", principalType };
@@ -26,7 +28,7 @@ describe("setup capabilities resolve per audience", () => {
   it("gives a host setup session the setup tools and switching in words", async () => {
     const tools = await setupTools.events["session.started"]!({}, resolveContext(hostSetup));
 
-    expect(Object.keys(tools ?? {}).sort()).toEqual(["choose_note_items", "choose_request_tutorial", "confirm_note_items", "confirm_settings", "draft_settings", "list_host_requests", "preview_next_week", "read_setup_state", "set_calendar_roles", "switch_conversation"]);
+    expect(Object.keys(tools ?? {}).sort()).toEqual(["choose_note_items", "choose_request_tutorial", "confirm_note_items", "confirm_settings", "draft_settings", "list_host_requests", "preview_next_week", "read_setup_state", "save_assistant_notes", "set_calendar_roles", "start_request", "switch_conversation"]);
   });
 
   it("leaves the tools absent for any other audience or no principal", async () => {
@@ -55,6 +57,17 @@ describe("setup capabilities resolve per audience", () => {
     expect(content).not.toContain("keep hours the host already answered and do not");
     expect(content).toContain("ask whether to switch");
     expect(content).toContain("Their hours stay until they agree");
+  });
+
+  it("guides chat setup with the shared step names and one calendar question (setup-chat-guidance)", async () => {
+    const instructions = await hostSetupInstructions.events["session.started"]!({}, resolveContext(hostSetup));
+    const content = (instructions as { content: string }).content;
+
+    expect(content).toContain("Calendar, Meeting hours, Where you meet, Open times");
+    expect(content).toContain('Put the line\n  "3/4 · Where you meet" ("3/4 · 미팅 장소")');
+    expect(content).toContain("asks once\n   whether they should count for busy times too");
+    expect(content).toContain("Never repeat that question");
+    expect(content).toContain("setup is done");
   });
 
   it("describes draft_settings to the model as JSON Schema", () => {
@@ -89,6 +102,7 @@ describe("setup capabilities resolve per audience", () => {
 describe("modelProjection", () => {
   const state: SetupStateView = {
     tutorialOffered: false,
+    assistantNotes: { text: "A first meeting is online.", updatedAt: "2026-10-19T00:02:00.000Z" },
     account: { googleEmail: "alice@example.test" },
     analysis: {
       calendars: [{ id: "secret-calendar-id@group.calendar.google.com", ok: true, summary: "Work" }],
@@ -189,11 +203,25 @@ describe("modelProjection", () => {
     expect(text).not.toContain("alice@example.test");
     expect(text).not.toMatch(/token|ciphertext/i);
     expect(projected.fields.noteExclusions.draft).toEqual({ accepted: true, source: "stated", value: { count: 1 } });
-    expect(projected.fields.durationMinutes.suggestion).toMatchObject({ source: "starter_default", value: 30 });
+    expect(projected.fields.durationMinutes.suggestion).toMatchObject({ source: "starter_default", value: 60 });
     expect(projected.analysis?.evidence?.noteLikeCount).toBe(1);
     expect(projected.roles).toEqual({ bookingCalendar: '"Work"', conflictCalendars: ['"Work"'] });
     expect(projected.calendar.calendars).toEqual([{ access: "owner", index: 0, name: '"Work"', primary: true, recommended: ["conflict", "booking"] }]);
     expect(projected.links).toBeNull();
+  });
+
+  it("gives the host's assistant their own notes for Thyme, without when they were saved", () => {
+    const projected = modelProjection(state);
+    expect(projected.assistantNotes).toBe("A first meeting is online.");
+    expect(JSON.stringify(projected)).not.toContain("2026-10-19T00:02:00.000Z");
+    expect(modelProjection({ ...state, assistantNotes: null }).assistantNotes).toBeNull();
+  });
+
+  it("describes save_assistant_notes as the whole notes, capped at 1000 characters", () => {
+    expect(saveAssistantNotesToolInput.safeParse({ notes: "투자 상담은 30분" }).success).toBe(true);
+    expect(saveAssistantNotesToolInput.safeParse({ notes: "" }).success).toBe(true);
+    expect(saveAssistantNotesToolInput.safeParse({ notes: "x".repeat(1001) }).success).toBe(false);
+    expect(saveAssistantNotesToolInput.safeParse({ notes: "ok", source: "stated" }).success).toBe(false);
   });
 
   it("leaves out place names and gives calendar names only as quoted data", () => {
@@ -231,5 +259,42 @@ describe("modelProjection", () => {
     expect(
       modelProjection({ ...state, links, readiness: { displayName: "Alice", handle: "alice", ready: true } }).links,
     ).toEqual(links);
+  });
+});
+
+// A linked conversation stays on the latest request once its summary arrived, so
+// the host's review of a request also changes saved settings in words (#367).
+describe("saved settings from a request's conversation", () => {
+  const hostReview = principal({ audience: "host_review", discussionId: "d", generation: "1", requestId: "9b2f3c1e-0a4d-4f6b-8c7e-1d2a3b4c5d6e" });
+
+  it("gives a host review session read_settings and change_settings with draft_settings' input", async () => {
+    const tools = (await requestTools.events["session.started"]!({}, resolveContext(hostReview))) as Record<string, { inputSchema: unknown; description: string }>;
+
+    expect(tools.read_settings).toBeDefined();
+    expect(tools.change_settings?.inputSchema).toBe(changeSettingsToolInput);
+    expect(changeSettingsToolInput.shape.expectedRevision.description).toMatch(/read_settings/);
+    expect(tools.change_settings?.description).toMatch(/never on the requester's name or purpose/);
+    expect(tools.change_settings?.description).toMatch(/preferred meeting location/);
+    expect(tools.change_settings?.description).toMatch(/propose_shared_changes/);
+    // A host setup session keeps draft_settings and gets nothing from the request tools.
+    expect(await requestTools.events["session.started"]!({}, resolveContext(hostSetup))).toBeNull();
+  });
+
+  it("keeps every other setup tool's fence to the setup discussion", async () => {
+    const q = (() => {
+      throw new Error("the fence must refuse before reading");
+    }) as unknown as Parameters<typeof authorizeSetupTool>[0];
+
+    await expect(authorizeSetupTool(q, hostReview, "session-1")).rejects.toThrow("Setup is not available in this conversation.");
+    await expect(authorizeSetupTool(q, hostReview, "session-1", { lock: true })).rejects.toThrow("Setup is not available in this conversation.");
+  });
+
+  it("tells the linked-conversation assistant to save a place change with change_settings", async () => {
+    const instructions = await hostImessageInstructions.events["session.started"]!({}, resolveContext(hostReview));
+    const content = (instructions as { content: string }).content;
+
+    expect(content).toContain("call read_settings and then change_settings");
+    expect(content).toMatch(/Say it is saved only when savedChange is\s+"saved"/);
+    expect(content).toMatch(/never the requester's name or\s+purpose/);
   });
 });

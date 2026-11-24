@@ -10,7 +10,7 @@ import { OFFERS_WIDER_SEARCH, readRequestProjection, requesterSession, requester
 // among the listed times fails the offer check.
 export function hostPlansEval(language: "en" | "ko", question: string) {
   return defineEval({
-    tags: ["requester", "live-model"],
+    tags: ["requester", "live-model", "capability"],
     async test(t) {
       const projection = readRequestProjection({
         ...THREE_TIMES,

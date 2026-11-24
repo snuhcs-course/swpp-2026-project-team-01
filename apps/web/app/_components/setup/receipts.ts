@@ -82,6 +82,9 @@ export function stepValueText(step: StepId, values: FieldValues): string {
       return has("travelBufferMinutes") ? formatMinutes(values.travelBufferMinutes as number) : "";
     case "trips":
       return has("groupTrips") ? describeGroupTrips(values.groupTrips === true) : "";
+    case "assistantNotes":
+      // The notes are not a draft field; their receipt is assistantNotesReceipts.
+      return "";
     case "identity":
       return [has("displayName") ? String(values.displayName) : null, has("handle") ? `/${String(values.handle)}` : null]
         .filter(Boolean)
@@ -158,6 +161,32 @@ export function stepReceipts(state: Pick<SetupState, "fields">, step: StepId): R
   return receipts;
 }
 
+// How a receipt shows the host's notes for Thyme: none, or their first line.
+export const NOTES_RECEIPT_LENGTH = 60;
+
+export function notesReceiptText(text: string) {
+  const line = text.split("\n").find((part) => part.trim().length > 0)?.trim() ?? "";
+  if (line.length === 0) return "None";
+  return line.length > NOTES_RECEIPT_LENGTH ? `${line.slice(0, NOTES_RECEIPT_LENGTH - 1)}…` : line;
+}
+
+// The notes keep only their latest save (when the host saved them), so they make
+// one receipt.
+function assistantNotesReceipts(state: Pick<SetupState, "assistantNotes">): Receipt[] {
+  const notes = state.assistantNotes;
+  if (!notes) return [];
+  return [{
+    at: notes.updatedAt,
+    changedTo: null,
+    id: `step-assistantNotes-${notes.updatedAt}`,
+    kind: "step",
+    label: STEP_LABELS.assistantNotes,
+    source: null,
+    step: "assistantNotes",
+    value: notesReceiptText(notes.text),
+  }];
+}
+
 function weeksEachWay(range: { readonly start: string; readonly end: string }) {
   const days = (Date.parse(range.end) - Date.parse(range.start)) / 86_400_000;
   return Math.max(1, Math.round(days / 2 / 7));
@@ -167,7 +196,7 @@ const KIND_ORDER: Readonly<Record<ReceiptKind, number>> = { analysis: 1, calenda
 
 // Every receipt for this state, oldest first. `skipped` holds this visit's skips.
 export function deriveReceipts(
-  state: Pick<SetupState, "analysis" | "analysisSkipped" | "confirmedAt" | "fields" | "missingFields" | "readiness" | "roles">,
+  state: Pick<SetupState, "analysis" | "analysisSkipped" | "assistantNotes" | "confirmedAt" | "fields" | "missingFields" | "readiness" | "roles">,
   skipped: ReadonlyMap<StepId, string> = new Map(),
 ): Receipt[] {
   const receipts: Receipt[] = [];
@@ -208,7 +237,10 @@ export function deriveReceipts(
 
   // Receipts of steps that no longer apply (in-person steps after choosing
   // Online, say) are left out: their Edit would have nowhere to go.
-  for (const step of STEP_IDS) if (steps.includes(step)) receipts.push(...stepReceipts(state, step));
+  for (const step of STEP_IDS) {
+    if (!steps.includes(step)) continue;
+    receipts.push(...(step === "assistantNotes" ? assistantNotesReceipts(state) : stepReceipts(state, step)));
+  }
 
   for (const [step, at] of skipped) {
     if (!steps.includes(step) || stepAccepted(state, step)) continue;

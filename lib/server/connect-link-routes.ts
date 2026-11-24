@@ -1,27 +1,27 @@
 import { z } from "zod";
 import type { ImessageStatus } from "../contracts/imessage";
 import type { RequesterImessageStatus } from "../contracts/requester-imessage";
-import { readDefaultRoleCalendars } from "./calendar-roles";
 import { json } from "./chat-routes";
 import { CommandError, runCommand, type CommandDefinition } from "./commands";
-import { connectLinkLinked, readConnectAttempt, CLOSED_LINK } from "./connect-link";
-import { googleCalendarConfigFromEnvironment } from "./google-calendar";
+import { readConnectAttempt, CLOSED_LINK, connectAttemptLinked } from "./connect-link";
 import { readHostStanding } from "./host-eligibility";
-import { cancelImessageLinkCommand, confirmImessageLinkCommand, linkChannels, linkLockKey, lockHostLinking, readImessageStatus } from "./imessage-links";
+import { cancelImessageLinkCommand, linkChannels, linkLockKey, lockHostLinking, readImessageStatus } from "./imessage-links";
 import { imessageRouteDependenciesFromEnvironment, type ImessageRouteDependencies } from "./imessage-routes";
-import { confirmRequesterImessageLinkCommand, readRequesterImessageStatus, unlinkRequesterImessageCommand } from "./requester-imessage-links";
+import { readRequesterImessageStatus, unlinkRequesterImessageCommand } from "./requester-imessage-links";
 import { crossSiteRefusal, requestAppOrigin, unknownHost } from "./same-origin";
 import { verifiedUserId } from "./supabase-auth";
 
+// The code links as soon as it arrives (link-on-code D1), so the page moves from
+// the open code straight to linked; nothing is confirmed here any more.
 export type ConnectLinkView =
   | { state: "closed" }
-  | { state: "linked" }
   | { state: "sign_in" }
-  | { state: "open"; status: Extract<ImessageStatus | RequesterImessageStatus, { state: "pending" | "received" }> };
+  | { state: "linked" }
+  | { state: "open"; status: Extract<ImessageStatus | RequesterImessageStatus, { state: "pending" }> };
 
 async function authorized(deps: ImessageRouteDependencies, request: Request, token: string) {
   const attempt = await readConnectAttempt(deps.db, deps.tokenKeys, token);
-  if (!attempt) return { state: (await connectLinkLinked(deps.db, deps.tokenKeys, token)) ? ("linked" as const) : ("closed" as const) };
+  if (!attempt) return { state: "closed" as const };
   if (attempt.role === "host") {
     const user = await verifiedUserId(request, deps.auth);
     if (!user) return { state: "sign_in" as const };
@@ -33,6 +33,7 @@ async function authorized(deps: ImessageRouteDependencies, request: Request, tok
 
 export async function readConnectLink(deps: ImessageRouteDependencies, request: Request, token: string): Promise<ConnectLinkView> {
   const access = await authorized(deps, request, token);
+  if (access.state === "closed" && (await connectAttemptLinked(deps.db, deps.tokenKeys, token))) return { state: "linked" as const };
   if (access.state !== "open") return access;
   // Serialize against replacement so this token never shows another attempt's code.
   return await deps.db.begin(async tx => {
@@ -42,12 +43,12 @@ export async function readConnectLink(deps: ImessageRouteDependencies, request: 
     const status = attempt.role === "host"
       ? await readImessageStatus(tx, deps.tokenKeys, attempt.host_account_id!, linkChannels(deps))
       : await readRequesterImessageStatus(tx, deps.tokenKeys, attempt.request_id!, deps.lineNumber, deps.whatsappNumber, deps.telegramUsername);
-    if (status.state !== "pending" && status.state !== "received") return { state: "closed" as const };
+    if (status.state !== "pending") return { state: "closed" as const };
     return { state: "open" as const, status };
   });
 }
 
-const bodySchema = z.object({ action: z.enum(["confirm", "cancel"]), retryKey: z.string().min(8).max(200) }).strict();
+const bodySchema = z.object({ action: z.literal("cancel"), retryKey: z.string().min(8).max(200) }).strict();
 export function createConnectLinkHandler(load: () => ImessageRouteDependencies = imessageRouteDependenciesFromEnvironment) {
   return async (request: Request, token: string) => {
     const deps = load();
@@ -62,11 +63,8 @@ export function createConnectLinkHandler(load: () => ImessageRouteDependencies =
     const access = await authorized(deps, request, token);
     if (access.state !== "open") return json({ error: CLOSED_LINK }, 410);
     const { attempt } = access;
-    const { action, retryKey } = parsed.data;
+    const { retryKey } = parsed.data;
     const resourceId = (attempt.role === "host" ? attempt.host_account_id : attempt.request_id)!;
-    const liveCalendars = attempt.role === "host" && action === "confirm"
-      ? await readDefaultRoleCalendars(deps.db, resourceId, { config: googleCalendarConfigFromEnvironment(), tokenKeys: deps.tokenKeys }) : null;
-    const options = { ...deps, origin, liveCalendars };
     async function execute<Input, Result>(command: CommandDefinition<Input, Result>, input: Input) {
       const guarded: CommandDefinition<Input, Result> = {
         ...command,
@@ -85,8 +83,8 @@ export function createConnectLinkHandler(load: () => ImessageRouteDependencies =
       });
     }
     const outcome = attempt.role === "host"
-      ? action === "confirm" ? await execute(confirmImessageLinkCommand(options), { linkId: attempt.id }) : await execute(cancelImessageLinkCommand, {})
-      : action === "confirm" ? await execute(confirmRequesterImessageLinkCommand(options), { linkId: attempt.id }) : await execute(unlinkRequesterImessageCommand, { pendingOnly: true });
-    return outcome.ok ? json({ state: action === "confirm" ? "linked" : "closed", message: action === "confirm" ? "Linked. You can go back to your agent." : CLOSED_LINK }) : json({ error: outcome.error.message }, 409);
+      ? await execute(cancelImessageLinkCommand, {})
+      : await execute(unlinkRequesterImessageCommand, { pendingOnly: true });
+    return outcome.ok ? json({ state: "closed", message: CLOSED_LINK }) : json({ error: outcome.error.message }, 409);
   };
 }

@@ -3,25 +3,22 @@ import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { CommandError } from "../../lib/server/commands";
 import { claimContinuedLink, claimStartedLink, readStartStatus, type StartOptions, startImessageLink } from "../../lib/server/imessage-start";
 import { imessageContinuationUrl, readReceivedContinuation } from "../../lib/server/imessage-continuation";
-import { outboxSealContext } from "../../lib/server/imessage-outbox";
-import { channelHash, imessageHash } from "../../lib/server/photon-receiver";
-import { openToken } from "../../lib/server/token-encryption";
+import { imessageHash } from "../../lib/server/photon-receiver";
 import { calendarConnectUrl, LINK_TEXTS, resumeImessageOnboarding } from "../../lib/server/imessage-links";
 import { createGoogleCallbackHandler, createGoogleSignInHandler } from "../../lib/server/google-sign-in";
 import { createImessageContinueHandler } from "../../lib/server/imessage-routes";
 import { completeGoogleLeg, createGoogleUser, localAuthConfig, startGoogleSignIn, UNBOUNDED_SIGN_UPS } from "./support/auth";
 import { testDatabase } from "./support/database";
 import { type FakePhoton, startFakePhoton } from "./support/fake-photon";
-import { hostWithUser, imessageHarness, TEST_TELEGRAM_BOT, textOf } from "./support/imessage";
+import { hostWithUser, imessageHarness, textOf } from "./support/imessage";
 import { newSender, TEST_LINE, TEST_WHATSAPP_NUMBER } from "./support/photon";
 import { newHostAccount } from "./support/ready-host";
 import { testTokenKey } from "./support/requests";
-import { newTelegramUser, telegramMessage } from "./support/telegram";
 
 // The iMessage start before sign-in (host-imessage-channel D15) against the local
 // stack and the Photon stand-in: a browser's code records the arriving sender
 // without a host, only that browser sees it, the sign-in callback's claim gives
-// it to the host, and Confirm and link binds it; starts are bounded per source.
+// it to the host and binds the sender (link-on-code D5); starts are bounded per source.
 // Thyme's reply carries a sign-in link that works in any browser until the
 // attempt ends (D19).
 
@@ -29,7 +26,9 @@ const db = testDatabase();
 let photon: FakePhoton;
 const im = imessageHarness(db, () => photon);
 const options: StartOptions = { lineNumber: TEST_LINE, registrar: im.registrar, tokenKey: testTokenKey, tokenKeys: [testTokenKey] };
-const claimOptions = { origin: "http://localhost:3000", tokenKey: testTokenKey, tokenKeys: [testTokenKey] };
+// What the sign-in callback passes a claim, so the bound sender's welcome links back here.
+const bindOptions = { origin: "http://localhost:3000", tokenKey: testTokenKey, tokenKeys: [testTokenKey] };
+const masked = (sender: string) => `•••• ${sender.slice(-4)}`;
 
 beforeAll(async () => {
   photon = await startFakePhoton();
@@ -81,7 +80,7 @@ describe("the iMessage start", () => {
     expect(await readStartStatus(db, withWhatsApp, browser)).toMatchObject({ channel: "whatsapp", lineNumber: TEST_WHATSAPP_NUMBER, state: "pending" });
   });
 
-  it("lets the sender sign in from Thyme's reply, for one host, until Confirm and link ends the attempt", async () => {
+  it("lets the sender sign in from Thyme's reply, for one host, and binds the sender at that sign-in", async () => {
     const pending = await started(secret());
     const sender = newSender();
     await im.deliver({ sender, text: pending.message });
@@ -92,16 +91,19 @@ describe("the iMessage start", () => {
     const tampered = token.slice(0, -1) + (token.endsWith("0") ? "1" : "0");
     expect(await readReceivedContinuation(db, testTokenKey, tampered)).toBeNull();
     const { hostAccountId: host } = await hostWithUser(db);
-    expect(await claimContinuedLink(db, claimOptions, host, tampered)).toBe(false);
-    expect(await claimContinuedLink(db, claimOptions, host, token)).toBe(true);
-    expect(await claimContinuedLink(db, claimOptions, host, token)).toBe(true);
-    expect(await claimContinuedLink(db, claimOptions, await newHostAccount(db), token)).toBe(false);
-    expect(await im.status(host)).toMatchObject({ sender: sender, state: "received" });
+    expect(await claimContinuedLink(db, bindOptions, host, tampered)).toBe(false);
     expect(await im.bindingOf(host)).toBeNull();
+    expect(await claimContinuedLink(db, bindOptions, host, token)).toBe(true);
+    expect(await im.bindingOf(host)).toMatchObject({ sender_hash: imessageHash(testTokenKey, "sender", sender), state: "active" });
+    expect(await im.status(host)).toMatchObject({ sender: masked(sender), state: "linked" });
+    const [attempt] = await db<{ state: string }[]>`select state from app.imessage_links where id = ${linkId}`;
+    expect(attempt!.state).toBe("linked");
 
-    expect((await im.command(host, "imessage.link.confirm", { linkId })).ok).toBe(true);
+    // The linked attempt ends the sign-in link, for this host and any other.
     expect(await readReceivedContinuation(db, testTokenKey, token)).toBeNull();
-    expect(await claimContinuedLink(db, claimOptions, host, token)).toBe(false);
+    expect(await claimContinuedLink(db, bindOptions, host, token)).toBe(false);
+    expect(await claimContinuedLink(db, bindOptions, await newHostAccount(db), token)).toBe(false);
+    expect(await im.outbox({ hostAccountId: host, kind: "linked" })).toHaveLength(1);
 
     // The host has no Calendar yet, so the welcome starts setup there; a plain reply joins setup.
     const [welcome] = await im.outbox({ hostAccountId: host, kind: "linked" });
@@ -110,13 +112,15 @@ describe("the iMessage start", () => {
     expect((await im.inputsOf(host))[0]).toMatchObject({ message: "[iMessage] Thirty minutes please", request_id: null });
   });
 
-  it("refuses a sign-in link once its attempt is past its confirmation deadline", async () => {
+  it("refuses a sign-in link once its attempt is past its deadline", async () => {
     const pending = await started(secret());
     const sender = newSender();
     await im.deliver({ sender, text: pending.message });
     const { linkId, token } = await continuation(sender);
     await db`update app.imessage_links set confirm_by = now() - interval '1 second' where id = ${linkId}`;
-    expect(await claimContinuedLink(db, claimOptions, await newHostAccount(db), token)).toBe(false);
+    const host = await newHostAccount(db);
+    expect(await claimContinuedLink(db, bindOptions, host, token)).toBe(false);
+    expect(await im.bindingOf(host)).toBeNull();
   });
 
   it("carries the sign-in link through local Auth, and tells the linked conversation when the host is back from Google", async () => {
@@ -145,8 +149,11 @@ describe("the iMessage start", () => {
     const [claimed] = await db<{ host_account_id: string }[]>`select host_account_id from app.imessage_links where id = ${linkId}`;
     const host = claimed!.host_account_id;
     expect(host).toBeTruthy();
-    expect(await im.bindingOf(host)).toBeNull();
-    expect((await im.command(host, "imessage.link.confirm", { linkId })).ok).toBe(true);
+    // The callback's claim bound the sender (link-on-code D5), and its welcome is the
+    // only message: no "you're back" follows it.
+    expect(await im.bindingOf(host)).toMatchObject({ sender_hash: imessageHash(testTokenKey, "sender", sender), state: "active" });
+    expect(await im.outbox({ hostAccountId: host, kind: "linked" })).toHaveLength(1);
+    expect(await im.outbox({ hostAccountId: host, kind: "command" })).toHaveLength(0);
 
     // Thyme's Calendar link: a sign-in from it, and its replay, queue one message to the linked conversation.
     const again = await startGoogleSignIn(() => signIn(new Request(calendarConnectUrl(appOrigin))), appOrigin);
@@ -165,7 +172,7 @@ describe("the iMessage start", () => {
     expect(used.headers.get("set-cookie")).toBeNull();
   });
 
-  it("records the sender for this browser only, and binds after sign-in and Confirm and link", async () => {
+  it("records the sender for this browser only, and binds it at sign-in", async () => {
     const browser = secret();
     const sender = newSender();
     const pending = await started(browser);
@@ -184,49 +191,14 @@ describe("the iMessage start", () => {
     expect(textOf(sent)).toEqual([LINK_TEXTS.receivedBeforeSignIn((await continuation(sender)).url)]);
 
     const hostAccountId = await newHostAccount(db);
-    expect(await claimStartedLink(db, claimOptions, hostAccountId, secret())).toBe(false);
-    expect(await claimStartedLink(db, claimOptions, hostAccountId, browser)).toBe(true);
+    expect(await claimStartedLink(db, bindOptions, hostAccountId, secret())).toBe(false);
+    expect(await im.bindingOf(hostAccountId)).toBeNull();
+    expect(await claimStartedLink(db, bindOptions, hostAccountId, browser)).toBe(true);
     expect(await readStartStatus(db, options, browser)).toEqual({ channels: { imessage: TEST_LINE, telegram: null, whatsapp: null }, lineNumber: TEST_LINE, state: "none" });
 
-    const received = await im.status(hostAccountId);
-    if (received.state !== "received") throw new Error(`Expected a received code, got ${received.state}.`);
-    expect(received.sender).toBe(sender);
-    expect(await im.bindingOf(hostAccountId)).toBeNull();
-
-    expect((await im.command(hostAccountId, "imessage.link.confirm", { linkId: received.linkId })).ok).toBe(true);
-    expect(await im.status(hostAccountId)).toMatchObject({ state: "linked" });
-  });
-
-  // /?flow=telegram (host-telegram-channel D14): the Start records the sender and
-  // replies with the sign-in link, and the claim binds with no Confirm and link.
-  it("binds a Telegram start's sender when sign-in claims it, from this browser or from the reply's link", async () => {
-    const withTelegram: StartOptions = { ...options, telegramUsername: TEST_TELEGRAM_BOT };
-    for (const claim of ["browser", "reply"] as const) {
-      const browser = secret();
-      await startImessageLink(db, withTelegram, browser, source(), "telegram");
-      const pending = await readStartStatus(db, withTelegram, browser);
-      if (pending.state !== "pending") throw new Error(`Expected a pending code, got ${pending.state}.`);
-
-      const userId = newTelegramUser();
-      const senderHash = channelHash(testTokenKey, "telegram", "sender", String(userId));
-      expect((await im.deliverTelegram(telegramMessage({ firstName: "Dohyeon", text: `/start ${pending.code}`, userId })))?.outcome).toBe("link_received");
-      expect(await readStartStatus(db, withTelegram, browser)).toMatchObject({ sender: "Dohyeon", state: "received" });
-      const [link] = await db<{ id: string }[]>`select id from app.imessage_links where sender_hash = ${senderHash}`;
-      const url = imessageContinuationUrl("http://localhost:3000", testTokenKey, link!.id, senderHash);
-      expect((await im.outbox({ recipientHash: senderHash })).map((row) => row.kind)).toEqual(["link_received"]);
-      const [ack] = await im.outbox({ kind: "link_received", recipientHash: senderHash });
-      const [sealed] = await db<{ text_ciphertext: string; sealed_key_id: string }[]>`select text_ciphertext, sealed_key_id from app.imessage_outbox where id = ${ack!.id}`;
-      expect(openToken([testTokenKey], { ciphertext: sealed!.text_ciphertext, keyId: sealed!.sealed_key_id }, outboxSealContext(ack!.id))).toBe(
-        LINK_TEXTS.receivedBeforeSignInTelegram(url),
-      );
-
-      const hostAccountId = await newHostAccount(db);
-      const token = new URL(url).searchParams.get("token")!;
-      expect(claim === "browser" ? await claimStartedLink(db, claimOptions, hostAccountId, browser) : await claimContinuedLink(db, claimOptions, hostAccountId, token)).toBe(true);
-      expect(await im.bindingOf(hostAccountId)).toMatchObject({ channel: "telegram", sender_hash: senderHash, state: "active" });
-      expect(await im.status(hostAccountId)).toMatchObject({ sender: "Dohyeon", state: "linked" });
-      expect((await im.outbox({ recipientHash: senderHash })).map((row) => row.kind)).toEqual(["link_received", "linked"]);
-    }
+    expect(await im.bindingOf(hostAccountId)).toMatchObject({ sender_hash: imessageHash(testTokenKey, "sender", sender), state: "active" });
+    expect(await im.status(hostAccountId)).toMatchObject({ sender: masked(sender), state: "linked" });
+    expect(await im.outbox({ hostAccountId, kind: "linked" })).toHaveLength(1);
   });
 
   it("carries a code not yet sent to the host, replacing the host's own open code", async () => {
@@ -235,8 +207,14 @@ describe("the iMessage start", () => {
     const browser = secret();
     const pending = await started(browser);
 
-    expect(await claimStartedLink(db, claimOptions, hostAccountId, browser)).toBe(true);
+    expect(await claimStartedLink(db, bindOptions, hostAccountId, browser)).toBe(true);
     expect(await im.status(hostAccountId)).toMatchObject({ code: pending.code, state: "pending" });
+
+    // The code, sent after the sign-in, links to that host on arrival.
+    const sender = newSender();
+    expect((await im.deliver({ sender, text: pending.message })).outcome).toBe("link_received");
+    expect(await im.bindingOf(hostAccountId)).toMatchObject({ sender_hash: imessageHash(testTokenKey, "sender", sender), state: "active" });
+    expect(await im.outbox({ hostAccountId, kind: "link_received" })).toHaveLength(0);
   });
 
   it("replaces this browser's open code on a new start, and claims nothing once it expired", async () => {
@@ -248,32 +226,22 @@ describe("the iMessage start", () => {
 
     await db`update app.imessage_links set expires_at = now() - interval '1 second' where code_hash is not null and host_account_id is null and state = 'pending' and created_at > now() - interval '1 minute'`;
     expect(await readStartStatus(db, options, browser)).toEqual({ channels: { imessage: TEST_LINE, telegram: null, whatsapp: null }, lineNumber: TEST_LINE, state: "none" });
-    expect(await claimStartedLink(db, claimOptions, await newHostAccount(db), browser)).toBe(false);
+    expect(await claimStartedLink(db, bindOptions, await newHostAccount(db), browser)).toBe(false);
   });
 
-  it("refuses a sender another host holds at Confirm and link, not before", async () => {
+  it("refuses a sender another host holds at sign-in, not before", async () => {
     const holder = await newHostAccount(db);
-    const sender = newSender();
-    const own = await im.command(holder, "imessage.link.create", { number: newSender() });
-    expect(own.ok).toBe(true);
-    const holderCode = await im.status(holder);
-    if (holderCode.state !== "pending") throw new Error("Expected a pending code.");
-    await im.deliver({ sender, text: holderCode.message });
-    const holderReceived = await im.status(holder);
-    if (holderReceived.state !== "received") throw new Error("Expected a received code.");
-    expect((await im.command(holder, "imessage.link.confirm", { linkId: holderReceived.linkId })).ok).toBe(true);
+    const { sender } = await im.link(holder);
 
     const browser = secret();
     const pending = await started(browser);
     expect((await im.deliver({ sender, text: pending.message })).outcome).toBe("link_received");
     const other = await newHostAccount(db);
-    expect(await claimStartedLink(db, claimOptions, other, browser)).toBe(true);
-    const received = await im.status(other);
-    if (received.state !== "received") throw new Error("Expected a received code.");
-    expect(await im.command(other, "imessage.link.confirm", { linkId: received.linkId })).toMatchObject({
-      error: { category: "invalid_input" },
-      ok: false,
-    });
+    expect(await claimStartedLink(db, bindOptions, other, browser)).toBe(false);
+    expect(await im.bindingOf(other)).toBeNull();
+    expect(await im.status(other)).toMatchObject({ state: "none" });
+    const [attempt] = await db<{ state: string }[]>`select state from app.imessage_links where host_account_id = ${other}`;
+    expect(attempt!.state).toBe("voided");
     expect(await im.bindingOf(holder)).toMatchObject({ state: "active" });
   });
 

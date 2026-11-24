@@ -20,8 +20,8 @@ import { E2E_TOKEN_ENCRYPTION_KEY } from "./support/token-key";
 // against the real web and agent services, the local stack and the stand-ins. Telegram is offered on every
 // device: Android gets WhatsApp with Use Telegram instead, or Telegram when WhatsApp is not configured; an
 // iPhone gets iMessage with Use Telegram instead (and Use WhatsApp instead); another computer asks among the
-// configured channels. The host's /start is driven through the real Telegram webhook and the receipt job,
-// and binds at once, with the privacy sentence said before it (D14). "Without WhatsApp" hides the
+// configured channels. The host's /start is driven through the real Telegram webhook and the receipt job;
+// it links on arrival (link-on-code D1), with the privacy sentence beside the code. "Without WhatsApp" hides the
 // WhatsApp number from the statuses the browser reads, since the web service's configuration is fixed per run.
 
 const tokenKey = parseTokenKey(E2E_TOKEN_ENCRYPTION_KEY);
@@ -35,8 +35,6 @@ const runtime: ConversationRuntime = {
   sendMessage: async () => undefined,
 };
 const PRIVACY = "Telegram keeps bot chats on its servers. Find Me a Time sends your request summaries here.";
-// The link step's fine print before Start, which links at once (D14).
-const STARTS_LINK = /Tapping Start links this Telegram.*Telegram keeps bot chats on its servers\./;
 const CODE = /^FMAT-[0-9A-HJKMNP-TV-Z]{10}$/;
 const startLink = (code: string) => `https://telegram.me/${BOT}?start=${code}`;
 
@@ -100,7 +98,7 @@ async function openCard(page: Page) {
 test.describe("on Android", () => {
   test.use({ userAgent: AGENTS.android, viewport: { height: 915, width: 412 } });
 
-  test("with WhatsApp, Use Telegram instead makes a Telegram code, and the host's Start links it on Confirm and link", async ({
+  test("with WhatsApp, Use Telegram instead makes a Telegram code, and the host's Start links it", async ({
     baseURL,
     context,
     db,
@@ -123,14 +121,11 @@ test.describe("on Android", () => {
     await expect(page.getByRole("link", { name: "Open Telegram" })).toHaveAttribute("href", startLink(code));
     await expect(page.getByText(`Thyme · @${BOT}`)).toBeVisible();
     await expect(page.getByRole("button", { name: "Use WhatsApp instead" })).toBeVisible();
-
-    // Start links at once (D14), so the privacy sentence comes before it.
-    await expect(page.getByText(STARTS_LINK)).toBeVisible();
-    expect(await activeChannel(db, host.hostAccountId)).toHaveLength(0);
+    await expect(page.getByText(PRIVACY)).toBeVisible();
 
     await hostStartsBot(db, newTelegramUser(), code);
     await expect(page.getByRole("heading", { name: "Your Telegram is connected." })).toBeVisible({ timeout: 10_000 });
-    await expect(page.getByRole("heading", { name: "Is this you?" })).toHaveCount(0);
+    await expect(page.getByText("Dohyeon (@dohyeon)")).toBeVisible();
     expect(await activeChannel(db, host.hostAccountId)).toEqual([{ channel: "telegram" }]);
 
     await expect(page.getByRole("link", { name: "Open Telegram" })).toHaveAttribute("href", `https://telegram.me/${BOT}`);
@@ -216,7 +211,6 @@ test.describe("on a Windows computer", () => {
     expect(code).toMatch(CODE);
     await expect(page.getByTestId("imessage-qr").locator("svg")).toBeVisible();
     await expect(page.getByRole("link", { name: "Open Telegram" })).toHaveAttribute("href", startLink(code));
-    // Telegram's page opens in a new tab, so this page stays and moves on by itself (#369).
     await expect(page.getByRole("link", { name: "Open Telegram" })).toHaveAttribute("target", "_blank");
     await expect(page.getByText(startLink(code), { exact: true })).toBeVisible();
     await expect(page.getByText(code, { exact: true })).toBeVisible();
@@ -261,15 +255,20 @@ test.describe("on a Windows computer", () => {
     await expect(card).toContainText(`@${BOT}`);
     await expect(card.getByTestId("imessage-qr").locator("svg")).toBeVisible();
     await expect(card.getByRole("link", { name: "Open Telegram" })).toHaveAttribute("href", startLink(code));
-    // On a computer Telegram's page opens in a new tab, so this card stays (#369).
-    await expect(card.getByRole("link", { name: "Open Telegram" })).toHaveAttribute("target", "_blank");
     await expect(card.getByRole("button", { name: "Copy the Telegram link" })).toBeVisible();
-    // Start links at once (D14): what it replaces and the privacy sentence come first.
-    await expect(card.getByText("This replaces your iMessage link.")).toBeVisible();
     await expect(card.getByText(PRIVACY)).toBeVisible();
 
+    // Open Telegram opens Telegram's launch page in a new tab, so this page stays to show Confirm and link (#369).
+    await context.route("https://telegram.me/**", (route) => route.fulfill({ body: "Telegram", contentType: "text/plain" }));
+    const appUrl = page.url();
+    const [telegramTab] = await Promise.all([context.waitForEvent("page"), card.getByRole("link", { name: "Open Telegram" }).click()]);
+    await telegramTab.waitForLoadState();
+    expect(telegramTab.url()).toBe(startLink(code));
+    expect(page.url()).toBe(appUrl);
+    await telegramTab.close();
+
     await hostStartsBot(db, newTelegramUser(), code);
-    // Opened from Connected apps, the card stays expanded once linked.
+    // It links on arrival and replaces the iMessage link; opened from Connected apps, the card stays expanded.
     await expect(card.getByRole("heading", { name: "Telegram is linked" })).toBeVisible({ timeout: 10_000 });
     await expect(card).toContainText("Dohyeon (@dohyeon)");
     expect(await activeChannel(db, host.hostAccountId)).toEqual([{ channel: "telegram" }]);

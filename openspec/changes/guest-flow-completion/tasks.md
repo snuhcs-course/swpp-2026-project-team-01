@@ -58,8 +58,8 @@
 
 Moved to #60 (user, 2026-11-02: the ordering is the engine's, so the host sees it too).
 
-- [ ] 7.1 `requesterPreferences` in `FeasibilityInput` and the two ordering keys after the host's keys; guest-only explanation sentences.
-- [ ] 7.2 Unit tests: a preference never removes a candidate; ordering inside hours and below the limit; the host's own limit behavior is unchanged.
+- [x] 7.1 `requesterPreferences` in `FeasibilityInput` and the two ordering keys after the host's keys; guest-only explanation sentences.
+- [x] 7.2 Unit tests: a preference never removes a candidate; ordering inside hours and below the limit; the host's own limit behavior is unchanged.
 
 ## 8. Screens (design 8)
 

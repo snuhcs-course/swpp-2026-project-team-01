@@ -50,8 +50,8 @@ the fingerprint of AGENTMAIL_WEBHOOK_SECRET from your environment, and disables
 the inbox's earlier receiver. Point the AgentMail webhook at
 {origin}/agentmail/webhooks/{receiver id}. The secret itself is never printed.
 
-diagnostics prints the redacted snapshot and the hourly rejection counts and
-changes nothing. recover job gives an exhausted job more attempts; recover
+diagnostics prints the redacted snapshot, the hourly rejection counts and the
+daily or weekly channel usage counts, and changes nothing. recover job gives an exhausted job more attempts; recover
 booking starts the reconciliation of a booking whose write is uncertain. Neither
 resends an uncertain message, and each is audited. delete-host and
 delete-request erase a host's or a request's data on request; a deleted host

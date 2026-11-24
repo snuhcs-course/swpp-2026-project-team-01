@@ -2,6 +2,7 @@ import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { linkMessage } from "../../lib/contracts/imessage";
 import { GOOGLE_CALENDAR_SCOPES } from "../../lib/contracts/google-scopes";
 import { PERMISSION_REASONS } from "../../lib/contracts/permission-reasons";
+import { SETUP_OVERVIEW } from "../../lib/contracts/setup-progress";
 import { generateLinkCode } from "../../lib/server/email-links";
 import { channelReplies } from "../../lib/server/channel-texts";
 import { calendarConnectUrl, LINK_TEXTS, lockActiveBindingOfSender } from "../../lib/server/imessage-links";
@@ -15,8 +16,8 @@ import { makeHostReady, newHostAccount } from "./support/ready-host";
 import { testTokenKey } from "./support/requests";
 
 // Linking a host's iMessage against the local stack and the Photon stand-in
-// (host-imessage-channel task 3.1): a code binds only after the host confirms
-// the masked sender; wrong, expired, replayed, group and foreign-sender codes
+// (host-imessage-channel task 3.1): a code binds its sender as soon as it
+// arrives (link-on-code D1); wrong, expired, replayed, group and foreign-sender codes
 // bind nothing and void the attempt; a sender belongs to one host; the
 // fallback's limits and wrong entries hold and the browser never sees its code;
 // unlinking needs no Photon; and an exact retry replays its outcome.
@@ -47,13 +48,10 @@ async function linkedHost(existing?: string) {
   const sender = newSender();
   const { code } = await pendingCode(hostAccountId);
   const message = linkMessage(code);
-  await im.deliver({ sender, text: message });
+  expect((await im.deliver({ sender, text: message })).outcome).toBe("link_received");
   const status = await im.status(hostAccountId);
-  if (status.state !== "received") throw new Error("Expected a received code.");
-  const linkId = status.linkId;
-  const confirmed = await im.command(hostAccountId, "imessage.link.confirm", { linkId });
-  expect(confirmed.ok).toBe(true);
-  return { hostAccountId, linkId, message, sender };
+  if (status.state !== "linked") throw new Error(`Expected a linked sender, got ${status.state}.`);
+  return { hostAccountId, message, sender };
 }
 
 describe("registering the entered number first (imessage-number-registration)", () => {
@@ -97,7 +95,7 @@ describe("registering the entered number first (imessage-number-registration)", 
 });
 
 describe("linking by a host-sent code", () => {
-  it("shows the code and the exact message, records the arriving sender, and binds only after confirmation", async () => {
+  it("shows the code and the exact message, and binds the arriving sender at once", async () => {
     const hostAccountId = await newHostAccount(db);
     const sender = newSender();
     const pending = await pendingCode(hostAccountId);
@@ -107,26 +105,21 @@ describe("linking by a host-sent code", () => {
 
     const arrival = await im.deliver({ sender, text: pending.message });
     expect(arrival.outcome).toBe("link_received");
-    const received = await im.status(hostAccountId);
-    expect(received).toMatchObject({ sender: sender, state: "received" });
-    expect(await im.bindingOf(hostAccountId)).toBeNull();
-
-    const [ack] = await im.outbox({ hostAccountId, kind: "link_received" });
-    const { sent } = await im.send(ack!.id);
-    expect(textOf(sent)).toEqual(["Got it. Go back to Find Me a Time in your browser and tap Confirm and link to finish."]);
-    expect(sent[0]!.recipient).toEqual({ address: sender, spaceId: `any;-;${sender}` });
-
-    const [link] = await db<{ id: string }[]>`select id from app.imessage_links where host_account_id = ${hostAccountId} and state = 'received'`;
-    const confirmed = await im.command(hostAccountId, "imessage.link.confirm", { linkId: link!.id });
-    expect(confirmed.ok).toBe(true);
     expect(await im.bindingOf(hostAccountId)).toMatchObject({ sender_hash: imessageHash(testTokenKey, "sender", sender), state: "active" });
-    // Confirming also queues the line's contact card after the welcome (D22).
-    expect(await im.status(hostAccountId)).toMatchObject({ contactCard: { state: "queued" }, delivery: null, sender: sender, state: "linked" });
+    const [link] = await db<{ state: string }[]>`select state from app.imessage_links where host_account_id = ${hostAccountId}`;
+    expect(link!.state).toBe("linked");
+    // No "go back to your browser" reply: the linked message is the only one, and
+    // the card shows the sender by its last four digits (link-on-code D4).
+    expect(await im.outbox({ hostAccountId, kind: "link_received" })).toHaveLength(0);
+    // Linking also queues the line's contact card after the welcome (D22).
+    expect(await im.status(hostAccountId)).toMatchObject({ contactCard: { state: "queued" }, delivery: null, sender: `•••• ${sender.slice(-4)}`, state: "linked" });
     expect(await im.outbox({ hostAccountId, kind: "contact_card" })).toHaveLength(1);
 
     const [linked] = await im.outbox({ hostAccountId, kind: "linked" });
-    expect(textOf((await im.send(linked!.id)).sent)).toEqual([
-      `You're connected! I'm Thyme, and we can set up your meetings right here. First, connect Google Calendar: ${calendarConnectUrl("http://localhost:3000")}\n${PERMISSION_REASONS.en.googleSignIn}`,
+    const { sent } = await im.send(linked!.id);
+    expect(sent[0]!.recipient).toEqual({ address: sender, spaceId: `any;-;${sender}` });
+    expect(textOf(sent)).toEqual([
+      `You're connected! I'm Thyme, and we can set up your meetings right here. Setup takes 4 quick steps here, about 2 minutes: calendar, meeting hours, where you meet, then your open times.\n1/4 · Calendar\nFirst, connect Google Calendar: ${calendarConnectUrl("http://localhost:3000")}\n${PERMISSION_REASONS.en.googleSignIn}`,
     ]);
   });
 
@@ -142,7 +135,7 @@ describe("linking by a host-sent code", () => {
     await recordGoogleGrant(db, testTokenKey, {
       hostAccountId: calendarOnly, grantedScopes: [...GOOGLE_CALENDAR_SCOPES], refreshToken: "calendar-only",
     });
-    expect(await welcomeOf(calendarOnly)).toEqual([channelReplies("en").onboarding.rolesNeeded]);
+    expect(await welcomeOf(calendarOnly)).toEqual([`${SETUP_OVERVIEW.en}\n${channelReplies("en").onboarding.rolesNeeded}`]);
 
     const ready = await newHostAccount(db);
     await makeHostReady(db, ready);
@@ -166,10 +159,15 @@ describe("linking by a host-sent code", () => {
     expect(await im.status(hostAccountId)).toMatchObject({ state: "none" });
     expect(await im.outbox({ recipientHash: imessageHash(testTokenKey, "sender", groupSender) })).toHaveLength(0);
 
-    // The message that linked a sender, sent again, binds nothing more.
+    // The message that linked a sender, sent again by that sender, changes nothing
+    // and gets no refusal; from anyone else it binds nothing and is refused.
     const { hostAccountId: linkedId, message, sender } = await linkedHost();
-    expect((await im.deliver({ sender, text: message })).outcome).toBe("link_refused");
-    expect(await im.bindingOf(linkedId)).toMatchObject({ state: "active" });
+    const binding = await im.bindingOf(linkedId);
+    expect((await im.deliver({ sender, text: message })).outcome).toBe("link_received");
+    expect(await im.outbox({ kind: "link_refused", recipientHash: imessageHash(testTokenKey, "sender", sender) })).toHaveLength(0);
+    const other = newSender();
+    expect((await im.deliver({ sender: other, text: message })).outcome).toBe("link_refused");
+    expect(await im.bindingOf(linkedId)).toMatchObject({ id: binding!.id, state: "active" });
   });
 
   it("treats the same sender sending the code again as the same arrival", async () => {
@@ -178,8 +176,40 @@ describe("linking by a host-sent code", () => {
     const { message } = await pendingCode(hostAccountId);
     await im.deliver({ sender, text: message });
     expect((await im.deliver({ sender, text: message })).outcome).toBe("link_received");
-    expect(await im.status(hostAccountId)).toMatchObject({ state: "received" });
-    expect(await im.outbox({ hostAccountId, kind: "link_received" })).toHaveLength(1);
+    expect(await im.status(hostAccountId)).toMatchObject({ state: "linked" });
+    const bindings = await db`select id from app.imessage_bindings where host_account_id = ${hostAccountId}`;
+    expect(bindings).toHaveLength(1);
+    expect(await im.outbox({ hostAccountId, kind: "linked" })).toHaveLength(1);
+  });
+
+  // A code that leaks before its owner uses it links whoever sends it first
+  // (link-on-code D3); Not my number on the card is imessage.unlink (D2).
+  it("lets the host unlink a sender a leaked code linked, and link their own with a new code", async () => {
+    const hostAccountId = await newHostAccount(db);
+    const stranger = newSender();
+    const leaked = await pendingCode(hostAccountId);
+    expect((await im.deliver({ sender: stranger, text: leaked.message })).outcome).toBe("link_received");
+    expect(await im.status(hostAccountId)).toMatchObject({ sender: `•••• ${stranger.slice(-4)}`, state: "linked" });
+
+    expect(await im.command(hostAccountId, "imessage.unlink")).toMatchObject({ ok: true, result: { unlinked: true } });
+    expect(await im.status(hostAccountId)).toMatchObject({ state: "none" });
+    expect((await im.outbox({ hostAccountId, kind: "linked" }))[0]).toMatchObject({ state: "suppressed" });
+
+    const own = newSender();
+    const fresh = await pendingCode(hostAccountId);
+    expect((await im.deliver({ sender: own, text: fresh.message })).outcome).toBe("link_received");
+    expect(await im.bindingOf(hostAccountId)).toMatchObject({ sender_hash: imessageHash(testTokenKey, "sender", own), state: "active" });
+  });
+
+  it("refuses a code for a host who is no longer active, and binds nothing", async () => {
+    const hostAccountId = await newHostAccount(db);
+    const { message } = await pendingCode(hostAccountId);
+    await db`update app.host_accounts set status = 'suspended' where id = ${hostAccountId}`;
+    const sender = newSender();
+    expect((await im.deliver({ sender, text: message })).outcome).toBe("link_refused");
+    expect(await im.bindingOf(hostAccountId)).toBeNull();
+    const [link] = await db<{ state: string }[]>`select state from app.imessage_links where host_account_id = ${hostAccountId}`;
+    expect(link!.state).toBe("voided");
   });
 
   it("sends one refusal per sender per day", async () => {
@@ -197,18 +227,6 @@ describe("linking by a host-sent code", () => {
     expect((await im.deliver({ sender, text: pending.message })).outcome).toBe("link_refused");
     expect(await im.status(second)).toMatchObject({ state: "none" });
     expect(await im.bindingOf(first)).toMatchObject({ state: "active" });
-  });
-
-  it("refuses a confirmation once its window has passed", async () => {
-    const hostAccountId = await newHostAccount(db);
-    const { message } = await pendingCode(hostAccountId);
-    await im.deliver({ sender: newSender(), text: message });
-    const [link] = await db<{ id: string }[]>`
-      update app.imessage_links set confirm_by = now() - interval '1 second' where host_account_id = ${hostAccountId} and state = 'received' returning id
-    `;
-    const outcome = await im.command(hostAccountId, "imessage.link.confirm", { linkId: link!.id });
-    expect(outcome).toMatchObject({ error: { category: "stale_revision" }, ok: false });
-    expect(await im.bindingOf(hostAccountId)).toBeNull();
   });
 
   it("limits codes to five an hour and replays an exact retry", async () => {
@@ -324,7 +342,7 @@ describe("unlinking and the contact card", () => {
 
   it("queues one contact card after linking and refuses another while it is on its way", async () => {
     const { hostAccountId } = await linkedHost();
-    // Confirm and link queued the card after the welcome (D22); another waits for it.
+    // Linking queued the card after the welcome (D22); another waits for it.
     expect(await im.status(hostAccountId)).toMatchObject({ contactCard: { state: "queued" } });
     expect(await im.command(hostAccountId, "imessage.contact_card.share")).toMatchObject({ error: { category: "rate_limited" } });
 

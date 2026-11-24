@@ -1,6 +1,7 @@
 import { createServer } from "node:http";
 import type { AddressInfo } from "node:net";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
+import { TUTORIAL_TEXT } from "../../lib/contracts/host-tutorial";
 import { helpText, requestRef, settingsRef, STOP_TEXTS } from "../../lib/server/imessage-commands";
 import { CHANNEL_TEXTS } from "../../lib/server/imessage-receipts";
 import { IMESSAGE_SEND_JOB, recordOutbound } from "../../lib/server/imessage-outbox";
@@ -201,7 +202,7 @@ describe("setup over Telegram", () => {
     const messages = previewCalls.filter((call) => call.method === "sendPhoto" || call.method === "sendMessage");
     expect(messages.map((call) => call.method)).toEqual(["sendPhoto", "sendMessage"]);
     expect(messages[0]!.params).not.toHaveProperty("caption");
-    expect(messages[1]!.params.text).toMatch(/^Next week's open times.*Shall I open these for booking\?$/);
+    expect(messages[1]!.params.text).toMatch(/^4\/4 · Open times\nNext week's open times[\s\S]*Shall I open these for booking\?$/);
     await tg.deliver(telegramMessage({ text: "/review", userId: host.userId }));
     const [review] = (await tg.flush(host.userId)).filter((call) => call.method === "sendMessage");
     expect(review!.params.text).toContain("If these look right, tell me to save them.");
@@ -209,7 +210,8 @@ describe("setup over Telegram", () => {
 
     expect((await tg.deliver(telegramCallback({ data: `c:${ref}`, userId: host.userId }))).outcome).toBe("command");
     const calls = await tg.flush(host.userId);
-    expect(sentTexts(calls)[0]).toMatch(/^Saved\. Your booking link is /);
+    expect(sentTexts(calls)[0]).toMatch(/^Setup is done\. Your booking link: /);
+    expect(sentTexts(calls)[0]).toContain(TUTORIAL_TEXT.en.offer);
     expect(calls.filter((call) => call.method === "answerCallbackQuery")).toHaveLength(1);
     expect(await db`select 1 from app.host_settings where host_account_id = ${host.hostAccountId}`).toHaveLength(1);
 
