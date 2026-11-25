@@ -9,6 +9,7 @@ import { Message, MessageContent, MessageHeader } from "@/components/ui/message"
 import type { ChatRequestError } from "@/lib/chat/discussion";
 import { guestDiscussionClient } from "@/lib/chat/guest";
 import { GuestConversation, type ThreadEntry } from "./guest-conversation";
+import { MeetingActions } from "./meeting-actions";
 import { GuestFrame, openingMessages, RequestPanel } from "./guest-frame";
 import { AuthoredMessages } from "@/app/_components/setup/authored-messages";
 
@@ -29,12 +30,14 @@ export function BookedWorkspace({
   bookingId,
   host,
   receipt,
+  revision,
   timezone,
   workspaceLink = false,
 }: {
   readonly bookingId: string;
   readonly host: { readonly displayName: string; readonly handle: string | null };
   readonly receipt: BookingReceipt | null;
+  readonly revision: number;
   readonly timezone: string;
   readonly workspaceLink?: boolean;
 }) {
@@ -96,6 +99,7 @@ export function BookedWorkspace({
         ariaLabel={`Meeting with ${host.displayName}`}
         before={<AuthoredMessages messages={openingMessages(host.displayName)} />}
         client={client}
+        composerFlags={receipt ? <MeetingActions bookingId={bookingId} mode="booked" revision={revision} /> : null}
         entries={entries}
         onError={onError}
         onRecover={async (generation) => {

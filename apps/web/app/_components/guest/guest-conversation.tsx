@@ -22,8 +22,7 @@ import type { GuestDiscussionClient } from "@/lib/chat/guest";
 // a temporary limit. Every card is an entry of the thread, placed among the
 // messages by the time the conversation called for it, so it follows the
 // assistant message or tool result that raised it and stays in the history.
-// Only the composer, with the thread's compact menu beside it, sits below the
-// thread, and only once the fixed steps hand over to the assistant
+// Only the composer and any sent-request actions sit below the thread, and only once the fixed steps hand over to the assistant
 // (guest-flow-completion U9).
 
 type Phase = "loading" | "ready" | "sending" | "streaming";
@@ -131,7 +130,7 @@ export function GuestConversation({
   before,
   client,
   closedReason,
-  composerAction,
+  composerFlags,
   entries = [],
   onError,
   lockedReason = null,
@@ -146,8 +145,8 @@ export function GuestConversation({
   readonly client: GuestDiscussionClient;
   // Why the composer is closed, when it is.
   readonly closedReason?: string;
-  // The thread's compact menu beside the send button (Edit details, Withdraw request).
-  readonly composerAction?: ReactNode;
+  // Actions attached above the composer after the request is sent.
+  readonly composerFlags?: ReactNode;
   // The thread's cards and receipts, placed among the messages by time.
   readonly entries?: readonly ThreadEntry[];
   readonly onError?: (error: unknown) => void;
@@ -376,11 +375,11 @@ export function GuestConversation({
 
       <div className="shrink-0 pb-[max(1rem,env(safe-area-inset-bottom))] sm:pb-6">
         <div className="mx-auto w-full max-w-2xl px-4 sm:px-6">
+          {composerFlags}
           <ChatComposer
             autoFocus={false}
             disabled={phase === "loading" || Boolean(closedReason) || Boolean(lockedReason)}
             disabledReason={closedReason ?? lockedReason ?? undefined}
-            footerEnd={composerAction}
             isBusy={phase === "sending" || phase === "streaming"}
             onChange={setDraft}
             onStop={() => {}}
