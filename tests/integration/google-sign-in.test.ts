@@ -2,6 +2,7 @@ import { randomBytes, randomUUID } from "node:crypto";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { GOOGLE_CALENDAR_SCOPES } from "../../lib/contracts/google-scopes";
 import {
+  CONSENT_COOKIE,
   createGoogleCallbackHandler,
   createGoogleSignInHandler,
   type GoogleSignInDependencies,
@@ -321,6 +322,64 @@ describe("renewed Calendar consent", () => {
     }
     // An identity-only sign-in asks for no Calendar consent.
     expect((await googleUrl("/auth/sign-in?calendar=0", `${START_COOKIE}=${"a".repeat(43)}`)).searchParams.get("prompt")).toBeNull();
+  });
+
+  // #407 (D3): an account that authorized this client before skips Google's
+  // consent screen and returns no refresh token, so the callback goes straight
+  // on to the renewed consent instead of /app and the messenger welcome asking
+  // for Calendar again. That renewed sign-in is never renewed a second time.
+  it("goes on to the renewed consent when a sign-in granted Calendar but no lasting access", async () => {
+    const scopes: Record<string, string> = {};
+    const info = await startFakeTokenInfo(scopes);
+    const local = () => ({ ...deps, fetchGrantedScopes: createGrantedScopesFetcher(info.url) });
+    const start = createGoogleSignInHandler(local);
+    const finish = createGoogleCallbackHandler(local);
+    const calendar = ["openid", "email", ...GOOGLE_CALENDAR_SCOPES].join(" ");
+    const leg = async (user: { userId: string }, path: string, granted: string, refreshToken: string | null) => {
+      const response = await start(new Request(`${origin}${path}`));
+      await fetch(response.headers.get("location")!, { redirect: "manual" });
+      const challenge = new URL(response.headers.get("location")!).searchParams.get("code_challenge")!;
+      const accessToken = `ya29.${randomUUID()}`;
+      scopes[accessToken] = granted;
+      const code = await completeGoogleLeg(db, challenge, user.userId, { accessToken, refreshToken });
+      const cookie = response.headers.getSetCookie().map((header) => header.split(";")[0]).join("; ");
+      return finish(new Request(`${origin}/auth/callback?code=${code}`, { headers: { cookie } }));
+    };
+    try {
+      const returning = await createGoogleUser(db);
+      const first = await leg(returning, "/auth/sign-in", calendar, null);
+      expect(first.headers.get("location")).toBe(`${origin}/auth/sign-in?consent=calendar`);
+      expect(sessionCookies(first)).not.toHaveLength(0);
+      expect(first.headers.getSetCookie()).toEqual(expect.arrayContaining([expect.stringMatching(new RegExp(`^${CONSENT_COOKIE}=;.*Max-Age=0`))]));
+
+      // The renewed consent stores the refresh token and returns to /app.
+      expect((await leg(returning, "/auth/sign-in?consent=calendar", calendar, `1//${randomUUID()}`)).headers.get("location")).toBe(`${origin}/app`);
+      const [grant] = await db<{ stored: boolean }[]>`
+        select g.refresh_token_ciphertext is not null as stored from app.provider_grants g
+        join app.google_identities i on i.host_account_id = g.host_account_id where i.google_subject = ${returning.googleSubject}
+      `;
+      expect(grant).toEqual({ stored: true });
+      // Its own callback never renews again, even with no token.
+      expect((await leg(returning, "/auth/sign-in?consent=calendar", calendar, null)).headers.get("location")).toBe(`${origin}/app`);
+
+      // Unticked Calendar boxes are the host's choice: no second Google screen.
+      const unticked = await createGoogleUser(db);
+      expect((await leg(unticked, "/auth/sign-in", "openid email", `1//${randomUUID()}`)).headers.get("location")).toBe(`${origin}/app`);
+      // A usable grant needs nothing more.
+      const fresh = await createGoogleUser(db);
+      expect((await leg(fresh, "/auth/sign-in", calendar, `1//${randomUUID()}`)).headers.get("location")).toBe(`${origin}/app`);
+    } finally {
+      await info.close();
+    }
+  });
+
+  it("records a skipped consent screen only on a plain sign-in that asks for Calendar", async () => {
+    const asked = new RegExp(`^${CONSENT_COOKIE}=asked;.*Path=/auth;.*HttpOnly`);
+    expect((await signIn(new Request(`${origin}/auth/sign-in`))).headers.getSetCookie()).toEqual(expect.arrayContaining([expect.stringMatching(asked)]));
+    for (const path of ["/auth/sign-in?consent=calendar", "/auth/sign-in?calendar=0", "/auth/sign-in?return=imessage"]) {
+      const cookies = (await signIn(new Request(`${origin}${path}`))).headers.getSetCookie();
+      expect(cookies).not.toEqual(expect.arrayContaining([expect.stringMatching(asked)]));
+    }
   });
 
   it("ignores any other consent value", async () => {
