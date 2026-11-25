@@ -2,6 +2,7 @@ import { createHash } from "node:crypto";
 import { database, type Database } from "./database";
 import { publishJob } from "./jobs";
 import { svixHeaders, verifySvixSignature } from "./svix";
+import { captureServerEvent } from "./product-analytics";
 
 // The AgentMail webhook receiver (requester-email-ingress; requester-email-channel
 // design 1). agent/channels/agentmail.ts routes POST /agentmail/webhooks/{receiverId}
@@ -212,5 +213,8 @@ export async function receiveAgentMailWebhook(
     createHash("sha256").update(body, "utf8").digest("hex"),
   );
 
+  if (outcome === "stored") {
+    captureServerEvent({ event: "channel_message_received", properties: { channel: "email" }, subject: { kind: "anonymous", scope: "channel" } });
+  }
   return answer(outcome === "conflict" ? 409 : 204);
 }

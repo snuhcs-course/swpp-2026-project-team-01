@@ -258,15 +258,16 @@ Telegram은 2026-11-04에 [`host-telegram-channel` 변경](../../openspec/change
 
 사용자의 승인 없이는 에이전트 세션에서 봇의 토큰을 설정하거나, 웹훅을 등록하거나, Telegram 메시지를 보내서는 안 됩니다.
 
-## Google Analytics
+## PostHog
 
-웹 앱의 페이지 조회 분석으로, 2026-11-23에 [`web-analytics` 변경](../../openspec/changes/web-analytics/proposal.md)(#341)에서 제안되었습니다. Firebase SDK 없이 `gtag.js`를 통해 Google Analytics 4를 사용합니다(D1).
+웹 앱, 에이전트, 메시징 채널의 제품 분석으로, [`web-analytics` 변경](../../openspec/changes/web-analytics/proposal.md)(#469, #341의 Google Analytics 태그를 대체합니다)에서 다룹니다. 브라우저에서는 `posthog-js`, 서버에서는 `posthog-node`를 통해 PostHog Cloud를 사용합니다(D1, D7).
 
-- **속성.** `https://findmeatime.com`의 웹 데이터 스트림을 가진 GA4 속성 하나이며, 팀의 Google 계정이 소유합니다. 팀원에게는 뷰어 또는 분석가 역할을 부여하고, 관리자 권한은 저장소 소유자가 보유합니다. 나중에 같은 속성에 Firebase 프로젝트를 연결할 수 있으며, 앱에는 그것이 필요하지 않습니다.
-- **속성 설정.** 웹 스트림의 향상된 측정에서 "브라우저 기록 이벤트를 기반으로 한 페이지 변경"을 **끕니다**. 앱이 가려 낸 자체 페이지 조회를 보내는데, GA의 것에는 전체 주소가 담기기 때문입니다(D2). Google 신호와 광고 개인 최적화는 끄고, 데이터 보관 기간은 2개월로 설정합니다.
-- **변수.** Vercel 프로젝트의 Production 환경에만 `GOOGLE_ANALYTICS_MEASUREMENT_ID`(`G-...`)를 둡니다. 빌드 시점에 읽히므로 설정한 뒤 다시 배포하십시오. 스테이징(`findmeatime-dev`)은 자체 측정 ID를 받기 전까지 측정하지 않습니다.
-- **전송 내용.** 경로만 담은 페이지 조회로, 더 깊은 경로는 첫 세그먼트와 `[redacted]`로 줄이며(`/booking/[redacted]`), 여기에 리퍼러의 origin과 GA 자체의 브라우저, 기기, 대략적인 위치 필드가 더해지고 속성 설정이 허용하는 2개월 동안 보관됩니다. [개인정보 처리방침](../../apps/web/app/privacy/page.tsx)은 Google Analytics를 명시하므로, 태그가 보내는 내용을 바꿀 때 함께 수정하십시오.
-- **확인.** 배포한 뒤 `/`, `/app`, 예약 링크를 열고 GA4 **보고서 → 실시간**을 확인합니다. 예약 페이지는 `/booking/[redacted]`로 나타나야 합니다.
+- **프로젝트.** `https://findmeatime.com`을 위한 PostHog 프로젝트 하나이며, 팀이 EU 클라우드를 택하지 않는 한 US 클라우드에 두며(EU 클라우드를 택하면 미국이라고 적힌 개인정보 처리방침을 같은 배포에서 함께 수정합니다) 팀의 조직이 소유합니다. 팀원은 멤버로 초대하고, 관리자 권한은 저장소 소유자가 보유합니다. 결제 한도를 설정하십시오(무료 등급은 월 이벤트 100만 건과 녹화 5,000건을 포함합니다).
+- **프로젝트 설정.** 세션 리플레이는 켜 두고 **Privacy and masking**은 모든 입력과 텍스트를 가리도록 설정합니다(앱도 스스로 가립니다, D6). 히트맵, 웹 바이탈, 예외 자동 수집을 켭니다. 설문은 꺼 둡니다. **Data retention**에서는 [개인정보 처리방침](../../apps/web/app/privacy/page.tsx)이 안내하는 기본값(이벤트 최대 1년, 녹화 30일)을 유지하고, 이 값이 바뀌면 처리방침도 함께 수정합니다.
+- **변수.** `POSTHOG_PROJECT_KEY`(`phc_...`, 페이지에 공개되는 프로젝트 API 키)와 `POSTHOG_REGION`(`us` 또는 `eu`, 기본값 `us`)을 웹과 에이전트 서비스 모두를 위해 Vercel 프로젝트의 Production 환경에만 둡니다. 개인 API 키(`phx_...`)는 절대 설정하지 마십시오. 웹 앱은 빌드 시점에 읽으므로 설정한 뒤 다시 배포하십시오. 스테이징(`findmeatime-dev`)은 자체 프로젝트를 받기 전까지 측정하지 않습니다.
+- **릴레이.** 브라우저는 이벤트를 앱 자체 origin의 `/ingest`로 보내고, `next.config.ts`가 이를 리전의 호스트로 재작성하므로(D5) Content Security Policy에는 PostHog가 나타나지 않습니다. 분석이 켜져 있으면 PostHog 엔드포인트에 대해서는 Next.js의 후행 슬래시 리디렉션이 꺼지고, `next.config.ts`의 리디렉션이 그 밖의 모든 경로에서는 이를 되살립니다. `ingest`는 예약된 핸들입니다.
+- **전송 내용.** 브라우저에서는 페이지 조회와 이탈, 요소의 태그와 페이지 안 위치는 담지만 텍스트, 클래스, 속성은 담지 않는 클릭, 레이지 클릭과 데드 클릭, 히트맵, 웹 바이탈, 프런트엔드 예외, 모든 텍스트, 입력, 설명용 속성, 이미지를 가린 세션 리플레이를 보냅니다. 오류 메시지와 스택 프레임 안의 주소도 함께 가려 냅니다. 모든 주소는 브라우저를 떠나기 전에 가려 냅니다. 경로가 더 깊으면 첫 세그먼트와 `[redacted]`로 줄이고(`/booking/[redacted]`), 쿼리 문자열과 프래그먼트는 버리며, 리퍼러는 origin만 남깁니다(D2). 로그인한 호스트는 호스트 계정 ID로 식별하고, 핸들, 가입일, 연결된 채널, 캘린더 상태를 사람 속성으로 둡니다(D6). 서버에서는 각 명령을 작업 이름(`request.start`, `request.approve`, `booking.cancel`, ...)으로, 분류를 담은 `command_failed`, 작업의 종류와 결과를 담은 `job_processed`, 채널과 콘텐츠 유형을 담은 `channel_message_received`, 그리고 대상과 도구 이름을 담은 에이전트의 `agent_session_started`, `agent_turn_completed`, `agent_turn_failed`, `agent_tool_called`를 보냅니다(D7). 메시지 본문, 전화번호, 이메일 주소, 이름, 캘린더, 예약 링크는 보내지 않으며, 게스트에게는 해시된 가명을 부여하고 사람 프로필은 만들지 않습니다.
+- **확인.** 배포한 뒤 `/`, `/app`, 예약 링크를 열고, **Activity**에서 페이지 조회(예약 페이지는 `/booking/[redacted]`로 나타나야 합니다)를, **Replay**에서 텍스트가 가려진 녹화를, 그리고 `channel_message_received` 같은 서버 이벤트를 확인합니다. 호스트 퍼널(`/`의 `$pageview`, 이어서 `$identify`, `setup.confirm_settings`, `imessage.link.verify_code`), 게스트 퍼널(`request.start`, `request.agree`, 이어서 종류가 `booking`이고 결과가 `completed`인 `job_processed`), 일별 가입 수, 채널별 `channel_message_received`로 대시보드를 만듭니다. 채널별 예약의 기준은 계속 데이터베이스의 집계 전용 [채널 사용 보고서](#daily-diagnostics)입니다.
 
 ## 모델 접근과 런타임
 
