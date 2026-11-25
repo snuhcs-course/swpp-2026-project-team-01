@@ -25,6 +25,7 @@ import { enqueueAgreementNotice, enqueueButtonRetirement, enqueueHostNotice } fr
 import { agreementEmailDependenciesFromEnvironment, enqueueAgreementEmail, type AgreementEmailDependencies } from "./agreement-notice";
 import { assertIdentified, lockOpenRequest } from "./request-guard";
 import { detailsComplete } from "./request-lifecycle";
+import { captureChangeBaseline, type ChangeBaseline } from "./request-change-baseline";
 
 // Candidates, proposals and agreement (design decisions 8, 10, 11 and 12).
 //
@@ -437,7 +438,7 @@ export function agreeCommand(
 // ---------------------------------------------------------------------------
 // request.change_agreement
 
-export type ChangeAgreementResult = { readonly revision: number; readonly state: RequestState };
+export type ChangeAgreementResult = { readonly revision: number; readonly state: RequestState; readonly restore?: ChangeBaseline };
 
 // **Change** on the agreed time's receipt (guest-flow-completion design 10, D10):
 // until the host approves, the requester can reopen the request. It returns to
@@ -454,12 +455,13 @@ export const changeAgreementCommand: CommandDefinition<Record<string, never>, Ch
     const request = await lockOpenRequest(tx, requester(context));
     assertRevision(request.revision, context.expectedRevision);
     if (request.state !== "awaiting_host_approval") throw new CommandError("stale_revision");
+    const restore = await captureChangeBaseline(tx, request.id, "awaiting_host_approval");
 
     await tx`
       update app.requests set state = 'negotiating', revision = revision + 1, updated_at = now()
       where id = ${request.id}
     `;
     await enqueueButtonRetirement(tx, request.id);
-    return { revision: request.revision + 1, state: "negotiating" };
+    return { revision: request.revision + 1, state: "negotiating", ...(restore ? { restore } : {}) };
   },
 };

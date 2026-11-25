@@ -75,7 +75,7 @@ function StatusLine({ message }: { readonly message: string | null }) {
 function HostRequestActions({ children, className }: { readonly children: ReactNode; readonly className?: string }) {
   return (
     <div className="@container">
-      <div className={cn("flex items-center gap-2.5 [&>button]:min-w-0 [&>button]:px-[clamp(0.25rem,1.5cqw,0.875rem)] [&>button]:text-[clamp(0.5625rem,3.6cqw,0.875rem)]", className)}>
+      <div className={cn("flex items-center gap-2.5 [&>button]:min-w-0 [&>button]:px-1 @min-[18rem]:[&>button]:px-2 @min-[25rem]:[&>button]:px-2.5 @min-[28rem]:[&>button]:px-4 @min-[34rem]:[&>button]:px-5 [&>button]:text-[clamp(0.5625rem,3.3cqw,0.875rem)] @min-[25rem]:[&>button]:text-[0.875rem]", className)}>
         {children}
       </div>
     </div>

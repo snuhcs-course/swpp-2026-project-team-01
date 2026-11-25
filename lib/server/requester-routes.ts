@@ -1,4 +1,6 @@
 import { z } from "zod";
+import { cancelChangesCommand } from "./request-changes";
+import { readChangeBaseline } from "./request-change-baseline";
 import { DEFAULT_MEETING_MINUTES, isValidTimeZone, type LocationAnswer, type MeetingMode } from "../contracts/setup";
 import { revokeGrantCommand } from "./agent-grants";
 import { checkBookingCommand, readBookingStatus } from "./bookings";
@@ -297,6 +299,7 @@ export async function readRequesterView(
   const evaluation = await readCurrentEvaluation(db, requestId);
   const view: OpenRequesterView = {
     agreementEmailSentTo: agreementDelivery?.recipient ?? null,
+    canCancelChanges: Boolean(await readChangeBaseline(db, requestId)),
     reopenedBy: row.state === "gathering" || row.state === "negotiating" ? await readReopenedBy(db, requestId) : null,
     agreement: proposal?.agreement ?? null,
     booking,
@@ -598,6 +601,7 @@ export function requesterCommands(
     registered(chooseCandidateCommand),
     registered(agreeCommand(undefined, () => ({ origin: contact.origin, tokenKey: contact.tokenKey }))),
     registered(changeAgreementCommand),
+    registered(cancelChangesCommand),
     registered(withdrawRequestCommand),
     registered(useGoogleEmailCommand),
     registered(disconnectCalendarCommand),

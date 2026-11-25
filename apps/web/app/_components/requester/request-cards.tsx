@@ -520,9 +520,9 @@ export function DetailsCard({ context }: { readonly context: RequesterCardContex
   );
 }
 
-export function DetailsButton({ context, label = "Edit details" }: { readonly context: RequesterCardContext; readonly label?: string }) {
+export function DetailsButton({ context, label = "Edit details", variant = "ghost" }: { readonly context: RequesterCardContext; readonly label?: string; readonly variant?: "ghost" | "outline" }) {
   return (
-    <Button className="min-h-11" onClick={() => context.openDetails()} type="button" variant="ghost">
+    <Button className="min-h-11" onClick={() => context.openDetails()} type="button" variant={variant}>
       {label}
     </Button>
   );
@@ -765,22 +765,34 @@ export function CandidatesCard({ context }: { readonly context: RequesterCardCon
     </Button>
   );
 
+  const changing = Boolean(context.view.reopenedBy || context.view.booking?.state === "confirmed");
+  const previous = context.view.booking?.state === "confirmed" ? "booked meeting" : "previous request";
+  const changeDescription = `Choose a new time or update the meeting details.${context.view.canCancelChanges ? ` Cancel to keep your ${previous}.` : ""}`;
+  const cancelChanges = context.view.canCancelChanges ? (
+    <Button className="border border-primary! bg-card text-primary hover:bg-secondary" disabled={busy} onClick={() => void act("request.cancel_changes", {}).then((outcome) => { if (outcome.ok) context.closeDetails(); })} type="button" variant="ghost">
+      Cancel
+    </Button>
+  ) : null;
+
   if (!evaluation) {
     return (
       <GuestCard
         className="mx-auto w-[94%] max-w-xl"
         description={
-          missing.length > 0
+          changing
+            ? changeDescription
+            : missing.length > 0
             ? `To find times, add ${missing.join(", ")} in the conversation or in the meeting details.`
             : "Times are checked against the host's availability privately and automatically."
         }
         id="candidates"
-        label="Times"
-        title="Find times that work?"
+        label={changing ? "Meeting changes" : "Times"}
+        title={changing ? "What would you like to change?" : "Find times that work?"}
       >
         <GuestCardActions>
-          {findButton("Find times")}
-          <DetailsButton context={context} />
+          {findButton(changing ? "Find a new time" : "Find times")}
+          <DetailsButton context={context} variant={changing ? "outline" : "ghost"} />
+          {cancelChanges}
         </GuestCardActions>
         <StatusLine message={error} />
       </GuestCard>
@@ -791,6 +803,8 @@ export function CandidatesCard({ context }: { readonly context: RequesterCardCon
     return (
       <GuestCard className="mx-auto w-[94%] max-w-xl" id="candidates" label="Times" title="Finding times...">
         <p role="status">Checking both calendars. This takes a few seconds.</p>
+        <GuestCardActions>{cancelChanges}</GuestCardActions>
+        <StatusLine message={error} />
       </GuestCard>
     );
   }
@@ -914,6 +928,7 @@ export function CandidatesCard({ context }: { readonly context: RequesterCardCon
       <GuestCardActions>
         {findButton("Find other times")}
         <DetailsButton context={context} label={needsLink ? "Add a meeting link" : "Edit details"} />
+        {cancelChanges}
       </GuestCardActions>
       <StatusLine message={error ?? notice} tone={error ? "error" : "info"} />
     </GuestCard>
