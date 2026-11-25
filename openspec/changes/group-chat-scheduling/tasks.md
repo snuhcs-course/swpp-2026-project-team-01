@@ -19,7 +19,7 @@ This change is a draft. Only group 1 can start now. Groups 2 to 5 wait for a tea
 ## 3. Poll page and answers
 
 - [ ] 3.1 Build `/g/<token>` with a display name, a read-only Google Calendar connection bound to the group request as the first step, ticking by hand as the fallback, an optional email with **Send me the invitation**, and **Delete my answer** with a device-bound edit token. Playwright tests cover connecting, ticking, editing, deleting and a connected busy time removing a candidate.
-- [ ] 3.2 Remove connected members' busy times from the organizer's candidates, with the most-attendable fallback when none is left, and post the times when the organizer asks or after 24 hours. Keep chat answers and page answers separate by name, with no unverified label. Tests show that no member's event detail is stored, logged or passed to the model.
+- [ ] 3.2 Remove connected members' busy times from the organizer's candidates, with the most-attendable fallback when none is left, and post the times when the expected number of members have connected or ticked, when the organizer asks, or after 24 hours. Keep chat answers and page answers separate by name, with no unverified label. Tests show that no member's event detail is stored, logged or passed to the model.
 - [ ] 3.3 Recognize members by Google sign-in: reuse an existing host's conflict calendars and a past member's remembered grant, with **Don't use my calendar**, **Forget me** and the 180-day deletion. Tests cover each, and that a remembered grant is never read for anything but busy times in an open group.
 
 ## 4. Group messages, ranking and booking

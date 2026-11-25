@@ -54,11 +54,15 @@ The introduction SHALL link to the group's poll page and ask every member to con
 - **THEN** they can connect Google Calendar and answer without signing up
 
 ### Requirement: Candidate times from everyone's calendars
-The group request SHALL offer at most five numbered candidate times. They SHALL be found by the organizer's feasibility over the organizer's chosen date range, length and mode, with every connected member's busy times counted as busy, and spread across the range. When no time is free for the organizer and every connected member, the candidates SHALL be the organizer's feasible times that the most connected members can attend. In-person candidates SHALL be paired with the organizer's confirmed places. The numbered times SHALL be posted to the group when the organizer asks, or 24 hours after activation, whichever comes first. When a posted candidate stops being feasible, it SHALL be shown as unavailable with no reason and no name, and the other candidates SHALL keep their numbers.
+The group request SHALL offer at most five numbered candidate times. They SHALL be found by the organizer's feasibility over the organizer's chosen date range, length and mode, with every connected member's busy times counted as busy, and spread across the range. When no time is free for the organizer and every connected member, the candidates SHALL be the organizer's feasible times that the most connected members can attend. In-person candidates SHALL be paired with the organizer's confirmed places. The numbered times SHALL be posted to the group as soon as the number of members the organizer expected have connected a calendar or ticked times on the poll page, when the organizer asks, or 24 hours after activation, whichever comes first. When a posted candidate stops being feasible, it SHALL be shown as unavailable with no reason and no name, and the other candidates SHALL keep their numbers.
 
 #### Scenario: Times posted to the group
 - **WHEN** three members have connected calendars and the organizer asks for the times
 - **THEN** the group sees up to five numbered times that are feasible for the organizer and free for all three members
+
+#### Scenario: Expected members have connected
+- **WHEN** the organizer expected four members and the fourth member connects a calendar
+- **THEN** the numbered times are posted with the next group message, without waiting for 24 hours
 
 #### Scenario: No time free for everyone
 - **WHEN** no feasible time is free for every connected member

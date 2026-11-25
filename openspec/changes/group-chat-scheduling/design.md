@@ -40,7 +40,7 @@ The inviter cannot be the host, because the relay never sees the invitation. Tak
 
 ### 2. Activation
 
-The organizer asks for a group code in one of two ways: **Schedule a group** in `/app`, or by saying so in their own 1:1 KakaoTalk chat. The service issues `FMAT-G` and eight characters. The code is single-use, valid for 15 minutes, bound to the organizer, and limited to five per hour, like the host link codes of `link-on-code`. With the code, the organizer gives the meeting length, the date range and the mode (in person, online or either), or accepts their defaults.
+The organizer asks for a group code in one of two ways: **Schedule a group** in `/app`, or by saying so in their own 1:1 KakaoTalk chat. The service issues `FMAT-G` and eight characters. The code is single-use, valid for 15 minutes, bound to the organizer, and limited to five per hour, like the host link codes of `link-on-code`. With the code, the organizer gives the meeting length, the date range, the mode (in person, online or either) and the expected number of members, or accepts their defaults for the first three. The expected number excludes the organizer.
 
 The organizer posts the code in the group. The relay already sees every group notification, and it forwards a message that matches the `FMAT-G` pattern even from a room that is not activated. That is the only text it forwards from such a room. When the service accepts the code, it binds the room ID of that notification to the new group request. It then answers through that notification's **답장** action with the introduction (§6).
 
@@ -77,7 +77,7 @@ The page shows which calendars count, and offers **Don't use my calendar** for t
 
 **Finding candidates.** The service runs the organizer's feasibility over the date range. It treats every connected member's busy times as busy for the meeting. When every candidate would be removed, it keeps the times that the most connected members can attend instead. That way one very busy member does not empty the list. Up to five candidates are picked, spread across the range, as in "Offered times spread across the range". For an in-person meeting, each candidate is paired with one of the organizer's confirmed places, as in "Time and place pairs".
 
-**Posting the times.** The numbered times go to the group when the organizer asks for them, or 24 hours after activation, whichever comes first (Q3). Because the bot can only answer a notification, they go out through the next group message after that moment. Until then the poll page shows the times as they stand, and they change as calendars connect.
+**Posting the times (user, 2026-11-26).** The numbered times go to the group as soon as the expected number of members have connected a calendar or ticked times on the page, when the organizer asks, or 24 hours after activation, whichever comes first. Numbers in the chat cannot count toward this, because they are only possible after the times are posted. Because the bot can only answer a notification, they go out through the next group message after that moment. Until then the poll page shows the times as they stand, and they change as calendars connect.
 
 **Fallback answers.** A member without Google, or one who does not want to connect, answers in one of two ways:
 

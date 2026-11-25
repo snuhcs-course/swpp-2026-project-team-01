@@ -47,6 +47,7 @@ These were drafted by the session that wrote this change on 2026-11-26. Parts of
 | D7 | Confirmation ([design 7](design.md#7-confirmation-and-booking)) | The organizer books by number from a ranked list in their 1:1 chat or `/app`. The event goes into the organizer's booking destination. Members who left an email on the poll page are invited as attendees (user, 2026-11-26); the others get the group confirmation and a calendar file. The group receives one confirmation |
 | D8 | What the bot never says in a group ([design 8](design.md#8-what-the-group-never-sees)) | Calendar event titles, places, attendees or busy reasons of the organizer or any member; the organizer's rules, notes, exceptions or other requests; which member's calendar blocks a time; link or group codes; a member's email |
 | D9 | Returning members ([design 4](design.md#4-gathering-availability)) | A member who signs in with Google on the poll page is recognized. An existing host's conflict calendars are used, and a past member's remembered grant is reused, with no new calendar step (user, 2026-11-26). The poll page says which calendars count and offers **Don't use my calendar** and **Forget me** |
+| D10 | When the times are posted ([design 4](design.md#4-gathering-availability)) | The organizer gives the expected number of members with the code request. The numbered times go to the group as soon as that many members have connected a calendar or ticked times on the page, when the organizer asks, or 24 hours after activation, whichever comes first (user, 2026-11-26) |
 
 ## Answers from the user (2026-11-26)
 
@@ -58,7 +59,8 @@ The user who suggested the idea answered these questions. They are the user's ch
 | What about members who do not connect Google? | They tick times by hand on the same page, or answer with numbers in the group. Connected members' busy times remove candidates before anyone ticks |
 | Do numbered answers in the group count, and are they labelled? | They count, with no "unverified" label. Only the organizer can book, so a forged answer can sway the count but cannot book anything |
 | Who gets a Google invitation? (was Q5) | Members who left an email on the poll page |
-| A member who has already connected: can they skip the question? (was Q4, so Q4 and Q5 are left unused below) | Yes, for existing hosts and for members of past groups. The bot cannot see members' KakaoTalk IDs, so it cannot skip anyone in the room itself. Once a member opens the link and signs in with Google, an existing host's conflict calendars, or a past member's remembered connection, are used with no new calendar step |
+| A member who has already connected: can they skip the question? (was Q4) | Yes, for existing hosts and for members of past groups. The bot cannot see members' KakaoTalk IDs, so it cannot skip anyone in the room itself. Once a member opens the link and signs in with Google, an existing host's conflict calendars, or a past member's remembered connection, are used with no new calendar step |
+| When are the numbered times posted? (was Q3, so Q3 to Q5 are left unused below) | As soon as the number of members the organizer expects have connected or ticked, or when the organizer asks, or after 24 hours at the latest |
 
 ## Unresolved decisions for the team
 
@@ -66,7 +68,6 @@ The user who suggested the idea answered these questions. They are the user's ch
 |---|---|---|
 | Q1 | Does the team want group scheduling at all? The PRD lists "group scheduling, internal team coordination" outside the initial release | Changing it is a product scope decision, and only the team can make it. Without a yes, this change stays a draft |
 | Q2 | Does `host-kakaotalk-channel` land, and does its Q3 get the answer "yes, through an organizer's code"? | This change rests on the relay phone, its terms-of-service risk (that change's Q1) and its reply path |
-| Q3 | How long does the bot wait for calendars before it posts numbered times? This draft says: when the organizer asks, or 24 hours after activation, whichever comes first | Too short leaves out members who connect late. Too long stalls the group |
 | Q6 | Is 14 days the right lifetime for an unbooked group request, and five the right number of candidate times? | Both are guesses with no data behind them |
 | Q7 | Should this come to Telegram groups too? There the bot can see a member's stable user ID and receive invitations. iMessage and WhatsApp groups are already refused | Telegram would make member identity verifiable. It could be the better first channel, or a later one |
 | Q8 | How long is a past member's Google connection remembered when they stop using it? This draft says 180 days after their last group request closes | Remembering is what lets them skip the question, but it keeps a calendar grant for a person with no account |
