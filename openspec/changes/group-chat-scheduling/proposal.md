@@ -60,8 +60,9 @@ The user who suggested the idea answered these questions. They are the user's ch
 | Do numbered answers in the group count, and are they labelled? | They count, with no "unverified" label. Only the organizer can book, so a forged answer can sway the count but cannot book anything |
 | Who gets a Google invitation? (was Q5) | Members who left an email on the poll page |
 | A member who has already connected: can they skip the question? (was Q4) | Yes, for existing hosts and for members of past groups. The bot cannot see members' KakaoTalk IDs, so it cannot skip anyone in the room itself. Once a member opens the link and signs in with Google, an existing host's conflict calendars, or a past member's remembered connection, are used with no new calendar step |
-| When are the numbered times posted? (was Q3, so Q3 to Q5 are left unused below) | As soon as the number of members the organizer expects have connected or ticked, or when the organizer asks, or after 24 hours at the latest |
+| When are the numbered times posted? (was Q3, so Q3 to Q5 and Q7 are left unused below) | As soon as the number of members the organizer expects have connected or ticked, or when the organizer asks, or after 24 hours at the latest |
 | How many candidate times? | Five, as drafted |
+| Telegram groups too? (was Q7) | Later. This change covers KakaoTalk only; Telegram groups, where the bot sees invitations and stable member IDs, are left for a follow-up change |
 
 ## Unresolved decisions for the team
 
@@ -70,7 +71,6 @@ The user who suggested the idea answered these questions. They are the user's ch
 | Q1 | Does the team want group scheduling at all? The PRD lists "group scheduling, internal team coordination" outside the initial release | Changing it is a product scope decision, and only the team can make it. Without a yes, this change stays a draft |
 | Q2 | Does `host-kakaotalk-channel` land, and does its Q3 get the answer "yes, through an organizer's code"? | This change rests on the relay phone, its terms-of-service risk (that change's Q1) and its reply path |
 | Q6 | Is 14 days the right lifetime for an unbooked group request? | It is a guess with no data behind it. The number of candidate times is settled at five (user, 2026-11-26) |
-| Q7 | Should this come to Telegram groups too? There the bot can see a member's stable user ID and receive invitations. iMessage and WhatsApp groups are already refused | Telegram would make member identity verifiable. It could be the better first channel, or a later one |
 | Q8 | How long is a past member's Google connection remembered when they stop using it? This draft says 180 days after their last group request closes | Remembering is what lets them skip the question, but it keeps a calendar grant for a person with no account |
 | Q9 | Is the `Person.key` of a KakaoTalk group notification a stable per-member value? | If it is, the bot could tell members apart in the chat. It still could not link them to a Google sign-in without asking each member once |
 

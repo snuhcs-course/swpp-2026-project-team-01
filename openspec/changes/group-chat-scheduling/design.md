@@ -27,7 +27,7 @@ Requests today have one host and one requester (`meeting-requests`). Bookings ma
 
 - Several hosts' calendars pooled together, round-robin, or team coordination inside a workspace.
 - Recurring group meetings.
-- Open chats (오픈채팅), iMessage groups and WhatsApp groups. Telegram groups are an open question (Q7).
+- Open chats (오픈채팅), iMessage groups and WhatsApp groups. Telegram groups come later, in a change of their own (user, 2026-11-26).
 - Following the group's conversation with the model.
 
 ## Decisions
