@@ -105,7 +105,7 @@ When the room deactivates, the relay stops forwarding its text. The service tell
 
 The introduction is fixed text, with only the organizer's display name and the poll link filled in:
 
-> 안녕하세요, Find Me a Time입니다. {organizer}님이 이 방의 모임 시간을 정하려고 저를 불렀어요. 링크에서 구글 캘린더를 연결해 주세요: {link} 바쁜 시간만 확인하고 일정 내용은 보지 않아요. 연결이 어려우면 같은 링크에서 직접 체크하거나, 시간이 올라온 뒤 번호로 답해 주세요. 저는 번호 답장과 '그만'만 읽고, 다른 대화는 저장하지 않아요. 누구든 '그만'을 보내면 바로 멈춰요. 개인정보 안내: findmeatime.com/privacy
+> 안녕하세요, Find Me a Time입니다. {organizer}님이 이 방의 모임 시간을 정하려고 저를 불렀어요. 링크에서 구글 캘린더를 연결해 주세요: {link} 바쁜 시간만 확인하고 일정 내용은 보지 않아요. 연결이 어려우면 같은 링크에서 직접 체크하거나, 시간이 올라온 뒤 번호로 답해 주세요. 단톡에서 말하기 어려운 사정이 있으면 저에게 1:1로 따로 말씀해 주세요. 단톡에는 전하지 않아요. 저는 단톡에서 번호 답장과 '그만'만 읽고, 다른 대화는 저장하지 않아요. 누구든 '그만'을 보내면 바로 멈춰요. 개인정보 안내: findmeatime.com/privacy
 
 These rules apply:
 
@@ -145,7 +145,7 @@ They never contain any of these:
 - Event titles, places, attendees or the reason a time is busy, for the organizer or any member.
 - The organizer's rules, working hours, notes, exceptions, weekly load, places they did not offer, or other requests.
 - Which member's calendar blocks which time, or who said "no time works".
-- Members' emails, and whether a member connected a calendar.
+- Members' emails, and whether a member connected a calendar, except the reuse question that the user chose to ask in the group (§9).
 - Any link code, booking link or `/app` link.
 
 The ranked list in the organizer's 1:1 chat may name who answered what, because the organizer runs the poll. It still carries no member calendar detail.
@@ -164,11 +164,13 @@ The user asked on 2026-11-26 that a member's KakaoTalk user ID be remembered, so
 
 Without a stable user ID, a group message still cannot be mapped to a member. The group answer stays attributed to the profile name (§4).
 
-**The reuse question.** When a recognized member appears in a newly activated room, and they connected Google in an earlier group, the bot asks them in their own 1:1 chat:
+**The reuse question (user, 2026-11-26).** When a recognized member writes in a newly activated room, and they connected Google in an earlier group, the bot asks them in the group, through the reply action of that message:
 
-> {organizer}님의 새 모임이 있어요. 예전에 연결한 구글 캘린더를 이 모임에도 쓸까요? (네 / 아니요)
+> {name}님, 예전에 연결한 구글 캘린더를 이 모임에도 쓸까요? (네 / 아니요 / 잊어주세요)
 
-The question is never asked in the group, because asking there would tell the room that this person uses the product. Private content reaches the member only through the reply path of a notification from their own 1:1 room. When none is posted, the KakaoTalk change's fixed nudge goes first, and the question follows when the member answers. "네" reuses the connection for this group. "아니요", or no answer, leaves the member to the poll page like anyone else. Without a stable user ID, the bot cannot tell that the member is in the new room, so the question comes only after they open the new poll link and sign in, and the page itself asks instead.
+The user chose the group over a 1:1 chat. The trade-off is accepted on purpose: the others in the room learn that this member has used the product before. Only a message from the same user ID counts as the answer. "네" reuses the connection for this group, "아니요" leaves the member to the poll page like anyone else, and "잊어주세요" works as **Forget me**. The question is asked once per member per group. Without a stable user ID, the bot cannot tell that the member is in the room, so the poll page asks instead, after the member signs in.
+
+**No first messages (user, 2026-11-26).** The account never starts a 1:1 chat with a member: no 선톡, and no nudge to a member's chat. The introduction tells the group that anyone can write to the account 1:1 for what they would rather not say there. Once a member writes, the relay can answer that 1:1 room as often as needed while its notification stays posted. A device check on 2026-11-26 sent three separate replies to one incoming message, and all were delivered. Starting a 1:1 chat from the group member list through the accessibility path is out of scope. It is unverified, and messages to people who never wrote to the account carry the highest risk of suspension.
 
 A member's remembered user ID hash and 1:1 room tie are deleted with their remembered grant: on **Forget me**, or 180 days after their last group request closes.
 
@@ -196,6 +198,7 @@ When the leave cannot be confirmed on screen, the relay reports `uncertain`, and
 
 ## Risks / Trade-offs
 
+- **The reuse question in the group.** It tells the room that a member has used the product before. The user accepted this on 2026-11-26. Mitigation: it is asked once, names no calendar, and offers **잊어주세요**.
 - **Remembering KakaoTalk identities.** Keeping a member's user ID hash ties together their chats across groups. Mitigation: only the hash is kept, it is deleted with **Forget me** or after 180 days, and nothing in a group reveals it.
 - **Inference from struck-out times.** When one member leaves a private note and a time vanishes soon after, others may guess why. Mitigation: struck-out times carry no name or reason, and calendar changes strike times out the same way.
 - **Leaving through the screen.** The accessibility leave is the first destructive action the relay takes. Mitigation: it starts only from the room's own notification, and an unconfirmed leave stays deactivated.

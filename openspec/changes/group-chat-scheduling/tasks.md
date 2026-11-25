@@ -31,7 +31,7 @@ This change is a draft. Only group 1 can start now. Groups 2 to 6 wait for a tea
 ## 5. Member identity, private notes and leaving
 
 - [ ] 5.1 Add the member identity hash, the `FMAT-M` member code and the 1:1 tie, using the stable user ID when Q9 allows and the code otherwise. Tests cover a code tie, a name-only sender who is refused, deletion on **Forget me** and after 180 days.
-- [ ] 5.2 Add the reuse question in the member's 1:1 chat through the reply path, with the fixed nudge first when no notification is posted. Tests show the question never goes to a group and that only "yes" reuses a connection.
+- [ ] 5.2 Add the reuse question in the group through the reply action of the member's message, once per member per group, with yes, no and forget-me. Tests show that only the same user ID's answer counts, that only "yes" reuses a connection, and that the account never starts a 1:1 chat.
 - [ ] 5.3 Add private notes: model extraction into limits, the read-back, the choice of group, applying limits as busy or less-preferred times, and dropping the text. A test feeds a note and asserts that no group message or organizer view contains it or hints that it exists.
 - [ ] 5.4 Add `/kickout` and the leave after a booked meeting, through the relay's local leave list and the room's own notification. Tests with the relay stand-in cover a member's `/kickout`, an uncertain leave, and two rooms with the same name.
 

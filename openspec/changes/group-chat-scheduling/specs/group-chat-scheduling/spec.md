@@ -88,7 +88,7 @@ A member who does not connect a calendar SHALL be able to answer by ticking time
 - **THEN** their name, times, email and calendar connection are deleted and the counts change
 
 ### Requirement: Introduction and stop
-The first message to an activated room SHALL state that it comes from Find Me a Time, name the organizer by display name, give the poll link with the request to connect Google Calendar, say that only busy times are read, and say that the bot reads only numbered answers and `stop` in the room. It SHALL also say that other conversation is not stored and that anyone can stop it, and it SHALL link to the privacy policy. A `stop` or `그만` from any member SHALL deactivate the room, close the group request as stopped, end forwarding from the room, and tell the organizer in their own chat.
+The first message to an activated room SHALL state that it comes from Find Me a Time, name the organizer by display name, give the poll link with the request to connect Google Calendar, say that only busy times are read, say that anyone can write to the account 1:1 for what they would rather not say in the group, and say that the bot reads only numbered answers and `stop` in the room. It SHALL also say that other conversation is not stored and that anyone can stop it, and it SHALL link to the privacy policy. A `stop` or `그만` from any member SHALL deactivate the room, close the group request as stopped, end forwarding from the room, and tell the organizer in their own chat.
 
 #### Scenario: Any member stops the bot
 - **WHEN** a member who is not the organizer sends `그만`
@@ -100,7 +100,7 @@ Messages to a group room SHALL contain only the organizer's display name, the me
 - Calendar event titles, places, attendees or busy reasons of the organizer or any member.
 - The organizer's rules, hours, notes, exceptions, weekly load or other requests.
 - Which member's calendar blocks a time, or who said no time works.
-- Members' emails, or whether a member connected a calendar.
+- Members' emails, or whether a member connected a calendar, except the reuse question in "Member identity and the reuse question".
 - A link code, booking link or `/app` link.
 
 #### Scenario: Member asks why a time is missing
@@ -138,15 +138,23 @@ A group request SHALL close only when it is booked, when the organizer cancels, 
 - **THEN** its members' answers, names and emails no longer exist
 
 ### Requirement: Member identity and the reuse question
-A member's KakaoTalk identity SHALL be remembered as a hash only. It SHALL come from the sender's stable KakaoTalk user ID when the relay can read one. Otherwise it SHALL come from a one-time member code that the member, after Google sign-in on the poll page, sends in a 1:1 chat with the account. The code SHALL be single-use and valid for 15 minutes. When a recognized member who connected Google in an earlier group joins a newly activated group, the member SHALL be asked in their own 1:1 chat, and never in the group, whether to reuse that connection. Only a "yes" SHALL reuse it. A 1:1 chat SHALL NOT be tied to a member by profile name. The identity and the 1:1 tie SHALL be deleted on **Forget me**, or 180 days after the member's last group request closed.
+A member's KakaoTalk identity SHALL be remembered as a hash only. It SHALL come from the sender's stable KakaoTalk user ID when the relay can read one. Otherwise it SHALL come from a one-time member code that the member, after Google sign-in on the poll page, sends in a 1:1 chat with the account. The code SHALL be single-use and valid for 15 minutes. When a recognized member who connected Google in an earlier group writes in a newly activated group, the member SHALL be asked once, in that group, whether to reuse that connection, with yes, no and forget-me answers. Only an answer from the same KakaoTalk user ID SHALL count, and only a "yes" SHALL reuse the connection. The account SHALL NOT start a 1:1 chat with any member; it SHALL answer only 1:1 chats a member started. A 1:1 chat SHALL NOT be tied to a member by profile name. The identity and the 1:1 tie SHALL be deleted on **Forget me**, or 180 days after the member's last group request closed.
 
 #### Scenario: Member code ties a 1:1 chat
 - **WHEN** a member signed in on the poll page sends the `FMAT-M` code shown there in a 1:1 chat with the account
 - **THEN** that 1:1 chat is tied to the member, and the member is told so in that chat
 
-#### Scenario: Reuse question goes to the 1:1 chat
-- **WHEN** a recognized member who connected Google before is found in a newly activated group
-- **THEN** they are asked in their own 1:1 chat whether to reuse the connection, and nothing about it is said in the group
+#### Scenario: Reuse question in the group
+- **WHEN** a recognized member who connected Google before writes in a newly activated group
+- **THEN** the bot asks them once in the group whether to reuse the connection, and names no calendar
+
+#### Scenario: Someone else answers
+- **WHEN** another member answers "네" to that question
+- **THEN** the connection is not reused
+
+#### Scenario: No first message
+- **WHEN** a member has never written to the account 1:1
+- **THEN** the account sends that member no 1:1 message
 
 #### Scenario: Member says no
 - **WHEN** the member answers "아니요" to the reuse question
