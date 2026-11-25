@@ -484,7 +484,7 @@
 
 | # | 선택 | 대안 | 기록된 위치 | 바꾸는 방법 |
 |---|---|---|---|---|
-| — | (팀, 2026-11-02.) 옵트인 WhatsApp 채널로 Android 호스트를 지원합니다. 호스트의 채널만 다루며, 요청자는 웹과 이메일을 유지합니다. SMS, RCS, KakaoTalk, 개인 WhatsApp, WhatsApp 그룹, 요청자 메시징은 범위 밖으로 유지합니다 | Android를 계속 보류(2026-10-07 결정); Photon을 통한 SMS 또는 RCS; 한국 호스트를 위한 KakaoTalk | PRD 1, 3, 6, 9, 10절 | PRD를 먼저, 그다음 제안서. WhatsApp을 통한 요청자 메시징은 2026-11-04에 [`guest-whatsapp-link`](#guest-whatsapp-link)와 함께 들어왔습니다 |
+| — | (팀, 2026-11-02.) 옵트인 WhatsApp 채널로 Android 호스트를 지원합니다. 호스트의 채널만 다루며, 요청자는 웹과 이메일을 유지합니다. SMS, RCS, KakaoTalk, 개인 WhatsApp, WhatsApp 그룹, 요청자 메시징은 범위 밖으로 유지합니다 | Android를 계속 보류(2026-10-07 결정); Photon을 통한 SMS 또는 RCS; 한국 호스트를 위한 KakaoTalk | PRD 1, 3, 6, 9, 10절 | PRD를 먼저, 그다음 제안서. WhatsApp을 통한 요청자 메시징은 2026-11-04에 [`guest-whatsapp-link`](#guest-whatsapp-link)와 함께 들어왔습니다. SMS는 2026-11-26에 다시 들어왔습니다([SMS 채널 범위](#sms-채널-범위)) |
 | D5 | iMessage와 WhatsApp을 가로질러 호스트당 활성 메시징 바인딩 하나. 다른 채널을 확인하면 카드의 안내 뒤에 이전 바인딩을 대체합니다 | 두 채널 동시 사용, 요약이 두 배가 되고 두 대화가 하나의 결정을 두고 경합할 수 있음 | 제안서; 설계 5; PRD FR-37 | PRD의 FR-37을 먼저, 그다음 `imessage_bindings_active_host_key`와 `confirmImessageLinkCommand` |
 | D7 | Android는 WhatsApp만 받습니다. iPhone, iPad, Mac은 **대신 WhatsApp 사용(Use WhatsApp instead)**이 있는 iMessage를 받습니다. 그 밖의 컴퓨터는 호스트가 어떤 앱을 쓰는지 묻습니다 | 모든 호스트에게 묻기; 두 가지를 나란히 제공(한 번에 두 가지를 생각하게 되어 디자인 원칙에 어긋남) | 제안서; 설계 6 | `lib/contracts/messaging-channel.ts` |
 | D9 | 창 밖에서는 `en_US` 유틸리티 템플릿 세 개를 사용합니다. 유일한 매개변수는 요청 참조이며, 요청자 이름, 시간, 장소는 없습니다. 호스트당 12시간에 최대 하나, 회선당 하루 최대 50개 | 모든 세부 정보를 담은 요약별 템플릿(비공개 텍스트가 Meta의 검토와 알림을 거침); 범용 템플릿 하나; 알림 없음(조용한 유실) | 제안서; 설계 8 | 설계 8, 그다음 `lib/server/whatsapp.ts`의 템플릿 이름과 WhatsApp Manager |
@@ -898,3 +898,11 @@ D1과 D3과 함께 감수하는 남은 위험: 코드의 주인이 보내기 전
 | D1 | `approve_proposal`과 `decline_request`는 선택 항목 `request`(참조 번호 또는 호스트가 쓴 요청자 이름)를 받으며, 한 메시지가 정하는 요청마다 한 번씩 호출됩니다. 대화는 원래 요청에 머뭅니다 | 결정 목록을 받는 일괄 도구, 호출 사이에 대화를 전환하는 방식 | 제안서, `host-imessage-channel` 델타 "Several decisions in one message" | `lib/server/host-review-tools.ts`의 `requestReferenceInput`과 `decisionTarget`, `agent/tools/request.ts`, `agent/instructions/host-imessage.ts` |
 | D2 | 참조는 호스트 자신의 요청 가운데서 참조 번호로, 또는 소유를 나타내는 말을 뗀 요청자의 정확한 이름으로 찾습니다. 승인일 때 여러 요청이 맞으면 승인을 기다리는 유일한 요청으로 좁힙니다. 여러 요청이 맞거나 하나도 맞지 않으면 그 요청에 대해서는 아무것도 정하지 않고, 어시스턴트는 그 요청만 따로 묻습니다 | 한 이름이 다른 이름을 포함하기만 하면 맞는 `switch_conversation`의 느슨한 방식("Lee"가 Eunwoo Lee와 맞음), 가장 최근 또는 첫 번째로 맞는 요청을 고르는 방식 | 제안서 | `lib/server/channel-selection.ts`의 `matchHostRequests`, `host-review-tools.ts`의 `chooseDecisionTarget` |
 | D3 | 이름으로 지목한 요청의 결정은 `list_host_requests`가 준 그 요청의 `proposalVersion`에 답하며, 대화의 요청과 같은 방식으로 확인합니다 | 지목한 요청에는 버전을 요구하지 않는 방식 | 제안서 | `host-review-tools.ts`의 `hostRequestsForModel` |
+
+## SMS 채널 범위
+
+Dohyeon Park이 2026-11-25에 Photon의 10DLC 캠페인 등록을 시작한 뒤, 2026-11-26에 [이슈 #489](https://github.com/snuhcs-course/swpp-2026-project-team-01/issues/489)에서 이를 결정했습니다. 아직 팀원 검토는 없습니다.
+
+| # | 선택 | 대안 | 기록된 곳 | 바꾸려면 |
+|---|---|---|---|---|
+| — | Photon을 통한 SMS가 옵트인 메시징 채널로 다시 범위에 들어옵니다. 이는 "Photon을 통한 SMS 또는 RCS"를 기각한 2026-11-02의 제품 결정([9단계](#9단계--host-whatsapp-channel))과, 이슈 #90을 계획 없음으로 닫은 것을 뒤집습니다. 동의는 번호 입력란 옆의 선택 사항이며 기본값이 해제된 SMS 체크박스입니다([이슈 #488](https://github.com/snuhcs-course/swpp-2026-project-team-01/issues/488)). HELP, START, STOP에는 Photon이 직접 응답하므로 이 채널이 같은 키워드에 또 응답해서는 안 됩니다. 누구를 위한 것인지, 무엇을 담는지, 미국 외 번호, 비용과 한도는 OpenSpec 변경에 맡깁니다 | SMS를 계속 범위 밖에 두고 Android는 WhatsApp과 Telegram에 의존(2026-11-04의 입장); RCS | PRD 1, 3절; 이슈 #488, #489 | PRD를 먼저, 그다음 SMS 채널의 OpenSpec 변경 |
