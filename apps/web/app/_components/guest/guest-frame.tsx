@@ -22,18 +22,13 @@ export function openingMessages(hostName: string) {
 }
 
 // The request panel's content on the web start and the booking page alike:
-// whose request it is, the timezone, the answered steps when there are any,
-// and a note on privacy.
+// whose request it is and the current request summary.
 export function RequestPanel({
   children,
   host,
-  note,
-  timezone,
 }: {
   readonly children?: ReactNode;
   readonly host: { readonly displayName: string; readonly handle: string | null };
-  readonly note: ReactNode;
-  readonly timezone: ReactNode;
 }) {
   return (
     <div className="flex flex-col gap-4">
@@ -42,9 +37,7 @@ export function RequestPanel({
         <h2 className="break-words font-display text-[40px] leading-[1.05]">{host.displayName}</h2>
         {host.handle ? <p className="font-mono text-muted-foreground text-sm">@{host.handle}</p> : null}
       </section>
-      {timezone}
       {children ? <div className="flex flex-col gap-1 rounded-2xl bg-card p-4">{children}</div> : null}
-      <p className="px-1 text-muted-foreground text-xs">{note}</p>
     </div>
   );
 }
@@ -52,7 +45,7 @@ export function RequestPanel({
 // The frame of the guest's web chat (guest-flow-completion U7, U12): the same
 // ink stage and top bar as the booking-link landing and the host's onboarding
 // screens, with the conversation filling the rest of the viewport. The request
-// panel, when there is one, stays closed: **Request details** in the top bar
+// panel, when there is one, stays closed: **View request details** in the top bar
 // opens it over the right side of the conversation (over all of it on a phone)
 // and closes it again. A signed-in account on its own guest request also gets
 // **Back to your workspace** (host-as-guest-session), a plain link to /app.
@@ -82,7 +75,7 @@ export function GuestFrame({
             ) : null}
             {aside ? (
               <button aria-controls="request-panel" aria-expanded={open} className="secondary-btn" onClick={() => setOpen((value) => !value)} type="button">
-                {open ? "Close details" : "Request details"}
+                {open ? "Close details" : "View request details"}
               </button>
             ) : null}
           </div>

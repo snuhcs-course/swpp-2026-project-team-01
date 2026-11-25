@@ -12,7 +12,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { GuestCard, GuestCardActions } from "./guest-card";
 import { COMPOSER_LOCKED, GuestFrame, openingMessages, RequestPanel } from "./guest-frame";
-import { browserLanguage, TimezoneLine, useGuestTimezone } from "./timezone";
+import { browserLanguage, useGuestTimezone } from "./timezone";
 
 // A ready host's booking link, /{handle} (guest-flow-completion U6 to U8).
 //
@@ -214,17 +214,7 @@ function WebStart({
   const timezone = useGuestTimezone();
   const messages = useMemo(() => openingMessages(host.displayName), [host.displayName]);
   const reveal = useAuthoredMessageReveal(messages, `fmat.guest-opening.${host.handle}`, false);
-  const panel = (
-    <RequestPanel
-      host={host}
-      note={
-        <a className="underline underline-offset-4" href="/privacy">
-          How we handle your data
-        </a>
-      }
-      timezone={<TimezoneLine onChoose={timezone.choose} zone={timezone.zone} />}
-    />
-  );
+  const panel = <RequestPanel host={host} />;
 
   return (
     <GuestFrame aside={panel} asideLabel={`Request with ${host.displayName}`}>

@@ -273,6 +273,8 @@
    ink screens. */
 .ink .chat-frame { position: relative; display: flex; flex-direction: column; height: 100dvh; min-height: 0; }
 .ink .chat-frame > .top { flex: none; width: 100%; max-width: 1120px; margin-inline: auto; box-sizing: border-box; padding: 20px clamp(20px, 5cqi, 56px) 8px; }
+/* The first attached tab meets the composer flush at the left edge. */
+.ink .chat-frame :has(> [data-guest-meeting-actions]) [data-chat-composer] { border-top-left-radius: 0; }
 .ink .meeting-action-tab { position: relative; height: 44px; min-width: 0; padding: 8px 12px 0; border-radius: 0; background: transparent; box-shadow: none; font-size: 12px; font-weight: 600; white-space: nowrap; }
 .ink .meeting-action-tab::before { position: absolute; inset: 8px 0 0; border-radius: 12px 12px 0 0; content: ""; }
 .ink .meeting-action-tab > span { position: relative; }
@@ -282,4 +284,5 @@
 .ink .meeting-action-tab-cancel::before { background: var(--soft-surface); }
 .ink .meeting-action-tab:hover { background: transparent; }
 .ink .meeting-action-tab:hover::before { background: var(--soft-surface); }
+.ink .meeting-action-tab-cancel:hover::before { background: var(--panel-me); }
 @media (forced-colors: active) { .ink .meeting-action-tab::before { border: 1px solid ButtonText; } }

@@ -47,8 +47,8 @@ async function pressByKeyboard(page: Page, name: string) {
 }
 
 async function openDetails(page: Page) {
-  await expect(page.getByRole("button", { exact: true, name: "Request details" })).toBeVisible({ timeout: 20_000 });
-  await pressByKeyboard(page, "Request details");
+  await expect(page.getByRole("button", { exact: true, name: "View request details" })).toBeVisible({ timeout: 20_000 });
+  await pressByKeyboard(page, "View request details");
   await expect(page.getByRole("button", { exact: true, name: "Close details" })).toBeVisible();
 }
 

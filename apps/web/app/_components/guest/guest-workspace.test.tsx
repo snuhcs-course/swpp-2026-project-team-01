@@ -65,3 +65,28 @@ describe("meeting action tabs", () => {
     expect(html).toContain("Cancel meeting");
   });
 });
+
+describe("request details time summary", () => {
+  it("keeps only the latest time in the panel while preserving agreement history in the conversation", () => {
+    const context = {
+      bookingId: "booking", timezone: "Asia/Seoul",
+      view: { connection: { calendar: false }, request: { details: {}, state: "negotiating" }, evaluation: null, proposal: null },
+    } as unknown as RequesterCardContext;
+    const cards: ThreadCard[] = [
+      { at: "2026-11-25T00:01:00Z", id: "times:old", kind: "times", status: "answered", receipt: { text: "You chose", start: "2026-11-25T04:00:00Z" } },
+      { at: "2026-11-25T00:02:00Z", id: "proposal:1", kind: "proposal", status: "answered", receipt: { text: "You agreed", start: "2026-11-25T04:00:00Z" } },
+      { at: "2026-11-25T00:03:00Z", id: "times:new", kind: "times", status: "answered", receipt: { text: "You chose", start: "2026-11-25T09:00:00Z" } },
+      { at: "2026-11-25T00:04:00Z", id: "proposal:2", kind: "proposal", status: "answered", receipt: { text: "You agreed", start: "2026-11-25T09:00:00Z" } },
+      { at: "2026-11-25T00:00:00Z", id: "calendar", kind: "calendar", status: "answered", receipt: { text: "Skipped" } },
+    ];
+    const noop = () => undefined;
+    const { entries, panel } = threadEntries(context, cards, {
+      choosingAgain: false, editing: false, handedOver: true, reopenedAt: null,
+      profile: { again: false, close: noop, reopen: noop }, send: async () => undefined,
+    });
+
+    expect(panel.map((entry) => entry.id)).toEqual(["proposal:2", "calendar"]);
+    expect(entries.some((entry) => entry.id === "proposal:1")).toBe(true);
+    expect(entries.some((entry) => entry.id === "proposal:2")).toBe(true);
+  });
+});

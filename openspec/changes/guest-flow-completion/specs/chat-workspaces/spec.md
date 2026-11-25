@@ -1,7 +1,7 @@
 ## MODIFIED Requirements
 
 ### Requirement: Contextual artifacts and actions
-The website SHALL present draft changes, calendar choices, candidate times, current proposals, and decision status as reviewable artifacts in the relevant conversation. For guests, every card SHALL appear inside the conversation thread at the point it is needed and remain in its history; an answered card SHALL become the guest's own reply with its **Change** where changing is allowed. The guest's request summary, timezone, creation email line and privacy note SHALL be in a **Request details** panel that stays closed until the guest opens it. Available actions SHALL be labeled, keyboard-operable buttons adjacent to the artifact and SHALL invoke the authorized commands with current revisions. A guest MAY also make their own decisions in words, which the assistant records only through the same commands.
+The website SHALL present draft changes, calendar choices, candidate times, current proposals, and decision status as reviewable artifacts in the relevant conversation. For guests, every card SHALL appear inside the conversation thread at the point it is needed and remain in its history; an answered card SHALL become the guest's own reply with its **Change** where changing is allowed. The guest's current request summary and creation email line SHALL be in a panel opened by **View request details** that stays closed until the guest opens it. The panel SHALL show only the latest selected or agreed time, SHALL NOT list earlier time versions, and SHALL NOT include a timezone-changing control or privacy footer. Time displays SHALL retain their date-specific timezone offsets. Available actions SHALL be labeled, keyboard-operable buttons adjacent to the artifact and SHALL invoke the authorized commands with current revisions. A guest MAY also make their own decisions in words, which the assistant records only through the same commands.
 
 #### Scenario: Review a candidate
 - **WHEN** a requester receives feasible candidate times
@@ -22,3 +22,8 @@ The website SHALL present draft changes, calendar choices, candidate times, curr
 #### Scenario: Answered step in the thread
 - **WHEN** a guest answers the Calendar step
 - **THEN** the thread shows their answer as their own reply with **Change**, and **Request details** lists it
+
+#### Scenario: Current time in request details
+- **WHEN** the guest opens **View request details** after selecting or agreeing to multiple versions of a time
+- **THEN** the panel shows only the latest time summary, with previous versions remaining in the conversation history
+- **AND** the panel has no timezone-changing control or privacy footer

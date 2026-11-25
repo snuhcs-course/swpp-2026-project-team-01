@@ -206,82 +206,84 @@ export function HostSettingsDialog() {
       <DialogTrigger asChild>
         <Button aria-label="Open settings" size="icon" type="button" variant="ghost"><SettingsIcon aria-hidden className="size-5" /></Button>
       </DialogTrigger>
-      <DialogContent aria-describedby={undefined} className="max-h-[calc(100dvh-2rem)] overflow-y-auto bg-secondary text-card-foreground sm:max-w-2xl">
-        <DialogHeader>
+      <DialogContent aria-describedby={undefined} className="flex max-h-[calc(100dvh-2rem)] flex-col overflow-hidden bg-secondary text-card-foreground sm:max-w-2xl">
+        <DialogHeader className="shrink-0">
           <DialogTitle>Settings</DialogTitle>
         </DialogHeader>
-        {setup && intake ? (
-          <div className="flex flex-col gap-3">
-            <section className="rounded-2xl bg-card p-4 sm:p-5" aria-label="Weekly availability">
-              <div className="flex items-start justify-between gap-3">
+        <div className="-mr-2 flex min-h-0 flex-col gap-4 overflow-y-auto overscroll-contain pr-2">
+          {setup && intake ? (
+            <div className="flex flex-col gap-3">
+              <section className="rounded-2xl bg-card p-4 sm:p-5" aria-label="Weekly availability">
+                <div className="flex items-start justify-between gap-3">
+                  <div>
+                    <h3 className="font-semibold">Available times</h3>
+                    <p className="mt-1 text-sm text-muted-foreground">Meeting time zone: {timezone.replaceAll("_", " ")}</p>
+                  </div>
+                  {!editing ? <Button disabled={busy} onClick={() => setEditing(true)} size="sm" type="button" variant="outline">Edit times</Button> : null}
+                </div>
+                {editing ? <WeeklyWindowsEditor initial={windows} onCancel={() => setEditing(false)} onSave={(value) => void saveWindows(value)} saving={busy} /> : (
+                  <>
+                    {displayWindows ? (
+                      <div aria-label="Weekly available times" className="mt-3 grid grid-cols-1 gap-x-5 sm:grid-flow-col sm:grid-cols-2 sm:grid-rows-4">
+                        {weeklyPreview(displayWindows).map((day) => (
+                          <div className="grid min-w-0 grid-cols-[3.25rem_minmax(0,1fr)] gap-2 border-t border-border py-1.5 text-sm" key={day.weekday}>
+                            <abbr className="font-medium no-underline" title={day.label}>{day.label.slice(0, 3)}</abbr>
+                            <span className={`min-w-0 break-words ${day.ranges.length ? "" : "text-muted-foreground"}`}>{day.ranges.length ? day.ranges.join(", ") : "Unavailable"}</span>
+                          </div>
+                        ))}
+                      </div>
+                    ) : <p className="mt-3 text-sm text-muted-foreground">No confirmed windows yet.</p>}
+                  </>
+                )}
+              </section>
+              <section className="space-y-4 rounded-2xl bg-card p-4 sm:p-5" aria-label="Meeting preferences">
+                <h3 className="font-semibold">Meeting preferences</h3>
+                <div className="flex flex-wrap items-center justify-between gap-3">
+                  <label className="font-medium" htmlFor="settings-weekly-limit">
+                    Weekly meeting limit
+                    <span className="block text-sm font-normal text-muted-foreground">Leave empty for no limit · 1–50</span>
+                  </label>
+                  <div className="flex items-center gap-2">
+                    <Input autoFocus={focusWeeklyLimit} className="h-10 w-16 bg-card text-center" disabled={busy} id="settings-weekly-limit" max={50} min={1} onChange={(event) => setLimitRaw(event.target.value)} type="number" value={limitRaw} />
+                    <span className="text-sm text-muted-foreground">meetings / week</span>
+                  </div>
+                </div>
                 <div>
-                  <h3 className="font-semibold">Available times</h3>
-                  <p className="mt-1 text-sm text-muted-foreground">Meeting time zone: {timezone.replaceAll("_", " ")}</p>
+                  <label className="font-medium" htmlFor="settings-location">Preferred meeting location</label>
+                  <Input className="mt-2 bg-card" disabled={busy} id="settings-location" maxLength={100} onChange={(event) => setLocationRaw(event.target.value)} placeholder="Enter an area or venue" value={locationRaw} />
+                  {locationAnswer && !editableLocation(locationAnswer) ? <p className="mt-1 text-sm text-muted-foreground">Current: {describeLocation(locationAnswer)}</p> : null}
+                  <p className="mt-1 text-sm text-muted-foreground">Used when suggesting in-person meetings.</p>
                 </div>
-                {!editing ? <Button disabled={busy} onClick={() => setEditing(true)} size="sm" type="button" variant="outline">Edit times</Button> : null}
-              </div>
-              {editing ? <WeeklyWindowsEditor initial={windows} onCancel={() => setEditing(false)} onSave={(value) => void saveWindows(value)} saving={busy} /> : (
-                <>
-                  {displayWindows ? (
-                    <div aria-label="Weekly available times" className="mt-3 grid grid-cols-1 gap-x-5 sm:grid-flow-col sm:grid-cols-2 sm:grid-rows-4">
-                      {weeklyPreview(displayWindows).map((day) => (
-                        <div className="grid min-w-0 grid-cols-[3.25rem_minmax(0,1fr)] gap-2 border-t border-border py-1.5 text-sm" key={day.weekday}>
-                          <abbr className="font-medium no-underline" title={day.label}>{day.label.slice(0, 3)}</abbr>
-                          <span className={`min-w-0 break-words ${day.ranges.length ? "" : "text-muted-foreground"}`}>{day.ranges.length ? day.ranges.join(", ") : "Unavailable"}</span>
-                        </div>
-                      ))}
-                    </div>
-                  ) : <p className="mt-3 text-sm text-muted-foreground">No confirmed windows yet.</p>}
-                </>
-              )}
-            </section>
-            <section className="space-y-4 rounded-2xl bg-card p-4 sm:p-5" aria-label="Meeting preferences">
-              <h3 className="font-semibold">Meeting preferences</h3>
-              <div className="flex flex-wrap items-center justify-between gap-3">
-                <label className="font-medium" htmlFor="settings-weekly-limit">
-                  Weekly meeting limit
-                  <span className="block text-sm font-normal text-muted-foreground">Leave empty for no limit · 1–50</span>
+              </section>
+              <section className="space-y-3 rounded-2xl bg-card p-4 sm:p-5" aria-label="Notes for Thyme">
+                <AssistantNotesField disabled={busy} id="settings-assistant-notes" onChange={setNotesRaw} value={notesRaw} />
+                {notesDirty ? (
+                  <Button disabled={busy || cleanHostNotes(notesRaw).length > HOST_NOTES_MAX_LENGTH} onClick={() => void saveNotes()} size="sm" type="button">
+                    {busy ? "Saving..." : "Save notes"}
+                  </Button>
+                ) : null}
+              </section>
+              <section className="space-y-2 rounded-2xl bg-card p-5" aria-label="New requests">
+                <label className="intake-toggle flex min-h-11 items-center justify-between gap-4 font-medium">
+                  Accept new meeting requests
+                  <span className="shrink-0">
+                    <input aria-label="Accept new meeting requests" checked={intake.accepting} disabled={busy || !setup.readiness.ready} onChange={(event) => void setAccepting(event.target.checked)} type="checkbox" className="sr-only" />
+                    <span aria-hidden="true" className="intake-switch" />
+                  </span>
                 </label>
-                <div className="flex items-center gap-2">
-                  <Input autoFocus={focusWeeklyLimit} className="h-10 w-16 bg-card text-center" disabled={busy} id="settings-weekly-limit" max={50} min={1} onChange={(event) => setLimitRaw(event.target.value)} type="number" value={limitRaw} />
-                  <span className="text-sm text-muted-foreground">meetings / week</span>
+                <p className="text-sm text-muted-foreground">{!setup.readiness.ready ? "Complete setup or reconnect your calendar before receiving requests." : intake.accepting ? "New guests can send requests." : "New requests are paused. Existing requests remain available."}</p>
+              </section>
+              {preferenceDirty || setup.pendingChanges ? (
+                <div className="flex items-center justify-between gap-3 px-1">
+                  {preferenceDirty ? <Button disabled={busy || editing} onClick={() => void savePreferences()} type="button">{busy ? "Saving..." : "Save changes"}</Button>
+                    : <Button disabled={busy || editing || setup.missingFields.length > 0} onClick={() => void confirmSettings()} type="button">Review and confirm changes</Button>}
                 </div>
-              </div>
-              <div>
-                <label className="font-medium" htmlFor="settings-location">Preferred meeting location</label>
-                <Input className="mt-2 bg-card" disabled={busy} id="settings-location" maxLength={100} onChange={(event) => setLocationRaw(event.target.value)} placeholder="Enter an area or venue" value={locationRaw} />
-                {locationAnswer && !editableLocation(locationAnswer) ? <p className="mt-1 text-sm text-muted-foreground">Current: {describeLocation(locationAnswer)}</p> : null}
-                <p className="mt-1 text-sm text-muted-foreground">Used when suggesting in-person meetings.</p>
-              </div>
-            </section>
-            <section className="space-y-3 rounded-2xl bg-card p-4 sm:p-5" aria-label="Notes for Thyme">
-              <AssistantNotesField disabled={busy} id="settings-assistant-notes" onChange={setNotesRaw} value={notesRaw} />
-              {notesDirty ? (
-                <Button disabled={busy || cleanHostNotes(notesRaw).length > HOST_NOTES_MAX_LENGTH} onClick={() => void saveNotes()} size="sm" type="button">
-                  {busy ? "Saving..." : "Save notes"}
-                </Button>
               ) : null}
-            </section>
-            <section className="space-y-2 rounded-2xl bg-card p-5" aria-label="New requests">
-              <label className="intake-toggle flex min-h-11 items-center justify-between gap-4 font-medium">
-                Accept new meeting requests
-                <span className="shrink-0">
-                  <input aria-label="Accept new meeting requests" checked={intake.accepting} disabled={busy || !setup.readiness.ready} onChange={(event) => void setAccepting(event.target.checked)} type="checkbox" className="sr-only" />
-                  <span aria-hidden="true" className="intake-switch" />
-                </span>
-              </label>
-              <p className="text-sm text-muted-foreground">{!setup.readiness.ready ? "Complete setup or reconnect your calendar before receiving requests." : intake.accepting ? "New guests can send requests." : "New requests are paused. Existing requests remain available."}</p>
-            </section>
-            {preferenceDirty || setup.pendingChanges ? (
-              <div className="flex items-center justify-between gap-3 px-1">
-                {preferenceDirty ? <Button disabled={busy || editing} onClick={() => void savePreferences()} type="button">{busy ? "Saving..." : "Save changes"}</Button>
-                  : <Button disabled={busy || editing || setup.missingFields.length > 0} onClick={() => void confirmSettings()} type="button">Review and confirm changes</Button>}
-              </div>
-            ) : null}
-            <DeleteAccountCard focus={focusDeletion} handle={intake.handle ?? null} />
-          </div>
-        ) : <p role="status">Loading settings…</p>}
-        {notice ? <p role="status" className="text-sm">{notice}</p> : null}
+              <DeleteAccountCard focus={focusDeletion} handle={intake.handle ?? null} />
+            </div>
+          ) : <p role="status">Loading settings…</p>}
+          {notice ? <p role="status" className="text-sm">{notice}</p> : null}
+        </div>
       </DialogContent>
     </Dialog>
   );
