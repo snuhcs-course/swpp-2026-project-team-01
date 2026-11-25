@@ -15,7 +15,7 @@ CREATE TABLE "app"."email_deliveries" (
   "id" uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   "kind" text NOT NULL CHECK (
     "kind" IN (
-      'request_creation', 'link_resend', 'booking_confirmation', 'status_new_version', 'status_declined',
+      'request_creation', 'link_resend', 'agreement_receipt', 'booking_confirmation', 'status_new_version', 'status_declined',
       'status_expired', 'status_pending', 'status_cancelled', 'booking_cancelled',
       'status_change_dropped', 'account_deletion_scheduled', 'account_deletion_cancelled',
       'account_deletion_completed', 'host_account_closed'

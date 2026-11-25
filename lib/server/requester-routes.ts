@@ -287,8 +287,16 @@ export async function readRequesterView(
     where request_id = ${requestId} and state = 'pending'
   `;
   const proposal = await readCurrentProposal(db, requestId);
+  const [agreementDelivery] = proposal?.agreement ? await db<{ recipient: string }[]>`
+    select recipients[1] as recipient from app.email_deliveries
+    where request_id = ${requestId} and kind = 'agreement_receipt'
+      and dedupe_key = ${`${requestId}:v${proposal.agreement.proposalVersion}`}
+      and state = 'accepted'
+    limit 1
+  ` : [];
   const evaluation = await readCurrentEvaluation(db, requestId);
   const view: OpenRequesterView = {
+    agreementEmailSentTo: agreementDelivery?.recipient ?? null,
     reopenedBy: row.state === "gathering" || row.state === "negotiating" ? await readReopenedBy(db, requestId) : null,
     agreement: proposal?.agreement ?? null,
     booking,
@@ -588,7 +596,7 @@ export function requesterCommands(
     registered(evaluateCommand),
     registered(allowTripCommand),
     registered(chooseCandidateCommand),
-    registered(agreeCommand()),
+    registered(agreeCommand(undefined, () => ({ origin: contact.origin, tokenKey: contact.tokenKey }))),
     registered(changeAgreementCommand),
     registered(withdrawRequestCommand),
     registered(useGoogleEmailCommand),

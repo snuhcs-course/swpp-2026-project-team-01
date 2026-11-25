@@ -63,7 +63,7 @@ async function agreeToAnotherTime(request: Booked) {
   const revision = await revisionOf(db, request.requestId);
   const chosen = await asRequester(db, request.requestId, chooseCandidateCommand, { candidateId: candidate.id, evaluationId: view.id }, { expectedRevision: revision });
   if (!chosen.ok || chosen.result.outcome !== "proposed") throw new Error("choose failed");
-  const agreed = await asRequester(db, request.requestId, agreeCommand(() => evaluationDeps(db, google)), { version: chosen.result.version }, { expectedRevision: revision });
+  const agreed = await asRequester(db, request.requestId, agreeCommand(() => evaluationDeps(db, google), () => testNotices), { version: chosen.result.version }, { expectedRevision: revision });
   if (!agreed.ok) throw new Error(`agree failed: ${agreed.error.category}`);
   return { candidate, version: chosen.result.version, view };
 }

@@ -10,6 +10,7 @@ import { type FakeEvent, type FakeGoogle, startFakeGoogle } from "./support/fake
 import { fakeGoogleConfig } from "./support/calendar-host";
 import { FAKE_ROUTES_API_KEY, type FakeRoutes, startFakeRoutes } from "./support/fake-routes";
 import { call, guestDependencies } from "./support/guests";
+import { testNotices } from "./support/requests";
 import {
   asRequester,
   busy,
@@ -223,7 +224,7 @@ describe("agreement guards", () => {
     const { end, start } = before.proposal!;
     r.setCalendar({ events: { [r.calendarId]: [{ end: { dateTime: end }, id: "new-busy", start: { dateTime: start }, status: "confirmed" }] } });
 
-    const agreed = await asRequester(db, r.requestId, agreeCommand(() => evaluationDeps(db, google)), { version: 1 }, { expectedRevision: 1 });
+    const agreed = await asRequester(db, r.requestId, agreeCommand(() => evaluationDeps(db, google), () => testNotices), { version: 1 }, { expectedRevision: 1 });
 
     expect(agreed).toMatchObject({ ok: true, result: { outcome: "time_unavailable", version: 1 } });
     expect(await agreements(r.requestId)).toEqual([]);
@@ -237,7 +238,7 @@ describe("agreement guards", () => {
     const r = await proposed();
     const unreachable = evaluationDeps(db, google, { calendar: fakeGoogleConfig(google, { apiBaseUrl: "http://127.0.0.1:9/calendar/v3" }) });
 
-    const agreed = await asRequester(db, r.requestId, agreeCommand(() => unreachable), { version: 1 }, { expectedRevision: 1 });
+    const agreed = await asRequester(db, r.requestId, agreeCommand(() => unreachable, () => testNotices), { version: 1 }, { expectedRevision: 1 });
 
     expect(agreed).toMatchObject({ ok: true, result: { outcome: "agreed", state: "awaiting_host_approval", version: 1 } });
     expect(await agreements(r.requestId)).toEqual([{ request_revision: 1, version: 1 }]);
@@ -290,7 +291,7 @@ describe("agreement guards", () => {
       await held;
     });
     await lockTaken;
-    const agreeing = asRequester(db, r.requestId, agreeCommand(() => evaluationDeps(db, google)), { version: 1 }, { expectedRevision: 1 });
+    const agreeing = asRequester(db, r.requestId, agreeCommand(() => evaluationDeps(db, google), () => testNotices), { version: 1 }, { expectedRevision: 1 });
     await new Promise((resolve) => setTimeout(resolve, 3_000));
     release();
     await holder;
@@ -419,7 +420,7 @@ describe("time and place pairs", () => {
     // A new commitment at the venue right after the time: the venue pair still
     // fits (no trip), the area pair does not, so agreement must not go ahead.
     r.setCalendar({ events: { [r.calendarId]: [atPlace("10:00", "10:30", r.office), atPlace("11:45", "12:30", r.venue)] } });
-    const agreed = await asRequester(db, r.requestId, agreeCommand(() => r.withRoutes), { version: 1 }, { expectedRevision: 1 });
+    const agreed = await asRequester(db, r.requestId, agreeCommand(() => r.withRoutes, () => testNotices), { version: 1 }, { expectedRevision: 1 });
 
     expect(agreed).toMatchObject({ ok: true, result: { outcome: "time_unavailable", version: 1 } });
     expect(await agreements(r.requestId)).toEqual([]);
@@ -431,7 +432,7 @@ describe("time and place pairs", () => {
     const chosen = current.evaluation!.candidates.find((candidate) => candidate.location === r.area)!;
 
     await command(r.bookingId, "request.choose_candidate", { candidateId: chosen.id, evaluationId: r.evaluationId }, 1);
-    const agreed = await asRequester(db, r.requestId, agreeCommand(() => r.withRoutes), { version: 1 }, { expectedRevision: 1 });
+    const agreed = await asRequester(db, r.requestId, agreeCommand(() => r.withRoutes, () => testNotices), { version: 1 }, { expectedRevision: 1 });
 
     expect(agreed).toMatchObject({ ok: true, result: { outcome: "agreed", state: "awaiting_host_approval", version: 1 } });
     const [proposal] = await db<{ details: { location: string | null }; start_at: Date }[]>`

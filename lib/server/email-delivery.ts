@@ -158,6 +158,18 @@ async function recipientCurrent(tx: Transaction, delivery: DeliveryRow) {
       `;
       return row?.current ?? false;
     }
+    case "agreement_receipt": {
+      const [row] = await tx<{ current: boolean }[]>`
+        select (r.state = 'awaiting_host_approval' and r.expires_at > now() and l.expires_at > now()
+                and lower(r.contact_email) = ${recipient}
+                and p.version = ${parameters.version ?? -1}
+                and exists (select 1 from app.agreements a where a.proposal_id = p.id)) as current
+        from app.requests r join app.booking_links l on l.request_id = r.id
+        join lateral (select id, version from app.proposals where request_id = r.id order by version desc limit 1) p on true
+        where r.id = ${delivery.request_id}
+      `;
+      return row?.current ?? false;
+    }
     case "status_change_dropped": {
       // Current while the meeting it names still stands and the request is booked.
       const [row] = await tx<{ current: boolean }[]>`

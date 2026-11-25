@@ -343,7 +343,10 @@ export const REQUESTER_TOOLS: readonly AgentTool[] = [
     description:
       "Agree, for the requester, to the current proposal version. Only when the person accepted this exact time and details. The host must still approve; nothing is booked yet. The host's calendar is checked again first: outcome time_unavailable means nothing was agreed and other times are being found; read get_request and offer them.",
     name: "agree_to_proposal",
-    command: () => loose(agreeCommand()),
+    command: (context) => loose(agreeCommand(undefined, () => {
+      const tokenKey = context.deps.tokenKey();
+      return { origin: context.deps.origin, tokenKey, tokenKeys: [tokenKey, ...(context.deps.notices?.().tokenKeys ?? [])] };
+    })),
     commandInput: agreeCommand().input,
     next: agreeNext,
     scope: "request:decide",

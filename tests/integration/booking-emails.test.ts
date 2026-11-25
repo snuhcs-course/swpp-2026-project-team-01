@@ -1,5 +1,6 @@
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { approveCommand, declineCommand } from "../../lib/server/bookings";
+import { enqueueAgreementEmail } from "../../lib/server/agreement-notice";
 import { createEmailDeliveryHandler, EMAIL_DELIVERY_JOB } from "../../lib/server/email-delivery";
 import { readRequesterView } from "../../lib/server/requester-routes";
 import { agreeCommand } from "../../lib/server/request-proposals";
@@ -44,16 +45,28 @@ const handler = () =>
 async function deliverAll(requestId: string) {
   const jobs = await db<{ id: string }[]>`
     select j.id from app.jobs j join app.email_deliveries d on d.id = (j.payload ->> 'deliveryId')::uuid
-    where j.kind = ${EMAIL_DELIVERY_JOB} and j.state = 'pending' and d.request_id = ${requestId} and d.kind <> 'request_creation'
+    where j.kind = ${EMAIL_DELIVERY_JOB} and j.state = 'pending' and d.request_id = ${requestId}
+      and d.kind not in ('request_creation', 'agreement_receipt')
   `;
   for (const job of jobs) await runJob(db, job.id, handler());
 }
 
 async function states(requestId: string) {
   return db<{ kind: string; recipients: string[]; state: string }[]>`
-    select kind, recipients, state from app.email_deliveries where request_id = ${requestId} and kind <> 'request_creation'
+    select kind, recipients, state from app.email_deliveries where request_id = ${requestId}
+      and kind not in ('request_creation', 'agreement_receipt')
     order by created_at
   `;
+}
+
+async function receiptJob(requestId: string) {
+  const [job] = await db<{ id: string }[]>`
+    select j.id from app.jobs j join app.email_deliveries d on d.id = (j.payload ->> 'deliveryId')::uuid
+    where j.kind = ${EMAIL_DELIVERY_JOB} and d.request_id = ${requestId} and d.kind = 'agreement_receipt'
+    order by d.created_at desc limit 1
+  `;
+  if (!job) throw new Error("No agreement receipt job");
+  return job.id;
 }
 
 async function booked() {
@@ -65,6 +78,43 @@ async function booked() {
   await runBooking(db, bookingDeps(db, google), approved.result.bookingId);
   return { ...request, bookingId: approved.result.bookingId, link: request.bookingId };
 }
+
+describe("the agreement receipt", () => {
+  it("sends the agreed details once, then shows the actual recipient on the waiting page", async () => {
+    const request = await agreedRequest(db, google);
+    const queuedView = await readRequesterView(db, request.requestId);
+    expect(queuedView?.open && queuedView.agreementEmailSentTo).toBeNull();
+
+    const duplicate = await db.begin((tx) => enqueueAgreementEmail(tx, request.requestId, 1, testNotices));
+    expect(duplicate.created).toBe(false);
+    await runJob(db, await receiptJob(request.requestId), handler());
+
+    const [message] = cloudflare.messagesTo(request.contactEmail);
+    expect(message?.subject).toBe("Your request is awaiting host approval");
+    expect(message?.text).toContain("Talk about compilers");
+    expect(message?.text).toContain("Asia/Seoul");
+    expect(message?.text).toContain(`View request: http://localhost:3000/booking/${request.bookingId}`);
+    expect(message?.text).not.toContain("Confirm email address");
+    const sentView = await readRequesterView(db, request.requestId);
+    expect(sentView?.open && sentView.agreementEmailSentTo).toBe(request.contactEmail);
+    await runJob(db, await receiptJob(request.requestId), handler());
+    expect(cloudflare.messagesTo(request.contactEmail)).toHaveLength(1);
+  });
+
+  it("suppresses a queued receipt after the contact address changes", async () => {
+    const request = await agreedRequest(db, google);
+    await db`update app.requests set contact_email = 'replacement@example.test' where id = ${request.requestId}`;
+    await runJob(db, await receiptJob(request.requestId), handler());
+
+    const [delivery] = await db<{ state: string }[]>`
+      select state from app.email_deliveries where request_id = ${request.requestId} and kind = 'agreement_receipt'
+    `;
+    expect(delivery?.state).toBe("suppressed");
+    expect(cloudflare.messagesTo(request.contactEmail)).toHaveLength(0);
+    const view = await readRequesterView(db, request.requestId);
+    expect(view?.open && view.agreementEmailSentTo).toBeNull();
+  });
+});
 
 describe("the confirmation", () => {
   it("sends each party a copy with the host's name, Reply-To the other party and the matching calendar part", async () => {
@@ -157,7 +207,7 @@ describe("status notifications", () => {
     if (!shared.ok) throw new Error("share failed");
     await runEvaluation(db, { ...evaluationDeps(db, google), notices: testNotices }, shared.result.evaluationId);
 
-    await asRequester(db, request.requestId, agreeCommand(() => evaluationDeps(db, google)), { version: 2 }, { expectedRevision: await revisionOf(db, request.requestId) });
+    await asRequester(db, request.requestId, agreeCommand(() => evaluationDeps(db, google), () => testNotices), { version: 2 }, { expectedRevision: await revisionOf(db, request.requestId) });
     await deliverAll(request.requestId);
 
     expect(await states(request.requestId)).toEqual([{ kind: "status_new_version", recipients: [request.contactEmail], state: "suppressed" }]);
