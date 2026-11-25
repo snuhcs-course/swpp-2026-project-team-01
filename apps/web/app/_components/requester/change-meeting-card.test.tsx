@@ -20,7 +20,7 @@ describe("meeting change card", () => {
     expect(html).toContain("What would you like to change?");
     expect(html).toContain("Find a new time");
     expect(html).toContain("Edit details");
-    expect(html).toContain("Cancel changes");
+    expect(html).toContain(">Cancel</button>");
     expect(html).toContain("keep your previous request");
     expect(html).not.toContain("Find times that work?");
   });
@@ -28,12 +28,12 @@ describe("meeting change card", () => {
   it("does not offer a rollback when the previous details cannot be reconstructed", () => {
     const html = renderToStaticMarkup(<CandidatesCard context={context(true, false)} />);
     expect(html).toContain("What would you like to change?");
-    expect(html).not.toContain("Cancel changes");
+    expect(html).not.toContain(">Cancel</button>");
   });
 
   it("keeps first-time searches separate from editing an existing meeting", () => {
     const html = renderToStaticMarkup(<CandidatesCard context={context(false)} />);
     expect(html).toContain("Find times that work?");
-    expect(html).not.toContain("Cancel changes");
+    expect(html).not.toContain(">Cancel</button>");
   });
 });

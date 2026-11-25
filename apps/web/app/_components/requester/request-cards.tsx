@@ -520,9 +520,9 @@ export function DetailsCard({ context }: { readonly context: RequesterCardContex
   );
 }
 
-export function DetailsButton({ context, label = "Edit details" }: { readonly context: RequesterCardContext; readonly label?: string }) {
+export function DetailsButton({ context, label = "Edit details", variant = "ghost" }: { readonly context: RequesterCardContext; readonly label?: string; readonly variant?: "ghost" | "outline" }) {
   return (
-    <Button className="min-h-11" onClick={() => context.openDetails()} type="button" variant="ghost">
+    <Button className="min-h-11" onClick={() => context.openDetails()} type="button" variant={variant}>
       {label}
     </Button>
   );
@@ -767,10 +767,10 @@ export function CandidatesCard({ context }: { readonly context: RequesterCardCon
 
   const changing = Boolean(context.view.reopenedBy || context.view.booking?.state === "confirmed");
   const previous = context.view.booking?.state === "confirmed" ? "booked meeting" : "previous request";
-  const changeDescription = `Choose a new time or update the meeting details.${context.view.canCancelChanges ? ` Cancel changes to keep your ${previous}.` : ""}`;
+  const changeDescription = `Choose a new time or update the meeting details.${context.view.canCancelChanges ? ` Cancel to keep your ${previous}.` : ""}`;
   const cancelChanges = context.view.canCancelChanges ? (
-    <Button disabled={busy} onClick={() => void act("request.cancel_changes", {}).then((outcome) => { if (outcome.ok) context.closeDetails(); })} type="button" variant="outline">
-      Cancel changes
+    <Button className="border border-primary! bg-card text-primary hover:bg-secondary" disabled={busy} onClick={() => void act("request.cancel_changes", {}).then((outcome) => { if (outcome.ok) context.closeDetails(); })} type="button" variant="ghost">
+      Cancel
     </Button>
   ) : null;
 
@@ -791,7 +791,7 @@ export function CandidatesCard({ context }: { readonly context: RequesterCardCon
       >
         <GuestCardActions>
           {findButton(changing ? "Find a new time" : "Find times")}
-          <DetailsButton context={context} />
+          <DetailsButton context={context} variant={changing ? "outline" : "ghost"} />
           {cancelChanges}
         </GuestCardActions>
         <StatusLine message={error} />

@@ -9,8 +9,8 @@ The guest's Change meeting flow reopens an agreed request but offers no way to a
 ## What Changes
 
 - Use the user-selected title **What would you like to change?** while a guest edits an existing request or booking.
-- Offer **Find a new time**, **Edit details** and **Cancel changes**.
-- Cancel changes restores the previously agreed scheduling details and host decision state. A standing confirmed booking returns to Booked instead.
+- Offer **Find a new time**, **Edit details** and **Cancel**.
+- Cancel restores the previously agreed scheduling details and host decision state. A standing confirmed booking returns to Booked instead.
 - Authorize and serialize cancellation under the request lock, retain immutable proposal history, reject stale/expired actions, and keep exact retries safe.
 
 ## Capabilities
@@ -22,7 +22,7 @@ None.
 ### Modified Capabilities
 
 - `meeting-requests`: abandon a requester-initiated edit and restore the prior agreed request or standing booking.
-- `chat-workspaces`: describe the edit accurately and expose a distinct Cancel changes action.
+- `chat-workspaces`: describe the edit accurately and expose a distinct **Cancel** action.
 
 ## Impact
 

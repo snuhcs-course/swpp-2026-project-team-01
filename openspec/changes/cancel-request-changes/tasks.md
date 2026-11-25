@@ -5,7 +5,7 @@
 
 ## 2. Guest card
 
-- [x] 2.1 Use the approved What would you like to change? title and Find a new time / Edit details / Cancel changes actions while editing a meeting.
+- [x] 2.1 Use the approved What would you like to change? title and Find a new time / Edit details / Cancel actions while editing a meeting.
 
 ## 3. Validation and delivery
 
@@ -13,3 +13,5 @@
 - [x] 3.2 Run lint, type checks and relevant unit tests, validate OpenSpec, then commit, open a PR and close the requested tracking issues.
 
 Validation record (2026-11-25): 1,387 unit tests, 10 real PostgreSQL integration tests, typecheck, lint, documentation links and strict OpenSpec validation passed. Chrome verified the actual change card at 390px and 1280px. Full Supabase/Auth/provider journeys remain unverified; the isolated-worktree build hit Eve’s external asset-path restriction. Implementation is in PR #466. Tracking issues #463 and #465 were closed at the user’s explicit request; the OpenSpec change remains unarchived.
+
+UI refinement (2026-11-25, #467): rename the visible cancellation action to Cancel, align primary/secondary/outlined colors, and increase host action padding while reducing mobile label size. Verify one-row layout at 320, 360, 375, 390, 414, 768, 1024, 1100 and 1280px.
