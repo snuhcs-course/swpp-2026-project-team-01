@@ -155,6 +155,10 @@
 .ink .phone-field input::placeholder { color: var(--muted-ink); opacity: 0.7; }
 .ink .field-help { font-size: 13px; color: var(--muted-ink); min-height: 20px; }
 .ink .field-help.error { color: var(--destructive); font-weight: 500; }
+/* the optional SMS consent under the number (#488): its own unticked box, the wording small and muted */
+.ink .phone-form label.sms-consent { display: flex; align-items: flex-start; gap: 10px; padding-top: 4px; font-size: 13px; font-weight: 400; line-height: 1.55; color: var(--muted-ink); max-width: 56ch; cursor: pointer; }
+.ink .sms-consent input { flex: none; width: 18px; height: 18px; margin: 1px 0 0; accent-color: var(--primary); cursor: pointer; }
+.ink .sms-consent a { color: var(--ink); text-decoration: underline; text-underline-offset: 2px; }
 .ink .fine { font-size: 13px; line-height: 1.55; color: var(--muted-ink); max-width: 56ch; }
 .ink .alt { font-size: 15px; color: var(--muted-ink); padding-top: 8px; width: 100%; }
 .ink .alt .link-btn { font-size: 15px; padding: 4px 0; }

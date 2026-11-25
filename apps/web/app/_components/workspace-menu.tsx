@@ -2,6 +2,7 @@
 
 import { InboxIcon, LayoutDashboardIcon, LogOutIcon, MenuIcon, PlugIcon } from "lucide-react";
 import { useCallback, useEffect, useRef, useState } from "react";
+import { resetAnalytics } from "@/app/_components/analytics";
 import { ConnectedAgentsDialog, HOST_GRANT_SOURCE } from "@/app/_components/connected-agents";
 import { Button } from "@/components/ui/button";
 import {
@@ -79,7 +80,12 @@ export function WorkspaceMenu({
             Connected apps
           </DropdownMenuItem>
           <DropdownMenuSeparator />
-          <DropdownMenuItem onSelect={() => signOutRef.current?.requestSubmit()}>
+          <DropdownMenuItem
+            onSelect={() => {
+              resetAnalytics();
+              signOutRef.current?.requestSubmit();
+            }}
+          >
             <LogOutIcon aria-hidden />
             Sign out
           </DropdownMenuItem>

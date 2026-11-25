@@ -5,6 +5,7 @@ import { publishJob } from "./jobs";
 import { sealToken, type TokenKey, tokenKeyFromEnvironment } from "./token-encryption";
 import { sealedTelegramText, type TelegramDetails } from "./telegram";
 import { inboundWhatsAppMessage } from "./whatsapp";
+import { captureServerEvent } from "./product-analytics";
 
 // The Photon webhook receiver (host-imessage-channel design 2, D1, D7).
 // agent/channels/photon.ts routes POST /photon/webhook here. In order, before
@@ -261,6 +262,12 @@ export async function storeReceipt(
         kind: IMESSAGE_RECEIPT_JOB,
         maxAttempts: IMESSAGE_RECEIPT_ATTEMPTS,
         payload: { receiptId: created.id },
+      });
+      // The channel and the kind of message only: never its text or sender.
+      captureServerEvent({
+        event: "channel_message_received",
+        properties: { channel: message.channel, content_type: message.contentType, space_type: message.spaceType },
+        subject: { kind: "anonymous", scope: "channel" },
       });
       return "stored";
     }
