@@ -18,8 +18,10 @@
 ## 4. Documents and acceptance
 
 - [x] 4.1 Update DESIGN.md and the page list, and regenerate `ko/DESIGN.md`.
-- [ ] 4.2 Run the guest and host browser journeys (`tests/e2e/requester-intake.test.ts`, `requester-google.test.ts`, `host-review.test.ts`) against the local stack.
+- [x] 4.2 Run the guest and host browser journeys (`tests/e2e/requester-intake.test.ts`, `requester-google.test.ts`, `host-review.test.ts`) against the local stack.
 
 ## Archive note
 
 Archived on 2026-11-24 with the code on `main` (pull request #440). The unticked tasks above stay open: each needs a person (a teammate review, a real device or messenger, a console, deployment or production check, or a paid model run) or a run of the local integration and browser suites, which this archive did not do. Their issues stay open with `Part of`.
+
+Task 4.2 was run on 2026-11-25 against the local stack (#147). `host-review.test.ts` gained a journey at 390 and 1280 px: the host's calendar shows a Google event and the proposed time, and a click at 14:00 on the proposal's day opens **Request changes** with that date and time filled in, marks it as the new time and shares nothing. `requester-google.test.ts` passes. In `requester-intake.test.ts` the **Choose a time** grid steps pass; its later composer check (two buttons in the composer after agreement) fails on `main` independently of this change.

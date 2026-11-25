@@ -2,10 +2,13 @@ import { randomUUID } from "node:crypto";
 import { GOOGLE_CALENDAR_SCOPES } from "../../../lib/contracts/google-scopes";
 import { hashBookingId, sealBookingLink } from "../../../lib/server/booking-links";
 import { BOOKING_JOB, createBookingHandler } from "../../../lib/server/bookings";
+import { saveCalendarRolesCommand } from "../../../lib/server/calendar-roles";
+import { runCommand } from "../../../lib/server/commands";
 import type { Database } from "../../../lib/server/database";
 import { recordGoogleGrant } from "../../../lib/server/provider-grants";
+import { openHostCalendar } from "../../../lib/server/google-calendar";
 import { parseTokenKey } from "../../../lib/server/token-encryption";
-import { runJob } from "../../integration/support/calendar-host";
+import { hostCommandDeps, runJob } from "../../integration/support/calendar-host";
 import { makeHostReady, uniqueHandle } from "../../integration/support/ready-host";
 import { MONDAY, seoul, settingsFor } from "../../integration/support/scheduling";
 import { E2E_TOKEN_ENCRYPTION_KEY } from "./token-key";
@@ -28,7 +31,10 @@ const calendarConfig = {
   tokenUrl: `${FAKE_GOOGLE_ORIGIN}/token`,
 };
 
-export async function readyReviewHost(db: Database, hostAccountId: string, displayName = "Ada Lovelace") {
+// A timed event on the host's Google Calendar, as the fake Google serves it.
+export type ReviewHostEvent = { readonly id: string; readonly summary: string; readonly start: string; readonly end: string };
+
+export async function readyReviewHost(db: Database, hostAccountId: string, displayName = "Ada Lovelace", events: readonly ReviewHostEvent[] = []) {
   const handle = uniqueHandle("ada");
   await makeHostReady(db, hostAccountId, { displayName, handle });
 
@@ -39,7 +45,16 @@ export async function readyReviewHost(db: Database, hostAccountId: string, displ
       calendars: [
         { accessRole: "owner", conferenceSolutionTypes: ["hangoutsMeet"], id: calendarId, primary: true, summary: "Work", timeZone: "Asia/Seoul" },
       ],
-      events: { [calendarId]: [] },
+      events: {
+        [calendarId]: events.map((event) => ({
+          end: { dateTime: event.end },
+          id: event.id,
+          start: { dateTime: event.start },
+          status: "confirmed",
+          summary: event.summary,
+          updated: "2026-10-01T00:00:00.000Z",
+        })),
+      },
     }),
     method: "POST",
   });
@@ -51,6 +66,19 @@ export async function readyReviewHost(db: Database, hostAccountId: string, displ
     set settings = ${db.json(settingsFor(calendarId, { displayName, handle }) as never)}
     where host_account_id = ${hostAccountId}
   `;
+
+  // The Dashboard (and the calendar beside a decision card) reads the saved
+  // calendar roles, so a host whose events should show has them saved.
+  if (events.length > 0) {
+    const live = (await (await openHostCalendar({ config: calendarConfig, db, tokenKeys: [tokenKey] }, hostAccountId)).listCalendars()).calendars;
+    const saved = await runCommand(hostCommandDeps(db, hostAccountId), saveCalendarRolesCommand(live), {
+      expectedRevision: null,
+      input: { bookingCalendarId: calendarId, conflictCalendarIds: [calendarId] },
+      resourceId: hostAccountId,
+      retryKey: randomUUID(),
+    });
+    if (!saved.ok) throw new Error(`Saving calendar roles failed: ${saved.error.category}`);
+  }
 
   return { calendarId };
 }

@@ -1,4 +1,5 @@
 import type { Page } from "@playwright/test";
+import { MONDAY, seoul } from "../integration/support/scheduling";
 import { agreedReviewRequest, readyReviewHost, runBookings } from "./support/host-review";
 import { signInHost } from "../integration/support/auth";
 import { expect, signedInHost, test } from "./support/session";
@@ -66,6 +67,52 @@ for (const width of [390, 1280]) {
     await page.getByRole("group", { name: "Confirm cancellation" }).getByRole("button", { name: "Cancel meeting" }).click();
     await expect(page.getByRole("heading", { name: "Cancelled" })).toBeVisible();
     await expect(page.getByRole("button", { name: "Cancel meeting" })).toHaveCount(0);
+  });
+}
+
+// calendar-views task 4.2 (#147): the host's own week beside the proposal,
+// with the proposed time marked over their events, and a time picked on it
+// filling in Request changes without sharing anything.
+const FIRST_HOUR = 8; // DEFAULT_HOURS[0] in calendar-time.ts; the 10:00 proposal and 12:00 lunch stay inside it.
+const HOUR_PX = { narrow: 88, wide: 48 }; // HOUR_PX and NARROW_HOUR_PX in week-calendar.tsx.
+
+for (const width of [390, 1280]) {
+  test(`at ${width}px the host picks a new time on their own calendar beside the proposal`, async ({ baseURL, context, db, page }) => {
+    await page.setViewportSize({ height: width === 1280 ? 800 : 760, width });
+    const host = await signedInHost(db, context, baseURL!);
+    await readyReviewHost(db, host.hostAccountId, "Ada Lovelace", [
+      { end: seoul("13:00"), id: "lunch", start: seoul("12:00"), summary: "Lunch with Barbara" },
+    ]);
+    const request = await agreedReviewRequest(db, host.hostAccountId);
+
+    await page.goto(`/app?request=${request.requestId}`);
+    await expect(page.getByRole("heading", { name: "Approve this meeting?" })).toBeVisible();
+
+    // The week (one day on a phone) opens at the proposal, marked over the host's events.
+    const calendar = page.getByRole("region", { name: "Your calendar with this request's times" });
+    await expect(calendar).toBeVisible();
+    await expect(calendar.getByRole("list", { name: "Your events" })).toContainText("Lunch with Barbara");
+    await expect(calendar.getByRole("list", { name: "This request's times" })).toContainText(/Proposed time: .*10:00/);
+    expect(await hasNoHorizontalScroll(page)).toBe(true);
+
+    // Clicking 14:00 on the proposal's day opens Request changes with that time.
+    const narrow = (await calendar.getAttribute("data-narrow")) !== null;
+    expect(narrow).toBe(width === 390);
+    const hourPx = narrow ? HOUR_PX.narrow : HOUR_PX.wide;
+    const column = calendar.locator(".cw-column").first();
+    await column.scrollIntoViewIfNeeded();
+    const box = (await column.boundingBox())!;
+    await column.click({ position: { x: box.width / 2, y: (14 - FIRST_HOUR) * hourPx + 4 } });
+
+    await expect(page.getByRole("heading", { name: "What should change?" })).toBeVisible();
+    await expect(page.getByLabel("Date")).toHaveValue(MONDAY);
+    await expect(page.getByLabel("Start time")).toHaveValue("14:00");
+    await expect(calendar.getByRole("list", { name: "This request's times" })).toContainText(/New time you are suggesting: .*14:00/);
+
+    // Nothing reaches the requester until the host shares the suggestion.
+    const [row] = await db<{ revision: number; state: string }[]>`select revision, state from app.requests where id = ${request.requestId}`;
+    expect(row).toEqual({ revision: 2, state: "awaiting_host_approval" });
+    expect(await hasNoHorizontalScroll(page)).toBe(true);
   });
 }
 
