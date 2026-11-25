@@ -30,7 +30,7 @@
 ## 5. Integration validation and review
 
 - [x] 5.1 Run npm run lint, npm run typecheck, npm test, npm run build and the repository documentation check; record each result. Run focused integration/e2e coverage only after permission to start the local stack. Report A1–A7 individually as met/not met with evidence and every check not run.
-- [ ] 5.2 Reconcile the proposed deltas with final behavior and any intervening archives of related changes; run strict OpenSpec validation, archive only after completed verified implementation, and open the one planned PR with the repository template and Part of #491 or Closes #491 as appropriate. Verify references and AI usage recording; never merge or deploy from this task.
+- [x] 5.2 Reconcile the proposed deltas with final behavior and any intervening archives of related changes; run strict OpenSpec validation, archive only after completed verified implementation, and open the one planned PR with the repository template and Part of #491 or Closes #491 as appropriate. Verify references and AI usage recording; never merge or deploy from this task.
 
 ## Execution constraints and evidence
 
@@ -39,3 +39,5 @@ The owner approved offline schema/migration authoring and clarified that D1 keep
 The implementation, unit regressions, database/integration tests and live-model cases are written. Database-dependent tests and paid-model evals are NOT RUN. Conditional stack/application checks in tasks 1.3, 4.4 and 5.1 therefore remain deliberately unexecuted, not passing checks. Archive is deferred until database/integration acceptance and teammate review; the implementing PR references Part of #491.
 
 Final local validation used Node.js 24.22.3: `npm ci`, lint (six existing warnings), typecheck, unit tests (157 files / 1,413 tests), Eve + Next.js build, documentation link check and strict OpenSpec validation passed. No database was contacted. A1–A7 have implementation/unit evidence; database lifecycle and end-to-end model acceptance remain unverified, as reported in the PR.
+
+Draft implementation PR: [#499](https://github.com/snuhcs-course/swpp-2026-project-team-01/pull/499), Part of #491. All 17 implementation/review-preparation tasks are recorded; conditional database execution and archival remain explicitly outside this run. No merge or deployment.
