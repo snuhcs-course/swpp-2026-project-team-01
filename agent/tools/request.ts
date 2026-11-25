@@ -26,6 +26,8 @@ import {
 import {
   approveProposalForTool,
   approveProposalToolInput,
+  allowHostTripForHostTool,
+  askGuestForHostTool,
   cancelBookingForHostTool,
   changeBookingForHostTool,
   declineRequestForTool,
@@ -41,7 +43,10 @@ import {
   readRequestForHostTool,
   resolveChangesForTool,
   suggestionToolInput,
+  hostQuestionToolInput,
+  waiveWeeklyLimitForHostTool,
 } from "../../lib/server/host-review-tools";
+import { allowHostTripInput } from "../../lib/server/request-exceptions";
 import { setupDependenciesFromEnvironment } from "../../lib/server/setup";
 import {
   changeSettingsFromRequestForTool,
@@ -57,8 +62,8 @@ import {
 // (guest-flow-completion U8), and the host-review set
 // for a host's private review of one request (host-review-and-booking design
 // 12), whose shared tools return the host projection. Host setup sessions get
-// nothing from here, a requester session gets no host tool, and no audience gets
-// a tool that waives. The host-review set's decisions (approve_proposal,
+// nothing from here, and a requester session gets no host exception tool.
+// The host-review set's decisions (approve_proposal,
 // host-imessage-channel D23; decline_request, share_changes and dismiss_changes,
 // channel-actions-in-words D1) act only for a message from the host's linked
 // iMessage, WhatsApp or Telegram, on exactly what the host was shown. So do
@@ -179,6 +184,26 @@ function hostReviewTools() {
         "Find feasible times for this request with the host's private basis for each (hours, buffers, trips, the weekly limit). It waits up to 20 seconds. It cannot choose, share or approve anything, and its times do not limit what the host may suggest: a time the host asks for is drafted with propose_shared_changes as asked.",
       inputSchema: z.object({}),
       execute: (_input, toolCtx) => evaluateCandidatesForHostTool(database(), call(toolCtx)),
+    }),
+    waive_weekly_limit: defineTool({
+      description:
+        "Only when the host clearly allows this particular request to exceed their weekly limit in a linked iMessage, Telegram or WhatsApp turn, waive that request's limit and check times again. Call read_request first. Do not use this to raise the host's general weekly limit; change_settings handles that. A question or conditional answer changes nothing. The waiver never bypasses busy time or books a meeting.",
+      inputSchema: z.object({}).strict(),
+      execute: (_input, toolCtx) => waiveWeeklyLimitForHostTool(database(), call(toolCtx)),
+    }),
+    allow_host_trip: defineTool({
+      description:
+        "Only when the host clearly allows a number of travel minutes for one unresolved host trip in a linked iMessage, Telegram or WhatsApp turn, record it for that trip and check times again. Call read_request first and use its current evaluation ID, candidate ID and trip direction. This does not waive busy time or book a meeting.",
+      inputSchema: allowHostTripInput,
+      execute: (input, toolCtx) => allowHostTripForHostTool(database(), call(toolCtx), input),
+    }),
+    // #327 host-question: provisional tool, kept separate from the exception
+    // actions so the team can remove it after deciding on host questions.
+    ask_guest: defineTool({
+      description:
+        "When the host explicitly asks you to ask this request's guest one short question from linked iMessage, Telegram or WhatsApp, send the host's question to the guest's web conversation and linked messenger. Quote the host's actual question in question; do not invent one. This asks only: it does not change the request or book a meeting.",
+      inputSchema: hostQuestionToolInput,
+      execute: (input, toolCtx) => askGuestForHostTool(database(), call(toolCtx), input),
     }),
     propose_shared_changes: defineTool({
       description:

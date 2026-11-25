@@ -16,6 +16,7 @@ import { activeRequesterBinding, requesterBindingRecipient } from "./requester-i
 import type { JobHandler } from "./jobs";
 import type { HostRequestView } from "../contracts/host-request";
 import { isValidTimeZone } from "../contracts/timezone";
+import { HOST_QUESTION_PREFIX } from "../contracts/host-question";
 import { appOriginsFromEnvironment } from "./same-origin";
 import { type TokenKey, tokenKeyFromEnvironment } from "./token-encryption";
 
@@ -93,8 +94,29 @@ export const GUEST_NOTICE_TEXTS = {
   },
 } as const;
 
+// #327 host-question: one fixed wrapper around the host's exact words.
+export function hostQuestionNoticeText(language: "en" | "ko", question: string) {
+  return language === "ko"
+    ? `미팅 호스트가 묻습니다: ${question}\n여기나 예약 페이지의 대화에서 답해 주세요.`
+    : `${HOST_QUESTION_PREFIX} ${question}\nReply here or in your booking page conversation.`;
+}
+
 // A guest notice's text from the event's own records, or null when the record is gone.
 async function guestNoticeText(q: Transaction, requestId: string, notice: Exclude<GuestNotice, { kind: "agreement_sent" }>) {
+  // #327 host-question: read the one authored input so the web and messenger
+  // show the same host words; a closed request suppresses a queued question.
+  if (notice.kind === "host_question") {
+    const [question] = await q<{ language: string | null; message: string }[]>`
+      select r.details ->> 'language' as language, i.message
+      from app.requests r
+      join app.discussions d on d.principal_type = 'requester_request' and d.principal_id = r.id and d.audience = 'requester'
+      join app.conversation_inputs i on i.discussion_id = d.id and i.id = ${notice.inputId}
+      where r.id = ${requestId} and r.closed_at is null
+    `;
+    if (!question?.message.startsWith(HOST_QUESTION_PREFIX)) return null;
+    const text = question.message.slice(HOST_QUESTION_PREFIX.length).trim();
+    return hostQuestionNoticeText(question.language === "ko" ? "ko" : "en", text);
+  }
   const [request] = await q<{ host_name: string | null; language: string | null; timezone: string | null }[]>`
     select s.settings ->> 'displayName' as host_name, r.details ->> 'language' as language, r.details ->> 'timezone' as timezone
     from app.requests r left join app.host_settings s on s.host_account_id = r.host_account_id

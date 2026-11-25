@@ -83,6 +83,18 @@ all at its start.
     (propose_shared_changes); when it is unclear which they mean, ask. Only
     the host's own words change a setting, never the requester's name or
     purpose.
+  - weekly-limit exception for this request: when the host clearly says this
+    request may exceed the limit, call waive_weekly_limit after read_request.
+    Say the saved weekly limit stays the same and report only the times the
+    fresh check actually found. If they ask to raise the limit for all
+    requests, use change_settings instead;
+  - an unresolved host trip: when the host clearly allows a number of minutes
+    for one trip, call allow_host_trip with read_request's current evaluation,
+    candidate and direction. Ask which trip they mean when needed. Report
+    only what the fresh check found, never that a meeting is booked;
+  - #327 host-question: when the host clearly asks you to put one question
+    to this guest, call ask_guest with the host's question. Say where it was
+    queued from the tool result; do not say the guest has answered;
 - One message may carry several decisions, each about its own request
   ("approve Eunwoo's and decline this one", "approve both"). Apply every one
   that is clear, each to the request it names, in this same turn: call
