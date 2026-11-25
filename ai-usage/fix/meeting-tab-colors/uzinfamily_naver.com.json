@@ -1,0 +1,40 @@
+{
+  "branch": "fix/meeting-tab-colors",
+  "user": "uzinfamily@naver.com",
+  "sessions": {
+    "codex:01a21186-9c11-7450-a562-637802247874": {
+      "agent": "codex",
+      "client": "Codex Desktop",
+      "agent_ms": 0,
+      "models": {
+        "gpt-6.1-sol": {
+          "input": 400,
+          "cache_read": 267136,
+          "cache_write_5m": 0,
+          "cache_write_1h": 0,
+          "output": 876,
+          "reasoning": 516
+        }
+      },
+      "first": "2026-11-25T08:05:19.914Z",
+      "last": "2026-11-25T08:05:19.914Z"
+    },
+    "codex:01a21197-fc04-7301-a60a-caa85c3b8956": {
+      "agent": "codex",
+      "client": "Codex Desktop",
+      "agent_ms": 0,
+      "models": {
+        "codex-auto-review": {
+          "input": 2599,
+          "cache_read": 115712,
+          "cache_write_5m": 0,
+          "cache_write_1h": 0,
+          "output": 129,
+          "reasoning": 71
+        }
+      },
+      "first": "2026-11-25T08:05:18.749Z",
+      "last": "2026-11-25T08:05:18.749Z"
+    }
+  }
+}
