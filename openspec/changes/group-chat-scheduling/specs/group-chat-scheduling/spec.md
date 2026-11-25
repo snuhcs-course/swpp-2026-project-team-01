@@ -31,11 +31,23 @@ A message in a group room SHALL NOT approve, book, cancel, reschedule or change 
 - **THEN** the second time is rechecked and booked as described in "Group booking"
 
 ### Requirement: Every member is asked to connect Google Calendar
-The introduction SHALL link to the group's poll page and ask every member to connect Google Calendar there. Connecting SHALL need no account. The grant SHALL be read-only, SHALL be used only for this group request, and SHALL yield busy times only. No event title, place, attendee or description from a member's calendar SHALL be stored, logged, shown to anyone or placed in model context. A member's Google address SHALL be used for the invitation only if the member asks for the invitation.
+The introduction SHALL link to the group's poll page and ask every member to connect Google Calendar there. Connecting SHALL need no account. The grant SHALL be read-only, SHALL be used only for this group request, and SHALL yield busy times only. No event title, place, attendee or description from a member's calendar SHALL be stored, logged, shown to anyone or placed in model context. A member's Google address SHALL be used for the invitation only if the member asks for the invitation. A member who signs in with Google SHALL be recognized: an existing host's saved conflict calendars, or a past member's remembered grant, SHALL count with no new calendar step, and the page SHALL name the calendars that count and offer to exclude them or forget the member. A remembered member grant SHALL be deleted on **Forget me**, or 180 days after the member's last group request closed. The bot SHALL NOT try to recognize members inside the group room.
 
 #### Scenario: Member connects a calendar
 - **WHEN** a member connects Google Calendar on the poll page and has an event during an otherwise feasible time
 - **THEN** that time is treated as busy for the meeting, and neither the group nor the organizer sees the event
+
+#### Scenario: Existing host opens the link
+- **WHEN** a member signs in with Google on the poll page and that account is a host with saved conflict calendars
+- **THEN** those calendars count for this group with no new calendar step, and the page names them and offers **Don't use my calendar**
+
+#### Scenario: Member from a past group
+- **WHEN** a member who connected Google in an earlier group signs in on a new group's poll page
+- **THEN** their remembered connection counts with no new consent screen
+
+#### Scenario: Forget me
+- **WHEN** a remembered member presses **Forget me**
+- **THEN** their remembered grant and identity are deleted, and their calendar no longer counts in any open group
 
 #### Scenario: No account needed
 - **WHEN** a member with no Find Me a Time account opens the poll link

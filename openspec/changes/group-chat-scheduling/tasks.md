@@ -6,7 +6,7 @@ This change is a draft. Only group 1 can start now. Groups 2 to 5 wait for a tea
 
 - [ ] 1.1 Team discussion of the open questions and D1 to D8. Record the outcome in the [PRD](../../../documentations/02_product_requirements.md#outside-the-initial-release) and the [decision log](../../../documentations/technical_specification/08_decision_log.md), and regenerate their Korean mirrors.
 - [ ] 1.2 If the team says yes, open a tracking issue that names this change, and add its number to the proposal.
-- [ ] 1.3 On a real device, check that KakaoTalk posts one notification per group message when several arrive together, and that a two-person group can be told apart from a 1:1 chat.
+- [ ] 1.3 On a real device, check that KakaoTalk posts one notification per group message when several arrive together, that a two-person group can be told apart from a 1:1 chat, and whether a group notification's `Person.key` is stable per member (Q9).
 - [ ] 1.4 Write the deltas for `calendar-booking` (attendees), `host-kakaotalk-channel` (forwarding for activated rooms) and the PRD functional requirements.
 
 ## 2. Activation and parsing (service and relay)
@@ -20,6 +20,7 @@ This change is a draft. Only group 1 can start now. Groups 2 to 5 wait for a tea
 
 - [ ] 3.1 Build `/g/<token>` with a display name, a read-only Google Calendar connection bound to the group request as the first step, ticking by hand as the fallback, an optional email with **Send me the invitation**, and **Delete my answer** with a device-bound edit token. Playwright tests cover connecting, ticking, editing, deleting and a connected busy time removing a candidate.
 - [ ] 3.2 Remove connected members' busy times from the organizer's candidates, with the most-attendable fallback when none is left, and post the times when the organizer asks or after 24 hours. Keep chat answers and page answers separate by name, with no unverified label. Tests show that no member's event detail is stored, logged or passed to the model.
+- [ ] 3.3 Recognize members by Google sign-in: reuse an existing host's conflict calendars and a past member's remembered grant, with **Don't use my calendar**, **Forget me** and the 180-day deletion. Tests cover each, and that a remembered grant is never read for anything but busy times in an open group.
 
 ## 4. Group messages, ranking and booking
 

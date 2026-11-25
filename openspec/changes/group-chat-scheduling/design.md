@@ -68,6 +68,13 @@ The user chose on 2026-11-26 that everyone connects Google Calendar from one lin
 
 **Collecting calendars.** The introduction asks every member to open the poll page `/g/<token>` and connect Google Calendar. No account is needed. On the page the member enters a display name, connects Google read-only, and may leave an email for the invitation. The grant follows `requester-calendar-access`. It reads calendar-list and busy times only, it is used for this group request only, and no event title, place or attendee is stored, logged, shown or given to the model. The Google-verified address is not used as the invitation email unless the member ticks **Send me the invitation**.
 
+**Returning members (user, 2026-11-26).** The relay sees only profile names in a group, never a KakaoTalk user ID, so the bot cannot tell who in the room has connected before. The introduction therefore goes to everyone. A member is recognized only on the poll page, when they sign in with Google, or on a device the page remembers:
+
+- **An existing host's** conflict calendars, as saved in their setup, are used with no new calendar step.
+- **A member of a past group** who connected Google is remembered. Their grant is reused with no new consent screen.
+
+The page shows which calendars count, and offers **Don't use my calendar** for this group and **Forget me**, which deletes the remembered grant and identity. A remembered member grant is deleted 180 days after the member's last group request closes (Q8). A remembered member is not a host and gets no `/app` workspace.
+
 **Finding candidates.** The service runs the organizer's feasibility over the date range. It treats every connected member's busy times as busy for the meeting. When every candidate would be removed, it keeps the times that the most connected members can attend instead. That way one very busy member does not empty the list. Up to five candidates are picked, spread across the range, as in "Offered times spread across the range". For an in-person meeting, each candidate is paired with one of the organizer's confirmed places, as in "Time and place pairs".
 
 **Posting the times.** The numbered times go to the group when the organizer asks for them, or 24 hours after activation, whichever comes first (Q3). Because the bot can only answer a notification, they go out through the next group message after that moment. Until then the poll page shows the times as they stand, and they change as calendars connect.

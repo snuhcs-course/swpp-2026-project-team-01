@@ -38,7 +38,7 @@ These were drafted by the session that wrote this change on 2026-11-26. Parts of
 
 | # | Decision | Proposed choice |
 |---|---|---|
-| D1 | Who the host is ([design 1](design.md#1-organizer)) | The **organizer**: the linked host whose group code activated the room. Not the inviter, whom the relay cannot see. One organizer per group request. Other linked hosts in the room count as members, and their calendars are not read unless they connect them on the poll page |
+| D1 | Who the host is ([design 1](design.md#1-organizer)) | The **organizer**: the linked host whose group code activated the room. Not the inviter, whom the relay cannot see. One organizer per group request. Other linked hosts in the room count as members. Their calendars count once they open the link and sign in with Google (D9) |
 | D2 | Activation ([design 2](design.md#2-activation)) | A single-use `FMAT-G` code, valid for 15 minutes, issued to the organizer in `/app` or their own 1:1 chat, five per hour. The code binds the room ID seen on the notification that carried it. A `FMAT-G` code seen in a 1:1 chat, or a host `FMAT-` code seen in a group, binds nothing and voids its attempt |
 | D3 | Authority ([design 3](design.md#3-authority)) | Group messages never approve, book, cancel or change settings, whoever wrote them. Every decision comes from the organizer's 1:1 chat, `/app` or their connected agent with `host:decide`, as `calendar-booking` already requires |
 | D4 | Gathering availability ([design 4](design.md#4-gathering-availability)) | Google Calendar first (user, 2026-11-26). Every member is asked to connect Google Calendar read-only on the poll page, for this group request only. Candidates are the organizer's feasible times with every connected member's busy times removed, up to five. A member who does not connect ticks times on the page or answers by numbers in the group. Chat answers count like page answers, with no "unverified" label (user, 2026-11-26) |
@@ -46,6 +46,7 @@ These were drafted by the session that wrote this change on 2026-11-26. Parts of
 | D6 | Consent and privacy ([design 6](design.md#6-consent-and-privacy)) | A fixed introduction on activation, a privacy link, `stop` open to every member, an answer stored only after a member gives one, a display name the member chooses, no phone number or Kakao ID read, deletion of answers 30 days after closure, and a delete action on the poll page |
 | D7 | Confirmation ([design 7](design.md#7-confirmation-and-booking)) | The organizer books by number from a ranked list in their 1:1 chat or `/app`. The event goes into the organizer's booking destination. Members who left an email on the poll page are invited as attendees (user, 2026-11-26); the others get the group confirmation and a calendar file. The group receives one confirmation |
 | D8 | What the bot never says in a group ([design 8](design.md#8-what-the-group-never-sees)) | Calendar event titles, places, attendees or busy reasons of the organizer or any member; the organizer's rules, notes, exceptions or other requests; which member's calendar blocks a time; link or group codes; a member's email |
+| D9 | Returning members ([design 4](design.md#4-gathering-availability)) | A member who signs in with Google on the poll page is recognized. An existing host's conflict calendars are used, and a past member's remembered grant is reused, with no new calendar step (user, 2026-11-26). The poll page says which calendars count and offers **Don't use my calendar** and **Forget me** |
 
 ## Answers from the user (2026-11-26)
 
@@ -56,7 +57,8 @@ The user who suggested the idea answered these questions. They are the user's ch
 | How do members give their availability? | When the account is brought into a group, everyone goes to the link and connects Google Calendar. KakaoTalk raises no notification on an invitation, so the link goes out right after the organizer posts the code, which is the first moment the bot can speak |
 | What about members who do not connect Google? | They tick times by hand on the same page, or answer with numbers in the group. Connected members' busy times remove candidates before anyone ticks |
 | Do numbered answers in the group count, and are they labelled? | They count, with no "unverified" label. Only the organizer can book, so a forged answer can sway the count but cannot book anything |
-| Who gets a Google invitation? (was Q5, so Q5 is left unused below) | Members who left an email on the poll page |
+| Who gets a Google invitation? (was Q5) | Members who left an email on the poll page |
+| A member who has already connected: can they skip the question? (was Q4, so Q4 and Q5 are left unused below) | Yes, for existing hosts and for members of past groups. The bot cannot see members' KakaoTalk IDs, so it cannot skip anyone in the room itself. Once a member opens the link and signs in with Google, an existing host's conflict calendars, or a past member's remembered connection, are used with no new calendar step |
 
 ## Unresolved decisions for the team
 
@@ -65,9 +67,10 @@ The user who suggested the idea answered these questions. They are the user's ch
 | Q1 | Does the team want group scheduling at all? The PRD lists "group scheduling, internal team coordination" outside the initial release | Changing it is a product scope decision, and only the team can make it. Without a yes, this change stays a draft |
 | Q2 | Does `host-kakaotalk-channel` land, and does its Q3 get the answer "yes, through an organizer's code"? | This change rests on the relay phone, its terms-of-service risk (that change's Q1) and its reply path |
 | Q3 | How long does the bot wait for calendars before it posts numbered times? This draft says: when the organizer asks, or 24 hours after activation, whichever comes first | Too short leaves out members who connect late. Too long stalls the group |
-| Q4 | Should members who are also linked hosts have their calendars read without a step on the poll page? | That would make the result more accurate, but it would read a host's calendar for a meeting they never asked the product about. This draft says no |
 | Q6 | Is 14 days the right lifetime for an unbooked group request, and five the right number of candidate times? | Both are guesses with no data behind them |
 | Q7 | Should this come to Telegram groups too? There the bot can see a member's stable user ID and receive invitations. iMessage and WhatsApp groups are already refused | Telegram would make member identity verifiable. It could be the better first channel, or a later one |
+| Q8 | How long is a past member's Google connection remembered when they stop using it? This draft says 180 days after their last group request closes | Remembering is what lets them skip the question, but it keeps a calendar grant for a person with no account |
+| Q9 | Is the `Person.key` of a KakaoTalk group notification a stable per-member value? | If it is, the bot could tell members apart in the chat. It still could not link them to a Google sign-in without asking each member once |
 
 ## Conflicts with current documents
 
@@ -79,6 +82,7 @@ These conflicts are open on purpose. None of them is resolved by this draft.
 | PRD FR-26, FR-37, FR-40, AC-17, AC-33 | Group conversations cannot retrieve host-only details or act as the host | Still true here: a group gets no host-only details and cannot act. What changes is that a group can now *receive* candidate times and confirmations. The FR and AC text needs that distinction |
 | [`host-imessage-channel`](../../specs/host-imessage-channel/spec.md) "No session for unlinked or group senders" | Group conversations get nothing | Unchanged for iMessage. Only an activated KakaoTalk room is handled, and only by the rules in this change |
 | `host-kakaotalk-channel` (unmerged) D3 | Group and open-chat text never leaves the relay phone | Kept for every room that is not activated. An activated room's text is forwarded for parsing (D5) |
+| [`requester-calendar-access`](../../specs/requester-calendar-access/spec.md) "Request-bound grant lifetime" | A requester's Google grant is used for its own request only and ends with it | A group member's grant is remembered across group requests until they press **Forget me** or stop using it (Q8). It is still read-only and busy-only |
 | [`calendar-booking`](../../specs/calendar-booking/spec.md) "Host-owned event with stable identity" | The requester is the only attendee | A group booking has zero or more member attendees: those who left an email |
 | [`meeting-requests`](../../specs/meeting-requests/spec.md) | A request has one requester, one guest conversation and one agreement | A group request has many answering members and no single agreement. This draft makes it a separate record type instead of stretching the request model |
 
@@ -91,7 +95,7 @@ These conflicts are open on purpose. None of them is resolved by this draft.
 | **Any member can confirm or book from the group.** | Group sender identity is a profile name anyone can change, so a message could book an event in the organizer's calendar. Authority stays in the organizer's private channels (D3) |
 | **Send all group text to the model so the bot can follow the conversation.** | It would read unrelated conversation between people who never agreed to it, and it would cost model calls for every message. A fixed parser for numbers and `stop` is enough to count answers (D5) |
 | **Every member signs up, or must connect Google Calendar.** | Most groups would stop at the first step, and members without Google would be left out. Connecting is asked of everyone, but it needs no account and ticking by hand stays open |
-| **Pooled availability from every linked host in the room.** | That is "pooled host availability", which the PRD also lists outside the release. It would read calendars without a per-meeting choice (Q4) |
+| **Pooled availability from every linked host in the room, read without their knowledge.** | The relay cannot tell which room members are linked hosts. A calendar is reused only after that person opens the link and signs in with Google (D9) |
 | **KakaoTalk's built-in poll (투표).** | The relay can only send text through the reply action. Creating a poll needs the accessibility path, and the results cannot be read without scraping the screen |
 | **A group request as a normal meeting request with many requesters.** | Every requester rule (one agreement, one guest conversation, guest notices, the booking page) assumes one requester. Stretching them would change behavior for every existing request |
 
