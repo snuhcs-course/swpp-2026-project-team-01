@@ -68,7 +68,7 @@ The user chose on 2026-11-26 that everyone connects Google Calendar from one lin
 
 **Collecting calendars.** The introduction asks every member to open the poll page `/g/<token>` and connect Google Calendar. No account is needed. On the page the member enters a display name, connects Google read-only, and may leave an email for the invitation. The grant follows `requester-calendar-access`. It reads calendar-list and busy times only, it is used for this group request only, and no event title, place or attendee is stored, logged, shown or given to the model. The Google-verified address is not used as the invitation email unless the member ticks **Send me the invitation**.
 
-**Returning members (user, 2026-11-26).** The relay sees only profile names in a group, never a KakaoTalk user ID, so the bot cannot tell who in the room has connected before. The introduction therefore goes to everyone. A member is recognized only on the poll page, when they sign in with Google, or on a device the page remembers:
+**Returning members (user, 2026-11-26).** The introduction goes to everyone, and nothing in the group says who has connected before. A member is recognized on the poll page, when they sign in with Google or on a device the page remembers, or by their KakaoTalk user ID as §9 describes:
 
 - **An existing host's** conflict calendars, as saved in their setup, are used with no new calendar step.
 - **A member of a past group** who connected Google is remembered. Their grant is reused with no new consent screen.
@@ -94,6 +94,7 @@ For an activated room, the relay forwards each group message as a `group_message
 
 - A numbered answer, as in §4.
 - `stop` or `그만`, which deactivates the room (§6).
+- `/kickout`, which makes the account leave the room (§11).
 - A `FMAT-G` or `FMAT-` code, as in §2.
 
 The parser does not send any group message to the model. A message that matches nothing is dropped after parsing, and no receipt keeps its text. A receipt keeps only the event ID and the parse result, so the same message is not counted twice.
@@ -149,8 +150,55 @@ They never contain any of these:
 
 The ranked list in the organizer's 1:1 chat may name who answered what, because the organizer runs the poll. It still carries no member calendar detail.
 
+### 9. Member identity
+
+The user asked on 2026-11-26 that a member's KakaoTalk user ID be remembered, so that a member who connected Google before is not asked again. The relay's notifications give the room ID in their tag (`<relay account user ID>_<chat ID>`), and the chat ID is global. The sender of a message is a `Person` whose key may or may not be a stable user ID; this is unverified (Q9). The KakaoTalk for Mac database carries exact `authorId` user IDs per message, but reading it needs a Mac path the KakaoTalk change rejected (Q10).
+
+**When `Person.key` is a stable user ID.** The relay forwards it with every group message and every member 1:1 message. The service keys it under the existing hash key, in a `kakaotalk-member:` namespace, and keeps only the hash. The same hash links a member's group answers, their 1:1 chat and their poll page identity once any of them is tied to it.
+
+**When it is not (the fallback).** A member who wants to be recognized ties their identity once:
+
+1. On the poll page, after Google sign-in, the page offers **Remember me in KakaoTalk** and shows a one-time `FMAT-M` code with a friend-add link to the account.
+2. The member sends the code in a 1:1 chat with the account. The code is single-use, valid for 15 minutes and bound to that poll page identity.
+3. The 1:1 room ID is tied to the member. From then on, that 1:1 chat is the member's chat.
+
+Without a stable user ID, a group message still cannot be mapped to a member. The group answer stays attributed to the profile name (§4).
+
+**The reuse question.** When a recognized member appears in a newly activated room, and they connected Google in an earlier group, the bot asks them in their own 1:1 chat:
+
+> {organizer}님의 새 모임이 있어요. 예전에 연결한 구글 캘린더를 이 모임에도 쓸까요? (네 / 아니요)
+
+The question is never asked in the group, because asking there would tell the room that this person uses the product. Private content reaches the member only through the reply path of a notification from their own 1:1 room. When none is posted, the KakaoTalk change's fixed nudge goes first, and the question follows when the member answers. "네" reuses the connection for this group. "아니요", or no answer, leaves the member to the poll page like anyone else. Without a stable user ID, the bot cannot tell that the member is in the new room, so the question comes only after they open the new poll link and sign in, and the page itself asks instead.
+
+A member's remembered user ID hash and 1:1 room tie are deleted with their remembered grant: on **Forget me**, or 180 days after their last group request closes.
+
+### 10. Private notes
+
+The user asked on 2026-11-26 that a member be able to tell the account privately what they do not want to say in the group. A note arrives in the member's 1:1 chat (§9). This text, unlike group text, goes to the model, because the member wrote it to the bot. The model turns it into structured limits only: unavailable intervals and less-preferred intervals inside the group's date range.
+
+The bot reads the limits back in the 1:1 chat ("목요일 저녁은 빼고, 오전은 가능하면 피할게요. 맞나요?") and applies them only after the member agrees. When the member is in more than one open group, the bot asks which one by organizer name and date range. The note's text is not stored after the limits are confirmed. The limits are kept with the member's answer and are deleted with it.
+
+The limits count as that member's busy times when candidates are found (§4). A less-preferred interval only moves a time down the order. The group sees only the candidate times that result. Neither the group nor the organizer sees the note, the limits, or that a note exists (Q11). A posted candidate that a new note removes is struck through like any other, with no reason and no name.
+
+A member who is not tied to an identity cannot leave a note. The bot answers that they should first open the poll link, and gives nothing about any group.
+
+### 11. Leaving the room
+
+Any member may type `/kickout` in an activated room (user, 2026-11-26). The account then leaves the group:
+
+1. The service closes the group request as stopped, as for `stop`, and tells the organizer in their 1:1 chat.
+2. The bot sends a fixed goodbye through the reply action of the `/kickout` notification: "Find Me a Time이 이 방에서 나갈게요. 다시 부르려면 주최자가 새 코드를 올려 주세요."
+3. The relay opens that room through the same notification's content intent, so it lands in exactly the room the command came from. The accessibility service then taps the room menu, **채팅방 나가기**, and the confirmation (Q13).
+
+A booked group is left on its own the day after the meeting ends. The relay keeps a local list of rooms to leave. It waits for the next notification from such a room, opens the room through that notification and leaves. It never searches the chat list by name. Until it can leave, the room stays deactivated, and nothing from it is forwarded.
+
+When the leave cannot be confirmed on screen, the relay reports `uncertain`, and the room stays deactivated. A later `/kickout` in that room tries again.
+
 ## Risks / Trade-offs
 
+- **Remembering KakaoTalk identities.** Keeping a member's user ID hash ties together their chats across groups. Mitigation: only the hash is kept, it is deleted with **Forget me** or after 180 days, and nothing in a group reveals it.
+- **Inference from struck-out times.** When one member leaves a private note and a time vanishes soon after, others may guess why. Mitigation: struck-out times carry no name or reason, and calendar changes strike times out the same way.
+- **Leaving through the screen.** The accessibility leave is the first destructive action the relay takes. Mitigation: it starts only from the room's own notification, and an unconfirmed leave stays deactivated.
 - **Rooms that stay active.** With no automatic close, a forgotten room keeps forwarding its messages to the parser for as long as the group exists. Mitigation: nothing is stored or sent to the model, anyone can send `stop`, and the organizer can cancel from `/app`.
 
 - **Forged names in the group.** Anyone can post "1 3" under another person's name. The user chose to count them without a label. Mitigation: only the organizer books, and connected calendars remove times by real busy times, not by a claim.
@@ -166,3 +214,4 @@ The ranked list in the organizer's 1:1 chat may name who answered what, because 
 - Does KakaoTalk deliver a separate notification for each group message when many arrive at once, or only a summary? The event ID scheme of the KakaoTalk change assumes the former.
 - Does a group notification distinguish a 1:1 room from a two-person group? A room with only the organizer and the bot should probably be refused.
 - How does a member who left the group get their answer removed if they never used the poll page?
+- Can a member's 1:1 chat with the account start before they add it as a friend, or do they need the friend-add link first?

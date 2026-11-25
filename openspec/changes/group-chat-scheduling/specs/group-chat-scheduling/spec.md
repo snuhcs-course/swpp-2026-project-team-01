@@ -31,7 +31,7 @@ A message in a group room SHALL NOT approve, book, cancel, reschedule or change 
 - **THEN** the second time is rechecked and booked as described in "Group booking"
 
 ### Requirement: Every member is asked to connect Google Calendar
-The introduction SHALL link to the group's poll page and ask every member to connect Google Calendar there. Connecting SHALL need no account. The grant SHALL be read-only, SHALL be used only for this group request, and SHALL yield busy times only. No event title, place, attendee or description from a member's calendar SHALL be stored, logged, shown to anyone or placed in model context. A member's Google address SHALL be used for the invitation only if the member asks for the invitation. A member who signs in with Google SHALL be recognized: an existing host's saved conflict calendars, or a past member's remembered grant, SHALL count with no new calendar step, and the page SHALL name the calendars that count and offer to exclude them or forget the member. A remembered member grant SHALL be deleted on **Forget me**, or 180 days after the member's last group request closed. The bot SHALL NOT try to recognize members inside the group room.
+The introduction SHALL link to the group's poll page and ask every member to connect Google Calendar there. Connecting SHALL need no account. The grant SHALL be read-only, SHALL be used only for this group request, and SHALL yield busy times only. No event title, place, attendee or description from a member's calendar SHALL be stored, logged, shown to anyone or placed in model context. A member's Google address SHALL be used for the invitation only if the member asks for the invitation. A member who signs in with Google SHALL be recognized: an existing host's saved conflict calendars, or a past member's remembered grant, SHALL count with no new calendar step, and the page SHALL name the calendars that count and offer to exclude them or forget the member. A remembered member grant SHALL be deleted on **Forget me**, or 180 days after the member's last group request closed. Whether a member has connected before SHALL NOT be revealed in the group room.
 
 #### Scenario: Member connects a calendar
 - **WHEN** a member connects Google Calendar on the poll page and has an event during an otherwise feasible time
@@ -136,3 +136,52 @@ A group request SHALL close only when it is booked, when the organizer cancels, 
 #### Scenario: Retention after closure
 - **WHEN** 30 days pass after a group request closed
 - **THEN** its members' answers, names and emails no longer exist
+
+### Requirement: Member identity and the reuse question
+A member's KakaoTalk identity SHALL be remembered as a hash only. It SHALL come from the sender's stable KakaoTalk user ID when the relay can read one. Otherwise it SHALL come from a one-time member code that the member, after Google sign-in on the poll page, sends in a 1:1 chat with the account. The code SHALL be single-use and valid for 15 minutes. When a recognized member who connected Google in an earlier group joins a newly activated group, the member SHALL be asked in their own 1:1 chat, and never in the group, whether to reuse that connection. Only a "yes" SHALL reuse it. A 1:1 chat SHALL NOT be tied to a member by profile name. The identity and the 1:1 tie SHALL be deleted on **Forget me**, or 180 days after the member's last group request closed.
+
+#### Scenario: Member code ties a 1:1 chat
+- **WHEN** a member signed in on the poll page sends the `FMAT-M` code shown there in a 1:1 chat with the account
+- **THEN** that 1:1 chat is tied to the member, and the member is told so in that chat
+
+#### Scenario: Reuse question goes to the 1:1 chat
+- **WHEN** a recognized member who connected Google before is found in a newly activated group
+- **THEN** they are asked in their own 1:1 chat whether to reuse the connection, and nothing about it is said in the group
+
+#### Scenario: Member says no
+- **WHEN** the member answers "아니요" to the reuse question
+- **THEN** the earlier connection is not used for that group, and the member can still connect or tick on the poll page
+
+#### Scenario: Same profile name, different person
+- **WHEN** a 1:1 sender whose profile name matches a member writes to the account without the member's code or user ID
+- **THEN** the chat is not tied to that member and receives nothing about any group
+
+### Requirement: Private notes from a member's 1:1 chat
+A member whose 1:1 chat is tied to them SHALL be able to tell the account, in that chat, limits they do not want to say in the group. The bot SHALL read the limits back in the 1:1 chat and SHALL apply them only after the member agrees. When the member is in more than one open group, the bot SHALL ask which group first. Applied limits SHALL count as that member's busy or less-preferred times for that group only. The note's text SHALL NOT be stored after the limits are confirmed. Neither the note, the limits nor the fact that a note exists SHALL appear in any group message or in the organizer's view. A member whose chat is not tied to them SHALL get no group information in reply.
+
+#### Scenario: Private constraint shapes the times
+- **WHEN** a tied member writes "목요일 저녁은 안 된다고 단톡엔 말하기 좀 그래" and confirms the read-back
+- **THEN** Thursday evening is treated as busy for that member, and the group sees only the resulting candidate times
+
+#### Scenario: Group asks about a removed time
+- **WHEN** a member asks in the group why a Thursday evening time disappeared
+- **THEN** no group message mentions the note, the member or any reason
+
+#### Scenario: Untied sender sends a constraint
+- **WHEN** a 1:1 sender who is not tied to any member writes a constraint
+- **THEN** nothing is applied, and the reply asks them to open their group's poll link first without naming any group
+
+### Requirement: Leaving the room
+Any member's `/kickout` in an activated room SHALL close the group request as stopped, tell the organizer in their own chat, send one fixed goodbye in the room, and make the account leave that room. The account SHALL also leave a booked group the day after the meeting ends. The relay SHALL open the room to leave only through a notification from that room, and SHALL NOT find it by name. A leave that cannot be confirmed SHALL keep the room deactivated and be reported as uncertain.
+
+#### Scenario: Any member kicks the bot out
+- **WHEN** a member who is not the organizer types `/kickout` in an activated room
+- **THEN** the group gets one goodbye, the account leaves that room, and the organizer is told in their 1:1 chat
+
+#### Scenario: Leaving after the meeting
+- **WHEN** a booked meeting ended yesterday and a member writes in the room
+- **THEN** the relay opens the room from that message's notification and the account leaves it
+
+#### Scenario: Two rooms with the same name
+- **WHEN** the account must leave a room whose name another room also has
+- **THEN** only the room whose notification was used is left

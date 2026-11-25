@@ -1,12 +1,12 @@
 # Tasks
 
-This change is a draft. Only group 1 can start now. Groups 2 to 5 wait for a team yes on Q1 and Q2 in the [proposal](proposal.md#unresolved-decisions-for-the-team), and for `host-kakaotalk-channel` to be merged.
+This change is a draft. Only group 1 can start now. Groups 2 to 6 wait for a team yes on Q1 and Q2 in the [proposal](proposal.md#unresolved-decisions-for-the-team), and for `host-kakaotalk-channel` to be merged.
 
 ## 1. Decision
 
 - [ ] 1.1 Team discussion of the open questions and D1 to D8. Record the outcome in the [PRD](../../../documentations/02_product_requirements.md#outside-the-initial-release) and the [decision log](../../../documentations/technical_specification/08_decision_log.md), and regenerate their Korean mirrors.
 - [ ] 1.2 If the team says yes, open a tracking issue that names this change, and add its number to the proposal.
-- [ ] 1.3 On a real device, check that KakaoTalk posts one notification per group message when several arrive together, that a two-person group can be told apart from a 1:1 chat, and whether a group notification's `Person.key` is stable per member (Q9).
+- [ ] 1.3 On a real device, check that KakaoTalk posts one notification per group message when several arrive together, that a two-person group can be told apart from a 1:1 chat, whether a group notification's `Person.key` is a stable KakaoTalk user ID that matches the member's 1:1 chat (Q9), and whether the accessibility path can open a room from its notification and leave it (Q13).
 - [ ] 1.4 Write the deltas for `calendar-booking` (attendees), `host-kakaotalk-channel` (forwarding for activated rooms) and the PRD functional requirements.
 
 ## 2. Activation and parsing (service and relay)
@@ -28,7 +28,14 @@ This change is a draft. Only group 1 can start now. Groups 2 to 5 wait for a tea
 - [ ] 4.2 Add the ranking, the settle rule and booking by number from the organizer's chat, `/app` and `host:decide`. Tests cover a group message that tries to book, a stale time, a repeated booking and attendees from emails.
 - [ ] 4.3 Add closing on booking, cancel and `stop` only, the one-time request for a new date range when every candidate has passed, and the 30-day deletion in the retention pass.
 
-## 5. Documents and release
+## 5. Member identity, private notes and leaving
 
-- [ ] 5.1 Update the privacy policy for group members without an account, the [implementation plan](../../../documentations/technical_specification/06_implementation_plan.md) and the provider setup, and regenerate the Korean mirrors.
-- [ ] 5.2 Run `npm run check`, `npm test`, the integration and e2e suites, and a real-device pass with a test group, then archive the change.
+- [ ] 5.1 Add the member identity hash, the `FMAT-M` member code and the 1:1 tie, using the stable user ID when Q9 allows and the code otherwise. Tests cover a code tie, a name-only sender who is refused, deletion on **Forget me** and after 180 days.
+- [ ] 5.2 Add the reuse question in the member's 1:1 chat through the reply path, with the fixed nudge first when no notification is posted. Tests show the question never goes to a group and that only "yes" reuses a connection.
+- [ ] 5.3 Add private notes: model extraction into limits, the read-back, the choice of group, applying limits as busy or less-preferred times, and dropping the text. A test feeds a note and asserts that no group message or organizer view contains it or hints that it exists.
+- [ ] 5.4 Add `/kickout` and the leave after a booked meeting, through the relay's local leave list and the room's own notification. Tests with the relay stand-in cover a member's `/kickout`, an uncertain leave, and two rooms with the same name.
+
+## 6. Documents and release
+
+- [ ] 6.1 Update the privacy policy for group members without an account, the [implementation plan](../../../documentations/technical_specification/06_implementation_plan.md) and the provider setup, and regenerate the Korean mirrors.
+- [ ] 6.2 Run `npm run check`, `npm test`, the integration and e2e suites, and a real-device pass with a test group, then archive the change.
