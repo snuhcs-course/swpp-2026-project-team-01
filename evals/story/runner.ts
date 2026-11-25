@@ -4,7 +4,7 @@ import { includes, satisfies } from "eve/evals/expect";
 import { CAPABILITY, evalTrials } from "../tags";
 import { nextWeek } from "./fixtures";
 import { grade, NO_DECISION_CRITERION } from "./grader";
-import { type EvalContext, type EvalTurn, guestSession, type HostChannel, hostReviewSession, linkHost, selectedRequestOf } from "./sessions";
+import { type EvalContext, type EvalTurn, guestSession, type HostChannel, hostReviewSession, linkHost } from "./sessions";
 import { buildState } from "./states";
 import { snapshot, type StoryView, view } from "./state";
 import type { Check, StoryCase, StoryContext, ToolCall } from "./types";
@@ -129,15 +129,7 @@ export function storyEval(entry: StoryCase, trial: number, set: string) {
         }
         transcript.push(`User: ${message}`, `Assistant: ${reply}`);
 
-        // A switch in words moves the host's next message to the selected
-        // request's own review, as the messenger routes it.
-        if (hostChannel) {
-          const selected = await selectedRequestOf(request.hostAccountId);
-          if (selected && selected !== conversationRequest) {
-            conversationRequest = selected;
-            conversation = await open(selected);
-          }
-        }
+
       }
 
       // A request closed in a turn runs no more model work, so the reply step after

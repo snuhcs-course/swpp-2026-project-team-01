@@ -1,0 +1,180 @@
+-- Hand-authored offline with the owner's explicit approval. Apply only after
+-- the full chain has been reviewed and tested on a disposable local database.
+-- Private context belongs to an account, never to a guest request. The deletion
+-- function discovers this FK and deletes these rows even though accounts keep
+-- their nameless handle tombstone. No client role can access the app schema.
+CREATE TABLE "app"."host_assistant_context" (
+  "host_account_id" uuid NOT NULL REFERENCES "app"."host_accounts" ("id") ON DELETE CASCADE,
+  "scope_key" text NOT NULL CHECK (char_length("scope_key") BETWEEN 1 AND 200),
+  "kind" text NOT NULL CHECK ("kind" IN ('question', 'deferred', 'memory', 'capture')),
+  "entry_key" text NOT NULL CHECK (char_length("entry_key") BETWEEN 1 AND 200),
+  "revision" integer NOT NULL DEFAULT 1 CHECK ("revision" > 0),
+  "content" jsonb NOT NULL DEFAULT '{}'::jsonb CHECK (jsonb_typeof("content") = 'object' AND octet_length("content"::text) <= 6000),
+  "source_input_id" uuid REFERENCES "app"."conversation_inputs" ("id") ON DELETE CASCADE,
+  "operation_id" text NOT NULL CHECK (char_length("operation_id") BETWEEN 1 AND 300),
+  "confirmed" boolean NOT NULL DEFAULT false,
+  -- Forgotten entries retain only their key/provenance as a replay tombstone.
+  "forgotten_at" timestamptz,
+  "expires_at" timestamptz,
+  "created_at" timestamptz NOT NULL DEFAULT now(),
+  "updated_at" timestamptz NOT NULL DEFAULT now(),
+  PRIMARY KEY ("host_account_id", "scope_key", "kind", "entry_key"),
+  CONSTRAINT "host_assistant_context_forgotten_empty" CHECK ("forgotten_at" IS NULL OR "content" = '{}'::jsonb)
+);
+
+CREATE INDEX "host_assistant_context_source_idx" ON "app"."host_assistant_context" ("source_input_id");
+CREATE INDEX "host_assistant_context_expiry_idx" ON "app"."host_assistant_context" ("expires_at") WHERE "expires_at" IS NOT NULL;
+ALTER TABLE "app"."host_assistant_context" ENABLE ROW LEVEL SECURITY;
+REVOKE ALL ON "app"."host_assistant_context" FROM PUBLIC, anon, authenticated;
+
+-- Retire the obsolete host-review runtimes without copying their private
+-- histories into any other audience. Existing generation fences deny them.
+UPDATE app.agent_sessions s SET state = 'retired', updated_at = now()
+FROM app.discussions d WHERE d.id = s.discussion_id
+  AND d.principal_type = 'host_account' AND d.audience = 'host_review'
+  AND s.state <> 'retired';
+
+-- A queued reply from a retired review must not be delivered after cutover.
+UPDATE app.imessage_outbox o SET state = 'suppressed', failure_category = 'retired_session',
+  recipient_ciphertext = null, text_ciphertext = null, completed_at = now(), updated_at = now()
+FROM app.conversation_inputs i JOIN app.discussions d ON d.id = i.discussion_id
+WHERE o.input_id = i.id AND d.principal_type = 'host_account' AND d.audience = 'host_review'
+  AND o.state IN ('waiting', 'queued');
+
+ALTER TABLE app.imessage_bindings DROP COLUMN selected_request_id;
+
+-- The retention pass (data-stewardship: retention schedule; operations-and-
+-- release design 8, D9), run every hour by pg_cron. Each rule deletes at most
+-- row_limit rows per run, so a backlog drains over several runs instead of
+-- holding locks (closed requests count per request, at most 100 per run, since
+-- each cascades to many rows): closed requests with everything under them 90 days after
+-- closure, except a request a signed-in guest account owns, which is kept while
+-- that account exists (guest-account-history D1); completed jobs, command outcomes, link-resend records, admission
+-- windows and agent protocol attempts after 30 days; exhausted jobs and model
+-- reservations after 90 days; operator audit rows after a year; account emails
+-- 30 days after they reached a final state. Returns the
+-- number of rows deleted per rule.
+CREATE OR REPLACE FUNCTION "app"."cleanup_retained_records"("row_limit" integer)
+RETURNS TABLE ("rule" text, "deleted" integer)
+LANGUAGE plpgsql
+SET search_path = ''
+AS $$
+DECLARE
+  removed integer;
+BEGIN
+  IF row_limit IS NULL OR row_limit < 1 THEN
+    RAISE EXCEPTION 'row limit must be positive' USING ERRCODE = '22023';
+  END IF;
+
+  -- Expire private content in bounded batches, retaining a content-free
+  -- tombstone so replaying an earlier capture cannot recreate it.
+  UPDATE app.host_assistant_context SET content = '{}'::jsonb,
+    forgotten_at = now(), confirmed = false, revision = revision + 1, updated_at = now()
+  WHERE (host_account_id, scope_key, kind, entry_key) IN (
+    SELECT host_account_id, scope_key, kind, entry_key FROM app.host_assistant_context
+    WHERE (expires_at <= now() OR (NOT confirmed AND kind <> 'capture' AND created_at < now() - interval '1 day'))
+      AND forgotten_at IS NULL
+    ORDER BY expires_at LIMIT row_limit
+  );
+  GET DIAGNOSTICS removed = ROW_COUNT;
+  rule := 'host_assistant_context'; deleted := removed; RETURN NEXT;
+
+  DELETE FROM app.host_assistant_context WHERE (host_account_id, scope_key, kind, entry_key) IN (
+    SELECT host_account_id, scope_key, kind, entry_key FROM app.host_assistant_context
+    WHERE kind = 'capture' AND created_at < now() - interval '30 days' LIMIT row_limit
+  );
+  GET DIAGNOSTICS removed = ROW_COUNT;
+  rule := 'host_assistant_captures'; deleted := removed; RETURN NEXT;
+
+  rule := 'closed_requests';
+  deleted := app.delete_request_records(array(
+    SELECT r.id FROM app.requests r
+    WHERE r.closed_at < now() - interval '90 days'
+      -- A booking whose write may exist keeps its record until reconciled.
+      AND NOT EXISTS (SELECT 1 FROM app.bookings b WHERE b.request_id = r.id AND b.state = 'dispatching')
+      -- A request a guest account owns is its history while the account exists;
+      -- deleting the account removes the match, and the 90 days apply again.
+      AND NOT EXISTS (
+        SELECT 1 FROM app.requester_host_profiles p
+        JOIN app.host_accounts a ON a.id = p.host_account_id
+        WHERE p.request_id = r.id AND a.deleted_at IS NULL
+      )
+    ORDER BY r.closed_at
+    LIMIT least(row_limit, 100)
+  ));
+  RETURN NEXT;
+
+  DELETE FROM app.jobs WHERE id IN (
+    SELECT j.id FROM app.jobs j
+    WHERE j.state = 'completed' AND coalesce(j.completed_at, j.updated_at) < now() - interval '30 days' LIMIT row_limit
+  );
+  GET DIAGNOSTICS removed = ROW_COUNT;
+  rule := 'completed_jobs'; deleted := removed; RETURN NEXT;
+
+  DELETE FROM app.jobs WHERE id IN (
+    SELECT j.id FROM app.jobs j WHERE j.state = 'exhausted' AND j.updated_at < now() - interval '90 days' LIMIT row_limit
+  );
+  GET DIAGNOSTICS removed = ROW_COUNT;
+  rule := 'exhausted_jobs'; deleted := removed; RETURN NEXT;
+
+  DELETE FROM app.command_outcomes WHERE ctid IN (
+    SELECT c.ctid FROM app.command_outcomes c WHERE c.created_at < now() - interval '30 days' LIMIT row_limit
+  );
+  GET DIAGNOSTICS removed = ROW_COUNT;
+  rule := 'command_outcomes'; deleted := removed; RETURN NEXT;
+
+  DELETE FROM app.link_resend_attempts WHERE id IN (
+    SELECT a.id FROM app.link_resend_attempts a WHERE a.created_at < now() - interval '30 days' LIMIT row_limit
+  );
+  GET DIAGNOSTICS removed = ROW_COUNT;
+  rule := 'link_resend_attempts'; deleted := removed; RETURN NEXT;
+
+  DELETE FROM app.link_resend_issuances WHERE id IN (
+    SELECT i.id FROM app.link_resend_issuances i WHERE i.created_at < now() - interval '30 days' LIMIT row_limit
+  );
+  GET DIAGNOSTICS removed = ROW_COUNT;
+  rule := 'link_resend_issuances'; deleted := removed; RETURN NEXT;
+
+  DELETE FROM app.admission_windows WHERE ctid IN (
+    SELECT w.ctid FROM app.admission_windows w WHERE w.window_start < now() - interval '30 days' LIMIT row_limit
+  );
+  GET DIAGNOSTICS removed = ROW_COUNT;
+  rule := 'admission_windows'; deleted := removed; RETURN NEXT;
+
+  DELETE FROM app.agent_protocol_attempts WHERE id IN (
+    SELECT p.id FROM app.agent_protocol_attempts p WHERE p.created_at < now() - interval '30 days' LIMIT row_limit
+  );
+  GET DIAGNOSTICS removed = ROW_COUNT;
+  rule := 'agent_protocol_attempts'; deleted := removed; RETURN NEXT;
+
+  DELETE FROM app.model_reservations WHERE id IN (
+    SELECT m.id FROM app.model_reservations m WHERE m.created_at < now() - interval '90 days' LIMIT row_limit
+  );
+  GET DIAGNOSTICS removed = ROW_COUNT;
+  rule := 'model_reservations'; deleted := removed; RETURN NEXT;
+
+  DELETE FROM app.operator_actions WHERE id IN (
+    SELECT o.id FROM app.operator_actions o WHERE o.created_at < now() - interval '1 year' LIMIT row_limit
+  );
+  GET DIAGNOSTICS removed = ROW_COUNT;
+  rule := 'operator_actions'; deleted := removed; RETURN NEXT;
+
+  DELETE FROM app.operator_operations WHERE id IN (
+    SELECT o.id FROM app.operator_operations o WHERE o.created_at < now() - interval '1 year' LIMIT row_limit
+  );
+  GET DIAGNOSTICS removed = ROW_COUNT;
+  rule := 'operator_operations'; deleted := removed; RETURN NEXT;
+
+  -- Account emails have no request to cascade from (self-service-account-
+  -- deletion D5).
+  DELETE FROM app.email_deliveries WHERE id IN (
+    SELECT e.id FROM app.email_deliveries e
+    WHERE e.request_id IS NULL
+      AND e.kind IN ('account_deletion_scheduled', 'account_deletion_cancelled', 'account_deletion_completed', 'host_account_closed')
+      AND e.completed_at < now() - interval '30 days'
+    LIMIT row_limit
+  );
+  GET DIAGNOSTICS removed = ROW_COUNT;
+  rule := 'account_emails'; deleted := removed; RETURN NEXT;
+END;
+$$;

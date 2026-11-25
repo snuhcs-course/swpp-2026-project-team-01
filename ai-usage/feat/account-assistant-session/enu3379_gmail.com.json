@@ -1,0 +1,133 @@
+{
+  "branch": "feat/account-assistant-session",
+  "user": "enu3379@gmail.com",
+  "sessions": {
+    "claude:3d333159-4e89-489f-ba59-16ad916b46ad": {
+      "agent": "claude-code",
+      "client": "cli",
+      "agent_ms": 0,
+      "models": {
+        "claude-opus-5-5": {
+          "input": 2,
+          "cache_read": 231261,
+          "cache_write_5m": 0,
+          "cache_write_1h": 1606,
+          "output": 3631,
+          "reasoning": 0
+        }
+      },
+      "first": "2026-11-25T16:25:31.745Z",
+      "last": "2026-11-25T16:25:31.745Z"
+    },
+    "claude:b0844e81-4870-4a6a-bfe3-b211c2ed1756": {
+      "agent": "claude-code",
+      "client": "cli",
+      "agent_ms": 278898,
+      "models": {
+        "claude-opus-5-5": {
+          "input": 48,
+          "cache_read": 2189997,
+          "cache_write_5m": 0,
+          "cache_write_1h": 24667,
+          "output": 11173,
+          "reasoning": 0
+        }
+      },
+      "first": "2026-11-25T16:38:57.544Z",
+      "last": "2026-11-25T17:36:06.581Z"
+    },
+    "codex:01a2138f-e25d-7ae1-8d7f-a3e447bec7f4": {
+      "agent": "codex",
+      "client": "codex-tui",
+      "agent_ms": 16632,
+      "models": {
+        "gpt-6-luna": {
+          "input": 25846,
+          "cache_read": 49792,
+          "cache_write_5m": 0,
+          "cache_write_1h": 0,
+          "output": 614,
+          "reasoning": 125
+        }
+      },
+      "first": "2026-11-25T16:35:33.152Z",
+      "last": "2026-11-25T16:35:43.251Z"
+    },
+    "codex:01a21391-0053-7483-a724-485c90f053e7": {
+      "agent": "codex",
+      "client": "codex-tui",
+      "agent_ms": 102611,
+      "models": {
+        "gpt-6-luna": {
+          "input": 82507,
+          "cache_read": 620288,
+          "cache_write_5m": 0,
+          "cache_write_1h": 0,
+          "output": 3821,
+          "reasoning": 1443
+        },
+        "gpt-6.1-sol": {
+          "input": 91268,
+          "cache_read": 0,
+          "cache_write_5m": 0,
+          "cache_write_1h": 0,
+          "output": 207,
+          "reasoning": 0
+        }
+      },
+      "first": "2026-11-25T16:36:45.160Z",
+      "last": "2026-11-25T16:47:32.252Z"
+    },
+    "codex:01a21391-00a1-7ff1-86ed-fc0049f2f8c4": {
+      "agent": "codex",
+      "client": "codex-tui",
+      "agent_ms": 0,
+      "models": {
+        "codex-auto-review": {
+          "input": 17762,
+          "cache_read": 5888,
+          "cache_write_5m": 0,
+          "cache_write_1h": 0,
+          "output": 209,
+          "reasoning": 151
+        }
+      },
+      "first": "2026-11-25T16:37:50.985Z",
+      "last": "2026-11-25T16:37:50.985Z"
+    },
+    "codex:01a213b4-e93d-7591-bd2b-b1a09711e638": {
+      "agent": "codex",
+      "client": "codex_exec",
+      "agent_ms": 318870,
+      "models": {
+        "gpt-6.1-sol": {
+          "input": 376329,
+          "cache_read": 39829504,
+          "cache_write_5m": 0,
+          "cache_write_1h": 0,
+          "output": 140841,
+          "reasoning": 61934
+        }
+      },
+      "first": "2026-11-25T17:16:01.639Z",
+      "last": "2026-11-25T18:20:50.885Z"
+    },
+    "codex:01a213f0-5092-7b62-bfdc-2a561a5e2b92": {
+      "agent": "codex",
+      "client": "codex_exec",
+      "agent_ms": 0,
+      "models": {
+        "codex-auto-review": {
+          "input": 28587,
+          "cache_read": 0,
+          "cache_write_5m": 0,
+          "cache_write_1h": 0,
+          "output": 138,
+          "reasoning": 61
+        }
+      },
+      "first": "2026-11-25T18:20:49.717Z",
+      "last": "2026-11-25T18:20:49.717Z"
+    }
+  }
+}

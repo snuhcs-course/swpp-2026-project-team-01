@@ -247,9 +247,9 @@ export function imessageHarness(
     },
     async bindingOf(hostAccountId: string) {
       const [row] = await db<
-        { id: string; channel: string; state: string; sender_hash: string; space_ciphertext: string | null; selected_request_id: string | null }[]
+        { id: string; channel: string; state: string; sender_hash: string; space_ciphertext: string | null }[]
       >`
-        select id, channel, state, sender_hash, space_ciphertext, selected_request_id from app.imessage_bindings
+        select id, channel, state, sender_hash, space_ciphertext from app.imessage_bindings
         where host_account_id = ${hostAccountId} order by linked_at desc limit 1
       `;
       return row ?? null;

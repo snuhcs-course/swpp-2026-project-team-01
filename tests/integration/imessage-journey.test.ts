@@ -175,13 +175,13 @@ describe("the Phase 6 join", () => {
     expect((await arrive(sender, "Could we do half an hour later?")).outcome).toBe("forwarded");
     expect(await answer(host)).toEqual(["I'll suggest 10:30 instead. Send changes to see it."]);
     const [question] = (await im.inputsOf(host)).filter((input) => input.message.includes("half an hour later"));
-    expect(question).toMatchObject({ request_id: request.requestId, state: "completed" });
+    expect(question).toMatchObject({ request_id: null, state: "completed" });
 
     // The assistant's propose_shared_changes records this suggestion; the host
     // shares it by its exact reference, and the requester agrees to version 2.
     await asHost(db, host, request.requestId, suggestChangesCommand("assistant"), { changes: { start: seoul("10:30") } });
     expect((await arrive(sender, "changes")).outcome).toBe("command");
-    expect((await sendCommandReplies(host)).join("\n")).toContain(`Suggested changes ${ref}-S1`);
+    expect((await sendCommandReplies(host)).join("\n")).toContain("Tell me which request you mean first.");
     expect((await arrive(sender, `share ${ref}-S1`)).outcome).toBe("command");
     const [evaluation] = await db<{ id: string }[]>`select id from app.evaluations where request_id = ${request.requestId} order by created_at desc limit 1`;
     await runEvaluation(db, { ...evaluationDeps(db, google), notices: testNotices }, evaluation!.id);

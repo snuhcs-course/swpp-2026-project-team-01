@@ -62,7 +62,7 @@ async function approvalsOf(requestId: string) {
 }
 
 describe("request commands", () => {
-  it("lists, selects and reviews a request with its exact decision commands", async () => {
+  it("lists and reads a named request without selecting a discussion", async () => {
     const request = await agreedRequest(db, google);
     const { sender } = await im.link(request.hostAccountId);
     const ref = requestRef(request.requestId);
@@ -74,11 +74,11 @@ describe("request commands", () => {
     expect(selected.delivered.outcome).toBe("command");
     expect(selected.reply).toContain("To approve, tell me so");
     expect(selected.reply).not.toContain(`approve ${reviewRef(request.requestId, 1)}`);
-    expect((await im.bindingOf(request.hostAccountId))?.selected_request_id).toBe(request.requestId);
+    expect(await im.bindingOf(request.hostAccountId)).not.toHaveProperty("selected_request_id");
 
     const review = await say(sender, request.hostAccountId, "Review");
-    expect(review.reply).toContain(`Request ${ref} from Grace Hopper`);
-    expect(review.reply).toContain("To decline, tell me to decline it.");
+    expect(review.reply).not.toContain(`Request ${ref} from Grace Hopper`);
+    expect(review.reply).toMatch(/settings|set up|setup/i);
   });
 
   it("changes nothing for an outdated or unknown reference, or a plain yes", async () => {
@@ -159,13 +159,12 @@ describe("request commands", () => {
     const ref = requestRef(request.requestId);
     expect((await say(sender, request.hostAccountId, "changes")).reply).toBe("Tell me which request you mean first.");
     await say(sender, request.hostAccountId, `request ${ref}`);
-    expect((await say(sender, request.hostAccountId, "changes")).reply).toContain("There are no suggested changes");
+    expect((await say(sender, request.hostAccountId, "changes")).reply).toBe("Tell me which request you mean first.");
 
     const later = new Date(new Date(request.start).getTime() + 60 * 60_000).toISOString();
     await asHost(db, request.hostAccountId, request.requestId, suggestChangesCommand("assistant"), { changes: { start: later } });
     const shown = await say(sender, request.hostAccountId, "changes");
-    expect(shown.reply).toContain(`Suggested changes ${ref}-S1`);
-    expect(shown.reply).toContain("Tell me to send them to the requester, or to drop them.");
+    expect(shown.reply).toBe("Tell me which request you mean first.");
     expect((await say(sender, request.hostAccountId, `dismiss ${ref}-S2`)).reply).toContain(`the current ones are ${ref}-S1`);
 
     const shared = await say(sender, request.hostAccountId, `share ${ref}-S1`);

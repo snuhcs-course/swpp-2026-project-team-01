@@ -16,6 +16,7 @@ Use Next.js App Router, React, TypeScript and npm, with eve as the intended conv
 |---|---|
 | Runtime and framework | `eve` 0.80.1, `ai` 7.0.143, `next` 16.3.8, `react` and `react-dom` 19.2.8, `zod` 4.4.3 |
 | Data and identity | `@supabase/supabase-js` 2.118.0, `@supabase/ssr` 0.12.7, `postgres` 3.4.9 |
+| Sandbox environment (unused by domain tools) | `just-bash` 3.6.1; pure JavaScript, no container or VM |
 | UI | `tailwindcss` and `@tailwindcss/postcss` 4.3.3, `radix-ui` 1.6.7, `class-variance-authority` 0.7.1, `clsx` 2.1.1, `tailwind-merge` 3.6.0, `cmdk` 1.1.1, `lucide-react` 1.33.0, `use-stick-to-bottom` 1.1.6 |
 | Message rendering | `streamdown` 2.7.0, `@streamdown/cjk` 1.0.3, `@streamdown/code` 1.1.1, `@streamdown/math` 1.0.2, `@streamdown/mermaid` 1.0.2, `shiki` and `@shikijs/{core,engine-javascript,engine-oniguruma}` 4.3.1 |
 | Development | `typescript` 7.0.2, `@typescript/native-preview` 7.0.0-dev.20260707.2, `@types/node` 24.19.2, `@types/react` 19.2.18, `@types/react-dom` 19.2.4, `vitest` 5.0.5, `@playwright/test` 1.64.1, `oxlint` 1.88.0, `tsx` 4.23.15 |

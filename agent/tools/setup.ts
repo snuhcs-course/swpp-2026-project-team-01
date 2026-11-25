@@ -1,6 +1,6 @@
+import { accountTools } from "./account";
 import { defineDynamic, defineTool } from "eve/tools";
 import { z } from "zod";
-import { switchConversationForTool, switchConversationToolInput } from "../../lib/server/channel-selection";
 import { database } from "../../lib/server/database";
 import { START_REQUEST_DESCRIPTION, startRequestDependenciesFromEnvironment, startRequestForTool, startRequestToolInput } from "../../lib/server/host-sent-requests";
 import {
@@ -33,6 +33,7 @@ export default defineDynamic({
     "session.started": (_event, ctx) =>
       isHostSetupSession(ctx.session.auth.current)
         ? {
+            ...accountTools(),
             read_setup_state: defineTool({
               description:
                 "Read the host's current setup: the next action, drafted values with their labels, current suggestions with sample sizes, missing required fields, calendar roles, analysis evidence and readiness, and for a linked chat the onboarding note review step and the latest slot image sent there (chatOnboarding). Call it at the start of each turn before talking about setup.",
@@ -57,7 +58,7 @@ export default defineDynamic({
             }),
             save_assistant_notes: defineTool({
               description:
-                "Save the host's notes for Thyme: free-text meeting preferences in their own words that the guest's assistant uses only to shape what it proposes (\"investment advisory meetings are 30 minutes\", \"a first meeting is online\"). Pass the whole notes after the change, starting from read_setup_state's assistantNotes. Use it when the host states such a preference or asks to remember, change or forget one, on the web or in their linked iMessage, WhatsApp or Telegram. It saves at once; guests never see the notes, and the settings still decide every offered time and form.",
+                "Save only the host's explicitly requested guest-facing guidance for shaping meeting proposals. This text reaches the guest-side model as host.notes. Never put private memory, persona, tone, relationships, priorities, life context, requester details or calendar titles here. Private context uses account__remember and its one-line notice; scheduling rules use change_settings. Pass the whole intended guidance after the change, starting from read_setup_state's assistantNotes.",
               inputSchema: saveAssistantNotesToolInput,
               execute: (input, toolCtx) =>
                 saveAssistantNotesForTool(
@@ -150,13 +151,7 @@ export default defineDynamic({
               execute: (input, toolCtx) =>
                 startRequestForTool(startRequestDependenciesFromEnvironment(database()), { auth: toolCtx.session.auth.current, callId: toolCtx.callId, sessionId: toolCtx.session.id }, input),
             }),
-            switch_conversation: defineTool({
-              description:
-                "Switch the host's linked iMessage, WhatsApp or Telegram conversation to another request, or back to setup, when the host asks in words (\"let's talk about 박도현's request\", \"6ADSRV\", \"back to setup\"). Pass setup, the request reference, or the requester's name as the host wrote it. From the host's next message, their text goes to that discussion. It works only for a message from the linked conversation; on the web, the host opens the request from the inbox.",
-              inputSchema: switchConversationToolInput,
-              execute: (input, toolCtx) =>
-                switchConversationForTool(database(), { auth: toolCtx.session.auth.current, sessionId: toolCtx.session.id }, input),
-            }),
+
           }
         : null,
   },

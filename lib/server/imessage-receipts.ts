@@ -1,5 +1,5 @@
+import { listSentRequests } from "./host-sent-requests";
 import { getChatMessageLengthError } from "../contracts/chat-message";
-import { handleFromText } from "./host-conversation-bindings";
 import { IMESSAGE_PREFIX, type StoredChannel, TELEGRAM_PREFIX, WHATSAPP_PREFIX } from "../contracts/messaging-channel";
 import { type NoticeDependencies, noticeDependenciesFromEnvironment } from "./booking-notices";
 import { AdmissionLimitError } from "./conversation-admission";
@@ -10,7 +10,6 @@ import {
   type ConversationDependencies,
   ConversationInputError,
   eveRuntime,
-  HostRequestNotFoundError,
 } from "./conversations";
 import { database, type Database, type Transaction } from "./database";
 import { findLinkCode, hashLinkCode } from "./email-links";
@@ -160,76 +159,24 @@ async function forward(tx: Transaction, deps: ImessageReceiptDependencies, messa
     return "replied";
   }
 
-  // A retry finds the input an earlier attempt recorded, in whichever
-  // discussion it went to, so the message is never recorded twice.
-  const [earlier] = await deps.db<{ request_id: string | null }[]>`
-    select d.request_id from app.conversation_inputs i
-    join app.discussions d on d.id = i.discussion_id
-    where d.principal_type = 'host_account' and d.principal_id = ${message.hostAccountId} and i.client_input_id = ${message.receipt.id}
-  `;
-  let requestId = earlier ? earlier.request_id : message.selectedRequestId;
-  if (!earlier && requestId) {
-    const [tutorial] = await tx<{ offer: boolean; sample_id: string | null; finished: boolean }[]>`
-      select s.tutorial_offered and s.tutorial_binding_id = ${message.bindingId} as offer,
-             active.id as sample_id,
-             coalesce(selected.is_sample and (selected.closed_at is not null or selected.expires_at <= now()), false) as finished
-      from app.host_accounts h
-      left join app.host_settings s on s.host_account_id = h.id
-      left join app.requests selected on selected.id = ${requestId}
-      left join app.requests active on active.host_account_id = h.id and active.is_sample and active.closed_at is null
-        and active.expires_at > now() and s.tutorial_binding_id = ${message.bindingId}
-      where h.id = ${message.hostAccountId}
-    `;
-    if (tutorial?.finished) {
-      await tx`update app.imessage_bindings set selected_request_id = null where id = ${message.bindingId} and selected_request_id = ${requestId}`;
-      requestId = null;
-    } else if (tutorial?.offer || tutorial?.sample_id) {
-      requestId = tutorial.sample_id;
-    }
+  // All host messages share the account discussion. The receipt identity keeps
+  // retries in that discussion without using a request as routing state.
+  try {
+    await acceptHostMessage(deps.conversation, message.authUserId, { clientInputId: message.receipt.id, message: text });
+  } catch (error) {
+    if (error instanceof AdmissionLimitError) throw new AdmissionDeferredError();
+    if (error instanceof HostIneligibleError) return "ignored";
+    if (error instanceof ConversationInputError && error.code !== "runtime_unavailable") return "ignored";
+    if (!(error instanceof ConversationInputError)) throw error;
   }
-  let fellBack = false;
-
-  for (;;) {
-    try {
-      await acceptHostMessage(deps.conversation, message.authUserId, { clientInputId: message.receipt.id, message: text }, requestId);
-      break;
-    } catch (error) {
-      if (error instanceof AdmissionLimitError) throw new AdmissionDeferredError();
-      if (error instanceof HostRequestNotFoundError && requestId) {
-        await tx`update app.imessage_bindings set selected_request_id = null where id = ${message.bindingId} and state = 'active'`;
-        requestId = null;
-        fellBack = true;
-        continue;
-      }
-      if (error instanceof HostIneligibleError) return "ignored";
-      // A runtime refusal leaves the input recorded and accepted: the next
-      // message or recovery delivers it, and its reply waits for that turn.
-      if (error instanceof ConversationInputError && error.code === "runtime_unavailable") break;
-      if (error instanceof ConversationInputError) return "ignored";
-      throw error;
-    }
-  }
-
   const [input] = await deps.db<{ id: string }[]>`
     select i.id from app.conversation_inputs i
     join app.discussions d on d.id = i.discussion_id
     where d.principal_type = 'host_account' and d.principal_id = ${message.hostAccountId}
-      and d.request_id is not distinct from ${requestId} and i.client_input_id = ${message.receipt.id}
+      and d.audience = 'host_setup' and d.request_id is null and i.client_input_id = ${message.receipt.id}
   `;
   if (!input) throw new Error("The forwarded input was not recorded.");
-
-  if (fellBack) {
-    await recordOutbound(tx, {
-      bindingId: message.bindingId,
-      dedupeKey: `receipt:${message.receipt.id}:fallback`,
-      hostAccountId: message.hostAccountId,
-      kind: "command",
-      recipient: message.recipient,
-      recipientHash: message.receipt.senderHash,
-      text: channelReplies(await hostReplyLanguage(deps, message.hostAccountId, message.text)).requestGone,
-      tokenKey: deps.tokenKey,
-    });
-  }
+  const requestId = null;
 
   await recordOutbound(tx, {
     bindingId: message.bindingId,
@@ -249,6 +196,9 @@ async function forward(tx: Transaction, deps: ImessageReceiptDependencies, messa
 // else is forwarded.
 export const channelProcessor: ChannelProcessor = async (tx, deps, message) => {
   const command = parseCommand(message.text);
+  if (command?.name === "request" && (await listSentRequests(deps.db, message.hostAccountId)).some(item => requestRef(item.requestId) === command.ref)) {
+    return forward(tx, deps, message);
+  }
   if (command) return executeCommand(tx, deps, message, command);
   // A button never reaches the model: one whose ID named no command does nothing.
   if (message.receipt.contentType === WHATSAPP_BUTTON_CONTENT) return "ignored";
@@ -342,7 +292,6 @@ export type BoundMessage = {
   readonly bindingId: string;
   readonly hostAccountId: string;
   readonly authUserId: string;
-  readonly selectedRequestId: string | null;
   readonly recipient: { readonly address: string; readonly spaceId: string };
 };
 
@@ -432,8 +381,6 @@ export function namedConversation<Binding extends { readonly request_id: string;
 
 type GuestRoute = { readonly binding: GuestBinding; readonly switched: boolean; readonly forward?: boolean };
 
-type HereBinding = GuestBinding & { readonly host_name: string | null };
-
 // A guest conversation bound to the sender's host conversation (R01, #61)
 // follows the host binding's selection, as a received request does: no picker.
 //   - `request <ref>` naming one of them selects it there; a reference one of
@@ -448,50 +395,6 @@ type HereBinding = GuestBinding & { readonly host_name: string | null };
 //     request;
 //   - otherwise the selected one, when the selection is one of them.
 // Undefined leaves the message to the other routes.
-async function hostConversationRoute(
-  tx: Transaction,
-  receipt: OpenedReceipt,
-  origin: string,
-  command: ReturnType<typeof parseCommand>,
-  host: { readonly id: string; readonly host_account_id: string; readonly selected_request_id: string | null },
-  here: readonly HereBinding[],
-): Promise<GuestRoute | "ambiguous" | "host" | "host_link" | undefined> {
-  const select = (binding: HereBinding) =>
-    tx`update app.imessage_bindings set selected_request_id = ${binding.request_id} where id = ${host.id} and state = 'active'`;
-  const ownRefs = async () =>
-    new Set(
-      (await tx<{ id: string }[]>`select id from app.requests where host_account_id = ${host.host_account_id} and state <> 'draft'`).map((request) =>
-        requestRef(request.id),
-      ),
-    );
-
-  if (command?.name === "request") {
-    const named = here.find((binding) => requestRef(binding.request_id) === command.ref);
-    if (!named || (await ownRefs()).has(command.ref)) return undefined;
-    await select(named);
-    return { binding: named, switched: true };
-  }
-  if (command) return undefined;
-
-  const text = receipt.text ?? "";
-  const selected = here.find((binding) => binding.request_id === host.selected_request_id);
-  if (selected) {
-    const handle = handleFromText(text, origin);
-    if (handle && /[/@＠]/.test(text)) return "host_link";
-  }
-  const named = namedSentRequest(text, here, host.selected_request_id === null || Boolean(selected));
-  if (named === "host") return selected ? "host" : undefined;
-  // A change to the host's own meetings in general while a sent request is
-  // selected (R01 M-7, P-8): setup has the tools for it, and the sent request
-  // keeps its details. A message about this one meeting stays with it.
-  if (selected && !named && impliesOwnSetup(text)) return "host";
-  if (named && named !== selected) {
-    await select(named);
-    return { binding: named, forward: true, switched: true };
-  }
-  return selected ? { binding: selected, switched: false } : undefined;
-}
-
 // Whether a message changes the host's own meetings in general rather than
 // the one request it is written beside (R01 M-7). Kept conservative, since a
 // match moves the conversation to setup:
@@ -538,7 +441,7 @@ export function namedSentRequest<Binding extends { readonly request_id: string; 
   return matches.length === 1 ? matches[0]! : null;
 }
 
-async function guestRoute(tx: Transaction, receipt: OpenedReceipt, origin: string): Promise<GuestRoute | "ambiguous" | "guest_stop" | "host" | "host_link" | null> {
+async function guestRoute(tx: Transaction, receipt: OpenedReceipt, _origin: string): Promise<GuestRoute | "ambiguous" | "guest_stop" | "host" | "host_link" | null> {
   const command = receipt.text ? parseCommand(receipt.text) : null;
   const stopText = receipt.text?.trim() ?? "";
   const isGuestStop = stopText.toLowerCase() === "stop" || (receipt.channel === "telegram" && /^\/stop(?:@[a-z][a-z0-9_]{1,28}bot)?$/i.test(stopText));
@@ -547,10 +450,9 @@ async function guestRoute(tx: Transaction, receipt: OpenedReceipt, origin: strin
   const here = host ? all.filter((binding) => binding.link_id === null && binding.channel === host.channel) : [];
   const guests = all.filter((binding) => !here.includes(binding));
 
-  if (host && here.length) {
-    const route = await hostConversationRoute(tx, receipt, origin, command, host, here);
-    if (route !== undefined) return route;
-  }
+  // An authenticated account holder always uses the account assistant,
+  // including when the same sender has standalone guest bindings.
+  if (host) return null;
 
   // A standalone guest link may have several requests on this channel. STOP
   // applies to all of them before the picker or assistant sees the text; a
@@ -561,10 +463,6 @@ async function guestRoute(tx: Transaction, receipt: OpenedReceipt, origin: strin
 
   if (command?.name === "request") {
     const named = guests.filter((binding) => requestRef(binding.request_id) === command.ref);
-    if (named.length && host) {
-      const requests = await tx<{ id: string }[]>`select id from app.requests where host_account_id = ${host.host_account_id} and state <> 'draft'`;
-      if (requests.some((request) => requestRef(request.id) === command.ref)) return "ambiguous";
-    }
     if (named.length === 1) return { binding: named[0]!, switched: true };
     if (named.length > 1) return "ambiguous";
     if (guests.length && !host) return "ambiguous";
@@ -609,7 +507,6 @@ async function guestRoute(tx: Transaction, receipt: OpenedReceipt, origin: strin
       const selected = guests.find((binding) => binding.id === selection.requester_binding_id);
       if (selected) return { binding: selected, switched: false };
     }
-    if (selection?.binding_id && host?.id === selection.binding_id) return null;
     return "ambiguous";
   }
 
@@ -750,10 +647,6 @@ async function revise(tx: Transaction, deps: ImessageReceiptDependencies, receip
   );
   if (outcome.kind === "refused" || !outcome.bindingId) return closedNotice(tx, deps, receipt, binding);
   // In the sender's host conversation the revised request stays the selected one.
-  await tx`
-    update app.imessage_bindings set selected_request_id = ${outcome.requestId}
-    where sender_hash = ${receipt.senderHash} and state = 'active' and selected_request_id = ${binding.request_id}
-  `;
 
   const accepted = await acceptRevisedSummary(deps, outcome.requestId, (await readRevisedSummary(tx, binding.request_id))!);
   if (accepted !== "accepted") return accepted;
@@ -929,14 +822,10 @@ export async function processReceipt(
   // A sender with several conversations and no current choice (#137): a
   // message that names one in words goes there; otherwise the choice is asked
   // in the message's language, answerable in words.
-  let hostByWords = false;
-  let hostByLink = false;
   if (guest === "host") {
     guest = null;
-    hostByWords = true;
   } else if (guest === "host_link") {
     guest = null;
-    hostByLink = true;
   }
   if (guest === "ambiguous") {
     const host = await activeBindingOfSender(tx, receipt.senderHash);
@@ -947,8 +836,7 @@ export async function processReceipt(
     const named = receipt.text && !parseCommand(receipt.text) ? namedConversation(receipt.text, guests, Boolean(host)) : null;
     if (named === "host") {
       guest = null;
-      hostByWords = true;
-    } else if (named) {
+      } else if (named) {
       guest = { binding: named, forward: true, switched: true };
     } else {
       const language = textLanguage(receipt.text) ?? (host ? await hostConversationLanguage(deps.db, host.host_account_id) : "en");
@@ -1022,11 +910,6 @@ export async function processReceipt(
     update app.requester_imessage_bindings set last_inbound_at = now()
     where sender_hash = ${receipt.senderHash} and state = 'active' and link_id is null and channel = ${receipt.channel}
   `;
-  // Another host's link while a sent request was selected (R01 M-1): back to
-  // the host role, so start_request reads it.
-  if (hostByLink) {
-    await tx`update app.imessage_bindings set selected_request_id = null where id = ${binding.id} and state = 'active'`;
-  }
   // The window is open again: a weekly note list held back by it follows
   // (calendar-note-review design 10).
   if (receipt.channel === "whatsapp") await reopenWeeklyNoteList(tx, binding.host_account_id, binding.id);
@@ -1037,7 +920,6 @@ export async function processReceipt(
     hostAccountId: binding.host_account_id,
     receipt,
     recipient,
-    selectedRequestId: hostByLink ? null : binding.selected_request_id,
   };
 
   // A button tap runs the command its data names, never its label (D8); data
@@ -1081,24 +963,6 @@ export async function processReceipt(
   if (receipt.channel === "telegram" && isOnlyThanks(receipt.text) && receipt.telegram?.messageId) {
     await recordSignal(tx, deps, receipt, binding, recipient, { messageId: receipt.telegram.messageId, reaction: THANKS_REACTION, typing: false });
     return "replied";
-  }
-
-  // The host named their own account in words (#137): setup is selected, as
-  // `setup` selects it, and the message goes on to Thyme there.
-  if (hostByWords) {
-    await tx`update app.imessage_bindings set selected_request_id = null where id = ${binding.id} and state = 'active'`;
-    bound.selectedRequestId = null;
-    await recordOutbound(tx, {
-      bindingId: binding.id,
-      dedupeKey: `host-selection:${receipt.id}`,
-      hostAccountId: binding.host_account_id,
-      kind: "command",
-      recipient,
-      recipientHash: receipt.senderHash,
-      requestId: null,
-      text: channelReplies(await hostReplyLanguage(deps, binding.host_account_id, receipt.text)).hostSelected,
-      tokenKey: deps.tokenKey,
-    });
   }
 
   const outcome = await channel(tx, deps, { ...bound, text: receipt.text.trim() });

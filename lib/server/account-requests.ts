@@ -99,3 +99,19 @@ export async function linkAccountRequest(tx: Transaction, requestId: string, acc
   `;
   await settleCalendarStep(tx, requestId);
 }
+
+// Shared account association boundary for messenger and MCP sent actions.
+// A typed contact address is never proof of ownership. History summaries can
+// outlive a link; live requester actions still require this current access.
+export async function readAccountSentAccess(q: Queryable, hostAccountId: string, requestId: string): Promise<{ host_account_id: string; closed: boolean; booked: boolean } | null> {
+  const [row] = await q<{ host_account_id: string; closed: boolean; booked: boolean }[]>`
+    select r.host_account_id,
+           (r.closed_at is not null or r.expires_at <= now()) as closed,
+           r.state = 'booked' as booked
+    from app.requester_host_profiles p
+    join app.requests r on r.id = p.request_id
+    join app.booking_links l on l.request_id = r.id and l.expires_at > now()
+    where p.host_account_id = ${hostAccountId} and r.id = ${requestId} and r.state <> 'draft'
+  `;
+  return row ?? null;
+}

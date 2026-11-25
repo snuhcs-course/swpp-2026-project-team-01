@@ -25,10 +25,10 @@ function resolveContext(current: SessionPrincipal): DynamicResolveContext {
 const hostSetup = principal({ audience: "host_setup", discussionId: "d", generation: "1" });
 
 describe("setup capabilities resolve per audience", () => {
-  it("gives a host setup session the setup tools and switching in words", async () => {
+  it("gives the account session one complete host and sent-request tool set without switching", async () => {
     const tools = await setupTools.events["session.started"]!({}, resolveContext(hostSetup));
 
-    expect(Object.keys(tools ?? {}).sort()).toEqual(["choose_note_items", "choose_request_tutorial", "confirm_note_items", "confirm_settings", "disconnect_google_calendar", "draft_settings", "list_host_requests", "preview_next_week", "read_schedule", "read_setup_state", "save_assistant_notes", "send_schedule_image", "set_calendar_roles", "start_request", "switch_conversation"]);
+    expect(Object.keys(tools ?? {}).sort()).toEqual(["agree_to_sent_proposal", "allow_host_trip", "apply_sent_review", "ask_guest", "cancel_sent_booking", "change_booking", "change_sent_agreement", "change_sent_booking", "change_settings", "check_sent_booking", "choose_note_items", "choose_request_tutorial", "choose_sent_time", "confirm_note_items", "confirm_settings", "decide_requests", "disconnect_google_calendar", "dismiss_changes", "draft_sent_request", "draft_settings", "evaluate_candidates", "find_sent_times", "finish_sample_tutorial", "get_sent_request", "list_host_requests", "preview_next_week", "propose_shared_changes", "read_booking_status", "read_request", "read_schedule", "read_settings", "read_setup_state", "resend_sent_booking_link", "save_assistant_notes", "send_schedule_image", "set_calendar_roles", "share_changes", "start_request", "use_sent_host_calendars", "waive_weekly_limit", "withdraw_sent_request"]);
   });
 
   it("leaves the tools absent for any other audience or no principal", async () => {

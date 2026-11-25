@@ -48,7 +48,7 @@ export type SentRequestItem = {
 // The account's sent requests, linked by a verified identity or session, never
 // by a contact address; newest first. It reads only the other host's public
 // display name.
-export async function listSentRequests(q: Queryable, hostAccountId: string, limit = 50): Promise<SentRequestItem[]> {
+export async function listSentRequests(q: Queryable, hostAccountId: string, limit: number | null = 50): Promise<SentRequestItem[]> {
   const rows = await q<{
     id: string;
     state: RequestState;
@@ -117,7 +117,7 @@ export function startRequestDependenciesFromEnvironment(db: Database): StartRequ
 }
 
 export const START_REQUEST_DESCRIPTION =
-  "Start a meeting request to another host for this host, as their account, when they send that host's booking link or @handle in their linked iMessage, WhatsApp or Telegram, or ask to meet them (\"findmeatime.com/dodo\", \"Book a meeting with @dodo next week\"). Pass the link or handle as written. Their account's name, Google address, timezone and host calendars are used; ask nothing about them. An open request with that host continues; pass another true only when they ask for another, separate meeting. From their next message the conversation is about that request. Their own link starts nothing (own): say it is their booking link and offer to share it. Never treat a link as a change to their own settings, and never send them to the web page to start.";
+  "Start a meeting request to another host for this host, as their account, when they send that host's booking link or @handle in their linked iMessage, WhatsApp or Telegram, or ask to meet them (\"findmeatime.com/dodo\", \"Book a meeting with @dodo next week\"). Pass the link or handle as written. Their account's name, Google address, timezone and host calendars are used; ask nothing about them. An open request with that host continues; pass another true only when they ask for another, separate meeting. Read it by ref with get_sent_request in this same account session; use the sent-request tools for its requester actions. Their own link starts nothing (own): say it is their booking link and offer to share it. Never treat a link as a change to their own settings, and never send them to the web page to start.";
 
 type Started =
   | {
@@ -237,7 +237,7 @@ export async function startRequestForTool(deps: StartRequestDependencies, call: 
         outcome.continued
           ? `The host already has an open request with ${name}; it continues. Say so.`
           : `A request to ${name} was started for the host as their account; the private link was emailed to their account address.`,
-        `Tell the host: "Now talking about your request with ${name}." From their next message, this conversation is about this request; say "setup" or name another request to switch.`,
+        `Tell the host which request with ${name} was started or continued, then use get_sent_request with its ref. Stay in the account session; do not switch roles or sessions.`,
         account.calendars.length === 0
           ? "No host calendars count for this request."
           : account.calendarReadable

@@ -6,15 +6,13 @@ import type { TokenKey } from "./token-encryption";
 
 // A request's guest conversation in its account's own linked host conversation
 // (host-as-guest-messenger, R01, #61): a requester binding with no link, on the
-// host binding's sender. The host binding's selected request routes its
-// messages (imessage-receipts.ts), and its notices select it.
+// host binding's sender. Incoming text stays in the account session; the
+// requester binding delivers notices without changing focus.
 
 
 // Binds the request's guest conversation to its account's host conversation,
 // replacing an earlier guest binding of the request. Without an active host
-// binding nothing is bound. `select` makes it the conversation's current
-// discussion (a start from that conversation); otherwise its first notice
-// selects it. Returns the binding's ID, or null.
+// binding nothing is bound. Notification binding never selects a discussion. Returns the binding's ID, or null.
 export async function bindHostConversation(
   tx: Transaction,
   keys: { readonly tokenKey: TokenKey; readonly tokenKeys: readonly TokenKey[] },
@@ -47,37 +45,7 @@ export async function bindHostConversation(
       where id = ${bindingId}
     `;
   }
-  if (input.select) {
-    await tx`update app.imessage_bindings set selected_request_id = ${input.requestId} where id = ${binding.id} and state = 'active'`;
-  }
   return bindingId;
-}
-
-// The host binding of a sender whose current discussion is a sent request
-// bound to that conversation, with the request's requester binding.
-export type SentSelection = { readonly hostBindingId: string; readonly requestId: string; readonly requesterBindingId: string };
-
-// Selects a request in the host conversation after one of its guest notices
-// (R01 M-6): the host's next plain reply goes to that request, as a host
-// notice selects a received request (D23).
-export async function selectSentRequest(tx: Transaction, requesterBinding: { readonly request_id: string; readonly sender_hash: string; readonly link_id: string | null }) {
-  if (requesterBinding.link_id !== null) return;
-  // As for an awaiting-approval notice, a host practising the tutorial keeps it.
-  await tx`
-    update app.imessage_bindings b set selected_request_id = ${requesterBinding.request_id}
-    where b.sender_hash = ${requesterBinding.sender_hash} and b.state = 'active'
-      and not exists (
-        select 1 from app.host_settings s where s.host_account_id = b.host_account_id
-          and s.tutorial_offered and s.tutorial_binding_id = b.id
-      )
-      and not exists (
-        select 1 from app.requests r where r.host_account_id = b.host_account_id and r.is_sample
-          and r.closed_at is null and r.expires_at > now()
-          and (r.id = b.selected_request_id or exists (
-            select 1 from app.host_settings s where s.host_account_id = r.host_account_id and s.tutorial_binding_id = b.id
-          ))
-      )
-  `;
 }
 
 // ---------------------------------------------------------------------------

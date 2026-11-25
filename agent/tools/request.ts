@@ -1,6 +1,5 @@
 import { defineDynamic, defineTool } from "eve/tools";
 import { z } from "zod";
-import { switchConversationForTool, switchConversationToolInput } from "../../lib/server/channel-selection";
 import { database } from "../../lib/server/database";
 import { START_REQUEST_DESCRIPTION, startRequestDependenciesFromEnvironment, startRequestForTool, startRequestToolInput } from "../../lib/server/host-sent-requests";
 import {
@@ -176,7 +175,7 @@ function hostReviewTools() {
     }),
     list_host_requests: defineTool({
       description:
-        "List the host's received requests, newest first, with each one's reference, requester, purpose, status, whether it needs a decision, and its booked or proposed time with the week it falls in, and the current date and time in the host's timezone, and apart from them (sent) the requests the host sent to other hosts; report the two apart. Each received request with a proposal has its proposalVersion, which approve_proposal and decline_request take with request when the host decides it from here. On the web the host switches requests in the workspace inbox; from the linked conversation, switch_conversation moves to the request they name.",
+        "List the host's received requests, newest first, with each one's reference, requester, purpose, status, whether it needs a decision, and its booked or proposed time with the week it falls in, and the current date and time in the host's timezone, and apart from them (sent) the requests the host sent to other hosts; report the two apart. Each received request with a proposal has its proposalVersion, which approve_proposal and decline_request take with request when the host decides it from here. On the web the host opens requests in the inbox. This legacy local-evaluation audience does not switch the linked account conversation.",
       inputSchema: z.object({}),
       execute: (_input, toolCtx) => listHostRequestsForTool(database(), call(toolCtx)),
     }),
@@ -276,12 +275,7 @@ function hostReviewTools() {
       execute: (input, toolCtx) =>
         startRequestForTool(startRequestDependenciesFromEnvironment(database()), { auth: toolCtx.session.auth.current, callId: toolCtx.callId, sessionId: toolCtx.session.id }, input),
     }),
-    switch_conversation: defineTool({
-      description:
-        "Switch the host's linked iMessage, WhatsApp or Telegram conversation to another request, or back to setup, when the host asks in words (\"let's talk about Dohyeon's request\", \"6ADSRV\", \"back to setup\"). Pass setup, the request reference, or the requester's name as the host wrote it. From the host's next message, their text goes to that discussion. It works only for a message from the linked conversation; on the web, the host opens the request from the inbox.",
-      inputSchema: switchConversationToolInput,
-      execute: (input, toolCtx) => switchConversationForTool(database(), { auth: toolCtx.session.auth.current, sessionId: toolCtx.session.id }, input),
-    }),
+
     read_booking_status: defineTool({
       description:
         "Read the booking from the records: reserved, in progress while Google Calendar is being confirmed, confirmed with the receipt, or failed with its reason. Never say a meeting is booked unless this says confirmed.",

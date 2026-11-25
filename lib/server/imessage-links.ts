@@ -257,14 +257,13 @@ type ActiveBinding = {
   readonly sender_name_ciphertext: string | null;
   readonly space_ciphertext: string | null;
   readonly sealed_key_id: string;
-  readonly selected_request_id: string | null;
   readonly linked_at: Date;
 };
 
 export async function activeBindingOfHost(q: Queryable, hostAccountId: string) {
   const [row] = await q<ActiveBinding[]>`
     select id, channel, host_account_id, sender_hash, sender_ciphertext, sender_name_ciphertext, space_ciphertext, sealed_key_id,
-           selected_request_id, linked_at
+           linked_at
     from app.imessage_bindings where host_account_id = ${hostAccountId} and state = 'active'
   `;
   return row ?? null;
@@ -273,7 +272,7 @@ export async function activeBindingOfHost(q: Queryable, hostAccountId: string) {
 export async function activeBindingOfSender(q: Queryable, senderHash: string) {
   const [row] = await q<ActiveBinding[]>`
     select id, channel, host_account_id, sender_hash, sender_ciphertext, sender_name_ciphertext, space_ciphertext, sealed_key_id,
-           selected_request_id, linked_at
+           linked_at
     from app.imessage_bindings where sender_hash = ${senderHash} and state = 'active'
   `;
   return row ?? null;
@@ -284,7 +283,7 @@ export async function activeBindingOfSender(q: Queryable, senderHash: string) {
 export async function lockActiveBindingOfSender(tx: Transaction, senderHash: string) {
   const [row] = await tx<ActiveBinding[]>`
     select id, channel, host_account_id, sender_hash, sender_ciphertext, sender_name_ciphertext, space_ciphertext, sealed_key_id,
-           selected_request_id, linked_at
+           linked_at
     from app.imessage_bindings where sender_hash = ${senderHash} and state = 'active'
     for update
   `;

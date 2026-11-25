@@ -1,3 +1,4 @@
+import { readAccountSentAccess } from "./account-requests";
 import { randomUUID } from "node:crypto";
 import { z } from "zod";
 import { clarificationQuestion } from "../contracts/clarifications";
@@ -57,7 +58,8 @@ import {
   storedReview,
 } from "./request-reviews";
 import { hostCalendarsCommand, hostCalendarsMessage, readHostCalendarsView } from "./requester-host-profiles";
-import type { SessionPrincipal } from "./setup-tools";
+import { authorizeSetupTool, isHostSetupSession, type SessionPrincipal } from "./setup-tools";
+import { channelOfTurn } from "./channel-selection";
 
 // The requester conversation's tools (design decision 12), behind the agent's
 // dynamic resolver for request discussions: read_request, draft_request_review,
@@ -95,6 +97,7 @@ export class RequestToolDeniedError extends Error {
 }
 
 export type RequestToolCall = {
+  readonly requesterRequestId?: string;
   readonly auth: SessionPrincipal;
   readonly sessionId: string;
   readonly callId: string;
@@ -124,9 +127,17 @@ async function fenced(q: Queryable, id: string, sessionId: string, options: { re
 // The fence. Returns the request the session principal names.
 export async function authorizeRequestTool(
   q: Queryable,
-  call: Pick<RequestToolCall, "auth" | "sessionId">,
+  call: Pick<RequestToolCall, "auth" | "sessionId" | "requesterRequestId">,
   options: { readonly booked?: boolean } = {},
 ) {
+  if (isHostSetupSession(call.auth)) {
+    const actor = await authorizeSetupTool(q, call.auth, call.sessionId);
+    const target = requestId.safeParse(call.requesterRequestId);
+    if (!target.success || !(await channelOfTurn(q, call.sessionId, actor.id))) throw new RequestToolDeniedError();
+    const access = await readAccountSentAccess(q, actor.id, target.data);
+    if (!access || (access.closed && !options.booked)) throw new RequestToolDeniedError();
+    return target.data;
+  }
   const id = requestId.safeParse(call.auth?.principalId.slice("request:".length));
 
   if (!isRequesterSession(call.auth) || !id.success || !(await fenced(q, id.data, call.sessionId, options))) {
@@ -515,7 +526,8 @@ export async function draftRequestReviewForTool(
   if (declared) return rejected(declared, language);
 
   const fence = async (tx: Transaction, locked: string) => {
-    if (!(await fenced(tx, locked, call.sessionId))) throw new RequestToolDeniedError();
+    const authorized = await authorizeRequestTool(tx, call);
+    if (authorized !== locked) throw new RequestToolDeniedError();
   };
   const draft = async (draftInput: DraftReviewInput, retryKey: string): Promise<DraftReviewResult> => {
     const outcome = await runCommand({ authenticate: async () => actorOf(id), db }, draftReviewCommand(fence), {

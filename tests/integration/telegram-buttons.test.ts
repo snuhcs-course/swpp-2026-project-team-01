@@ -104,11 +104,11 @@ describe("decision buttons", () => {
         [{ text: "Show details" }],
       ],
     });
-    expect(await im.bindingOf(hostAccountId)).toMatchObject({ selected_request_id: requestId });
+    expect(await im.bindingOf(hostAccountId)).not.toHaveProperty("selected_request_id");
 
     await tg.runNotices(real.requestId);
     await tg.flush(userId);
-    expect(await im.bindingOf(hostAccountId)).toMatchObject({ selected_request_id: requestId });
+    expect(await im.bindingOf(hostAccountId)).not.toHaveProperty("selected_request_id");
 
     if (language === "ko") {
       expect((await tg.deliver(telegramMessage({ text: "이 요청에 대해 알려주세요.", userId }))).outcome).toBe("forwarded");

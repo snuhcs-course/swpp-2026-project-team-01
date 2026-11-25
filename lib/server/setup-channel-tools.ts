@@ -6,7 +6,7 @@ import { readCalendarRoles, saveCalendarRolesCommand, recordDestinationAccess } 
 import { channelOfTurn, linkedMessagingTurn } from "./channel-selection";
 import { CommandError, runCommand } from "./commands";
 import { CalendarAccessError, openHostCalendar } from "./google-calendar";
-import { hostRequestsForModel } from "./host-review-tools";
+import { hostRequestsForModel, openProposalVersions } from "./host-review-tools";
 import { chooseTutorialCommand, TUTORIAL_TEXT, tutorialChoiceInput } from "./host-tutorial";
 import { listHostRequests, readHostTimezone } from "./host-requests";
 import { settingsRef } from "./request-ref";
@@ -46,7 +46,7 @@ import { enqueueSettingsButtonRetirement } from "./telegram-jobs";
 
 export async function listHostRequestsForSetupTool(deps: SetupDependencies, call: SetupToolCall) {
   const actor = await authorizeSetupTool(deps.db, call.auth, call.sessionId);
-  return hostRequestsForModel(await listHostRequests(deps.db, actor.id), await readHostTimezone(deps.db, actor.id), new Date(), await listSentRequests(deps.db, actor.id));
+  return hostRequestsForModel(await listHostRequests(deps.db, actor.id), await readHostTimezone(deps.db, actor.id), new Date(), await listSentRequests(deps.db, actor.id), await openProposalVersions(deps.db, actor.id));
 }
 
 export async function disconnectCalendarForTool(deps: SetupDependencies, call: SetupToolCall) {

@@ -36,7 +36,7 @@ const NEEDS_DECISION = `
   or exists (select 1 from app.shared_change_drafts d where d.request_id = r.id and d.state = 'pending')
 `;
 
-export async function listHostRequests(db: Queryable, hostAccountId: string): Promise<HostRequestItem[]> {
+export async function listHostRequests(db: Queryable, hostAccountId: string, options: { readonly limit?: number | null } = {}): Promise<HostRequestItem[]> {
   const rows = await db<ListRow[]>`
     select r.id, r.state, r.details, r.requester_name, r.updated_at, r.is_sample,
            (select p.start_at from app.proposals p where p.request_id = r.id order by p.version desc limit 1) as proposal_start,
@@ -46,7 +46,7 @@ export async function listHostRequests(db: Queryable, hostAccountId: string): Pr
     where r.host_account_id = ${hostAccountId} and r.state <> 'draft'
       and (not r.is_sample or (r.closed_at is null and r.expires_at > now()))
     order by r.updated_at desc
-    limit 100
+    limit ${options.limit === undefined ? 100 : options.limit}
   `;
 
   return rows.map((row) => ({

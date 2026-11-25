@@ -21,6 +21,26 @@ BEGIN
     RAISE EXCEPTION 'row limit must be positive' USING ERRCODE = '22023';
   END IF;
 
+  -- Expire private content in bounded batches, retaining a content-free
+  -- tombstone so replaying an earlier capture cannot recreate it.
+  UPDATE app.host_assistant_context SET content = '{}'::jsonb,
+    forgotten_at = now(), confirmed = false, revision = revision + 1, updated_at = now()
+  WHERE (host_account_id, scope_key, kind, entry_key) IN (
+    SELECT host_account_id, scope_key, kind, entry_key FROM app.host_assistant_context
+    WHERE (expires_at <= now() OR (NOT confirmed AND kind <> 'capture' AND created_at < now() - interval '1 day'))
+      AND forgotten_at IS NULL
+    ORDER BY expires_at LIMIT row_limit
+  );
+  GET DIAGNOSTICS removed = ROW_COUNT;
+  rule := 'host_assistant_context'; deleted := removed; RETURN NEXT;
+
+  DELETE FROM app.host_assistant_context WHERE (host_account_id, scope_key, kind, entry_key) IN (
+    SELECT host_account_id, scope_key, kind, entry_key FROM app.host_assistant_context
+    WHERE kind = 'capture' AND created_at < now() - interval '30 days' LIMIT row_limit
+  );
+  GET DIAGNOSTICS removed = ROW_COUNT;
+  rule := 'host_assistant_captures'; deleted := removed; RETURN NEXT;
+
   rule := 'closed_requests';
   deleted := app.delete_request_records(array(
     SELECT r.id FROM app.requests r

@@ -464,7 +464,7 @@ async function changes(
   ref?: string,
 ): Promise<Reply & { requestId?: string }> {
   const texts = channelReplies(language);
-  let requestId = message.selectedRequestId;
+  let requestId: string | null = null;
   let number: number | null = null;
 
   if (ref) {
@@ -592,12 +592,22 @@ export async function executeCommand(tx: Transaction, deps: CommandDependencies,
       result = { text: helpText(deps.origin, language, telegram) };
       break;
     case "stop": {
-      if (message.text.trim().toLowerCase() === "stop" && message.selectedRequestId) {
-        const sample = await readHostRequest(deps.db, message.hostAccountId, message.selectedRequestId);
-        if (sample?.sample) {
-          const finished = await run(deps, message, finishSampleCommand, sample.requestId, { action: "end" }, sample.revision);
-          result = { requestId: sample.requestId, text: finished.ok ? tutorialCompletionText(language, finished.result) : texts.requestGoneHere };
-          break;
+      // An explicit tutorial remains a domain state, not conversation routing.
+      // Preserve its end command without choosing a received or sent session.
+      if (message.text.trim().toLowerCase() === "stop") {
+        const samples = await deps.db<{ id: string }[]>`
+          select r.id from app.requests r join app.host_settings s on s.host_account_id = r.host_account_id
+          where r.host_account_id = ${message.hostAccountId} and r.is_sample and r.closed_at is null
+            and r.expires_at > now() and s.tutorial_binding_id = ${message.bindingId}
+          limit 2
+        `;
+        if (samples.length === 1) {
+          const sample = await readHostRequest(deps.db, message.hostAccountId, samples[0]!.id);
+          if (sample) {
+            const finished = await run(deps, message, finishSampleCommand, sample.requestId, { action: "end" }, sample.revision);
+            result = { requestId: sample.requestId, text: finished.ok ? tutorialCompletionText(language, finished.result) : texts.requestGoneHere };
+            break;
+          }
         }
       }
       // Ends the binding as Unlink does (D12); the confirmation is not host-private,
@@ -643,7 +653,6 @@ export async function executeCommand(tx: Transaction, deps: CommandDependencies,
         result = { text: found.error === "ambiguous" ? texts.ambiguousRef(deps.origin) : texts.unknownRef(deps.origin) };
         break;
       }
-      await tx`update app.imessage_bindings set selected_request_id = ${found.requestId} where id = ${message.bindingId} and state = 'active'`;
       const view = await readHostRequest(deps.db, message.hostAccountId, found.requestId);
       if (view && !view.sample) {
         await tx`update app.host_settings set tutorial_binding_id = null where host_account_id = ${message.hostAccountId} and tutorial_binding_id = ${message.bindingId}`;
@@ -651,12 +660,11 @@ export async function executeCommand(tx: Transaction, deps: CommandDependencies,
       result = {
         buttons: view ? decisionButtons(view, language) : undefined,
         requestId: found.requestId,
-        text: `${view ? requestSummary(view, language) : ""}\n${texts.selectedRequest}`.trim(),
+        text: view ? requestSummary(view, language) : texts.requestGoneHere,
       };
       break;
     }
     case "setup": {
-      await tx`update app.imessage_bindings set selected_request_id = null where id = ${message.bindingId} and state = 'active'`;
       const state = await readSetupState(deps.setup, message.hostAccountId);
       const next = state?.nextAction ?? "connect_calendar";
       // Calendar is connected in the browser and returns here (D19); the rest can be done in this conversation or /app.
@@ -665,14 +673,7 @@ export async function executeCommand(tx: Transaction, deps: CommandDependencies,
       break;
     }
     case "review": {
-      if (message.selectedRequestId) {
-        const view = await readHostRequest(deps.db, message.hostAccountId, message.selectedRequestId);
-        result = view
-          ? { buttons: decisionButtons(view, language), requestId: view.requestId, text: requestSummary(view, language) }
-          : { text: texts.requestGoneHere };
-      } else {
-        result = await settingsReview(deps.db, message.hostAccountId, deps.origin, language);
-      }
+      result = await settingsReview(deps.db, message.hostAccountId, deps.origin, language);
       break;
     }
     case "changes":
