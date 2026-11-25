@@ -145,6 +145,26 @@ describe("NoteReviewWeek", () => {
     expect(html).not.toContain("data-note-details");
   });
 
+  it("shows only the title on an entry of 30 minutes or less, keeping the time in its name", () => {
+    // Thursday 10:00, 12:00 and 14:00 Seoul.
+    const short = [
+      item({ end: "2026-11-19T01:20:00.000Z", start: "2026-11-19T01:00:00.000Z", title: "20분" }),
+      item({ end: "2026-11-19T03:30:00.000Z", start: "2026-11-19T03:00:00.000Z", title: "30분" }),
+      item({ end: "2026-11-19T05:45:00.000Z", start: "2026-11-19T05:00:00.000Z", title: "45분" }),
+    ];
+    const html = render({ ...review, items: short }, "en");
+    const entry = (title: string) => {
+      const markup = block(html, `occ-${title}`)!;
+      // The entry button's visible text, after its opening tag.
+      return text(markup.slice(markup.indexOf(">", markup.indexOf("data-note-entry")) + 1));
+    };
+
+    expect(entry("20분")).not.toContain("10:00 AM");
+    expect(entry("30분")).not.toContain("12:00 PM");
+    expect(entry("45분")).toContain("2:00 PM");
+    expect(block(html, "occ-20분")).toContain('aria-label="20분 10:00 AM, Details"');
+  });
+
   it("gives the checkbox a corner of its own, at least 24px and larger on a touch screen", () => {
     const health = block(render(review, "en", true), "occ-헬스")!;
     expect(health).toMatch(/<label[^>]*class="[^"]*size-6[^"]*pointer-coarse:size-7[^"]*"[^>]*data-note-check/);
