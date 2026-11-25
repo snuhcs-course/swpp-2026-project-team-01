@@ -1,14 +1,24 @@
 import { randomUUID } from "node:crypto";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { requestRef } from "../../lib/server/imessage-commands";
-import { allowHostTripForHostTool, approveProposalForTool, askGuestForHostTool, waiveWeeklyLimitForHostTool } from "../../lib/server/host-review-tools";
+import {
+  allowHostTripForHostTool,
+  approveProposalForTool,
+  askGuestForHostTool,
+  declineRequestForTool,
+  listHostRequestsForTool,
+  waiveWeeklyLimitForHostTool,
+} from "../../lib/server/host-review-tools";
 import type { ConversationRuntime } from "../../lib/server/conversations";
 import { sessionIdHash } from "../../lib/server/model-limits";
-import { agreedRequest } from "./support/booking";
+import { type AgreedRequest, agreedRequest } from "./support/booking";
 import { testDatabase } from "./support/database";
 import { type FakeGoogle, startFakeGoogle } from "./support/fake-google";
 import { type FakePhoton, startFakePhoton } from "./support/fake-photon";
 import { imessageHarness } from "./support/imessage";
+import { testNotices } from "./support/requests";
+
+const notices = () => testNotices;
 
 // Approval in the host's own words (host-imessage-channel D23, design 19): in a
 // host's review of one request, approve_proposal approves the current agreed
@@ -36,7 +46,11 @@ afterAll(async () => {
 // `text` from iMessage, and the host-review session answering that message, as
 // the runtime would have started it.
 async function hostWrote(text: string) {
-  const request = await agreedRequest(db, google);
+  return hostWroteAbout(await agreedRequest(db, google), text);
+}
+
+// As hostWrote, for a request already seeded, whose host is not linked yet.
+async function hostWroteAbout(request: AgreedRequest, text: string) {
   const { sender } = await im.link(request.hostAccountId);
   await im.deliver({ sender, text: `request ${requestRef(request.requestId)}` });
   expect((await im.deliver({ sender, text })).outcome).toBe("forwarded");
@@ -116,6 +130,113 @@ describe("approval in words", () => {
 
     expect(await approveProposalForTool(db, call, { version: 1 })).toMatchObject({ approved: false });
     expect(await approvalsOf(request.requestId)).toBe(0);
+  });
+});
+
+// Several decisions in one message (issue #382, host-decisions-in-one-message):
+// approve_proposal and decline_request take the request the host named, among
+// the host's own requests by reference or exact requester name, answer its
+// current proposal version, and never move the conversation.
+describe("several decisions in one message (#382)", () => {
+  async function stateOf(requestId: string) {
+    const [row] = await db<{ state: string }[]>`select state from app.requests where id = ${requestId}`;
+    return row!.state;
+  }
+
+  // Two requests of one host from different requesters, both awaiting
+  // approval, with the host's conversation about B, the latest summary.
+  async function twoAwaiting(text: string) {
+    const a = await agreedRequest(db, google, { requesterName: "Eunwoo Lee" });
+    const b = await agreedRequest(db, google, { requesterName: "Minji Kim", sameHostAs: a });
+    expect(await stateOf(a.requestId)).toBe("awaiting_host_approval");
+    expect(await stateOf(b.requestId)).toBe("awaiting_host_approval");
+    const { call } = await hostWroteAbout(b, text);
+    return { a, b, call };
+  }
+
+  it("approves the named request and declines this one in the same turn, without switching", async () => {
+    const { a, b, call } = await twoAwaiting("Eunwoo Lee님 거 승인하고 Minji Kim님 거 거절");
+
+    const list = await listHostRequestsForTool(db, call);
+    expect(list.requests).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ proposalVersion: 1, ref: requestRef(a.requestId), state: "awaiting_host_approval" }),
+        expect.objectContaining({ proposalVersion: 1, ref: requestRef(b.requestId), state: "awaiting_host_approval" }),
+      ]),
+    );
+
+    const approved = await approveProposalForTool(db, call, { request: "Eunwoo Lee님 거", version: 1 });
+    expect(approved).toMatchObject({ approved: true, request: { ref: requestRef(a.requestId) } });
+    if (!approved.approved || !("message" in approved)) throw new Error("not approved");
+    expect(approved.message).toContain("never call it booked");
+    expect(await approvalsOf(a.requestId)).toBe(1);
+    expect(await stateOf(a.requestId)).toBe("booking");
+
+    const declined = await declineRequestForTool(db, { ...call, callId: randomUUID() }, { version: 1 }, notices);
+    expect(declined).toMatchObject({ declined: true });
+    expect(await stateOf(b.requestId)).toBe("declined");
+    expect(await approvalsOf(b.requestId)).toBe(0);
+    // A is still approved and booking; the conversation stays on B.
+    expect(await stateOf(a.requestId)).toBe("booking");
+    expect(await im.bindingOf(b.hostAccountId)).toMatchObject({ selected_request_id: b.requestId });
+  });
+
+  it("declines a request named by its reference", async () => {
+    const { a, call } = await twoAwaiting("Decline the other one");
+    expect(await declineRequestForTool(db, call, { request: requestRef(a.requestId), version: 1 }, notices)).toMatchObject({
+      declined: true,
+      request: { ref: requestRef(a.requestId) },
+    });
+    expect(await stateOf(a.requestId)).toBe("declined");
+  });
+
+  it("decides nothing for a partial name, an outdated version or a closed request", async () => {
+    const { a, call } = await twoAwaiting("Approve Lee's");
+
+    expect(await approveProposalForTool(db, call, { request: "Lee", version: 1 })).toMatchObject({
+      approved: false,
+      problem: expect.stringContaining("No request matches"),
+    });
+    expect(await approveProposalForTool(db, call, { request: "Eunwoo Lee", version: 2 })).toMatchObject({
+      approved: false,
+      problem: expect.stringContaining("list_host_requests"),
+    });
+    expect(await approvalsOf(a.requestId)).toBe(0);
+
+    await db`update app.requests set state = 'withdrawn', closed_at = now() where id = ${a.requestId}`;
+    expect(await approveProposalForTool(db, call, { request: "Eunwoo Lee", version: 1 })).toMatchObject({
+      approved: false,
+      problem: expect.stringContaining("closed"),
+    });
+    expect(await approvalsOf(a.requestId)).toBe(0);
+  });
+
+  it("lists the matches and decides nothing when a name matches two requests", async () => {
+    const a = await agreedRequest(db, google, { requesterName: "Dohyeon Park" });
+    const second = await agreedRequest(db, google, { requesterName: "Dohyeon Park", sameHostAs: a });
+    const bound = await agreedRequest(db, google, { requesterName: "Minji Kim", sameHostAs: a });
+    const { call } = await hostWroteAbout(bound, "Decline Dohyeon Park's and approve this one");
+
+    const declined = await declineRequestForTool(db, call, { request: "Dohyeon Park", version: 1 }, notices);
+    expect(declined).toMatchObject({ declined: false, problem: expect.stringContaining("More than one request") });
+    expect("matches" in declined && declined.matches).toHaveLength(2);
+    expect(await stateOf(a.requestId)).toBe("awaiting_host_approval");
+    expect(await stateOf(second.requestId)).toBe("awaiting_host_approval");
+
+    // The clear decision in the same message still applies.
+    expect(await approveProposalForTool(db, { ...call, callId: randomUUID() }, { version: 1 })).toMatchObject({ approved: true });
+    expect(await approvalsOf(bound.requestId)).toBe(1);
+  });
+
+  it("decides nothing for another host's request", async () => {
+    const other = await agreedRequest(db, google, { requesterName: "Eunwoo Lee" });
+    const { call } = await hostWrote("Approve Eunwoo Lee's");
+
+    expect(await approveProposalForTool(db, call, { request: requestRef(other.requestId), version: 1 })).toMatchObject({ approved: false });
+    expect(await approveProposalForTool(db, call, { request: "Eunwoo Lee", version: 1 })).toMatchObject({ approved: false });
+    expect(await declineRequestForTool(db, call, { request: requestRef(other.requestId), version: 1 }, notices)).toMatchObject({ declined: false });
+    expect(await approvalsOf(other.requestId)).toBe(0);
+    expect(await stateOf(other.requestId)).toBe("awaiting_host_approval");
   });
 });
 

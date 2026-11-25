@@ -39,6 +39,8 @@ export async function agreedRequest(
     readonly confirmed?: boolean;
     // Runs once the request exists, before the requester agrees.
     readonly beforeAgree?: (request: SchedulingRequest) => Promise<void>;
+    readonly sameHostAs?: SchedulingRequest;
+    readonly requesterName?: string;
   } = {},
 ): Promise<AgreedRequest> {
   const request = await seedSchedulingRequest(db, google, options);
