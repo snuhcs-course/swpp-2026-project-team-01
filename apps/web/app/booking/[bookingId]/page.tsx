@@ -61,12 +61,13 @@ async function Booking({ params }: { readonly params: Params }) {
   // the session adds no authority here, the link stays the credential.
   const workspaceLink = async () => (await signedInGuestAccount(await cookies(), { requestId: link.requestId }))?.linked ?? false;
 
-  if (!view.open && view.request.state === "booked" && view.conversation) {
+  if (!view.open && view.request.state === "booked" && view.conversation && typeof view.request.revision === "number") {
     return (
       <BookedWorkspace
         bookingId={bookingId.toLowerCase()}
         host={view.host}
         receipt={view.booking?.receipt ?? null}
+        revision={view.request.revision}
         timezone={view.timezone}
         workspaceLink={await workspaceLink()}
       />

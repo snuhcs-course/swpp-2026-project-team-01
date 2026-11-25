@@ -23,7 +23,7 @@ const receipt: BookingReceipt = {
 
 describe("BookedWorkspace", () => {
   it("keeps the conversation open under the confirmed receipt", () => {
-    const html = renderToStaticMarkup(<BookedWorkspace bookingId="booking" host={host} receipt={receipt} timezone="Asia/Seoul" />);
+    const html = renderToStaticMarkup(<BookedWorkspace bookingId="booking" host={host} receipt={receipt} revision={4} timezone="Asia/Seoul" />);
 
     expect(html).toContain("Your meeting with Barbara Liskov is booked. If you need to move it, change where it happens or cancel it, tell me here.");
     expect(html).toContain('data-guest-card="booked"');
@@ -31,5 +31,15 @@ describe("BookedWorkspace", () => {
     expect(html).toContain("Write to Thyme");
     expect(html).not.toContain("Finish the step above");
     expect(html).not.toContain("Withdraw request");
+    expect(html).toContain('data-guest-meeting-actions="true"');
+    expect(html).toContain("Change meeting");
+    expect(html).toContain("Cancel meeting");
+    expect(html).not.toContain('aria-label="Request actions"');
+  });
+
+  it("does not show booking actions without a confirmed receipt", () => {
+    const html = renderToStaticMarkup(<BookedWorkspace bookingId="booking" host={host} receipt={null} revision={4} timezone="Asia/Seoul" />);
+    expect(html).not.toContain("Change meeting");
+    expect(html).not.toContain("Cancel meeting");
   });
 });

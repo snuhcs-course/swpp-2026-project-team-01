@@ -24,6 +24,14 @@ The requester and the host SHALL each be able to cancel a booked meeting until i
 - **WHEN** the guest confirms they want to cancel a booked meeting that has not started
 - **THEN** the request becomes cancelled, the Google event is deleted with updates sent, and the host is told by email and in their linked chat
 
+#### Scenario: Guest cancels from the booking page
+- **WHEN** the guest presses **Cancel meeting** above the booked conversation's composer and confirms the cancellation
+- **THEN** the page runs the requester's `booking.cancel` command, reports a refusal without claiming success, and shows the cancelled state after the command commits
+
+#### Scenario: Guest withdraws a sent request before booking
+- **WHEN** the guest presses **Cancel meeting** while the sent request awaits host approval and confirms
+- **THEN** the page runs `request.withdraw`, shows the withdrawn state after it commits, and does not claim a booked meeting was cancelled
+
 #### Scenario: Host cancels
 - **WHEN** the host presses **Cancel meeting** and confirms, or clearly tells their linked chat or agent to cancel
 - **THEN** the request becomes cancelled, the Google event is deleted with updates sent, and the guest is told by email and in their linked chat
@@ -50,6 +58,20 @@ The requester and the host SHALL each be able to reopen a booked meeting for a c
 #### Scenario: Guest moves a booked meeting
 - **WHEN** the guest asks to move a booked meeting, agrees to a new time and the host approves it
 - **THEN** the same Google event moves to the new time with updates sent, the earlier booking is replaced, and both parties get a confirmation saying the meeting changed
+
+#### Scenario: Guest starts a change from the booking page
+- **WHEN** the guest presses **Change meeting** above the booked conversation's composer
+- **THEN** the page runs the requester's `booking.change` command and opens the existing proposal flow, where the guest can describe a new time, place or meeting type while the confirmed meeting stands
+
+#### Scenario: Guest changes a sent request before booking
+- **WHEN** the guest presses **Change meeting** while the request awaits host approval
+- **THEN** the page runs `request.change_agreement` and returns to chat for a new time or detail before the host can approve the earlier agreement
+
+#### Scenario: Actions begin after the request is sent
+- **WHEN** the guest is still preparing the request in chat
+- **THEN** no meeting action tabs appear above the composer
+- **WHEN** the request awaits host approval or is booked
+- **THEN** the same **Change meeting** and **Cancel meeting** tabs appear above the composer, with commands matched to the current state; while booking is being written they remain visible but unavailable
 
 #### Scenario: The booked meeting stands during a change
 - **WHEN** a change is open, agreed or approved but not yet written to the calendar
