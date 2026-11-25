@@ -1,0 +1,99 @@
+{
+  "branch": "fix/minor-ui-issue",
+  "user": "uzinfamily@naver.com",
+  "sessions": {
+    "codex:01a21138-a3e8-79e1-9d2c-a636155dd72f": {
+      "agent": "codex",
+      "client": "Codex Desktop",
+      "agent_ms": 533222,
+      "models": {
+        "gpt-6-sol": {
+          "input": 12711,
+          "cache_read": 2184448,
+          "cache_write_5m": 0,
+          "cache_write_1h": 0,
+          "output": 6830,
+          "reasoning": 3065
+        }
+      },
+      "first": "2026-11-25T07:10:53.156Z",
+      "last": "2026-11-25T07:14:14.252Z"
+    },
+    "codex:01a21177-2636-7662-930f-b80c52101276": {
+      "agent": "codex",
+      "client": "Codex Desktop",
+      "agent_ms": 0,
+      "models": {
+        "codex-auto-review": {
+          "input": 21173,
+          "cache_read": 519552,
+          "cache_write_5m": 0,
+          "cache_write_1h": 0,
+          "output": 931,
+          "reasoning": 332
+        }
+      },
+      "first": "2026-11-25T07:10:52.379Z",
+      "last": "2026-11-25T07:14:07.418Z"
+    },
+    "codex:01a21186-9c11-7450-a562-637802247874": {
+      "agent": "codex",
+      "client": "Codex Desktop",
+      "agent_ms": 1630304,
+      "models": {
+        "gpt-6-luna": {
+          "input": 919,
+          "cache_read": 56576,
+          "cache_write_5m": 0,
+          "cache_write_1h": 0,
+          "output": 333,
+          "reasoning": 46
+        },
+        "gpt-6.1-sol": {
+          "input": 218195,
+          "cache_read": 19202176,
+          "cache_write_5m": 0,
+          "cache_write_1h": 0,
+          "output": 46766,
+          "reasoning": 16344
+        }
+      },
+      "first": "2026-11-25T07:06:30.705Z",
+      "last": "2026-11-25T07:41:15.672Z"
+    },
+    "codex:01a21187-a1ba-7840-b8c3-41a3fd29fe7e": {
+      "agent": "codex",
+      "client": "Codex Desktop",
+      "agent_ms": 0,
+      "models": {
+        "codex-auto-review": {
+          "input": 37618,
+          "cache_read": 237952,
+          "cache_write_5m": 0,
+          "cache_write_1h": 0,
+          "output": 1153,
+          "reasoning": 594
+        }
+      },
+      "first": "2026-11-25T07:07:16.488Z",
+      "last": "2026-11-25T07:20:20.208Z"
+    },
+    "codex:01a21197-fc04-7301-a60a-caa85c3b8956": {
+      "agent": "codex",
+      "client": "Codex Desktop",
+      "agent_ms": 0,
+      "models": {
+        "codex-auto-review": {
+          "input": 68347,
+          "cache_read": 1436800,
+          "cache_write_5m": 0,
+          "cache_write_1h": 0,
+          "output": 1558,
+          "reasoning": 487
+        }
+      },
+      "first": "2026-11-25T07:25:02.928Z",
+      "last": "2026-11-25T07:41:26.983Z"
+    }
+  }
+}
