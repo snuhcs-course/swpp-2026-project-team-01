@@ -10,4 +10,6 @@
 ## 3. Validation and delivery
 
 - [x] 3.1 Verify rollback planning, authorization, revisions, retries, expired starts, unchanged booking and host-facing status with meaningful tests; execute isolated PostgreSQL regressions and report the full-stack coverage gap separately.
-- [ ] 3.2 Run lint, type checks and relevant unit tests, validate OpenSpec, then commit, open a PR and close the requested tracking issues.
+- [x] 3.2 Run lint, type checks and relevant unit tests, validate OpenSpec, then commit, open a PR and close the requested tracking issues.
+
+Validation record (2026-11-25): 1,387 unit tests, 10 real PostgreSQL integration tests, typecheck, lint, documentation links and strict OpenSpec validation passed. Chrome verified the actual change card at 390px and 1280px. Full Supabase/Auth/provider journeys remain unverified; the isolated-worktree build hit Eve’s external asset-path restriction. Implementation is in PR #466. Tracking issues #463 and #465 were closed at the user’s explicit request; the OpenSpec change remains unarchived.
