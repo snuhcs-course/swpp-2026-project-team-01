@@ -64,16 +64,22 @@ This is the same source rule as `calendar-booking` "Attributable approval of the
 
 ### 4. Gathering availability
 
-After activation, the service runs the organizer's feasibility over the date range and picks up to five candidates. They are spread across the range, as in "Offered times spread across the range". For an in-person meeting, each candidate is paired with one of the organizer's confirmed places, as in "Time and place pairs". The group sees them numbered, with a link to the poll page.
+The user chose on 2026-11-26 that everyone connects Google Calendar from one link, with manual answers as the fallback. KakaoTalk raises no notification when the account joins a room, so the link goes out with the introduction, right after the organizer's code (§2).
 
-Members can answer in two ways:
+**Collecting calendars.** The introduction asks every member to open the poll page `/g/<token>` and connect Google Calendar. No account is needed. On the page the member enters a display name, connects Google read-only, and may leave an email for the invitation. The grant follows `requester-calendar-access`. It reads calendar-list and busy times only, it is used for this group request only, and no event title, place or attendee is stored, logged, shown or given to the model. The Google-verified address is not used as the invitation email unless the member ticks **Send me the invitation**.
 
-- **In the group:** a message of numbers only ("1 3", "1,3", "1번 3번"). It sets that profile name's answer to those times. `없음` or `none` records "no time works". A later message from the same name replaces the earlier one.
-- **On the poll page `/g/<token>`:** the member enters a display name and ticks the times that work. They may leave an email to receive the invitation (Q5). They may also connect Google Calendar read-only, which marks a time they did not tick as busy, so the organizer sees an accurate count. The grant follows `requester-calendar-access`: busy only, used for this group request only, no event detail stored. The page sets a device-bound edit token, so the member can change or delete their answer later.
+**Finding candidates.** The service runs the organizer's feasibility over the date range. It treats every connected member's busy times as busy for the meeting. When every candidate would be removed, it keeps the times that the most connected members can attend instead. That way one very busy member does not empty the list. Up to five candidates are picked, spread across the range, as in "Offered times spread across the range". For an in-person meeting, each candidate is paired with one of the organizer's confirmed places, as in "Time and place pairs".
 
-An answer from the group and one from the page are never merged, even when the names match. The organizer sees which source each answer came from. A group answer is labelled **from the chat (name not verified)**.
+**Posting the times.** The numbered times go to the group when the organizer asks for them, or 24 hours after activation, whichever comes first (Q3). Because the bot can only answer a notification, they go out through the next group message after that moment. Until then the poll page shows the times as they stand, and they change as calendars connect.
 
-When a new busy event makes a candidate infeasible for the organizer, the candidate is struck through for everyone, with no reason given. The other candidates keep their numbers.
+**Fallback answers.** A member without Google, or one who does not want to connect, answers in one of two ways:
+
+- **Ticking** the times that work on the same page.
+- **Numbers in the group** ("1 3", "1,3", "1번 3번"), after the times are posted. The answer is attributed to the sender's profile name, and a later message from the same name replaces the earlier one. `없음` or `none` records "no time works".
+
+All answers count the same, with no "unverified" label (user, 2026-11-26). A forged answer can sway the count, but only the organizer can book (§3). A group answer and a page answer are not merged by name. The page sets a device-bound edit token, so a member can change or delete their answer later.
+
+**After the times are posted.** A newly connected calendar, or a new busy event for the organizer, can make a posted candidate infeasible. That candidate is struck through for everyone, with no reason and no name. The other candidates keep their numbers.
 
 ### 5. Reading group text
 
@@ -89,13 +95,13 @@ When the room deactivates, the relay stops forwarding its text. The service tell
 
 ### 6. Consent and privacy
 
-The introduction is fixed text, with only the organizer's display name, the meeting length and the times filled in:
+The introduction is fixed text, with only the organizer's display name and the poll link filled in:
 
-> 안녕하세요, Find Me a Time입니다. {organizer}님이 이 방의 모임 시간을 정하려고 저를 불렀어요. 아래 시간 중 되는 번호를 보내 주시거나 링크에서 골라 주세요. 저는 번호 답장과 '그만'만 읽고, 다른 대화는 저장하지 않아요. 누구든 '그만'을 보내면 바로 멈춰요. 개인정보 안내: findmeatime.com/privacy
+> 안녕하세요, Find Me a Time입니다. {organizer}님이 이 방의 모임 시간을 정하려고 저를 불렀어요. 링크에서 구글 캘린더를 연결해 주세요: {link} 바쁜 시간만 확인하고 일정 내용은 보지 않아요. 연결이 어려우면 같은 링크에서 직접 체크하거나, 시간이 올라온 뒤 번호로 답해 주세요. 저는 번호 답장과 '그만'만 읽고, 다른 대화는 저장하지 않아요. 누구든 '그만'을 보내면 바로 멈춰요. 개인정보 안내: findmeatime.com/privacy
 
 These rules apply:
 
-- Nothing about a member is stored until they answer. An answer stores only the display name they chose or showed, the times, its source and, from the page, an optional email. No phone number, Kakao user ID or profile photo is read.
+- Nothing about a member is stored until they answer. An answer stores only the display name they chose or showed, the times, its source, whether a calendar is connected and, from the page, an optional email. A connected calendar's busy times are read when needed and not stored. No phone number, Kakao user ID or profile photo is read.
 - `stop` from anyone deactivates the room, closes the group request as stopped, and tells the organizer in their 1:1 chat. The organizer can start again with a new code. Anyone can then send `stop` again.
 - The poll page states the same facts and links to the privacy policy. It has **Delete my answer**.
 - Members' answers and emails are deleted 30 days after the group request closes. This is shorter than the 90 days for closed requests, because these members have no account and never asked to be recorded.
@@ -108,7 +114,7 @@ The organizer sees the current ranking in `/app` and can ask for it in their 1:1
 The organizer books by number: "2번으로 잡아줘" in their chat, or **Book this time** in `/app`. Booking follows `calendar-booking` with these changes:
 
 - The recheck before dispatch reads the organizer's calendars again for the chosen time. A failure books nothing and tells the organizer, who can pick another time.
-- The event goes into the organizer's booking destination. Its attendees are the members who left an email on the poll page (Q5), and Google sends the invitations. The description holds only the meeting details and any join link.
+- The event goes into the organizer's booking destination. Its attendees are the members who left an email on the poll page (user, 2026-11-26), and Google sends the invitations. The description holds only the meeting details and any join link.
 - The group receives one confirmation through the **답장** action of the next group notification. The confirmation gives the time, the place or join link, and a link to add the event to a calendar (an `.ics` download on the poll page). If no one writes in the group within 24 hours, the organizer is asked in their 1:1 chat to post the poll link or say anything in the group.
 
 The group request then closes. The relay stops forwarding the room's text.
@@ -136,15 +142,16 @@ The ranked list in the organizer's 1:1 chat may name who answered what, because 
 
 ## Risks / Trade-offs
 
-- **Forged names in the group.** Anyone can post "1 3" under another person's name. Mitigation: group answers are labelled unverified, and only the organizer books. The poll page stays available (Q3).
+- **Forged names in the group.** Anyone can post "1 3" under another person's name. The user chose to count them without a label. Mitigation: only the organizer books, and connected calendars remove times by real busy times, not by a claim.
 - **The bot speaks only after someone writes.** The confirmation can wait for a message in the group. Mitigation: the 24-hour fallback asks the organizer to prompt the group.
+- **Asking everyone for Google Calendar.** Members who do not know the service may hesitate to connect a calendar to it. Mitigation: busy times only, nothing stored, and ticking by hand on the same page.
 - **Reading a group is more intrusive than reading a 1:1 chat.** Every member's messages reach the service while the room is active, even when they are only parsed and then dropped. Mitigation: a fixed parser, no model, no stored text, and `stop` for anyone.
 - **Everything the KakaoTalk change risks.** The terms-of-service risk, the single relay phone and app updates all apply here as well, and a suspended account fails every active group at once.
 - **Scope pressure.** Group scheduling opens the door to pooled availability, recurring meetings and team coordination. This draft keeps them out.
 
 ## Open Questions
 
-- Q1 to Q7 in the [proposal](proposal.md#unresolved-decisions-for-the-team).
+- The open questions in the [proposal](proposal.md#unresolved-decisions-for-the-team).
 - Does KakaoTalk deliver a separate notification for each group message when many arrive at once, or only a summary? The event ID scheme of the KakaoTalk change assumes the former.
 - Does a group notification distinguish a 1:1 room from a two-person group? A room with only the organizer and the bot should probably be refused.
 - How does a member who left the group get their answer removed if they never used the poll page?

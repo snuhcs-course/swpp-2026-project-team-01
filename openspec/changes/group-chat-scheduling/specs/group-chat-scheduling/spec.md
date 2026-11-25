@@ -30,38 +30,49 @@ A message in a group room SHALL NOT approve, book, cancel, reschedule or change 
 - **WHEN** the organizer sends "2번으로 잡아줘" in their own linked 1:1 chat
 - **THEN** the second time is rechecked and booked as described in "Group booking"
 
-### Requirement: Candidate times from the organizer's feasibility
-After activation, the group request SHALL offer at most five numbered candidate times. They SHALL be found by the organizer's feasibility over the organizer's chosen date range, length and mode, spread across the range. In-person candidates SHALL be paired with the organizer's confirmed places. When a candidate stops being feasible for the organizer, it SHALL be shown as unavailable without a reason, and the other candidates SHALL keep their numbers.
+### Requirement: Every member is asked to connect Google Calendar
+The introduction SHALL link to the group's poll page and ask every member to connect Google Calendar there. Connecting SHALL need no account. The grant SHALL be read-only, SHALL be used only for this group request, and SHALL yield busy times only. No event title, place, attendee or description from a member's calendar SHALL be stored, logged, shown to anyone or placed in model context. A member's Google address SHALL be used for the invitation only if the member asks for the invitation.
+
+#### Scenario: Member connects a calendar
+- **WHEN** a member connects Google Calendar on the poll page and has an event during an otherwise feasible time
+- **THEN** that time is treated as busy for the meeting, and neither the group nor the organizer sees the event
+
+#### Scenario: No account needed
+- **WHEN** a member with no Find Me a Time account opens the poll link
+- **THEN** they can connect Google Calendar and answer without signing up
+
+### Requirement: Candidate times from everyone's calendars
+The group request SHALL offer at most five numbered candidate times. They SHALL be found by the organizer's feasibility over the organizer's chosen date range, length and mode, with every connected member's busy times counted as busy, and spread across the range. When no time is free for the organizer and every connected member, the candidates SHALL be the organizer's feasible times that the most connected members can attend. In-person candidates SHALL be paired with the organizer's confirmed places. The numbered times SHALL be posted to the group when the organizer asks, or 24 hours after activation, whichever comes first. When a posted candidate stops being feasible, it SHALL be shown as unavailable with no reason and no name, and the other candidates SHALL keep their numbers.
 
 #### Scenario: Times posted to the group
-- **WHEN** a group request is activated for a 60-minute online meeting next week
-- **THEN** the group sees up to five numbered times that are all feasible for the organizer, and a link to the poll page
+- **WHEN** three members have connected calendars and the organizer asks for the times
+- **THEN** the group sees up to five numbered times that are feasible for the organizer and free for all three members
 
-#### Scenario: Organizer's calendar changes
-- **WHEN** a new busy event in the organizer's conflict calendars overlaps candidate 3
-- **THEN** candidate 3 is shown as unavailable with no reason, and candidates 1, 2, 4 and 5 keep their numbers
+#### Scenario: No time free for everyone
+- **WHEN** no feasible time is free for every connected member
+- **THEN** the times that the most connected members can attend are offered instead
 
-### Requirement: Members answer without an account
-A member SHALL be able to answer without an account, either by a group message of candidate numbers only, or on the poll page with a display name. A group answer SHALL be attributed to the sender's profile name and SHALL replace that name's earlier group answer. A poll page answer SHALL be editable and deletable only from the device that made it. Group answers and poll page answers SHALL never be merged by name. The organizer's view SHALL label group answers as unverified. A member who connects Google Calendar on the poll page SHALL grant read-only access for this group request only. That grant SHALL mark busy times without storing, logging or showing any event detail.
+#### Scenario: A late calendar removes a posted time
+- **WHEN** a member connects a calendar after the times were posted and is busy during time 3
+- **THEN** time 3 is shown as unavailable with no reason and no name, and times 1, 2, 4 and 5 keep their numbers
+
+### Requirement: Fallback answers without a calendar
+A member who does not connect a calendar SHALL be able to answer by ticking times on the poll page, or by a group message of candidate numbers only after the times are posted. A group answer SHALL be attributed to the sender's profile name, SHALL replace that name's earlier group answer, and SHALL count the same as a page answer with no label. Group answers and poll page answers SHALL never be merged by name. A poll page answer SHALL be editable and deletable only from the device that made it.
 
 #### Scenario: Numbers in the group
-- **WHEN** a member writes "1 3" in an activated room
-- **THEN** times 1 and 3 are recorded as working for that profile name, labelled as from the chat
+- **WHEN** a member writes "1 3" in an activated room after the times are posted
+- **THEN** times 1 and 3 are counted as working for that profile name
 
 #### Scenario: Other text in the group
 - **WHEN** a member writes "다음 주 바빠서 잘 모르겠어" in an activated room
 - **THEN** nothing is recorded, the text is not sent to the model and no copy of it is stored
 
-#### Scenario: Member connects a calendar
-- **WHEN** a member connects Google Calendar on the poll page and is busy during time 2
-- **THEN** time 2 is not counted for that member, and neither the group nor the organizer sees the event
-
 #### Scenario: Member deletes their answer
 - **WHEN** a member presses **Delete my answer** on the poll page from the device that answered
-- **THEN** their name, times and email are deleted and the counts change
+- **THEN** their name, times, email and calendar connection are deleted and the counts change
 
 ### Requirement: Introduction and stop
-The first message to an activated room SHALL state that it comes from Find Me a Time, name the organizer by display name, and say that the bot reads only numbered answers and `stop`. It SHALL also say that other conversation is not stored and that anyone can stop it, and it SHALL link to the privacy policy. A `stop` or `그만` from any member SHALL deactivate the room, close the group request as stopped, end forwarding from the room, and tell the organizer in their own chat.
+The first message to an activated room SHALL state that it comes from Find Me a Time, name the organizer by display name, give the poll link with the request to connect Google Calendar, say that only busy times are read, and say that the bot reads only numbered answers and `stop` in the room. It SHALL also say that other conversation is not stored and that anyone can stop it, and it SHALL link to the privacy policy. A `stop` or `그만` from any member SHALL deactivate the room, close the group request as stopped, end forwarding from the room, and tell the organizer in their own chat.
 
 #### Scenario: Any member stops the bot
 - **WHEN** a member who is not the organizer sends `그만`
