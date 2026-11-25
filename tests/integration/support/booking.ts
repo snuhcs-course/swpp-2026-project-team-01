@@ -124,10 +124,13 @@ export async function requestState(db: Database, requestId: string) {
   return row!;
 }
 
+// The emails sent after agreement. The creation email and the guest's
+// agreement receipt (guest-agreement-email) precede the host's decision and
+// have their own suites (email-delivery, booking-emails).
 export async function deliveriesOf(db: Database, requestId: string) {
   return db<{ attachments: { content: string; filename: string; type: string }[]; kind: string; parameters: Record<string, unknown>; recipients: string[]; reply_to: string | null; sender: string }[]>`
     select kind, recipients, reply_to, sender, attachments, parameters from app.email_deliveries
-    where request_id = ${requestId} and kind <> 'request_creation'
+    where request_id = ${requestId} and kind not in ('request_creation', 'agreement_receipt')
     order by created_at
   `;
 }

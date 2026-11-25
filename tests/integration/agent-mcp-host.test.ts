@@ -1,6 +1,7 @@
 import { randomUUID } from "node:crypto";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { createMcpHandler, type McpDependencies } from "../../lib/server/agent-mcp";
+import { assignHandle } from "../../lib/server/handles";
 import { agentDependencies, callTool, HOST_RESOURCE, issueToken, mcpRequest, ORIGIN } from "./support/agents";
 import { agreedRequest } from "./support/booking";
 import { testDatabase } from "./support/database";
@@ -384,6 +385,15 @@ it("sets meeting mode, place and travel mode only with hostWords, then confirms 
 
 it("guides a configured host's MCP draft to confirmation without publishing it early", async () => {
   const { handler, token, request } = await hostWithRequest();
+  // A configured host is a ready one: confirmed settings, saved calendar roles
+  // and a public handle. The seeded request's host has only the settings.
+  const [settings] = await db<{ handle: string }[]>`select settings ->> 'handle' as handle from app.host_settings where host_account_id = ${request.hostAccountId}`;
+  await db.begin((tx) => assignHandle(tx, request.hostAccountId, settings!.handle));
+  const calendar = { accessRole: "owner", id: request.calendarId, summary: "Me" };
+  await db`
+    insert into app.calendar_roles (host_account_id, conflict_calendars, booking_calendar, destination_verified_at)
+    values (${request.hostAccountId}, ${db.json([calendar])}, ${db.json(calendar)}, now())
+  `;
   const call = (name: string, args = {}) => callTool(handler, "/mcp", token, name, args);
   const before = (await call("get_setup")).structuredContent;
   const changed = await call("update_setup_field", { expectedRevision: (before.draft as { revision: number }).revision,
@@ -393,7 +403,8 @@ it("guides a configured host's MCP draft to confirmation without publishing it e
   expect(pending.pendingChanges).toBe(true);
   const [stored] = await db<{ minutes: number }[]>`select (settings ->> 'durationMinutes')::int as minutes from app.host_settings where host_account_id = ${request.hostAccountId}`;
   expect(stored.minutes).not.toBe(45);
-  expect((await call("confirm_setup", { expectedRevision: (pending.draft as { revision: number }).revision,
-    proposalHash: pending.proposalHash, retryKey: randomUUID(), hostWords: "Confirm these settings" })).isError).toBe(false);
+  const confirmed = await call("confirm_setup", { expectedRevision: (pending.draft as { revision: number }).revision,
+    proposalHash: pending.proposalHash, retryKey: randomUUID(), hostWords: "Confirm these settings" });
+  expect(confirmed.isError).toBe(false);
   expect((await call("get_setup")).structuredContent.pendingChanges).toBe(false);
 });

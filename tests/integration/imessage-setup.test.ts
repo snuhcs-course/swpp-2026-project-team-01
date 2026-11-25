@@ -58,7 +58,7 @@ describe("setup over iMessage", () => {
     expect(incoming.outcome).toBe("forwarded");
 
     const result = await disconnectCalendarForTool(setupDeps, {
-      auth: { attributes: { audience: HOST_SETUP_AUDIENCE }, principalId: host.userId, principalType: "user" },
+      auth: { attributes: { audience: HOST_SETUP_AUDIENCE }, principalId: host.hostAccountId, principalType: "user" },
       callId: crypto.randomUUID(),
       sessionId: host.sessionId,
     });

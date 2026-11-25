@@ -546,6 +546,7 @@ describe("message route and session index", () => {
     // drafts included), each of which resolves for its own audience only.
     expect(manifest.config).toMatchObject({ defaultTools: false, tool: false });
     expect((manifest.dynamicTools as { sourceId: string }[]).map((tool) => tool.sourceId).sort()).toEqual([
+      "tools/intake.ts",
       "tools/request.ts",
       "tools/setup.ts",
     ]);

@@ -58,7 +58,10 @@ test("a host checks the note entries on the week, confirms them, and goes back t
   await expect(details.locator("[data-note-description]")).toContainText("회의실 3층");
   await expect(details.locator("[data-note-description]")).toContainText("안건: 회고 문서 & 다음 분기");
   await expect(details.locator("b, a, br")).toHaveCount(0);
-  await page.screenshot({ fullPage: true, path: testInfo.outputPath("note-review-details.png") });
+  // A viewport screenshot: a full-page one resizes the window, which closes
+  // the open details before the next press.
+  await page.screenshot({ path: testInfo.outputPath("note-review-details.png") });
+  await expect(details).toBeVisible();
   await retro.click();
   await expect(details).toBeHidden();
   await expect(retro).toHaveAttribute("aria-expanded", "false");
