@@ -62,6 +62,8 @@ export async function enqueueHostNotice(tx: Transaction, requestId: string, noti
 // when the request has an active guest binding. The job freezes a short text
 // without the booking link from the event's own records.
 export type GuestNotice =
+  // #327 host-question: remove this variant with the provisional question tool.
+  | { readonly kind: "host_question"; readonly inputId: string }
   | { readonly kind: "status_new_version"; readonly version: number }
   | { readonly kind: "status_declined" }
   | { readonly kind: "status_expired" }
@@ -76,6 +78,8 @@ export type GuestNotice =
 
 export function guestNoticeKey(requestId: string, notice: GuestNotice) {
   switch (notice.kind) {
+    case "host_question":
+      return `guest-notice:host_question:${requestId}:${notice.inputId}`;
     case "status_new_version":
       return `guest-notice:${notice.kind}:${requestId}:v${notice.version}`;
     case "status_change_dropped":
@@ -95,13 +99,14 @@ export async function enqueueGuestNotice(tx: Transaction, requestId: string, not
   const [bound] = await tx<{ found: boolean }[]>`
     select true as found from app.requester_imessage_bindings where request_id = ${requestId} and state = 'active'
   `;
-  if (!bound) return;
+  if (!bound) return false;
 
   await publishJob(tx, {
     dedupeKey: guestNoticeKey(requestId, notice),
     kind: IMESSAGE_NOTICE_JOB,
     payload: { audience: "requester", notice, requestId },
   });
+  return true;
 }
 
 // The agreement notice for the request's active guest binding, when there is

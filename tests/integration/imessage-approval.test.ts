@@ -1,7 +1,8 @@
 import { randomUUID } from "node:crypto";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { requestRef } from "../../lib/server/imessage-commands";
-import { approveProposalForTool } from "../../lib/server/host-review-tools";
+import { allowHostTripForHostTool, approveProposalForTool, askGuestForHostTool, waiveWeeklyLimitForHostTool } from "../../lib/server/host-review-tools";
+import type { ConversationRuntime } from "../../lib/server/conversations";
 import { sessionIdHash } from "../../lib/server/model-limits";
 import { agreedRequest } from "./support/booking";
 import { testDatabase } from "./support/database";
@@ -115,5 +116,57 @@ describe("approval in words", () => {
 
     expect(await approveProposalForTool(db, call, { version: 1 })).toMatchObject({ approved: false });
     expect(await approvalsOf(request.requestId)).toBe(0);
+  });
+});
+
+describe("provisional host question (#327)", () => {
+  const delivery = {
+    runtime: {
+      createSession: async () => `session_${randomUUID()}`,
+      sendMessage: async () => {},
+      readEvents: async function* () {},
+      readRecordedEvents: async function* () {},
+    } satisfies ConversationRuntime,
+    signingKey: "host-question-integration-signing-key",
+  };
+
+  it("records one authored guest-web question on retry, without changing the request", async () => {
+    const { call, request } = await hostWrote("Ask the guest whether they need parking");
+    const before = await db<{ revision: number }[]>`select revision from app.requests where id = ${request.requestId}`;
+
+    expect(await askGuestForHostTool(db, call, { question: "Do you need parking?" }, delivery)).toMatchObject({ asked: true, messengerQueued: false });
+    expect(await askGuestForHostTool(db, call, { question: "Do you need parking?" }, delivery)).toMatchObject({ asked: true, messengerQueued: false });
+
+    const inputs = await db<{ message: string }[]>`
+      select i.message from app.conversation_inputs i
+      join app.discussions d on d.id = i.discussion_id
+      where d.principal_type = 'requester_request' and d.principal_id = ${request.requestId}
+        and i.message like 'The meeting host asks about:%'
+    `;
+    expect(inputs).toEqual([{ message: "The meeting host asks about: Do you need parking?" }]);
+    expect((await db<{ revision: number }[]>`select revision from app.requests where id = ${request.requestId}`)[0]!.revision).toBe(before[0]!.revision);
+  });
+
+  it("posts nothing for a web turn or a closed request", async () => {
+    const { call, inputId, request } = await hostWrote("Ask about parking");
+    await db`update app.conversation_inputs set message = 'Ask about parking' where id = ${inputId}`;
+    expect(await askGuestForHostTool(db, call, { question: "Do you need parking?" }, delivery)).toMatchObject({ asked: false });
+
+    await db`update app.conversation_inputs set message = '[iMessage] Ask about parking' where id = ${inputId}`;
+    await db`update app.requests set state = 'withdrawn', closed_at = now() where id = ${request.requestId}`;
+    expect(await askGuestForHostTool(db, call, { question: "Do you need parking?" }, delivery)).toMatchObject({ asked: false });
+  });
+});
+
+describe("messenger-only host exceptions (#327)", () => {
+  it("refuses a web turn before changing either exception", async () => {
+    const { call, inputId, request } = await hostWrote("Let this one go over the limit");
+    await db`update app.conversation_inputs set message = 'Let this one go over the limit' where id = ${inputId}`;
+    expect(await waiveWeeklyLimitForHostTool(db, call)).toMatchObject({ allowed: false, problem: expect.stringContaining("linked") });
+    expect(await allowHostTripForHostTool(db, call, {
+      candidateId: "candidate-1", direction: "inbound", evaluationId: randomUUID(), minutes: 30,
+    })).toMatchObject({ allowed: false, problem: expect.stringContaining("linked") });
+    expect(await db`select id from app.request_exceptions where request_id = ${request.requestId}`).toHaveLength(0);
+    expect(await db`select id from app.travel_allowances where request_id = ${request.requestId}`).toHaveLength(0);
   });
 });

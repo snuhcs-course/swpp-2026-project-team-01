@@ -3,7 +3,8 @@ import { Fragment } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it } from "vitest";
 import type { RequesterCardContext } from "@/app/_components/requester/cards";
-import { CALENDAR_NOT_CONNECTED, threadEntries } from "./guest-workspace";
+import { CALENDAR_NOT_CONNECTED, meetingActionMode, threadEntries } from "./guest-workspace";
+import { MeetingActions } from "./meeting-actions";
 
 // The answered Calendar step's receipt (#424): continuing without Google is a
 // choice, so the receipt names it and what comes next instead of "Skipped".
@@ -45,5 +46,22 @@ describe("Calendar receipt", () => {
 
   it("still names a connected calendar", () => {
     expect(calendarReceipt("Connected", "gathering").thread).toContain("Connected Grace Hopper’s Calendar");
+  });
+});
+
+describe("meeting action tabs", () => {
+  it("starts after a request is sent and stays available through booking", () => {
+    expect(meetingActionMode("gathering", false)).toBeNull();
+    expect(meetingActionMode("negotiating", false)).toBeNull();
+    expect(meetingActionMode("awaiting_host_approval", false)).toBe("pending");
+    expect(meetingActionMode("booking", false)).toBe("booking");
+    expect(meetingActionMode("negotiating", false, "requester")).toBe("changing");
+    expect(meetingActionMode("negotiating", true)).toBe("changing");
+  });
+
+  it("uses the same visible actions while awaiting approval", () => {
+    const html = renderToStaticMarkup(<MeetingActions bookingId="booking" mode="pending" revision={3} />);
+    expect(html).toContain("Change meeting");
+    expect(html).toContain("Cancel meeting");
   });
 });

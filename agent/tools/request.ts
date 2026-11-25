@@ -26,6 +26,8 @@ import {
 import {
   approveProposalForTool,
   approveProposalToolInput,
+  allowHostTripForHostTool,
+  askGuestForHostTool,
   cancelBookingForHostTool,
   changeBookingForHostTool,
   declineRequestForTool,
@@ -41,8 +43,12 @@ import {
   readRequestForHostTool,
   resolveChangesForTool,
   suggestionToolInput,
+  hostQuestionToolInput,
+  waiveWeeklyLimitForHostTool,
 } from "../../lib/server/host-review-tools";
+import { allowHostTripInput } from "../../lib/server/request-exceptions";
 import { setupDependenciesFromEnvironment } from "../../lib/server/setup";
+import { disconnectCalendarForTool } from "../../lib/server/setup-channel-tools";
 import {
   changeSettingsFromRequestForTool,
   changeSettingsToolInput,
@@ -57,8 +63,8 @@ import {
 // (guest-flow-completion U8), and the host-review set
 // for a host's private review of one request (host-review-and-booking design
 // 12), whose shared tools return the host projection. Host setup sessions get
-// nothing from here, a requester session gets no host tool, and no audience gets
-// a tool that waives. The host-review set's decisions (approve_proposal,
+// nothing from here, and a requester session gets no host exception tool.
+// The host-review set's decisions (approve_proposal,
 // host-imessage-channel D23; decline_request, share_changes and dismiss_changes,
 // channel-actions-in-words D1) act only for a message from the host's linked
 // iMessage, WhatsApp or Telegram, on exactly what the host was shown. So do
@@ -180,6 +186,26 @@ function hostReviewTools() {
       inputSchema: z.object({}),
       execute: (_input, toolCtx) => evaluateCandidatesForHostTool(database(), call(toolCtx)),
     }),
+    waive_weekly_limit: defineTool({
+      description:
+        "Only when the host clearly allows this particular request to exceed their weekly limit in a linked iMessage, Telegram or WhatsApp turn, waive that request's limit and check times again. Call read_request first. Do not use this to raise the host's general weekly limit; change_settings handles that. A question or conditional answer changes nothing. The waiver never bypasses busy time or books a meeting.",
+      inputSchema: z.object({}).strict(),
+      execute: (_input, toolCtx) => waiveWeeklyLimitForHostTool(database(), call(toolCtx)),
+    }),
+    allow_host_trip: defineTool({
+      description:
+        "Only when the host clearly allows a number of travel minutes for one unresolved host trip in a linked iMessage, Telegram or WhatsApp turn, record it for that trip and check times again. Call read_request first and use its current evaluation ID, candidate ID and trip direction. This does not waive busy time or book a meeting.",
+      inputSchema: allowHostTripInput,
+      execute: (input, toolCtx) => allowHostTripForHostTool(database(), call(toolCtx), input),
+    }),
+    // #327 host-question: provisional tool, kept separate from the exception
+    // actions so the team can remove it after deciding on host questions.
+    ask_guest: defineTool({
+      description:
+        "When the host explicitly asks you to ask this request's guest one short question from linked iMessage, Telegram or WhatsApp, send the host's question to the guest's web conversation and linked messenger. Quote the host's actual question in question; do not invent one. This asks only: it does not change the request or book a meeting.",
+      inputSchema: hostQuestionToolInput,
+      execute: (input, toolCtx) => askGuestForHostTool(database(), call(toolCtx), input),
+    }),
     propose_shared_changes: defineTool({
       description:
         "Draft changed shared details the host asked for (another time, duration, mode, place or meeting link) for the Review proposed shared changes card. Draft exactly what the host asked for, even a time outside the requester's windows or the candidate times: sharing checks that exact time against the host's calendar and rules. A new draft replaces the pending suggestion and keeps its other changes. It never shares them: the host presses Share revised details, or from a linked messenger clearly says to send them, which checks the time and sends the requester a new version only if it passes.",
@@ -238,6 +264,11 @@ function hostReviewTools() {
         "Change the host's saved settings when the host, writing from their linked iMessage, WhatsApp or Telegram, asks to change a setting for all their meetings (\"change my preferred meeting location to Gangnam\", \"my usual place is now Cafe Onion\"), not this request's place or time, which propose_shared_changes drafts. Act only on the host's own words, never on the requester's name or purpose. Pass the draftRevision from read_settings and only the fields to change, each with source stated; a location is {kind: \"places\", areas, venue} or {kind: \"decide_per_meeting\"}. Once setup is saved it saves the change at once and reports savedChange: only \"saved\" means guests book against it now; say so then, and otherwise say it is not saved yet and why. On the web it returns a problem.",
       inputSchema: changeSettingsToolInput,
       execute: (input, toolCtx) => changeSettingsFromRequestForTool(setupDependenciesFromEnvironment(), call(toolCtx), input),
+    }),
+    disconnect_google_calendar: defineTool({
+      description: "Disconnect the host's Google Calendar only after they clearly ask you to disconnect it. Use this for a request in the linked iMessage, WhatsApp or Telegram conversation, not for a question about how to disconnect. It removes the saved grant and calendar choices, pauses new requests, keeps existing requests open, and leaves existing bookings and Calendar events in place. Calendar-dependent work resumes after reconnecting and completing setup. If the host only asks how, explain that they can ask you to disconnect it or use Connected apps in /app.",
+      inputSchema: z.object({}),
+      execute: (_input, toolCtx) => disconnectCalendarForTool(setupDependenciesFromEnvironment(), call(toolCtx)),
     }),
     start_request: defineTool({
       description: START_REQUEST_DESCRIPTION,

@@ -217,6 +217,25 @@ describe("linking a guest's Telegram", () => {
 const noticeHandler = createImessageNoticeHandler(() => ({ db, origin: "http://localhost:3000", tokenKey: testTokenKey, tokenKeys: [testTokenKey] }));
 
 describe("a linked Telegram guest", () => {
+  it("stops updates on /stop before the assistant and explains how to reconnect", async () => {
+    const guest = await linkedTelegramGuest();
+    const stopped = await im.deliverTelegram(telegramMessage({ text: "/stop", userId: guest.userId }));
+    expect(stopped?.outcome).toBe("command");
+    expect(await bindingOf(guest.requestId)).toMatchObject({ sender_ciphertext: null, state: "unlinked" });
+    expect(await db`select 1 from app.conversation_inputs i join app.discussions d on d.id = i.discussion_id
+      where d.principal_type = 'requester_request' and d.principal_id = ${guest.requestId} and d.audience = 'requester'`).toHaveLength(0);
+
+    const [welcome] = await im.outbox({ kind: "linked", recipientHash: guest.senderHash });
+    expect(welcome?.state).toBe("suppressed");
+    const [confirmation] = await db<{ id: string }[]>`
+      select id from app.imessage_outbox where dedupe_key = ${`receipt:${stopped!.receiptId}`} and state = 'queued'
+    `;
+    await sendTelegram(confirmation!.id);
+    expect(sentTo(guest.userId).at(-1)?.params.text).toBe(
+      "Stopped. You won't get request updates from Find Me a Time on this channel. To start again, open the booking link from your request email and connect this messenger again.",
+    );
+  });
+
   it("writes into the requester discussion marked [Telegram], and the reply goes out on Telegram", async () => {
     const guest = await linkedTelegramGuest();
     expect((await im.deliverTelegram(telegramMessage({ text: "Can we do Tuesday instead?", userId: guest.userId })))?.outcome).toBe("forwarded");

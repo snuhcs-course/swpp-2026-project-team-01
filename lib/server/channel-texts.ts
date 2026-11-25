@@ -62,6 +62,7 @@ export const FIELD_LABELS: Texts<Readonly<Record<SetupFieldName, string>>> = {
     weeklyLimitCounts: "Counted toward the limit",
     groupTrips: "Group trips by day",
     weeklyWindows: "Meeting hours",
+    scheduleOverrides: "Week-specific hours",
   },
   ko: {
     bufferAfterMinutes: "미팅 후 여유 시간",
@@ -79,6 +80,7 @@ export const FIELD_LABELS: Texts<Readonly<Record<SetupFieldName, string>>> = {
     weeklyLimitCounts: "한도에 세는 미팅",
     groupTrips: "이동 같은 날로 묶기",
     weeklyWindows: "미팅 가능 시간",
+    scheduleOverrides: "격주 및 특정 주 시간",
   },
 };
 
@@ -386,6 +388,11 @@ export const CHANNEL_REPLIES = {
       telegram: "Unlinked. You won't get Telegram messages from Find Me a Time.",
       whatsapp: "Unlinked. You won't get WhatsApp messages from Find Me a Time.",
     } satisfies Record<StoredChannel, string>,
+    guestStop: {
+      imessage: "Stopped. You won't get request updates from Find Me a Time on this channel. To start again, open the booking link from your request email and connect this messenger again.",
+      telegram: "Stopped. You won't get request updates from Find Me a Time on this channel. To start again, open the booking link from your request email and connect this messenger again.",
+      whatsapp: "Stopped. You won't get request updates from Find Me a Time on this channel. To start again, open the booking link from your request email and connect this messenger again.",
+    } satisfies Record<StoredChannel, string>,
     callbackStale: "This proposal has changed. Here is the current one.",
     callbackNotLinked: "Not linked",
     request: (ref: string, name: string, purpose: string | null) => `Request ${ref} from ${name}${purpose ? `: ${purpose}` : ""}.`,
@@ -426,8 +433,8 @@ export const CHANNEL_REPLIES = {
       noteReviewLater: (url: string) => `I kept the entries that look like notes busy for now. You can still choose which ones can be free here: ${url}`,
       slotSummary: (preview: SlotPreview) =>
         hasOpenTime(preview)
-          ? `Next week's open times (${weekText(preview.weekStart, "en")}): ${openSummary(preview, "en")} (${meetingDetails(preview, "en")}). ${preview.saved ? "Guests can book these now." : "Shall I open these for booking?"}`
-          : `Next week (${weekText(preview.weekStart, "en")}) has no open time with these settings (${meetingDetails(preview, "en")}). Want to change your meeting hours?`,
+          ? `${preview.week === "this_week" ? "This week's" : "Next week's"} open times (${weekText(preview.weekStart, "en")}): ${openSummary(preview, "en")} (${meetingDetails(preview, "en")}). ${preview.week === "this_week" ? "This is a preview only." : preview.saved ? "Guests can book these now." : "Shall I open these for booking?"}`
+          : `${preview.week === "this_week" ? "This week" : "Next week"} (${weekText(preview.weekStart, "en")}) has no open time with these settings (${meetingDetails(preview, "en")}). Want to change your meeting hours?`,
     },
     notes: {
       weeklyList: (entries: readonly WeeklyListEntry[], total: number, timeZone: string, url: string) =>
@@ -567,6 +574,11 @@ export const CHANNEL_REPLIES = {
       telegram: "연결을 끊었어요. 이제 Find Me a Time의 Telegram 메시지를 받지 않아요.",
       whatsapp: "연결을 끊었어요. 이제 Find Me a Time의 WhatsApp 메시지를 받지 않아요.",
     } satisfies Record<StoredChannel, string>,
+    guestStop: {
+      imessage: "중단했어요. 이 채널로는 Find Me a Time의 요청 업데이트를 더 이상 보내지 않아요. 다시 받으려면 요청 이메일의 예약 링크를 열어 이 메신저를 다시 연결해 주세요.",
+      telegram: "중단했어요. 이 채널로는 Find Me a Time의 요청 업데이트를 더 이상 보내지 않아요. 다시 받으려면 요청 이메일의 예약 링크를 열어 이 메신저를 다시 연결해 주세요.",
+      whatsapp: "중단했어요. 이 채널로는 Find Me a Time의 요청 업데이트를 더 이상 보내지 않아요. 다시 받으려면 요청 이메일의 예약 링크를 열어 이 메신저를 다시 연결해 주세요.",
+    } satisfies Record<StoredChannel, string>,
     callbackStale: "제안이 바뀌었어요. 현재 제안을 보내 드릴게요.",
     callbackNotLinked: "연결되지 않음",
     request: (ref: string, name: string, purpose: string | null) => `${name}님의 요청 ${ref}${purpose ? `: ${purpose}` : ""}`,
@@ -602,8 +614,8 @@ export const CHANNEL_REPLIES = {
       noteReviewLater: (url: string) => `메모처럼 보이는 일정은 일단 바쁨으로 두었어요. 비워도 되는 일정은 나중에 여기서 고를 수 있어요: ${url}`,
       slotSummary: (preview: SlotPreview) =>
         hasOpenTime(preview)
-          ? `다음 주(${weekText(preview.weekStart, "ko")}) 비어 있는 시간이에요: ${openSummary(preview, "ko")} (${meetingDetails(preview, "ko")}). ${preview.saved ? "지금 게스트가 이 시간으로 예약할 수 있어요." : "이 시간들로 예약을 열어둘까요?"}`
-          : `다음 주(${weekText(preview.weekStart, "ko")})에는 이 설정으로 비어 있는 시간이 없어요 (${meetingDetails(preview, "ko")}). 미팅 가능 시간을 바꿔볼까요?`,
+          ? `${preview.week === "this_week" ? "이번 주" : "다음 주"}(${weekText(preview.weekStart, "ko")}) 비어 있는 시간이에요: ${openSummary(preview, "ko")} (${meetingDetails(preview, "ko")}). ${preview.week === "this_week" ? "이번 주 미리보기예요." : preview.saved ? "지금 게스트가 이 시간으로 예약할 수 있어요." : "이 시간들로 예약을 열어둘까요?"}`
+          : `${preview.week === "this_week" ? "이번 주" : "다음 주"}(${weekText(preview.weekStart, "ko")})에는 이 설정으로 비어 있는 시간이 없어요 (${meetingDetails(preview, "ko")}). 미팅 가능 시간을 바꿔볼까요?`,
     },
     notes: {
       weeklyList: (entries: readonly WeeklyListEntry[], total: number, timeZone: string, url: string) =>

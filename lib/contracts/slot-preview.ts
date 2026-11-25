@@ -22,6 +22,7 @@ export type SlotPreviewDay = {
 
 // Next week's open slots for one settings review, as the image and its summary show them (design 5).
 export type SlotPreview = {
+  readonly week?: "this_week" | "next_week";
   readonly timezone: string;
   // The Monday the week starts on, YYYY-MM-DD.
   readonly weekStart: string;

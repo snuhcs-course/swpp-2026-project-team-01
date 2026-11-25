@@ -12,7 +12,7 @@ import {
 import { tutorialChoiceInput } from "../../lib/server/host-tutorial";
 import { setupDependenciesFromEnvironment } from "../../lib/server/setup";
 import { readScheduleToolInput, scheduleImageToolInput } from "../../lib/server/host-schedule";
-import { chooseTutorialForTool, confirmSettingsForTool, confirmSettingsToolInput, listHostRequestsForSetupTool, readScheduleForSetupTool, sendScheduleImageForTool, setCalendarRolesForTool, setCalendarRolesToolInput, previewNextWeekForTool, previewNextWeekToolInput } from "../../lib/server/setup-channel-tools";
+import { chooseTutorialForTool, confirmSettingsForTool, confirmSettingsToolInput, disconnectCalendarForTool, listHostRequestsForSetupTool, readScheduleForSetupTool, sendScheduleImageForTool, setCalendarRolesForTool, setCalendarRolesToolInput, previewNextWeekForTool, previewNextWeekToolInput } from "../../lib/server/setup-channel-tools";
 import {
   draftSettingsForTool,
   draftSettingsToolInput,
@@ -104,8 +104,13 @@ export default defineDynamic({
               inputSchema: setCalendarRolesToolInput,
               execute: (input, ctx) => setCalendarRolesForTool(setupDependenciesFromEnvironment(), { auth: ctx.session.auth.current, callId: ctx.callId, sessionId: ctx.session.id }, input),
             }),
+            disconnect_google_calendar: defineTool({
+              description: "Disconnect the host's Google Calendar only after they clearly ask you to disconnect it. Use this for a request in the linked iMessage, WhatsApp or Telegram conversation, not for a question about how to disconnect. It removes the saved grant and calendar choices, pauses new requests, keeps existing requests open, and leaves existing bookings and Calendar events in place. Calendar-dependent work resumes after reconnecting and completing setup. If the host only asks how, explain that they can ask you to disconnect it or use Connected apps in /app.",
+              inputSchema: z.object({}),
+              execute: (_input, ctx) => disconnectCalendarForTool(setupDependenciesFromEnvironment(), { auth: ctx.session.auth.current, callId: ctx.callId, sessionId: ctx.session.id }),
+            }),
             preview_next_week: defineTool({
-              description: "Send next week's open times as an image followed by one message in the linked conversation, using the current draft. Record the host's answers first and pass a short changeSummary if they just answered or changed anything. When queued, the service sends the whole reply, including whether to open the times. When the scan found entries that may be notes, it sends the note review link instead (noteReviewSent), and the image follows by itself after the host confirms that page; pass skipNoteReview true only when the host says to skip that review. Before setup is first saved, when the image for the current settings was already sent, it sends no copy and reports alreadySent; then reply yourself. Before setup is first saved, confirm only after the host agrees. Once setup is saved, use it only when the host asks to see their open times; a change needs no image.",
+              description: "Send this week's or next week's open times as an image (week defaults to next_week; use this_week when asked, for information only) followed by one message in the linked conversation, using the current draft. Record the host's answers first and pass a short changeSummary if they just answered or changed anything. When queued, the service sends the whole reply, including whether to open the times. When the scan found entries that may be notes, it sends the note review link instead (noteReviewSent), and the image follows by itself after the host confirms that page; pass skipNoteReview true only when the host says to skip that review. Before setup is first saved, when the image for the current settings was already sent, it sends no copy and reports alreadySent; then reply yourself. Before setup is first saved, confirm only after the host agrees. Once setup is saved, use it only when the host asks to see their open times; a change needs no image.",
               inputSchema: previewNextWeekToolInput,
               execute: (input, ctx) => previewNextWeekForTool(setupDependenciesFromEnvironment(), { auth: ctx.session.auth.current, callId: ctx.callId, sessionId: ctx.session.id }, input),
             }),

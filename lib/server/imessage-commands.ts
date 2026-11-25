@@ -1,3 +1,4 @@
+import { describeScheduleOverrides, type ScheduleOverrides } from "../contracts/setup";
 import type { HostRequestView } from "../contracts/host-request";
 import type { StoredChannel } from "../contracts/messaging-channel";
 import type { RequestState } from "../contracts/request";
@@ -21,6 +22,7 @@ import { CalendarAccessError, openHostCalendar } from "./google-calendar";
 import { listHostRequests, readHostRequest } from "./host-requests";
 import { calendarConnectUrl } from "./imessage-links";
 import { callbackAnswerText, recordOutbound } from "./imessage-outbox";
+import { stopRequesterChannelBindings } from "./requester-imessage-bindings";
 import type { WhatsAppButtons } from "./photon";
 import { requestRef, settingsRef } from "./request-ref";
 import { WHATSAPP_BUTTON_CONTENT } from "./whatsapp";
@@ -217,6 +219,8 @@ function windowsText(windows: readonly WeeklyWindow[], language: ChannelLanguage
 function fieldText(field: SetupFieldName, value: unknown, language: ChannelLanguage) {
   const texts = channelReplies(language);
   switch (field) {
+    case "scheduleOverrides":
+      return describeScheduleOverrides(value as ScheduleOverrides, language === "ko" ? "휴무" : "Closed").join("; ") || texts.none;
     case "weeklyWindows":
       return windowsText(value as WeeklyWindow[], language);
     case "durationMinutes":
@@ -609,6 +613,7 @@ export async function executeCommand(tx: Transaction, deps: CommandDependencies,
             completed_at = now(), updated_at = now()
         where binding_id = ${message.bindingId} and state in ('waiting', 'queued')
       `;
+      const stoppedGuests = await stopRequesterChannelBindings(tx, message.receipt.senderHash, message.receipt.channel);
       await recordOutbound(tx, {
         channel: ended[0]?.channel ?? message.receipt.channel,
         dedupeKey: `receipt:${message.receipt.id}`,
@@ -616,7 +621,7 @@ export async function executeCommand(tx: Transaction, deps: CommandDependencies,
         kind: "command",
         recipient: message.recipient,
         recipientHash: message.receipt.senderHash,
-        text: texts.stop[message.receipt.channel],
+        text: stoppedGuests > 0 ? texts.guestStop[message.receipt.channel] : texts.stop[message.receipt.channel],
         tokenKey: deps.tokenKey,
       });
       await answerCallback(tx, deps.tokenKey, message.receipt, message.recipient, null);

@@ -121,6 +121,37 @@ async function runGuestNotice(requestId: string, notice: Parameters<typeof guest
 }
 
 describe("routing a guest's message", () => {
+  it("stops every request linked to this iMessage before the assistant and can be reconnected", async () => {
+    const sender = newSender();
+    const first = await linkedGuest(sender, "Ada Lovelace");
+    const second = await linkedGuest(sender, "Grace Hopper");
+    for (const request of [first, second]) {
+      await db.begin((tx) => enqueueStatusNotice(tx, testNotices, request.requestId, { kind: "status_declined" }).then(() => undefined));
+      await runGuestNotice(request.requestId, { kind: "status_declined" });
+    }
+    const before = await outboxOf(sender);
+
+    const stopped = await im.deliver({ sender, text: "STOP" });
+    expect(stopped.outcome).toBe("command");
+    expect(await guestInputs(first.requestId)).toHaveLength(0);
+    expect(await guestInputs(second.requestId)).toHaveLength(0);
+    expect(await db<{ state: string }[]>`
+      select state from app.requester_imessage_bindings
+      where request_id in (${first.requestId}, ${second.requestId}) order by request_id
+    `).toEqual([{ state: "unlinked" }, { state: "unlinked" }]);
+    expect(await db<{ state: string }[]>`
+      select state from app.imessage_outbox where request_id in (${first.requestId}, ${second.requestId}) and kind = 'notice'
+    `).toEqual([{ state: "suppressed" }, { state: "suppressed" }]);
+    expect(await sentTo(sender, before)).toEqual([
+      "Stopped. You won't get request updates from Find Me a Time on this channel. To start again, open the booking link from your request email and connect this messenger again.",
+    ]);
+
+    await linkGuest(sender, first.requestId);
+    expect(await db<{ state: string }[]>`
+      select state from app.requester_imessage_bindings where request_id = ${first.requestId} order by created_at desc limit 1
+    `).toEqual([{ state: "active" }]);
+  });
+
   it("does not forward ambiguous free text when a sender has multiple guest requests", async () => {
     const sender = newSender();
     const first = await linkedGuest(sender, "Ada Lovelace");

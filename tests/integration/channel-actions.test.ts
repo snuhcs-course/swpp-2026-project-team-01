@@ -1,3 +1,5 @@
+import { setIntakeForTool } from "../../lib/server/host-intake-tools";
+import { readHostIntake } from "../../lib/server/host-intake";
 import { randomUUID } from "node:crypto";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { cancelBookingForHostTool, changeBookingForHostTool, declineRequestForTool, resolveChangesForTool } from "../../lib/server/host-review-tools";
@@ -258,6 +260,20 @@ describe("sharing or dismissing suggested changes in words", () => {
   });
 });
 
+describe("intake in words", () => {
+  it("pauses from a request discussion, replays once, and preserves the request and binding", async () => {
+    const { call, request } = await reviewerWrote("Pause new requests for now");
+    const before = await readHostIntake(db, request.hostAccountId);
+    const input = { accepting: false, expectedRevision: before!.revision };
+    expect(await setIntakeForTool(db, call, input)).toMatchObject({ saved: true, accepting: false, revision: before!.revision + 1 });
+    expect(await setIntakeForTool(db, call, input)).toMatchObject({ saved: true, accepting: false, revision: before!.revision + 1 });
+    expect(await stateOf(request.requestId)).toBe("awaiting_host_approval");
+    const [binding] = await db`select state from app.imessage_bindings where host_account_id = ${request.hostAccountId} and state = 'active'`;
+    expect(binding).toBeDefined();
+    expect(await setIntakeForTool(db, { ...call, callId: randomUUID() }, { accepting: true, expectedRevision: before!.revision })).toMatchObject({ saved: false, problem: "stale_revision" });
+  });
+});
+
 describe("setup in words", () => {
   async function setupHostWrote(text: string) {
     const host = await seedHost(db, setupDeps, google);
@@ -268,6 +284,23 @@ describe("setup in words", () => {
     const state = await readSetupState(setupDeps, host.hostAccountId);
     return { ...session, host, reviewRef: settingsRef(state!.proposalHash) };
   }
+
+  it("pauses from setup but refuses a message typed on the web", async () => {
+    const { call, host, inputId } = await setupHostWrote("Pause new requests");
+    expect(await setIntakeForTool(db, call, { accepting: false, expectedRevision: 0 })).toMatchObject({ saved: true, accepting: false });
+    await typedOnTheWeb(inputId, "Resume new requests");
+    expect(await setIntakeForTool(db, { ...call, callId: randomUUID() }, { accepting: true, expectedRevision: 1 })).toMatchObject({ saved: false });
+    expect(await readHostIntake(db, host.hostAccountId)).toMatchObject({ accepting: false });
+  });
+
+  it("does not accept this week's informational image as first setup confirmation", async () => {
+    const { call, host, reviewRef } = await setupHostWrote("Show this week too");
+    expect(await previewNextWeekForTool(setupDeps, { ...call, callId: randomUUID() }, { week: "this_week" })).toMatchObject({ queued: true });
+    const [image] = await im.outbox({ hostAccountId: host.hostAccountId, kind: "image" });
+    await im.send(image!.id);
+    expect(await confirmSettingsForTool(setupDeps, { ...call, callId: randomUUID() }, { reviewRef })).toMatchObject({ saved: false });
+    expect(await saved(host.hostAccountId)).toBe(0);
+  });
 
   async function saved(hostAccountId: string) {
     return (await db`select 1 from app.host_settings where host_account_id = ${hostAccountId}`).length;

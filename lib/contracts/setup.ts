@@ -104,7 +104,20 @@ export const displayNameSchema = z
   .transform((value) => value.replace(/[\u0000-\u001f\u007f-\u009f]/g, "").trim())
   .pipe(z.string().min(1).max(80));
 
+// Week dates are local Mondays, never ISO week numbers or UTC offsets.
+const mondaySchema = z.string().regex(/^\d{4}-\d{2}-\d{2}$/).refine(value => {
+  const date = new Date(`${value}T00:00:00Z`);
+  return Number.isFinite(date.getTime()) && date.toISOString().slice(0, 10) === value && date.getUTCDay() === 1;
+}, "Use a real Monday date (YYYY-MM-DD).");
+const weekWindows = z.array(weeklyWindowSchema).max(21);
+export const scheduleOverridesSchema = z.object({
+  alternateWeeks: z.object({ anchorWeek: mondaySchema, windows: weekWindows }).strict().nullable(),
+  weeks: z.array(z.object({ weekStart: mondaySchema, windows: weekWindows }).strict()).max(104),
+}).strict().refine(value => new Set(value.weeks.map(week => week.weekStart)).size === value.weeks.length, "Use each week once.");
+export type ScheduleOverrides = z.infer<typeof scheduleOverridesSchema>;
+
 export const SETUP_FIELD_SCHEMAS = {
+  scheduleOverrides: scheduleOverridesSchema,
   timezone: z.string().refine(isValidTimeZone, "Choose an IANA timezone such as Asia/Seoul."),
   weeklyWindows: z.array(weeklyWindowSchema).min(1).max(21),
   weeklyLimit: z.number().int().min(1).max(50).nullable(),
@@ -131,7 +144,7 @@ export const HOST_ANSWER_FIELDS: readonly SetupFieldName[] = ["meetingMode", "lo
 
 export const IN_PERSON_FIELDS: readonly SetupFieldName[] = ["location", "travelMode", "travelBufferMinutes"];
 
-export const OPTIONAL_FIELDS: readonly SetupFieldName[] = ["weeklyLimit", "weeklyLimitCounts", "noteExclusions"];
+export const OPTIONAL_FIELDS: readonly SetupFieldName[] = ["weeklyLimit", "weeklyLimitCounts", "noteExclusions", "scheduleOverrides"];
 
 // Optional fields that only an in-person or either policy saves; an online-only
 // policy saves none of them (same-day-trips).
@@ -175,6 +188,7 @@ export type DraftFields = { readonly [F in SetupFieldName]?: DraftEntry<F> };
 export const DEFAULT_MEETING_MINUTES = 60;
 
 export const STARTER_DEFAULTS = {
+  scheduleOverrides: { alternateWeeks: null, weeks: [] },
   weeklyWindows: (["monday", "tuesday", "wednesday", "thursday", "friday"] as const).map((weekday) => ({
     weekday,
     start: "10:00",
@@ -240,6 +254,7 @@ export type CalendarRef = {
 // The confirmed policy in app.host_settings.settings. Readiness requires a
 // bookingCalendar without unwritableAt; feasibility reads only this.
 export type ConfirmedSettings = {
+  readonly scheduleOverrides?: ScheduleOverrides;
   readonly timezone: string;
   readonly weeklyWindows: readonly WeeklyWindow[];
   readonly weeklyLimit: number | null;
@@ -271,4 +286,15 @@ export function groupTripsOf(settings: Pick<ConfirmedSettings, "groupTrips">): b
 
 export function weeklyLimitCountsOf(settings: Pick<ConfirmedSettings, "weeklyLimitCounts">): WeeklyLimitCount {
   return settings.weeklyLimitCounts ?? STARTER_DEFAULTS.weeklyLimitCounts;
+}
+
+// Read back all exceptional hours so a host reviews the actual policy.
+export function describeScheduleOverrides(rules: ScheduleOverrides | undefined, closed = "Closed") {
+  if (!rules) return [];
+  const windows = (items: readonly WeeklyWindow[]) => items.length
+    ? items.map(item => `${item.weekday} ${item.start}–${item.end}`).join(", ") : closed;
+  return [
+    ...(rules.alternateWeeks ? [`Every two weeks from ${rules.alternateWeeks.anchorWeek}: ${windows(rules.alternateWeeks.windows)}`] : []),
+    ...rules.weeks.map(week => `${week.weekStart}: ${windows(week.windows)}`),
+  ];
 }

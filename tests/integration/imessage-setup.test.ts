@@ -8,6 +8,12 @@ import { imessageHarness, textOf } from "./support/imessage";
 import { draftRevision, hostCommandDeps, prepareReviewableHost, seedHost, setupDependencies } from "./support/setup-host";
 import { runCommand } from "../../lib/server/commands";
 import { updateDraftCommand } from "../../lib/server/setup-commands";
+import { HOST_SETUP_AUDIENCE } from "../../lib/server/eve-auth";
+import { disconnectCalendarForTool } from "../../lib/server/setup-channel-tools";
+import { readHostStanding } from "../../lib/server/host-eligibility";
+import { findReadyHostByHandle } from "../../lib/server/readiness";
+import { makeHostReady } from "./support/ready-host";
+import { createTestRequest } from "./support/requests";
 
 // Setup over iMessage and the channel's retention (host-imessage-channel task
 // 4.5): after `setup`, plain text reaches the same setup discussion /app uses;
@@ -42,6 +48,29 @@ async function reply(hostAccountId: string, receiptId: string) {
 }
 
 describe("setup over iMessage", () => {
+  it("disconnects Calendar from the linked setup conversation and keeps open requests", async () => {
+    const host = await seedHost(db, setupDeps, google);
+    const { handle } = await makeHostReady(db, host.hostAccountId);
+    const request = await createTestRequest(db, { hostAccountId: host.hostAccountId });
+    expect((await readHostStanding(db, host.userId)).ready).toBe(true);
+    const { sender } = await im.link(host.hostAccountId);
+    const incoming = await im.deliver({ sender, text: "Disconnect Google Calendar" });
+    expect(incoming.outcome).toBe("forwarded");
+
+    const result = await disconnectCalendarForTool(setupDeps, {
+      auth: { attributes: { audience: HOST_SETUP_AUDIENCE }, principalId: host.userId, principalType: "user" },
+      callId: crypto.randomUUID(),
+      sessionId: host.sessionId,
+    });
+
+    expect(result).toMatchObject({ disconnected: true });
+    expect((await readHostStanding(db, host.userId)).ready).toBe(false);
+    expect(await findReadyHostByHandle(db, handle)).toBeNull();
+    expect(await db`select 1 from app.provider_grants where host_account_id = ${host.hostAccountId}`).toHaveLength(0);
+    expect(await db`select 1 from app.calendar_roles where host_account_id = ${host.hostAccountId}`).toHaveLength(0);
+    expect(await db`select 1 from app.requests where id = ${request.requestId} and closed_at is null`).toHaveLength(1);
+  });
+
   it("shares the setup discussion with /app and names what is still needed", async () => {
     const host = await seedHost(db, setupDeps, google);
     const { sender } = await im.link(host.hostAccountId);

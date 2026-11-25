@@ -3,6 +3,7 @@ import type { LinkPlan, RequesterCandidate, RequesterEvaluation, RequesterTravel
 import {
   endsNextDay,
   type MeetingMode,
+  type ScheduleOverrides,
   type noteExclusionSchema,
   type TravelMode,
   WEEKDAYS,
@@ -284,6 +285,7 @@ export function normalizeBusy(events: readonly CalendarEvent[], options: Normali
 export type HostRules = {
   readonly timezone: string;
   readonly weeklyWindows: readonly WeeklyWindow[];
+  readonly scheduleOverrides?: ScheduleOverrides;
   readonly bufferBeforeMinutes: number;
   readonly bufferAfterMinutes: number;
   readonly weeklyLimit: number | null;
@@ -459,10 +461,23 @@ export type FeasibilityResult = {
 // ---------------------------------------------------------------------------
 // The engine
 
+export function weeklyWindowsOnDate(host: { readonly weeklyWindows: readonly WeeklyWindow[]; readonly scheduleOverrides?: ScheduleOverrides }, date: string): readonly WeeklyWindow[] {
+  const weekday = (new Date(`${date}T00:00:00Z`).getUTCDay() + 6) % 7;
+  const monday = addDays(date, -weekday);
+  const override = host.scheduleOverrides?.weeks.find(week => week.weekStart === monday);
+  if (override) return override.windows;
+  const alternate = host.scheduleOverrides?.alternateWeeks;
+  if (alternate) {
+    const weeks = Math.round((Date.parse(monday) - Date.parse(alternate.anchorWeek)) / (7 * 86400000));
+    if (weeks % 2 === 0) return alternate.windows;
+  }
+  return host.weeklyWindows;
+}
+
 type Window = { readonly start: number; readonly end: number; readonly date: string; readonly rule: WeeklyWindow };
 
-function hostWindows(host: Pick<HostRules, "timezone" | "weeklyWindows">, requested: readonly { start: Date; end: Date }[], unresolved: UnresolvedWindow[]): Window[] {
-  const { timezone, weeklyWindows } = host;
+function hostWindows(host: Pick<HostRules, "timezone" | "weeklyWindows" | "scheduleOverrides">, requested: readonly { start: Date; end: Date }[], unresolved: UnresolvedWindow[]): Window[] {
+  const { timezone } = host;
   if (requested.length === 0) return [];
 
   const first = Math.min(...requested.map((window) => window.start.getTime()));
@@ -473,7 +488,7 @@ function hostWindows(host: Pick<HostRules, "timezone" | "weeklyWindows">, reques
   for (let date = addDays(localParts(first, timezone).date, -1); date <= localParts(last, timezone).date; date = addDays(date, 1)) {
     const weekday = WEEKDAYS[(new Date(`${date}T00:00:00Z`).getUTCDay() + 6) % 7]!;
 
-    for (const rule of weeklyWindows) {
+    for (const rule of weeklyWindowsOnDate(host, date)) {
       if (rule.weekday !== weekday) continue;
 
       const starts = resolveLocalTime(date, rule.start, timezone);
@@ -498,7 +513,7 @@ function hostWindows(host: Pick<HostRules, "timezone" | "weeklyWindows">, reques
 
 // All host-only preview intervals, without requester travel or the ranked candidate cap.
 export function hostPreviewIntervals(
-  host: Pick<HostRules, "timezone" | "weeklyWindows" | "bufferBeforeMinutes" | "bufferAfterMinutes">,
+  host: Pick<HostRules, "timezone" | "weeklyWindows" | "scheduleOverrides" | "bufferBeforeMinutes" | "bufferAfterMinutes">,
   busy: readonly BusyInterval[], range: { start: Date; end: Date }, durationMinutes: number,
 ) {
   const grid = GRID_MINUTES * MINUTE;

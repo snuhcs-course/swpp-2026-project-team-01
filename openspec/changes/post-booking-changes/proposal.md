@@ -1,6 +1,7 @@
 # Proposal
 
 Tracking issue: #234 (renegotiation after booking, asked for in #169)
+Guest web action follow-up: #448
 
 ## Why
 
@@ -18,6 +19,7 @@ Step 1, cancellation (implemented in this change):
 Step 2, changes (implemented in this change):
 
 - Either side reopens a booked meeting, until it starts, for another time, place or meeting type: the guest through the assistant or their agent, the host with **Change meeting** in the workspace, in their linked chat or through their agent. The request reopens on the existing proposal flow (new version, guest agreement, host approval) while the booked meeting stays as it is. On approval the existing Google event is patched in place, so the invitation thread stays the same. If the change is withdrawn, declined or runs out of time, the original meeting stands and the guest is told.
+- On the guest web chat, a sent request exposes **Change meeting** and **Cancel meeting** as compact tabs above the composer. The same labels remain through booking: before confirmation they reopen or withdraw the request, and after confirmation they change or cancel the meeting. While a calendar booking is being written, the tabs remain visible but unavailable. Before the request is sent, the guest adjusts it in chat and no action tabs appear. The controller menu is removed; Connected agents remains in Request details for grant revocation.
 
 ## Decisions
 

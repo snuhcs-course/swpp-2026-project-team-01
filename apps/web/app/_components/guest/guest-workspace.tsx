@@ -1,10 +1,11 @@
 "use client";
 
 import type { DiscussionEvent } from "@lib/contracts/discussion-events";
+import type { RequestState } from "@lib/contracts/request";
 import type { OpenRequesterView, RequesterView, ThreadCard } from "@lib/contracts/requester-view";
 import { displayTime } from "@lib/contracts/timezone";
 import { type ReactNode, useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { SlidersHorizontalIcon } from "lucide-react";
+import { ConnectedAgentsDialog, requestGrantSource } from "@/app/_components/connected-agents";
 import {
   AwaitingCard,
   CalendarSelectionCard,
@@ -18,7 +19,6 @@ import {
   SentLine,
   useRequesterCards,
 } from "@/app/_components/requester/cards";
-import { ConnectedAgentsDialog, requestGrantSource } from "@/app/_components/connected-agents";
 import { AppliedDetailsCard, CandidatesCard, DetailsCard, MeetingDetailsList, ModeChoiceCard, ProposalCard, ReviewCard, searchedFor } from "@/app/_components/requester/request-cards";
 import { AgentMessage } from "@/components/chat/message";
 import { Button } from "@/components/ui/button";
@@ -31,12 +31,12 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { Message, MessageContent, MessageHeader } from "@/components/ui/message";
 import type { ChatRequestError } from "@/lib/chat/discussion";
 import { guestDiscussionClient, readNdjson } from "@/lib/chat/guest";
 import { GuestReceipt } from "./guest-card";
 import { GuestConversation, projectMessages, type ThreadEntry } from "./guest-conversation";
+import { MeetingActions, type MeetingActionMode } from "./meeting-actions";
 import { AuthoredMessages } from "@/app/_components/setup/authored-messages";
 import { CALENDAR_REOPENED, guestComposerState } from "./composer-state";
 import { GuestFrame, openingMessages, RequestPanel } from "./guest-frame";
@@ -54,8 +54,8 @@ import { TimezoneLine, useGuestTimezone } from "./timezone";
 // entry of the thread, placed where the conversation called for it. At most
 // one is open, the current next step's (DESIGN.md: one thing to think about at
 // once); an answered one stays as the guest's reply, with **Change** where
-// changing is allowed. Only the composer sits below it, with a compact menu
-// holding **Edit details** and **Withdraw request**.
+// changing is allowed. Sent requests show their actions above the composer;
+// before that, the guest adjusts the request by writing to Thyme.
 
 // What Google's return says, under the card it concerns: the name and email
 // receipt, or the Calendar card.
@@ -83,6 +83,13 @@ const RECEIPT_LABELS = {
   review: "Drafted details",
   times: "Times",
 } as const;
+
+export function meetingActionMode(state: RequestState, standingBooking: boolean, reopenedBy?: "host" | "requester" | null): MeetingActionMode | null {
+  if (state === "awaiting_host_approval") return "pending";
+  if (state === "booking") return "booking";
+  if (standingBooking || reopenedBy) return "changing";
+  return null;
+}
 
 function timeText(start: string, end: string | undefined, timeZone: string) {
   const from = displayTime(new Date(start), timeZone);
@@ -241,6 +248,7 @@ export function GuestWorkspace({
       }
       timezone={<TimezoneLine onChoose={timezone.choose} zone={timezone.zone} />}
     >
+      <RequestGrantAction bookingId={bookingId} />
       {hasMeetingDetails ? <section className="flex flex-col gap-2 py-2"><h3 className="font-semibold">Meeting details</h3><MeetingDetailsList patch={meetingPatch} timeZone={timezone.zone} preferenceTimezone={meetingDetails.timezone} contact={view.contact} /></section> : null}
       {context && view.request.state !== "awaiting_host_approval" ? <ImessageUpdates context={context} onlyLinked /> : null}
       {panel.length
@@ -263,6 +271,8 @@ export function GuestWorkspace({
     && view.proposal?.version === agreementDialog.version
   );
 
+  const actionMode = meetingActionMode(view.request.state, view.booking?.state === "confirmed", view.reopenedBy);
+
   return (
     <>
       <GuestFrame aside={aside} asideLabel={`Request with ${host.displayName}`} workspaceLink={workspaceLink}>
@@ -270,7 +280,12 @@ export function GuestWorkspace({
           ariaLabel={`Meeting request with ${host.displayName}`}
           before={before}
           client={client}
-          composerAction={context ? <ThreadMenu context={context} /> : null}
+          composerFlags={actionMode ? (
+            <>
+              {actionMode === "changing" ? <p className="pb-1 text-sm text-muted-foreground" role="status">{view.booking?.state === "confirmed" ? "Your booked meeting stays in place. " : ""}Tell Thyme what you want to change.</p> : null}
+              <MeetingActions bookingId={bookingId} mode={actionMode} revision={view.request.revision} standingBooking={view.booking?.state === "confirmed"} />
+            </>
+          ) : null}
           entries={entries}
           onError={onError}
           onRecover={async (generation) => {
@@ -540,105 +555,15 @@ export function threadEntries(
   return { entries, panel };
 }
 
-// The thread's compact menu beside the composer, after identification: **Edit
-// details** opens the meeting details card in the thread, **Connected agents**
-// lists and revokes the personal agents connected to this request
-// (agent-access design 10), **Withdraw request** asks for confirmation in a
-// dialog. Radix gives the menu arrow-key movement, closes it on Escape and
-// returns focus to its trigger. Both dialogs open only once the menu has closed:
-// opened from onSelect, a dialog took the closing menu's `pointer-events: none`
-// on <body> for the page's own and left it behind, freezing the page (#207).
-// Closing either dialog returns focus to the menu button.
-function ThreadMenu({ context }: { readonly context: RequesterCardContext }) {
-  const [agentsOpen, setAgentsOpen] = useState(false);
-  const openAfterClose = useRef<(() => void) | null>(null);
+function RequestGrantAction({ bookingId }: { readonly bookingId: string }) {
+  const [open, setOpen] = useState(false);
   const triggerRef = useRef<HTMLButtonElement>(null);
-  const agents = useMemo(() => (context.bookingId ? requestGrantSource(context.bookingId) : null), [context.bookingId]);
-  const [confirming, setConfirming] = useState(false);
-  const [busy, setBusy] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const { request } = context.view;
-  const choosing = request.state === "gathering" || request.state === "negotiating";
-
-  async function withdraw() {
-    setBusy(true);
-    const outcome = await context.run("request.withdraw", {}, request.revision);
-    setBusy(false);
-
-    if (outcome.ok || outcome.error.category === "request_closed") {
-      window.location.reload();
-      return;
-    }
-
-    setError(outcome.error.category === "stale_revision" ? "This request changed. Check it and try again." : outcome.error.message);
-  }
+  const source = useMemo(() => requestGrantSource(bookingId), [bookingId]);
 
   return (
     <>
-      <DropdownMenu>
-        <DropdownMenuTrigger asChild>
-          <Button aria-label="Request actions" ref={triggerRef} className="size-11 shrink-0 rounded-full" size="icon" type="button" variant="secondary">
-            <SlidersHorizontalIcon aria-hidden className="size-5" />
-          </Button>
-        </DropdownMenuTrigger>
-        <DropdownMenuContent
-          align="end"
-          className="min-w-48"
-          onCloseAutoFocus={() => {
-            const open = openAfterClose.current;
-            openAfterClose.current = null;
-            open?.();
-          }}
-          side="top"
-        >
-          {choosing ? <DropdownMenuItem onSelect={() => context.openDetails()}>Edit details</DropdownMenuItem> : null}
-          {agents ? (
-            <DropdownMenuItem
-              onSelect={() => {
-                openAfterClose.current = () => setAgentsOpen(true);
-              }}
-            >
-              Connected agents
-            </DropdownMenuItem>
-          ) : null}
-          <DropdownMenuItem
-            onSelect={() => {
-              openAfterClose.current = () => setConfirming(true);
-            }}
-          >
-            Withdraw request
-          </DropdownMenuItem>
-        </DropdownMenuContent>
-      </DropdownMenu>
-      {agents ? <ConnectedAgentsDialog onOpenChange={setAgentsOpen} open={agentsOpen} returnFocus={triggerRef} source={agents} /> : null}
-      <Dialog onOpenChange={setConfirming} open={confirming}>
-        <DialogContent
-          onCloseAutoFocus={(event) => {
-            event.preventDefault();
-            triggerRef.current?.focus();
-          }}
-        >
-          <DialogHeader>
-            <DialogTitle>Are you sure you want to withdraw this request?</DialogTitle>
-            <DialogDescription>Once withdrawn, this request can’t be reopened. You can submit a new request at any time.</DialogDescription>
-          </DialogHeader>
-          {error ? (
-            <p className="text-destructive text-sm" role="alert">
-              {error}
-            </p>
-          ) : null}
-          <DialogFooter>
-            <DialogClose asChild>
-              <Button className="min-h-11" type="button" variant="outline">
-                Keep the request
-              </Button>
-            </DialogClose>
-            <Button className="min-h-11" disabled={busy} onClick={() => void withdraw()} type="button" variant="destructive">
-              {busy ? "Withdrawing..." : "Withdraw request"}
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+      <Button className="min-h-11 self-start px-0" onClick={() => setOpen(true)} ref={triggerRef} type="button" variant="link">Connected agents</Button>
+      <ConnectedAgentsDialog onOpenChange={setOpen} open={open} returnFocus={triggerRef} source={source} />
     </>
   );
 }
