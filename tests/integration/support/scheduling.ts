@@ -88,9 +88,14 @@ export async function seedSchedulingRequest(
     readonly settings?: Partial<ConfirmedSettings>;
     readonly conferenceSolutionTypes?: string[];
     readonly confirmed?: boolean;
+    // Another request of an existing host: reuses its grant, calendar and settings.
+    readonly sameHostAs?: SchedulingRequest;
+    readonly requesterName?: string;
   } = {},
 ): Promise<SchedulingRequest> {
-  const host = await createCalendarHost(db, calendarKey);
+  const host = options.sameHostAs
+    ? { email: options.sameHostAs.calendarId, hostAccountId: options.sameHostAs.hostAccountId, refreshToken: options.sameHostAs.refreshToken }
+    : await createCalendarHost(db, calendarKey);
   const calendarId = host.email;
   const calendars = [
     {
@@ -103,18 +108,20 @@ export async function seedSchedulingRequest(
   ];
   const setCalendar = (fixture: Partial<FakeGoogleFixture>) =>
     google.setFixture(host.refreshToken!, { calendars, events: { [calendarId]: options.events ?? [] }, ...fixture });
-  setCalendar({});
-  await db`
-    insert into app.host_settings (host_account_id, settings, draft_revision)
-    values (${host.hostAccountId}, ${db.json(settingsFor(calendarId, options.settings) as never)}, 1)
-  `;
+  if (!options.sameHostAs) {
+    setCalendar({});
+    await db`
+      insert into app.host_settings (host_account_id, settings, draft_revision)
+      values (${host.hostAccountId}, ${db.json(settingsFor(calendarId, options.settings) as never)}, 1)
+    `;
+  }
 
   const contactEmail = `grace-${randomUUID().slice(0, 12)}@example.test`;
   const bookingId = randomUUID();
   const details = { ...COMPLETE_DETAILS, ...options.details };
   const [request] = await db<{ id: string }[]>`
     insert into app.requests (host_account_id, details, requester_name, contact_email, contact_confirmed_email, expires_at)
-    values (${host.hostAccountId}, ${db.json(details as never)}, 'Grace Hopper', ${contactEmail},
+    values (${host.hostAccountId}, ${db.json(details as never)}, ${options.requesterName ?? "Grace Hopper"}, ${contactEmail},
             ${options.confirmed ? contactEmail : null}, now() + interval '7 days')
     returning id
   `;
