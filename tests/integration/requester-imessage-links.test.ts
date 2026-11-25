@@ -391,6 +391,32 @@ describe("linking a guest's WhatsApp", () => {
     expect(sent).toEqual([expect.objectContaining({ channel: "whatsapp", recipient: { address: guest.sender, spaceId: guest.sender } })]);
   });
 
+  it("stops all WhatsApp guest subscriptions before the assistant", async () => {
+    const sender = newWhatsAppSender();
+    const first = await linkedWhatsAppGuest(sender);
+    const second = await linkedWhatsAppGuest(sender);
+    for (const guest of [first, second]) await guestNotice(guest.requestId, { kind: "status_declined" });
+
+    const stopped = await im.deliver({ channel: "whatsapp", sender, text: "STOP" });
+    expect(stopped.outcome).toBe("command");
+    expect(await db`select 1 from app.conversation_inputs i join app.discussions d on d.id = i.discussion_id
+      where d.principal_type = 'requester_request' and d.principal_id in (${first.requestId}, ${second.requestId}) and d.audience = 'requester'`).toHaveLength(0);
+    expect(await db<{ state: string; channel: string }[]>`
+      select state, channel from app.requester_imessage_bindings
+      where request_id in (${first.requestId}, ${second.requestId}) order by request_id
+    `).toEqual([{ channel: "whatsapp", state: "unlinked" }, { channel: "whatsapp", state: "unlinked" }]);
+    expect(await db<{ state: string }[]>`
+      select state from app.imessage_outbox where request_id in (${first.requestId}, ${second.requestId}) and kind in ('linked', 'notice') order by request_id, kind
+    `).toEqual([{ state: "suppressed" }, { state: "suppressed" }, { state: "suppressed" }, { state: "suppressed" }]);
+
+    const [confirmation] = await db<{ id: string }[]>`
+      select id from app.imessage_outbox where dedupe_key = ${`receipt:${stopped.receiptId}`} and state = 'queued'
+    `;
+    expect(textOf((await im.send(confirmation!.id)).sent)).toEqual([
+      "Stopped. You won't get request updates from Find Me a Time on this channel. To start again, open the booking link from your request email and connect this messenger again.",
+    ]);
+  });
+
   it("sends a notice inside the window as text and suppresses one outside it with no template", async () => {
     const guest = await linkedWhatsAppGuest();
     const inside = await guestNotice(guest.requestId, { kind: "status_declined" });

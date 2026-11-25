@@ -144,3 +144,22 @@ export async function endRequesterBindings(tx: Transaction, requestId: string, s
   }
   return ended.length > 0;
 }
+
+// A guest STOP is a channel-level opt-out: end every active request binding
+// for this sender on the channel and suppress messages that have not left yet.
+export async function stopRequesterChannelBindings(tx: Transaction, senderHash: string, channel: GuestChannel) {
+  const ended = await tx<{ id: string }[]>`
+    update app.requester_imessage_bindings
+    set state = 'unlinked', ended_at = now(), sender_ciphertext = null, space_ciphertext = null
+    where sender_hash = ${senderHash} and channel = ${channel} and state = 'active'
+    returning id
+  `;
+  if (ended.length === 0) return 0;
+  await tx`
+    update app.imessage_outbox
+    set state = 'suppressed', failure_category = 'unlinked', recipient_ciphertext = null, text_ciphertext = null,
+        completed_at = now(), updated_at = now()
+    where requester_binding_id in ${tx(ended.map((row) => row.id))} and state in ('waiting', 'queued')
+  `;
+  return ended.length;
+}

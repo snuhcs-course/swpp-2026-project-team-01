@@ -48,7 +48,7 @@ export function ConnectedGoogleCalendar() {
     setBusy(false);
     if (!response.ok) { setNotice("Google Calendar could not be disconnected. Try again."); return; }
     setConfirmDisconnect(false);
-    setNotice("Google Calendar disconnected. Existing calendar events were not removed.");
+    setNotice("Google Calendar disconnected. New requests are paused; existing requests, bookings and Calendar events stay in place. Reconnect and complete setup to continue calendar-dependent work.");
     await refresh().catch(() => setState(null));
   }
 
@@ -80,7 +80,7 @@ export function ConnectedGoogleCalendar() {
             </>
           )}
           {confirmDisconnect ? <div className="space-y-2 rounded-xl border p-3">
-            <p className="text-sm">Disconnecting pauses new requests until you reconnect and choose calendars. Existing events and bookings stay in place.</p>
+            <p className="text-sm">Disconnecting pauses new requests. Existing requests stay open, but calendar-dependent work waits until you reconnect and complete setup. Existing bookings and Calendar events stay in place.</p>
             <div className="flex gap-2"><Button className="min-h-11" disabled={busy} onClick={() => void disconnect()} type="button" variant="destructive">Disconnect</Button><Button className="min-h-11" disabled={busy} onClick={() => setConfirmDisconnect(false)} type="button" variant="outline">Keep connected</Button></div>
           </div> : <Button className="min-h-11" disabled={busy} onClick={() => setConfirmDisconnect(true)} type="button" variant="outline">Disconnect Google Calendar</Button>}
         </>

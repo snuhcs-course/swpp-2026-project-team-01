@@ -15,6 +15,7 @@ import { confirmSettingsCommand } from "./setup-commands";
 import { saveReadyHostChange } from "./setup-saved-change";
 import { authorizeSetupTool, type SetupToolCall } from "./setup-tools";
 import { activeBindingOfHost, bindingRecipient } from "./imessage-links";
+import { disconnectHostCalendar } from "./host-calendar-disconnect";
 import { encodeDisplayName } from "./entry-documents";
 import { hostConversationLanguage, textLanguage } from "./channel-language";
 import { recordOutbound } from "./imessage-outbox";
@@ -46,6 +47,27 @@ import { enqueueSettingsButtonRetirement } from "./telegram-jobs";
 export async function listHostRequestsForSetupTool(deps: SetupDependencies, call: SetupToolCall) {
   const actor = await authorizeSetupTool(deps.db, call.auth, call.sessionId);
   return hostRequestsForModel(await listHostRequests(deps.db, actor.id), await readHostTimezone(deps.db, actor.id), new Date(), await listSentRequests(deps.db, actor.id));
+}
+
+export async function disconnectCalendarForTool(deps: SetupDependencies, call: SetupToolCall) {
+  const disconnected = await deps.db.begin(async (tx) => {
+    const actor = await authorizeSetupTool(tx, call.auth, call.sessionId, { allowReview: true, lock: true });
+    const channel = await channelOfTurn(tx, call.sessionId, actor.id);
+    const binding = await activeBindingOfHost(tx, actor.id);
+    if (!channel || binding?.channel !== channel) return false;
+    await disconnectHostCalendar(tx, actor.id);
+    return true;
+  });
+
+  return disconnected
+    ? {
+        disconnected: true as const,
+        message: "Google Calendar is disconnected. New requests are paused. Existing requests stay open, but calendar-dependent work waits until you reconnect and complete setup. Existing bookings and Calendar events stay in place.",
+      }
+    : {
+        disconnected: false as const,
+        problem: "Disconnecting Google Calendar works only in your linked iMessage, WhatsApp or Telegram conversation. Nothing changed.",
+      };
 }
 
 // The host's schedule for a period, read-only (host-schedule-views design 2).
