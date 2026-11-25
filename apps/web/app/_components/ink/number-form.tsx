@@ -15,7 +15,9 @@ import { COUNTRY_CODES, type CountryCode, nationalDigits, PLACEHOLDER, reformat,
 // Under the field sits the SMS consent the Photon 10DLC campaign review asks for (#488): its own checkbox,
 // unchecked at first and never required, so a number is taken whether it is ticked or not, and bundled with
 // no other consent. Nothing is sent by SMS yet (#489 brings the channel back), so the choice is handed to
-// onSubmit but not stored; the SMS change records it before the first text.
+// onSubmit but not stored; the SMS change records it before the first text and asks again for numbers
+// linked before then (the privacy notice says so). The submit button follows the checkbox, as in Photon's
+// example form, so nobody reaches Next before the choice.
 
 export type NumberCopy = {
   readonly label: string;
@@ -163,7 +165,6 @@ export function NumberForm({
             {field}
           </>
         )}
-        {button}
       </div>
       <p
         className={ink ? (error ? "field-help error" : "field-help") : error ? "text-sm text-destructive" : "text-sm text-muted-foreground"}
@@ -193,6 +194,8 @@ export function NumberForm({
           .
         </span>
       </label>
+      {/* After the consent, so a keyboard or screen-reader user meets the checkbox before submitting. */}
+      <div className={ink ? "field-row" : "flex"}>{button}</div>
     </form>
   );
 }

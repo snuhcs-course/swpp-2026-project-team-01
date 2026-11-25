@@ -83,7 +83,7 @@ const EN: LegalDocument = {
         "Cloudflare, which sends our transactional email from no-reply@findmeatime.com and runs our domain.",
         "AgentMail, which holds the email threads of requests made by email, and Photon, which carries iMessage and WhatsApp conversations and will carry our text messages (SMS).",
         "Telegram, for a host who links it, which carries the host's chat with our bot and keeps it on its servers. Bot chats are not end-to-end encrypted. Unlinking, sending stop or blocking the bot ends every later message.",
-        "Google Analytics, which counts visits to our web pages. It receives the page path with any booking link, code or query removed, the referring site, your browser and device type and an approximate location derived from your IP address, and it sets first-party cookies (_ga) to tell repeat visits apart. Google keeps this data for 2 months. Advertising features and Google signals are off. It does not see conversations, calendars, names or email addresses.",
+        "Google Analytics, which counts visits to our web pages. It receives the page path with any booking link, code or query removed, the referring site, your browser and device type and an approximate location derived from your IP address, and it sets first-party cookies (_ga) to tell repeat visits apart. Google keeps this data for 2 months. Advertising features and Google signals are off. It does not see conversations, calendars, names, email addresses or phone numbers.",
       ],
       paragraphs: [
         "These providers process data for us. The assistant sees only what the person it is talking to may see, with booking links and codes removed first.",
@@ -93,9 +93,9 @@ const EN: LegalDocument = {
     {
       id: "sms",
       paragraphs: [
-        "When you enter a mobile number to link iMessage or WhatsApp, a separate box lets you agree to receive meeting notifications and assistant replies by text message (SMS) from Find Me a Time. The box starts unticked, and you can link your number without ticking it. We do not send text messages yet; once we do, Photon carries them for us.",
+        "When you enter a mobile number to link iMessage or WhatsApp, a separate box lets you agree to receive meeting notifications and assistant replies by text message (SMS) from Find Me a Time. The box starts unticked, and you can link your number without ticking it. We do not send text messages yet and do not keep this choice until we do; before the first text we will ask for your consent again and record it with your number. Photon will carry the texts for us.",
         `Message frequency may vary. Message and data rates may apply. Reply STOP to any text from us to stop them, and reply HELP for help or write to ${SUPPORT_ADDRESS}.`,
-        "Mobile information will not be sold or shared with third parties for promotional or marketing purposes. SMS opt-in data and consent are excluded from all other sharing on this page: we share them only with the providers that deliver our text messages, such as Photon and the phone carriers, and never for purposes unrelated to sending you those messages.",
+        "Mobile information will not be sold or shared with third parties for promotional or marketing purposes. SMS opt-in data and consent are excluded from all other sharing on this page: once we keep them, we will share them only with the providers that deliver our text messages, such as Photon and the phone carriers, and never for purposes unrelated to sending you those messages.",
       ],
       title: "Text messages (SMS)",
     },
@@ -206,7 +206,7 @@ const KO: LegalDocument = {
         "no-reply@findmeatime.com에서 거래 이메일을 보내고 도메인을 운영하는 Cloudflare.",
         "이메일로 시작한 요청의 스레드를 보관하는 AgentMail, iMessage와 WhatsApp 대화를 전달하고 앞으로 저희 문자 메시지(SMS)를 전달할 Photon.",
         "Telegram을 연결한 호스트의 경우 Telegram. 호스트와 저희 봇의 대화를 전달하고 Telegram 서버에 보관합니다. 봇 대화는 종단 간 암호화되지 않습니다. 연결을 해제하거나 stop을 보내거나 봇을 차단하면 이후 메시지는 모두 멈춥니다.",
-        "웹 페이지 방문 수를 세는 Google Analytics. 예약 링크, 코드, 쿼리를 지운 페이지 경로, 유입된 사이트, 브라우저와 기기 종류, IP 주소로 추정한 대략적인 위치를 받으며, 재방문을 구분하려고 자사 쿠키(_ga)를 설정합니다. Google은 이 데이터를 2개월 동안 보관합니다. 광고 기능과 Google 신호는 꺼 두었습니다. 대화, 캘린더, 이름, 이메일 주소는 보지 않습니다.",
+        "웹 페이지 방문 수를 세는 Google Analytics. 예약 링크, 코드, 쿼리를 지운 페이지 경로, 유입된 사이트, 브라우저와 기기 종류, IP 주소로 추정한 대략적인 위치를 받으며, 재방문을 구분하려고 자사 쿠키(_ga)를 설정합니다. Google은 이 데이터를 2개월 동안 보관합니다. 광고 기능과 Google 신호는 꺼 두었습니다. 대화, 캘린더, 이름, 이메일 주소, 전화번호는 보지 않습니다.",
       ],
       paragraphs: ["다음 업체가 저희를 대신해 데이터를 처리합니다. 어시스턴트는 대화 상대가 볼 수 있는 내용만 보며, 예약 링크와 코드는 먼저 지웁니다."],
       title: "데이터를 처리하는 곳",
@@ -214,9 +214,9 @@ const KO: LegalDocument = {
     {
       id: "sms",
       paragraphs: [
-        "iMessage나 WhatsApp을 연결하려고 휴대폰 번호를 입력할 때, 별도의 체크박스로 Find Me a Time의 미팅 알림과 어시스턴트 답장을 문자 메시지(SMS)로 받는 데 동의할 수 있습니다. 체크박스는 처음에 선택되어 있지 않으며, 선택하지 않아도 번호를 연결할 수 있습니다. 아직 문자 메시지는 보내지 않습니다. 보내기 시작하면 Photon이 저희를 대신해 전달합니다.",
+        "iMessage나 WhatsApp을 연결하려고 휴대폰 번호를 입력할 때, 별도의 체크박스로 Find Me a Time의 미팅 알림과 어시스턴트 답장을 문자 메시지(SMS)로 받는 데 동의할 수 있습니다. 체크박스는 처음에 선택되어 있지 않으며, 선택하지 않아도 번호를 연결할 수 있습니다. 아직 문자 메시지는 보내지 않으며, 보내기 전까지는 이 선택을 보관하지 않습니다. 첫 문자를 보내기 전에 다시 동의를 받아 번호와 함께 기록합니다. 문자는 Photon이 저희를 대신해 전달합니다.",
         `메시지 빈도는 달라질 수 있습니다. 메시지 및 데이터 요금이 부과될 수 있습니다. 저희가 보낸 문자에 STOP으로 답하면 수신이 중단되고, HELP로 답하거나 ${SUPPORT_ADDRESS}로 문의하면 도움을 받을 수 있습니다.`,
-        "휴대폰 정보는 판촉이나 마케팅 목적으로 제3자에게 판매하거나 공유하지 않습니다. SMS 수신 동의 정보와 동의 여부는 이 페이지에 적힌 다른 모든 공유에서 제외됩니다. 저희 문자 메시지를 전달하는 Photon과 통신사 같은 업체에만 공유하며, 그 메시지를 보내는 것과 관계없는 목적으로는 공유하지 않습니다.",
+        "휴대폰 정보는 판촉이나 마케팅 목적으로 제3자에게 판매하거나 공유하지 않습니다. SMS 수신 동의 정보와 동의 여부는 이 페이지에 적힌 다른 모든 공유에서 제외됩니다. 이를 보관하게 되면 저희 문자 메시지를 전달하는 Photon과 통신사 같은 업체에만 공유하며, 그 메시지를 보내는 것과 관계없는 목적으로는 공유하지 않습니다.",
       ],
       title: "문자 메시지(SMS)",
     },
