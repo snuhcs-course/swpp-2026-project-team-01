@@ -4,21 +4,22 @@ import { addDays, type BusyInterval, hostPreviewIntervals, localParts, startOfLo
 
 type PreviewSettings = Pick<SlotPreview, "timezone" | "meetingMode" | "travelMode" | "place" | "durationMinutes" | "reviewRef"> & {
   readonly weeklyWindows: readonly WeeklyWindow[];
+  readonly scheduleOverrides?: import("../contracts/setup").ScheduleOverrides;
   readonly bufferBeforeMinutes: number;
   readonly bufferAfterMinutes: number;
 };
 
-export function nextWeekRange(timezone: string, now: Date) {
+export function nextWeekRange(timezone: string, now: Date, week: "this_week" | "next_week" = "next_week") {
   const today = localParts(now.getTime(), timezone).date;
   const weekday = (new Date(`${today}T00:00:00Z`).getUTCDay() + 6) % 7;
-  const weekStart = addDays(today, 7 - weekday);
+  const weekStart = addDays(today, (week === "this_week" ? 0 : 7) - weekday);
   return { weekStart, start: new Date(startOfLocalDay(weekStart, timezone)), end: new Date(startOfLocalDay(addDays(weekStart, 7), timezone)) };
 }
 
-export function computeSlotPreview(settings: PreviewSettings, busy: readonly BusyInterval[], now: Date): SlotPreview {
+export function computeSlotPreview(settings: PreviewSettings, busy: readonly BusyInterval[], now: Date, week: "this_week" | "next_week" = "next_week"): SlotPreview {
   const { timezone } = settings;
-  const range = nextWeekRange(timezone, now);
-  const intervals = hostPreviewIntervals(settings, busy, range, settings.durationMinutes);
+  const range = nextWeekRange(timezone, now, week);
+  const intervals = hostPreviewIntervals(settings, busy, { ...range, start: new Date(Math.max(range.start.getTime(), now.getTime())) }, settings.durationMinutes);
   const clock = (instant: number) => {
     const parts = localParts(instant, timezone);
     return `${String(Math.floor(parts.minute / 60)).padStart(2, "0")}:${String(parts.minute % 60).padStart(2, "0")}`;
@@ -35,7 +36,7 @@ export function computeSlotPreview(settings: PreviewSettings, busy: readonly Bus
   });
   const open = days.flatMap(day => day.open);
   return {
-    timezone, weekStart: range.weekStart, days,
+    timezone, weekStart: range.weekStart, days, week,
     grid: { start: open.length ? open.reduce((a, b) => a < b.start ? a : b.start, "24:00") : "10:00",
       end: open.length ? open.reduce((a, b) => a > b.end ? a : b.end, "00:00") : "20:00" },
     place: settings.place, meetingMode: settings.meetingMode, travelMode: settings.travelMode,

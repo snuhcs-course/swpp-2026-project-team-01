@@ -1,3 +1,4 @@
+import { describeScheduleOverrides, type ScheduleOverrides } from "../contracts/setup";
 import type { HostRequestView } from "../contracts/host-request";
 import type { StoredChannel } from "../contracts/messaging-channel";
 import type { RequestState } from "../contracts/request";
@@ -217,6 +218,8 @@ function windowsText(windows: readonly WeeklyWindow[], language: ChannelLanguage
 function fieldText(field: SetupFieldName, value: unknown, language: ChannelLanguage) {
   const texts = channelReplies(language);
   switch (field) {
+    case "scheduleOverrides":
+      return describeScheduleOverrides(value as ScheduleOverrides, language === "ko" ? "휴무" : "Closed").join("; ") || texts.none;
     case "weeklyWindows":
       return windowsText(value as WeeklyWindow[], language);
     case "durationMinutes":

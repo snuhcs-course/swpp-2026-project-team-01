@@ -1,3 +1,4 @@
+import { createHash } from "node:crypto";
 import { listSentRequests } from "./host-sent-requests";
 import { z } from "zod";
 import { readHostSchedule, readHostScheduleImage, type ReadScheduleInput, readScheduleToolInput, type ScheduleImageInput, scheduleImageToolInput } from "./host-schedule";
@@ -247,6 +248,7 @@ export async function setCalendarRolesForTool(deps: SetupDependencies, call: Set
 
 export const previewNextWeekToolInput = z
   .object({
+    week: z.enum(["this_week", "next_week"]).optional().describe("The host timezone week to show; defaults to next_week. this_week is informational and does not confirm first setup."),
     changeSummary: z.string().trim().min(1).max(240).optional()
       .describe("One short statement in the host’s language saying what you just recorded or changed, if anything. Omit for a simple preview request. Leave out the open times and any question."),
     skipNoteReview: z
@@ -263,14 +265,14 @@ type Proposal = NonNullable<Awaited<ReturnType<typeof computeSetupProposal>>>;
 // (calendar-note-review design 8). Throws CalendarAccessError when Google cannot
 // be read, so no free time is inferred; returns the missing fields instead when
 // the draft cannot be previewed yet.
-export async function composeNextWeekPreview(deps: SetupDependencies, db: Queryable, hostAccountId: string, proposal: Proposal, now = new Date()) {
+export async function composeNextWeekPreview(deps: SetupDependencies, db: Queryable, hostAccountId: string, proposal: Proposal, now = new Date(), week: "this_week" | "next_week" = "next_week") {
   const fields = withStatedAnswers(proposal.proposed);
   const missing = missingFields(fields, proposal.handleAvailability === "available");
   if (!proposal.roles || missing.length) return { missing, preview: null };
   const timezone = SETUP_FIELD_SCHEMAS.timezone.parse(fields.timezone?.value);
   const mode = SETUP_FIELD_SCHEMAS.meetingMode.parse(fields.meetingMode?.value);
   const location = mode === "online" ? null : SETUP_FIELD_SCHEMAS.location.parse(fields.location?.value);
-  const range = nextWeekRange(timezone, now);
+  const range = nextWeekRange(timezone, now, week);
   const calendar = await openHostCalendar(deps.calendar, hostAccountId);
   const events = (await Promise.all(proposal.roles.conflictCalendars.map(entry => calendar.listEvents(entry.id, range)))).flat();
   const busy = normalizeBusy(events, {
@@ -286,10 +288,11 @@ export async function composeNextWeekPreview(deps: SetupDependencies, db: Querya
     travelMode: mode === "online" ? null : SETUP_FIELD_SCHEMAS.travelMode.parse(fields.travelMode?.value),
     durationMinutes: SETUP_FIELD_SCHEMAS.durationMinutes.parse(fields.durationMinutes?.value),
     weeklyWindows: SETUP_FIELD_SCHEMAS.weeklyWindows.parse(fields.weeklyWindows?.value),
+    scheduleOverrides: SETUP_FIELD_SCHEMAS.scheduleOverrides.parse(fields.scheduleOverrides?.value ?? { alternateWeeks: null, weeks: [] }),
     bufferBeforeMinutes: SETUP_FIELD_SCHEMAS.bufferBeforeMinutes.parse(fields.bufferBeforeMinutes?.value),
     bufferAfterMinutes: SETUP_FIELD_SCHEMAS.bufferAfterMinutes.parse(fields.bufferAfterMinutes?.value),
     reviewRef: settingsRef(proposal.proposalHash),
-  }, busy, now);
+  }, busy, now, week);
   const confirmed = proposal.records.confirmed;
   const saved = confirmed !== null && !differsFromConfirmed(proposal.proposed, proposal.roles, confirmed);
   return { missing, preview: saved ? { ...preview, saved: true } : preview };
@@ -317,7 +320,9 @@ export async function previewNextWeekForTool(deps: SetupDependencies, call: Setu
   if (!proposal?.roles) return { queued: false, problem: "Choose calendars first." };
   const missing = missingFields(withStatedAnswers(proposal.proposed), proposal.handleAvailability === "available");
   if (missing.length) return { queued: false, missingFields: missing, problem: "Record the missing host answers before the preview." };
-  const skip = input.skipNoteReview === true;
+  const thisWeek = input.week === "this_week";
+  if (thisWeek && turn.channel === "whatsapp") return { queued: false, problem: "This week preview is available in iMessage or Telegram." };
+  const skip = input.skipNoteReview === true || thisWeek;
   const language = textLanguage(turn.message) ?? await hostConversationLanguage(deps.db, actor.id);
 
   // The note step (calendar-note-review design 8): the review link goes first,
@@ -358,7 +363,7 @@ export async function previewNextWeekForTool(deps: SetupDependencies, call: Setu
 
   let composed;
   try {
-    composed = await composeNextWeekPreview(deps, deps.db, actor.id, proposal);
+    composed = await composeNextWeekPreview(deps, deps.db, actor.id, proposal, new Date(), input.week);
   } catch (error) {
     if (error instanceof CalendarAccessError) return { queued: false, problem: "Google Calendar could not be read; no free times were inferred." };
     throw error;
@@ -370,7 +375,7 @@ export async function previewNextWeekForTool(deps: SetupDependencies, call: Setu
   // 확인 sent it (issue #216): no second copy. A changed setting is a new
   // proposal hash and sends a new image; an image that was not delivered is
   // sent again. A saved host who asks to see their open times gets one.
-  const latest = proposal.records.confirmed === null ? await latestSlotImage(deps.db, actor.id, binding.id) : null;
+  const latest = !thisWeek && proposal.records.confirmed === null ? await latestSlotImage(deps.db, actor.id, binding.id) : null;
   if (latest?.review_hash === proposal.proposalHash && slotImageDelivery(latest.state) !== "not_delivered") {
     return {
       queued: false, alreadySent: true, delivery: slotImageDelivery(latest.state), reviewRef: preview.reviewRef, ranges: openRanges(preview),
@@ -383,7 +388,7 @@ export async function previewNextWeekForTool(deps: SetupDependencies, call: Setu
   const change = input.changeSummary && stripChannelMarkers(redactCredentials(input.changeSummary, { bareUuids: true })).trim();
   const text = change ? `${change} ${times}` : times;
   // Before the first save this is setup's last step (issue #368).
-  const summary = proposal.records.confirmed === null ? withSetupStep(language, "openTimes", text) : text;
+  const summary = !thisWeek && proposal.records.confirmed === null ? withSetupStep(language, "openTimes", text) : text;
   const outcome = await runCommand({ authenticate: async () => actor, db: deps.db }, {
     operation: "setup.preview_next_week",
     input: z.object({ proposalHash: z.string() }).strict(),
@@ -396,7 +401,7 @@ export async function previewNextWeekForTool(deps: SetupDependencies, call: Setu
       const active = await activeBindingOfHost(tx, actor.id);
       if (active?.id !== binding.id || current?.proposalHash !== context.input.proposalHash) throw new CommandError("stale_revision");
       await recordOutbound(tx, {
-        kind: "image", image: { preview, language, summary }, inputId: turn.inputId, reviewHash: current.proposalHash,
+        kind: "image", image: { preview, language, summary }, inputId: turn.inputId, reviewHash: thisWeek ? createHash("sha256").update(`informational:this_week:${current.proposalHash}`).digest("hex") : current.proposalHash,
         dedupeKey: `slot-preview:${binding.id}:${call.callId}`, hostAccountId: actor.id, bindingId: binding.id,
         recipient: bindingRecipient(deps.calendar.tokenKeys, binding), recipientHash: binding.sender_hash, tokenKey: deps.calendar.tokenKeys[0]!,
       });

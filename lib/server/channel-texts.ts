@@ -62,6 +62,7 @@ export const FIELD_LABELS: Texts<Readonly<Record<SetupFieldName, string>>> = {
     weeklyLimitCounts: "Counted toward the limit",
     groupTrips: "Group trips by day",
     weeklyWindows: "Meeting hours",
+    scheduleOverrides: "Week-specific hours",
   },
   ko: {
     bufferAfterMinutes: "미팅 후 여유 시간",
@@ -79,6 +80,7 @@ export const FIELD_LABELS: Texts<Readonly<Record<SetupFieldName, string>>> = {
     weeklyLimitCounts: "한도에 세는 미팅",
     groupTrips: "이동 같은 날로 묶기",
     weeklyWindows: "미팅 가능 시간",
+    scheduleOverrides: "격주 및 특정 주 시간",
   },
 };
 
@@ -426,8 +428,8 @@ export const CHANNEL_REPLIES = {
       noteReviewLater: (url: string) => `I kept the entries that look like notes busy for now. You can still choose which ones can be free here: ${url}`,
       slotSummary: (preview: SlotPreview) =>
         hasOpenTime(preview)
-          ? `Next week's open times (${weekText(preview.weekStart, "en")}): ${openSummary(preview, "en")} (${meetingDetails(preview, "en")}). ${preview.saved ? "Guests can book these now." : "Shall I open these for booking?"}`
-          : `Next week (${weekText(preview.weekStart, "en")}) has no open time with these settings (${meetingDetails(preview, "en")}). Want to change your meeting hours?`,
+          ? `${preview.week === "this_week" ? "This week's" : "Next week's"} open times (${weekText(preview.weekStart, "en")}): ${openSummary(preview, "en")} (${meetingDetails(preview, "en")}). ${preview.week === "this_week" ? "This is a preview only." : preview.saved ? "Guests can book these now." : "Shall I open these for booking?"}`
+          : `${preview.week === "this_week" ? "This week" : "Next week"} (${weekText(preview.weekStart, "en")}) has no open time with these settings (${meetingDetails(preview, "en")}). Want to change your meeting hours?`,
     },
     notes: {
       weeklyList: (entries: readonly WeeklyListEntry[], total: number, timeZone: string, url: string) =>
@@ -602,8 +604,8 @@ export const CHANNEL_REPLIES = {
       noteReviewLater: (url: string) => `메모처럼 보이는 일정은 일단 바쁨으로 두었어요. 비워도 되는 일정은 나중에 여기서 고를 수 있어요: ${url}`,
       slotSummary: (preview: SlotPreview) =>
         hasOpenTime(preview)
-          ? `다음 주(${weekText(preview.weekStart, "ko")}) 비어 있는 시간이에요: ${openSummary(preview, "ko")} (${meetingDetails(preview, "ko")}). ${preview.saved ? "지금 게스트가 이 시간으로 예약할 수 있어요." : "이 시간들로 예약을 열어둘까요?"}`
-          : `다음 주(${weekText(preview.weekStart, "ko")})에는 이 설정으로 비어 있는 시간이 없어요 (${meetingDetails(preview, "ko")}). 미팅 가능 시간을 바꿔볼까요?`,
+          ? `${preview.week === "this_week" ? "이번 주" : "다음 주"}(${weekText(preview.weekStart, "ko")}) 비어 있는 시간이에요: ${openSummary(preview, "ko")} (${meetingDetails(preview, "ko")}). ${preview.week === "this_week" ? "이번 주 미리보기예요." : preview.saved ? "지금 게스트가 이 시간으로 예약할 수 있어요." : "이 시간들로 예약을 열어둘까요?"}`
+          : `${preview.week === "this_week" ? "이번 주" : "다음 주"}(${weekText(preview.weekStart, "ko")})에는 이 설정으로 비어 있는 시간이 없어요 (${meetingDetails(preview, "ko")}). 미팅 가능 시간을 바꿔볼까요?`,
     },
     notes: {
       weeklyList: (entries: readonly WeeklyListEntry[], total: number, timeZone: string, url: string) =>
