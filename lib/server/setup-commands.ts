@@ -270,6 +270,7 @@ export function confirmSettingsCommand(
         weeklyLimit: parsed.weeklyLimit ?? null,
         weeklyLimitCounts: parsed.weeklyLimitCounts ?? STARTER_DEFAULTS.weeklyLimitCounts,
         weeklyWindows: parsed.weeklyWindows,
+        scheduleOverrides: parsed.scheduleOverrides ?? STARTER_DEFAULTS.scheduleOverrides,
       } as unknown as ConfirmedSettings;
 
       await tx`

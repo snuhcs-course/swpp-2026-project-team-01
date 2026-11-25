@@ -254,7 +254,7 @@ export function calendarErrorText(category: string | null) {
   }
 }
 
-export const FIELD_LABELS: Readonly<Record<SetupFieldName, string>> = {
+export const FIELD_LABELS: Readonly<Record<Exclude<SetupFieldName, "scheduleOverrides">, string>> = {
   bufferAfterMinutes: "Buffer after",
   bufferBeforeMinutes: "Buffer before",
   displayName: "Display name",

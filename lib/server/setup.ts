@@ -321,6 +321,7 @@ export function buildSuggestions(input: SuggestionInput): { [F in SetupFieldName
   const localName = local ? SETUP_FIELD_SCHEMAS.displayName.safeParse(local) : null;
 
   return {
+    scheduleOverrides: starter<"scheduleOverrides">(STARTER_DEFAULTS.scheduleOverrides, "No week overrides."),
     bufferAfterMinutes:
       evidence.bufferAfterMinutes ?? starter<"bufferAfterMinutes">(STARTER_DEFAULTS.bufferAfterMinutes, "A starter default."),
     bufferBeforeMinutes:
@@ -397,6 +398,7 @@ export function buildFieldViews(
 }
 
 function confirmedValue(settings: ConfirmedSettings, field: SetupFieldName): unknown {
+  if (field === "scheduleOverrides") return settings.scheduleOverrides ?? STARTER_DEFAULTS.scheduleOverrides;
   // A policy confirmed before the count choice existed counts bookings only.
   if (field === "weeklyLimitCounts") return weeklyLimitCountsOf(settings);
   // Trip grouping is saved only with an in-person or either mode; a policy

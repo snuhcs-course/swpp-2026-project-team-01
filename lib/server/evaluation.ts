@@ -703,6 +703,7 @@ async function evaluate(
       weeklyLimit: settings.weeklyLimit,
       weeklyLimitCounts: weeklyLimitCountsOf(settings),
       weeklyWindows: settings.weeklyWindows,
+      scheduleOverrides: settings.scheduleOverrides,
     },
     hostBusy: [],
     now,

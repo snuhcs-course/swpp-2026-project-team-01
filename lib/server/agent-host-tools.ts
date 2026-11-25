@@ -1,3 +1,4 @@
+import { readHostIntake, setHostIntakeCommand } from "./host-intake";
 import { setupNextStep } from "./setup-tools";
 import { chatStatus, linkOptions, startAgentLink } from "./connect-link";
 import { createImessageLinkCommand, readImessageStatus, linkChannels, NUMBER_INPUT } from "./imessage-links";
@@ -149,14 +150,19 @@ export const HOST_TOOLS: readonly AgentTool[] = [
     role: "host",
     async run(context) {
       const readiness = await readReadiness(context.deps.db, hostOf(context));
+      const intake = await readHostIntake(context.deps.db, hostOf(context));
       const links = readiness.ready && readiness.handle ? setupLinks(context.deps.origin, readiness.handle) : null;
       return ok({
         chat: chatStatus(await readImessageStatus(context.deps.db, linkOptions(context.deps).tokenKeys, hostOf(context), linkChannels(linkOptions(context.deps)))),
+        intake,
+        acceptingRequests: readiness.ready && intake?.accepting === true,
         displayName: readiness.displayName,
         handle: readiness.handle,
         links,
         nextStep: readiness.ready
-          ? "Setup is complete. Share the booking link; requests appear in list_requests."
+          ? intake?.accepting === false
+            ? "New request intake is paused. Existing requests remain available in list_requests. Call get_setup to check for pending settings; resume intake only when the host asks."
+            : "Setup is complete. Call get_setup to check for pending settings changes. Share the booking link; requests appear in list_requests."
           : `Setup is not complete. Calendar connection and calendar choice happen in the browser at ${context.deps.origin}/app; settings can be drafted with get_setup and update_setup_field and confirmed with confirm_setup.`,
         ready: readiness.ready,
         workspace: `${context.deps.origin}/app`,
@@ -164,6 +170,19 @@ export const HOST_TOOLS: readonly AgentTool[] = [
     },
     scope: "host:read",
     title: "Get host status",
+  },
+  {
+    name: "set_request_intake", title: "Pause or resume new requests", role: "host", scope: "host:write", readOnly: false,
+    description: "Pause or resume NEW meeting requests only when the host asks. Existing requests and messenger links remain. Read intake.revision from get_host_status first. Resuming still requires calendar/setup readiness.",
+    input: z.object({ accepting: z.boolean(), expectedRevision: expectedRevisionSchema, retryKey: retryKeySchema, hostWords: hostWordsSchema }).strict(),
+    async run(context, raw) {
+      const args = raw as { accepting: boolean; expectedRevision: number; retryKey: string };
+      const outcome = await runAsGrant(context, setHostIntakeCommand, {
+        resourceId: hostOf(context), expectedRevision: args.expectedRevision, retryKey: args.retryKey,
+        input: { accepting: args.accepting },
+      });
+      return outcome.ok ? ok(outcome.result) : commandError(outcome.error);
+    },
   },
   {
     description:
@@ -174,7 +193,7 @@ export const HOST_TOOLS: readonly AgentTool[] = [
     role: "host",
     async run(context) {
       const state = await readSetupState(context.deps.setup, hostOf(context), { includeCalendars: false });
-      return state ? ok({ ...mcpSetupView(state), nextStep: setupNextStep(state.nextAction, context.deps.origin) }) : unavailable();
+      return state ? ok({ ...mcpSetupView(state), nextStep: setupNextStep(state.nextAction, context.deps.origin, state) }) : unavailable();
     },
     scope: "host:read",
     title: "Get setup",
@@ -201,7 +220,10 @@ export const HOST_TOOLS: readonly AgentTool[] = [
         resourceId: hostOf(context),
         retryKey: args.retryKey,
       });
-      return outcome.ok ? ok(outcome.result) : commandError(outcome.error);
+      if (!outcome.ok) return commandError(outcome.error);
+      const state = await readSetupState(context.deps.setup, hostOf(context));
+      return ok({ ...outcome.result, setup: state ? mcpSetupView(state) : null,
+        nextStep: state ? setupNextStep(state.nextAction, context.deps.origin, state) : "Read get_setup again." });
     },
     scope: "host:write",
     title: "Update a setup field",

@@ -321,6 +321,19 @@ describe("host tools", () => {
     expect(count).toBe(1);
   });
 
+  it("pauses and resumes intake with revision checks while existing requests remain", async () => {
+    const { handler, token, request } = await hostWithRequest();
+    const status = await callTool(handler, "/mcp", token, "get_host_status");
+    const revision = (status.structuredContent.intake as { revision: number }).revision;
+    const args = { accepting: false, expectedRevision: revision, retryKey: randomUUID(), hostWords: "Pause new requests" };
+    for (let i = 0; i < 2; i++) {
+      expect((await callTool(handler, "/mcp", token, "set_request_intake", args)).structuredContent).toMatchObject({ accepting: false, revision: revision + 1 });
+    }
+    expect((await callTool(handler, "/mcp", token, "get_request", { requestId: request.requestId })).isError).toBe(false);
+    expect((await callTool(handler, "/mcp", token, "set_request_intake", { ...args, accepting: true, retryKey: randomUUID() })).structuredContent.error).toMatchObject({ category: "stale_revision" });
+    expect((await callTool(handler, "/mcp", token, "set_request_intake", { ...args, accepting: true, expectedRevision: revision + 1, retryKey: randomUUID() })).structuredContent).toMatchObject({ accepting: true });
+  });
+
   it("reports the host's status with a next step", async () => {
     const { handler, token } = await hostWithRequest();
     const status = await callTool(handler, "/mcp", token, "get_host_status");
@@ -367,4 +380,20 @@ it("sets meeting mode, place and travel mode only with hostWords, then confirms 
   const receipts = await db`select to_jsonb(o) as receipt from app.command_outcomes o where resource_id = ${host.hostAccountId}`;
   expect(JSON.stringify(settings)).not.toContain("hostWords");
   expect(JSON.stringify(receipts)).not.toContain("Looks good, confirm it.");
+});
+
+it("guides a configured host's MCP draft to confirmation without publishing it early", async () => {
+  const { handler, token, request } = await hostWithRequest();
+  const call = (name: string, args = {}) => callTool(handler, "/mcp", token, name, args);
+  const before = (await call("get_setup")).structuredContent;
+  const changed = await call("update_setup_field", { expectedRevision: (before.draft as { revision: number }).revision,
+    retryKey: randomUUID(), hostWords: "Make meetings 45 minutes", input: { action: "choose_own", field: "durationMinutes", value: 45 } });
+  expect(changed.structuredContent.nextStep).toContain("confirm_setup");
+  const pending = (await call("get_setup")).structuredContent;
+  expect(pending.pendingChanges).toBe(true);
+  const [stored] = await db<{ minutes: number }[]>`select (settings ->> 'durationMinutes')::int as minutes from app.host_settings where host_account_id = ${request.hostAccountId}`;
+  expect(stored.minutes).not.toBe(45);
+  expect((await call("confirm_setup", { expectedRevision: (pending.draft as { revision: number }).revision,
+    proposalHash: pending.proposalHash, retryKey: randomUUID(), hostWords: "Confirm these settings" })).isError).toBe(false);
+  expect((await call("get_setup")).structuredContent.pendingChanges).toBe(false);
 });

@@ -77,7 +77,19 @@ are the source of truth; you explain, compare and suggest.
   say so, and point to **Check booking status**.
 - Busy time, the host's hours and a trip that does not fit cannot be waived;
   only a trip that could not be estimated takes an allowance, and only the
-  weekly limit takes a waiver.`;
+  weekly limit takes a waiver.
+- When the host asks to pause/resume taking new requests, read the current intake
+  revision with read_setup_state (setup) or read_settings (request discussion),
+  then call set_request_intake with accepting false/true. Existing requests
+  continue. Do not unlink the messenger or interpret natural-language pausing as STOP.
+- For alternating hours or a particular week's exception, use scheduleOverrides
+  in draft_settings (setup) or change_settings (request discussion), source stated.
+  Read existing overrides first and preserve unrelated weeks. alternateWeeks has
+  anchorWeek (a Monday YYYY-MM-DD) and windows; it applies that week and every
+  second week before/after it. Ask which week if the anchor is unclear. weeks is
+  a list of {weekStart, windows} replacing that whole week's hours, [] for closed.
+  Read back the complete replacement hours before recording them.
+`;
 
 export default defineDynamic({
   events: {

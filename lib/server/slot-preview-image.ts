@@ -189,7 +189,7 @@ export async function renderSlotPreviewPng(preview: SlotPreview): Promise<Buffer
     box(
       { flexDirection: "column", marginTop: 40 },
       box({ ...headline, color: INK.ink }, "Your open times,"),
-      box({ ...headline, color: INK.primary, fontStyle: "italic" }, "next week."),
+      box({ ...headline, color: INK.primary, fontStyle: "italic" }, preview.week === "this_week" ? "this week." : "next week."),
     ),
     box(
       { backgroundColor: INK.softSurface, borderRadius: 24, marginTop: 36, padding: 22 },
