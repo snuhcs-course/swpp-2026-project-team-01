@@ -37,8 +37,8 @@ describe("reserved handles", () => {
     }
   });
 
-  it("holds exactly the design's 71 names, each a valid handle shape", () => {
-    expect(RESERVED_HANDLES.size).toBe(71);
+  it("holds exactly the specified 72 names, each a valid handle shape", () => {
+    expect(RESERVED_HANDLES.size).toBe(72);
     for (const handle of RESERVED_HANDLES) expect(/^[a-z][a-z0-9]*(?:-[a-z0-9]+)*$/.test(handle)).toBe(true);
   });
 });

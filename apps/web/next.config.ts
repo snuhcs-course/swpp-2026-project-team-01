@@ -2,21 +2,31 @@ import type { NextConfig } from "next";
 
 const development = process.env.NODE_ENV === "development";
 
-// Google Analytics' origins, only when the root layout loads the tag
-// (web-analytics D3). The config loader cannot import local modules, so this
-// repeats analyticsMeasurementId and analyticsContentSecuritySources from
-// apps/web/lib/analytics.ts; analytics.test.ts checks that the two agree.
+// PostHog's region hosts, only when the root layout loads the client
+// (web-analytics D3 and D5). The browser sends events to this origin's /ingest,
+// which is rewritten to PostHog, so the Content Security Policy below never
+// names PostHog. The config loader cannot import local modules, so this repeats
+// analyticsConfig and analyticsHosts from apps/web/lib/analytics.ts;
+// analytics.test.ts checks that the two agree.
+const analyticsRegion = process.env.POSTHOG_REGION?.trim() || "us";
 const analytics =
-  /^G-[A-Z0-9]+$/.test(process.env.GOOGLE_ANALYTICS_MEASUREMENT_ID?.trim() ?? "") &&
+  /^phc_[A-Za-z0-9]+$/.test(process.env.POSTHOG_PROJECT_KEY?.trim() ?? "") &&
+  (analyticsRegion === "us" || analyticsRegion === "eu") &&
   process.env.VERCEL?.trim() === "1" &&
   process.env.VERCEL_ENV?.trim() === "production";
-const analyticsContentSecuritySources = {
-  connect: ["https://*.google-analytics.com", "https://*.analytics.google.com", "https://www.googletagmanager.com"],
-  img: ["https://*.google-analytics.com", "https://www.googletagmanager.com"],
-  script: ["https://www.googletagmanager.com"],
-};
-const analyticsSources = (kind: keyof typeof analyticsContentSecuritySources) =>
-  analytics ? ` ${analyticsContentSecuritySources[kind].join(" ")}` : "";
+export const analyticsRewrites = analytics
+  ? [
+      { destination: `https://${analyticsRegion}-assets.i.posthog.com/static/:path*`, source: "/ingest/static/:path*" },
+      { destination: `https://${analyticsRegion}-assets.i.posthog.com/array/:path*`, source: "/ingest/array/:path*" },
+      { destination: `https://${analyticsRegion}.i.posthog.com/:path*`, source: "/ingest/:path*" },
+    ]
+  : [];
+// PostHog's endpoints end in a slash (/e/, /s/, /flags/), so Next.js's own
+// trailing-slash redirect is off while analytics is on; this redirect restores
+// it for every other path, the routes the proxy skips included.
+export const analyticsRedirects = analytics
+  ? [{ destination: "/:path", permanent: true, source: "/:path((?!ingest/).+)/" }]
+  : [];
 
 // A static policy: Next.js inlines its bootstrap scripts, and a per-request nonce
 // would make every page dynamic, so scripts are limited to this origin plus
@@ -24,11 +34,11 @@ const analyticsSources = (kind: keyof typeof analyticsContentSecuritySources) =>
 // hot-reload socket.
 export const contentSecurityPolicy = [
   "default-src 'self'",
-  `script-src 'self' 'unsafe-inline' 'wasm-unsafe-eval'${development ? " 'unsafe-eval'" : ""}${analyticsSources("script")}`,
+  `script-src 'self' 'unsafe-inline' 'wasm-unsafe-eval'${development ? " 'unsafe-eval'" : ""}`,
   "style-src 'self' 'unsafe-inline'",
-  `img-src 'self' data: blob:${analyticsSources("img")}`,
+  "img-src 'self' data: blob:",
   "font-src 'self' data:",
-  `connect-src 'self'${development ? " ws: wss:" : ""}${analyticsSources("connect")}`,
+  `connect-src 'self'${development ? " ws: wss:" : ""}`,
   "worker-src 'self' blob:",
   "object-src 'none'",
   "base-uri 'self'",
@@ -70,6 +80,13 @@ export const securityHeaders = [
 const nextConfig: NextConfig = {
   agentRules: false,
   cacheComponents: true,
+  skipTrailingSlashRedirect: analytics,
+  async redirects() {
+    return analyticsRedirects;
+  },
+  async rewrites() {
+    return analyticsRewrites;
+  },
   async headers() {
     // `/` and the single-segment host pages negotiate Markdown in the proxy, so
     // their HTML varies by Accept too (dotted paths are files, not handles).

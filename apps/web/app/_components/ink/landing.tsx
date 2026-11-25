@@ -45,6 +45,9 @@ export function Landing({ flow, locale }: { readonly flow: MessagingChannel | nu
         <div className="ld-foot-row">
           <p>{t.tagline}</p>
           <p>© 2026 Find Me a Time. {t.rights}</p>
+          <p>
+            {t.operator} <a href={`mailto:${t.contact}`}>{t.contact}</a>
+          </p>
           <nav aria-label={t.legal} className="ld-legal">
             <a href="/privacy-policy">{t.privacy}</a>
             <a href="/terms-of-service">{t.terms}</a>

@@ -82,6 +82,9 @@ const en = {
     },
     tagline: "Thoughtful scheduling. One meeting at a time.",
     rights: "All rights reserved.",
+    // Who runs the service and how to reach them, which Photon's 10DLC brand-website check looks for (#488).
+    operator: "Run by SNU SWPP 2026 Team 01. Contact",
+    contact: "support@findmeatime.com",
     privacy: "Privacy and your data",
     terms: "Terms of service",
     legal: "Privacy and terms",
@@ -138,7 +141,8 @@ const en = {
     start: "Onboard with iMessage",
     startOpensPhone: "Your Messages app opens with a note to Thyme already written. Tap send, then come back here.",
     startOpensDesktop: "Opens Messages with a note to Thyme already written: on a Mac, right here; on another computer, through a QR code for your iPhone.",
-    fine: "By sending, you agree to get texts from Thyme about your meetings. Message and data rates may apply. Reply STOP to stop anytime.",
+    // iMessage, not SMS: the only text-message consent is the number form's own checkbox (#488).
+    fine: "By sending, you agree to get iMessage messages from Thyme about your meetings. Reply STOP to stop anytime.",
     to: "To",
     open: "Open Messages",
     opensNote: "Your Messages app opens with this note written. Tap send, then come back here.",
@@ -188,7 +192,13 @@ const en = {
     errorOther: "Check the number. It looks incomplete.",
     errorServer: "Couldn't register this number. Try again in a moment.",
     submit: "Next",
-    fine: "Thyme uses this number only to recognize your messages. iMessage only for now.",
+    fine: "Thyme uses this number to recognize your messages. It never sends it a text unless you tick the box above.",
+    // The optional SMS consent for the Photon 10DLC campaign (#488); keep it word for word with the campaign.
+    smsConsent:
+      "By checking this box, you agree to receive meeting notifications and assistant replies by text from Find Me a Time. Message frequency may vary. Message and data rates may apply. Reply STOP to opt out. Reply HELP for help. We will not share mobile information with third parties for promotional or marketing purposes.",
+    privacyLink: "Privacy Policy",
+    termsLink: "Terms",
+    and: "and",
   },
   link: {
     heading: "Connect Thyme to your iMessage",
@@ -228,7 +238,7 @@ const en = {
     // The number asked before a WhatsApp link code too (guest-whatsapp-link D3).
     number: {
       heading: "Which number do you use for WhatsApp?",
-      fine: "Thyme uses this number only to recognize your messages.",
+      fine: "Thyme uses this number to recognize your messages. It never sends it a text unless you tick the box above.",
     },
     send: {
       start: "Onboard with WhatsApp",

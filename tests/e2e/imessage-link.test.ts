@@ -107,6 +107,8 @@ async function enterNumber(page: Page) {
   await field.focus();
   await page.keyboard.type("10-1234-5678");
   await expect(field).toHaveValue("10-1234-5678");
+  // The SMS consent (#488) starts unticked and is left so: the number is taken without it.
+  await expect(page.getByRole("checkbox", { name: /agree to receive meeting notifications and assistant replies by text/ })).not.toBeChecked();
   await page.keyboard.press("Enter");
 }
 
