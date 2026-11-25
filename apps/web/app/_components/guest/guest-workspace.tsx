@@ -270,10 +270,7 @@ export function GuestWorkspace({
           before={before}
           client={client}
           composerFlags={actionMode ? (
-            <>
-              {actionMode === "changing" ? <p className="pb-1 text-sm text-muted-foreground" role="status">{view.booking?.state === "confirmed" ? "Your booked meeting stays in place. " : ""}Tell Thyme what you want to change.</p> : null}
-              <MeetingActions bookingId={bookingId} mode={actionMode} revision={view.request.revision} standingBooking={view.booking?.state === "confirmed"} />
-            </>
+            <MeetingActions bookingId={bookingId} mode={actionMode} revision={view.request.revision} standingBooking={view.booking?.state === "confirmed"} />
           ) : null}
           entries={entries}
           onError={onError}
