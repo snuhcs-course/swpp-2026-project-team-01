@@ -187,6 +187,39 @@ Photon and eve documentation for the iMessage channel. Phase 6 relied on the Spe
 - [eve Photon channel](https://eve.dev/docs/channels/photon): eve's native `photonIMessageChannel`, which [`host-imessage-channel` design 1](../../openspec/changes/archive/2026-11-24-host-imessage-channel/design.md#1-the-transport-spike-and-the-adapter) (D1) did not adopt.
 - [Photon documentation index](https://photon.codes/docs/llms.txt) and [Photon site index](https://photon.codes/llms.txt): machine-readable lists of every documentation page, including [webhook events](https://photon.codes/docs/webhooks/events.md) and [iMessage deliverability](https://photon.codes/docs/best-practices/imessage-deliverability).
 
+## Photon SMS
+
+SMS is specified by the [`sms-channel` change](../../openspec/changes/sms-channel/proposal.md) and is not built yet. It runs on Photon's Beta (2.0) API at `https://api.photon.codes/v1`, not on the Spectrum host `spectrum.photon.codes` that iMessage and WhatsApp use. The Beta project is `FineMeatime` (`pho_prj_01m6h26pn8fap8znkf4rc98v53`), in the Beta dashboard at `app.beta.photon.codes`. The API's OpenAPI document is `https://api.photon.codes/openapi.json`.
+
+### Spike, 2026-11-26
+
+Tasks 1.3 and 1.4 of `sms-channel`, run with the project API key `sms-spike` (30 days; `project:read`, `project:write`, `messages:read`, `platforms:read`) against the real API. The key lives in an ignored local file and is not in any env var.
+
+**Number.** The project already owns one US local number, `+1 415-718-0442` (resource `pho_res_01m6h2cxvfe07r4n27r9bwzzgt`, type `voip_line`, abilities `sms` and `pstn_voice`, active since 2026-11-03). No number was bought. Photon sells US numbers only (`countryCode` is the constant `US`).
+
+**10DLC state.** `GET /v1/projects/{id}/platforms/sms/lines/{resourceId}/campaign` answers `campaign: null`, `eligibility: "blocked"`, `reasonCode: "SMS_CAMPAIGN_NOT_ASSIGNED"`. The brand "Find Me A Time" (Personal, sole proprietor) is verified. No campaign had been submitted as of this spike. Once a campaign is approved it is assigned to the line with `PUT …/sms/lines/{resourceId}/campaign`.
+
+**Sending.** Sending takes three calls, each with an `Idempotency-Key` header:
+1. `POST /v1/projects/{id}/users` with `{ "platform": "sms", "handle": "<E.164>" }`. It creates or gets a user. For our own number it returns `kind: "agent"` with `details.resourceId`. For a person it returns `kind: "human"` with a carrier lookup in `details`: `countryCode`, `nationalFormat`, and `carrier` (`name`, `lineType`, `mobileCountryCode`, `mobileNetworkCode`).
+2. `POST /v1/projects/{id}/spaces` with `{ "platform": "sms", "participantIds": [agent, human] }`. It returns a `direct` space, and repeat calls converge on the same space for the same participants.
+3. `POST /v1/projects/{id}/messages` with `{ spaceId, senderId: <agent user>, content: { type: "text", format: "plain", text } }`. It needs `project:write`.
+
+The project API key carries `project:write`. There is no `messages:write` permission.
+
+**Result before a campaign.** A send to a Korean (`+82`) mobile number was refused with `409` and problem code `SMS_CAMPAIGN_NOT_ELIGIBLE` ("The sender campaign is not eligible for these recipients"). The API documents the rule: "campaign eligibility is required unless every recipient is in-network". It does not define "in-network". Photon's SMS platform describes itself as "Carrier text messaging to US mobile numbers". Whether `+82` becomes sendable once a US campaign is approved is still open: retest after approval.
+
+**Inbound before a campaign.** The user texted the number from a Korean and from a US mobile. Neither text appeared in `GET /v1/projects/{id}/messages`, with or without `platform=sms`, `resourceId` or a `createdSince` filter. Inbound SMS does not reach the project while the line is blocked; this is inferred from that absence, since there is no error to read.
+
+**Webhook events.** `GET …/webhooks/event-types?apiVersion=2026-07-01` lists `message.received`, `message.accepted`, `message.dispatched`, `message.delivered`, `message.failed`, `space.updated`, `space.typing.updated`, `platform.connection.status.changed`, `platform.sending.paused` and `platform.sending.resumed`, besides call and external-webhook events. Delivery outcomes therefore arrive as events. The `message.received` schema has an SMS variant, with the same fields as the other platforms:
+- `id`, `platform: "sms"`, `status`;
+- `sentBy` and `receivedBy`, users with `id`, `handle` (E.164), `kind` and `details`;
+- `space`, with `id`, `kind` (`direct` or group) and `participantIds`;
+- `content`, `timestamps`, `acceptance` and `failure`.
+
+Destinations are signed with Standard Webhooks.
+
+**Still open, retest once a campaign is approved and assigned:** inbound arrival and its event, STOP/HELP/START forwarding, delivery to `+82`, the problem code for an opted-out recipient, and per-message price.
+
 ## WhatsApp Business
 
 WhatsApp Business is the host WhatsApp channel's transport. It was proposed on 2026-11-02 in the [`host-whatsapp-channel` change](../../openspec/changes/archive/2026-11-24-host-whatsapp-channel/proposal.md#decisions) and implemented on 2026-11-03 against the loopback stand-in (`PHOTON_API_URL` answers WhatsApp at `/whatsapp/messages`); no real WhatsApp message has been sent or received. It runs through Photon Spectrum's `whatsapp_business` platform on the same Photon project as iMessage (`findmeatime`), where the user enabled it on 2026-11-02. Photon delivers WhatsApp events to the same webhook, `https://findmeatime.com/photon/webhook`, with the same signature. The receiver checks the signature once and routes by platform (D2). Before this change the iMessage receiver acknowledged and ignored them (issue #62, PR #63); it still does, and WhatsApp events now reach the WhatsApp parser after it. Outbound messages use `@spectrum-ts/whatsapp-business` 12.14.0 in cloud mode with the existing `PHOTON_PROJECT_ID` and `PHOTON_PROJECT_SECRET`, so Photon holds the Meta credentials (D1). The sender is the WhatsApp contact ID, the international number as digits without `+` (D3).

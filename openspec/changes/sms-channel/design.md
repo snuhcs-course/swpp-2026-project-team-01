@@ -11,7 +11,13 @@ What Photon documents for SMS, read on 2026-11-26 from its Beta (2.0) docs, is t
 - Photon answers HELP, START and STOP (the 10DLC campaign form says so). What it does next is not documented: whether it blocks later sends or forwards the keyword.
 - Nothing is said about recipients outside the US, segment size or SMS rate limits.
 
-Task group 1 is therefore a spike against a real number. It fixes these unknowns before any other code; the specs do not depend on the unknown field names.
+The spike of 2026-11-26 ([provider setup, Photon SMS](../../../documentations/technical_specification/03_provider_setup.md#photon-sms)) settled part of this:
+- A send takes three calls: create or get the SMS users (our line is an `agent` user, the person a `human` user with a carrier lookup), create or get the `direct` space, then send.
+- Delivery outcomes arrive as `message.delivered` and `message.failed` webhook events.
+- `message.received` has an SMS variant with the same fields as the other platforms.
+- Until a 10DLC campaign is assigned, the line is `blocked` (`SMS_CAMPAIGN_NOT_ASSIGNED`): a send to `+82` got `409 SMS_CAMPAIGN_NOT_ELIGIBLE`, and texts from a Korean and a US phone never reached the project.
+
+Inbound shape on a live line, STOP forwarding and `+82` delivery after approval are still open. Task group 1 therefore keeps a spike against a real number. It fixes these unknowns before any other code; the specs do not depend on the unknown field names.
 
 ## Goals / Non-Goals
 

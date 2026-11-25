@@ -4,8 +4,8 @@
 
 - [ ] 1.1 Get a teammate's review of D1–D15 and the modified requirements, and record the outcome in the decision log's "SMS channel scope" section (verify: the section names the reviewer and date).
 - [ ] 1.2 Confirm PR #492 (#488 consent checkbox, `smsConsent`, policy clauses) is merged to `main` before task group 5 (verify: `git log origin/main` contains it).
-- [ ] 1.3 With the user's approval, buy a Photon SMS number, create a project API key and a Beta webhook destination, then send and receive one SMS on a real phone. Record in provider setup: the send endpoint and body, the inbound event type, `platform` value and sender/space fields, and whether STOP/HELP/START reach the webhook. If SMS arrives on the Spectrum webhook instead, revise the specs as design section 2 says before task group 3 (verify: the provider setup "Photon SMS" section lists each fact with the date seen).
-- [ ] 1.4 In the same spike, send to a `+82` number and to an opted-out number, and record each problem `code` and status (verify: the codes appear in provider setup and in the D10 mapping).
+- [ ] 1.3 With the user's approval, buy a Photon SMS number, create a project API key and a Beta webhook destination, then send and receive one SMS on a real phone. Record in provider setup: the send endpoint and body, the inbound event type, `platform` value and sender/space fields, and whether STOP/HELP/START reach the webhook. If SMS arrives on the Spectrum webhook instead, revise the specs as design section 2 says before task group 3 (verify: the provider setup "Photon SMS" section lists each fact with the date seen). Status 2026-11-26: the send path, users, spaces and event types are recorded. Inbound, STOP and delivery wait for an approved campaign assigned to the line.
+- [ ] 1.4 In the same spike, send to a `+82` number and to an opted-out number, and record each problem `code` and status (verify: the codes appear in provider setup and in the D10 mapping). Status 2026-11-26: before a campaign, `+82` got `409 SMS_CAMPAIGN_NOT_ELIGIBLE`; retest after approval.
 
 ## 2. Records and contracts
 
