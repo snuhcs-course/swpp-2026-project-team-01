@@ -82,6 +82,9 @@ const en = {
     },
     tagline: "Thoughtful scheduling. One meeting at a time.",
     rights: "All rights reserved.",
+    // Who runs the service and how to reach them, which Photon's 10DLC brand-website check looks for (#488).
+    operator: "Run by SNU SWPP 2026 Team 01. Contact",
+    contact: "support@findmeatime.com",
     privacy: "Privacy and your data",
     terms: "Terms of service",
     legal: "Privacy and terms",
@@ -189,6 +192,12 @@ const en = {
     errorServer: "Couldn't register this number. Try again in a moment.",
     submit: "Next",
     fine: "Thyme uses this number only to recognize your messages. iMessage only for now.",
+    // The optional SMS consent for the Photon 10DLC campaign (#488); keep it word for word with the campaign.
+    smsConsent:
+      "By checking this box, you agree to receive meeting notifications and assistant replies by text from Find Me a Time. Message frequency may vary. Message and data rates may apply. Reply STOP to opt out. Reply HELP for help. We will not share mobile information with third parties for promotional or marketing purposes.",
+    privacyLink: "Privacy Policy",
+    termsLink: "Terms",
+    and: "and",
   },
   link: {
     heading: "Connect Thyme to your iMessage",

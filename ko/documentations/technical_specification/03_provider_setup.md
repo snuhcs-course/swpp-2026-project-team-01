@@ -180,6 +180,19 @@ Photon의 전달 가능성 안내에 따라 인바운드 우선이 기본값입�
 
 Photon의 [전달 가능성 안내](https://photon.codes/docs/best-practices/imessage-deliverability.md)에 따라 연결 직후 환영 메시지 뒤에 보류해 연락처 카드를 한 번 공유하고, 다시 공유할 수 있도록 호스트 동작으로서 선택적인 **연락처에 추가(Add to contacts)**를 제공합니다. 각각은 Spectrum SDK를 통해 네이티브 연락처 카드 공유 하나를 대기열에 넣습니다([`host-imessage-channel` 설계 11과 18](../../openspec/changes/archive/2026-11-24-host-imessage-channel/design.md#18-read-marks-typing-tapbacks-and-the-contact-card-after-linking-d20d22)). 읽음 표시, 입력 중 말풍선, 감사 탭백은 같은 SDK를 통해 최선 노력 방식의 발신함 신호(`space.read`, `space.startTyping`, `message.react`)로 전달됩니다. 실제로 선택된 경로를 고정하고, 공급자의 수락/불확실성을 사실대로 보고합니다. 저장 여부는 수신자가 선택하며, 제품은 표시되는 이름을 약속하거나 연락처 카드로부터 신원/동의를 추론할 수 없습니다. 지원한다고 주장하기 전에 실제 계정 프로필과 실제 디바이스에서의 표시를 각각 독립적으로 검증합니다.
 
+### SMS와 10DLC 캠페인
+
+사용자는 2026-11-25에 Beta 대시보드에서 Photon의 10DLC SMS 캠페인 등록을 시작했으며, 사용 사례는 **Account notifications**와 **Customer support**이고 제출한 뒤에는 변경할 수 없습니다. 2026-11-26에 사용자가 SMS 채널을 다시 범위에 넣었으며([#489](https://github.com/snuhcs-course/swpp-2026-project-team-01/issues/489), [#90](https://github.com/snuhcs-course/swpp-2026-project-team-01/issues/90)의 결정을 뒤집음), 채널 자체는 별도의 OpenSpec 변경으로 도입되고 그때까지 SMS는 보내지 않습니다. [#488](https://github.com/snuhcs-course/swpp-2026-project-team-01/issues/488)은 통신사가 검토하는 공개 페이지를 Photon의 [opt-in form](https://photon.codes/docs/beta/messaging/sms/10dlc/opt-in-form.md), [privacy policy](https://photon.codes/docs/beta/messaging/sms/10dlc/privacy-policy.md), [rejection codes](https://photon.codes/docs/beta/messaging/sms/10dlc/rejection-codes.md) 페이지(2026-11-26에 확인)에 따라 준비했습니다.
+
+- **수신 동의 양식(803, 806).** 모든 번호 입력란(`NumberForm`: `/app`의 연결 단계, 랜딩의 iMessage 및 WhatsApp 시작, Connect iMessage 카드, 게스트의 **Get updates**)은 기본적으로 해제되어 있고 필수가 아닌 별도의 SMS 동의 체크박스를 하나 제공하며, 캠페인의 동의 문구를 그대로 싣고 `/privacy-policy`와 `/terms-of-service`로 연결합니다. 캠페인의 **How people opt in and out** 항목에 쓰는 공개 수신 동의 경로는 랜딩의 **Onboard with iMessage**인 `https://findmeatime.com/?flow=imessage`이며, 로그인 전에 양식을 보여 줍니다. 동의 문구나 사용 사례가 바뀌면 캠페인, 양식, 두 정책 페이지를 함께 바꿉니다.
+- **선택은 아직 저장되지 않습니다.** 양식은 선택을 제출 핸들러에 넘기지만 어떤 연결 경로도 이를 기록하지 않습니다. 연결 시도는 입력한 번호를 보관하지 않으므로([공유 회선과 등록된 사용자](#shared-lines-and-registered-users) 참고) 동의 행이 귀속될 번호가 없기 때문입니다. SMS 채널의 변경은 첫 문자 전에 번호, 동의, 동의 시각, 동의 문구의 버전을 저장해야 하고, 그 전에 연결된 번호는 동의하지 않은 것으로 취급해야 합니다. Photon의 양식 페이지는 양식이 동의를 기록해야 한다고 하므로, 캠페인 검토 때 질문이 있으면 이 점을 언급합니다.
+- **개인정보 처리방침(805, 852).** `/privacy`(그리고 같은 고지를 제공하는 `/privacy-policy`)에는 **Text messages (SMS)** 섹션이 있으며 "Mobile information will not be sold or shared with third parties for promotional or marketing purposes."(모바일 정보는 판촉 또는 마케팅 목적으로 제3자에게 판매되거나 공유되지 않습니다)라고 명시하고, SMS 수신 동의 정보와 동의 내역은 문자를 전달하는 공급자를 제외한 모든 다른 공유에서 제외합니다.
+- **이용약관(806).** `/terms-of-service`에는 **Text messages (SMS)** 섹션이 있으며 발송 내용, 메시지 빈도, 메시지 및 데이터 요금, STOP으로 답장하여 수신 거부, HELP 또는 `support@findmeatime.com`으로 도움 요청, 통신사의 책임 면제 문구를 담습니다.
+- **브랜드 웹사이트(804, 807).** 랜딩의 푸터에 사업자 이름, 운영 주체(SNU SWPP 2026 Team 01), `support@findmeatime.com`을 표시합니다.
+- **키워드 답장.** `lib/server/imessage-commands.ts`는 이미 iMessage, WhatsApp, Telegram에서 `stop`과 `help`에 답합니다. SMS에서 Photon이 캠페인의 키워드 응답으로 STOP, HELP, START에 답하는지는 문서화되어 있지 않으므로, 문자 한 통에 답장이 두 번 가지 않도록 SMS 변경에서 확정합니다.
+
+아직 남은 운영자 단계: 캠페인의 수신 동의 항목에 쓸 체크박스가 보이는 양식의 공개 스크린샷, 그리고 캠페인 재제출. 사용자의 승인 없이 에이전트 세션에서 Photon 프로젝트, 회선, 캠페인을 변경하지 않습니다.
+
 ### 참고 자료
 
 iMessage 채널에 관한 Photon과 eve 문서입니다. 6단계는 Spectrum SDK, eve에 포함된 어댑터, Photon의 웹훅 문서를 기준으로 삼았으며 아래 처음 세 페이지는 읽지 않았습니다. 다섯 가지 모두를 기준으로 채널을 검토하는 일이 [issue #80](https://github.com/snuhcs-course/swpp-2026-project-team-01/issues/80)입니다.
