@@ -133,7 +133,7 @@ for (const viewport of [
     await expect(page).toHaveURL(/\/booking\/[0-9a-f-]{36}$/);
     await expect(page.getByText("Google filled in your name and email.")).toBeVisible();
     await expect(page.locator('[data-guest-card="identity"]').getByText("Continued with Google")).toBeVisible();
-    await press(page, /^Request details$/);
+    await press(page, /^View request details$/);
     await expect(page.getByRole("complementary", { name: "Request with Ada Lovelace" }).getByText(`Grace Hopper · ${email}`)).toBeVisible();
     await press(page, /^Close details$/);
     const [identified] = await db<{ id: string; state: string; requester_name: string; contact_email: string }[]>`select id, state, requester_name, contact_email from app.requests where host_account_id = ${host.hostAccountId}`;

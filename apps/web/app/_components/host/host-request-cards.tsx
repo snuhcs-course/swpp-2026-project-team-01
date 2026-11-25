@@ -12,6 +12,7 @@ import { Receipt } from "@/app/_components/booking-receipt";
 import { GuestCard, GuestCardActions } from "@/app/_components/guest/guest-card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { cn } from "@/lib/utils";
 
 // The host's decision cards for one request (host-review-and-booking design 3,
 // 4, 8 and 10; DESIGN.md: conversation card and proposal card): the proposal
@@ -66,6 +67,17 @@ function StatusLine({ message }: { readonly message: string | null }) {
   return (
     <div aria-live="polite" role="status">
       {message ? <p className="text-destructive">{message}</p> : null}
+    </div>
+  );
+}
+
+// Size actions against their column, including when the calendar is beside it.
+function HostRequestActions({ children, className }: { readonly children: ReactNode; readonly className?: string }) {
+  return (
+    <div className="@container">
+      <div className={cn("flex items-center gap-2.5 [&>button]:min-w-0 [&>button]:px-[clamp(0.25rem,1.5cqw,0.875rem)] [&>button]:text-[clamp(0.5625rem,3.6cqw,0.875rem)]", className)}>
+        {children}
+      </div>
     </div>
   );
 }
@@ -183,20 +195,22 @@ export function ProposalReviewCard({ context, onRequestChanges }: { readonly con
           </GuestCardActions>
         </div>
       ) : (
-        <div className="border-t border-border pt-4"><GuestCardActions>
-          {times ? null : (
-            <Button disabled={busy || !awaiting} onClick={() => view.sample ? void act("tutorial.finish", { action: "approve", version: proposal.version }) : void act("request.approve", { version: proposal.version })} type="button">
-              Approve this proposal
+        <div className="flex flex-col gap-2.5 border-t border-border pt-4">
+          <HostRequestActions>
+            {times ? null : (
+              <Button disabled={busy || !awaiting} onClick={() => view.sample ? void act("tutorial.finish", { action: "approve", version: proposal.version }) : void act("request.approve", { version: proposal.version })} type="button">
+                Approve this proposal
+              </Button>
+            )}
+            <Button disabled={busy} onClick={view.sample ? () => void act("tutorial.finish", { action: "change" }) : onRequestChanges} type="button" variant="outline">
+              Request changes
             </Button>
-          )}
-          <Button disabled={busy} onClick={view.sample ? () => void act("tutorial.finish", { action: "change" }) : onRequestChanges} type="button" variant="outline">
-            Request changes
-          </Button>
-          <Button disabled={busy} onClick={() => view.sample ? void act("tutorial.finish", { action: "decline" }) : setConfirmDecline(true)} type="button" variant="ghost">
-            Decline
-          </Button>
-          {view.sample ? <Button disabled={busy} onClick={() => void act("tutorial.finish", { action: "end" })} type="button" variant="ghost">End tutorial</Button> : null}
-        </GuestCardActions></div>
+            <Button className="border border-primary! bg-card text-primary hover:bg-secondary" disabled={busy} onClick={() => view.sample ? void act("tutorial.finish", { action: "decline" }) : setConfirmDecline(true)} type="button" variant="ghost">
+              Decline
+            </Button>
+          </HostRequestActions>
+          {view.sample ? <Button className="self-start" disabled={busy} onClick={() => void act("tutorial.finish", { action: "end" })} type="button" variant="ghost">End tutorial</Button> : null}
+        </div>
       )}
       <StatusLine message={error} />
     </section>
@@ -713,28 +727,26 @@ export function BookingCard({ context, onRequestChanges }: { readonly context: H
           </GuestCardActions>
         </div>
       ) : null}
-      <GuestCardActions>
+      {booking.state !== "confirmed" && booking.state !== "cancelled" ? <GuestCardActions>
         {retry ? (
           <Button disabled={busy} onClick={() => void act("request.approve", { version: view.proposal!.version })} type="button">
             Retry booking
           </Button>
         ) : null}
-        {booking.state === "confirmed" || booking.state === "cancelled" ? null : (
-          <Button disabled={busy} onClick={() => void act("booking.check", {}, null)} type="button" variant="outline">
-            Check booking status
+        <Button disabled={busy} onClick={() => void act("booking.check", {}, null)} type="button" variant="outline">
+          Check booking status
+        </Button>
+      </GuestCardActions> : null}
+      {cancellable && !confirmCancel ? (
+        <HostRequestActions className="[&>button]:text-[clamp(0.625rem,5cqw,0.875rem)]">
+          <Button disabled={busy} onClick={() => void change()} type="button">
+            Change meeting
           </Button>
-        )}
-        {cancellable && !confirmCancel ? (
-          <>
-            <Button disabled={busy} onClick={() => void change()} type="button" variant="outline">
-              Change meeting
-            </Button>
-            <Button disabled={busy} onClick={() => setConfirmCancel(true)} type="button" variant="ghost">
-              Cancel meeting
-            </Button>
-          </>
-        ) : null}
-      </GuestCardActions>
+          <Button className="border border-primary! bg-card text-primary hover:bg-secondary" disabled={busy} onClick={() => setConfirmCancel(true)} type="button" variant="ghost">
+            Cancel meeting
+          </Button>
+        </HostRequestActions>
+      ) : null}
       <StatusLine message={error} />
     </GuestCard>
   );

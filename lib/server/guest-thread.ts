@@ -81,6 +81,7 @@ type RequestRow = {
   purpose: string | null;
   requester_name: string | null;
   state: RequestState;
+  updated_at: Date;
 };
 
 export type ThreadCurrent = {
@@ -111,7 +112,7 @@ export function currentStep(
 
 export async function readGuestThread(db: Queryable, requestId: string, current: ThreadCurrent): Promise<ThreadCard[]> {
   const [request] = await db<RequestRow[]>`
-    select r.state, r.created_at, r.identity_requested_at, r.identified_at, r.calendar_settled_at,
+    select r.state, r.created_at, r.updated_at, r.identity_requested_at, r.identified_at, r.calendar_settled_at,
            r.requester_name, r.contact_email, r.details ->> 'purpose' as purpose,
            (select max(resolved_at) from app.request_reviews where request_id = r.id and state = 'applied') as latest_applied,
            (select max(created_at) from app.evaluations where request_id = r.id) as latest_evaluation,
@@ -242,7 +243,10 @@ export async function readGuestThread(db: Queryable, requestId: string, current:
   }
 
   if (step === "times" && !current.evaluationId) {
-    const after = [identifiedAt, request.latest_applied, request.latest_evaluation, request.calendar_settled_at].filter(
+    // Reopening an agreement or changing details invalidates the evaluation.
+    // Anchor the new Find times card to that change, not the old search; use
+    // the persisted revision time so reloads keep the same thread position.
+    const after = [identifiedAt, request.updated_at, request.latest_applied, request.latest_evaluation, request.calendar_settled_at].filter(
       (date): date is Date => date !== null,
     );
     cards.push({

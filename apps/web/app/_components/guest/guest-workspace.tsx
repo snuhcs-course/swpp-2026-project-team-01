@@ -40,7 +40,7 @@ import { MeetingActions, type MeetingActionMode } from "./meeting-actions";
 import { AuthoredMessages } from "@/app/_components/setup/authored-messages";
 import { CALENDAR_REOPENED, guestComposerState } from "./composer-state";
 import { GuestFrame, openingMessages, RequestPanel } from "./guest-frame";
-import { TimezoneLine, useGuestTimezone } from "./timezone";
+import { useGuestTimezone } from "./timezone";
 
 // The guest workspace on the booking page (design decisions 2 and 12;
 // guest-flow-completion U13): one conversation with Thyme for an identified
@@ -236,18 +236,7 @@ export function GuestWorkspace({
     ...(meetingDetails.preferredWeeklyWindows?.length ? { preferredWeeklyWindows: meetingDetails.preferredWeeklyWindows } : {}),
   };
   const aside = (
-    <RequestPanel
-      host={host}
-      note={
-        <>
-          This conversation is private to you: anyone with its link can act on this request, so keep the link to yourself.{" "}
-          <a className="underline underline-offset-4" href="/privacy">
-            How we handle your data
-          </a>
-        </>
-      }
-      timezone={<TimezoneLine onChoose={timezone.choose} zone={timezone.zone} />}
-    >
+    <RequestPanel host={host}>
       <RequestGrantAction bookingId={bookingId} />
       {hasMeetingDetails ? <section className="flex flex-col gap-2 py-2"><h3 className="font-semibold">Meeting details</h3><MeetingDetailsList patch={meetingPatch} timeZone={timezone.zone} preferenceTimezone={meetingDetails.timezone} contact={view.contact} /></section> : null}
       {context && view.request.state !== "awaiting_host_approval" ? <ImessageUpdates context={context} onlyLinked /> : null}
@@ -552,7 +541,11 @@ export function threadEntries(
     }
   }
 
-  return { entries, panel };
+  // The conversation keeps its history; the details panel shows only the
+  // latest selected or agreed time, without repeating earlier versions.
+  const isTime = (entry: ThreadEntry) => entry.id.startsWith("times:") || entry.id.startsWith("proposal:");
+  const latestTime = panel.filter(isTime).sort((a, b) => a.at.localeCompare(b.at)).at(-1);
+  return { entries, panel: panel.filter((entry) => !isTime(entry) || entry === latestTime) };
 }
 
 function RequestGrantAction({ bookingId }: { readonly bookingId: string }) {

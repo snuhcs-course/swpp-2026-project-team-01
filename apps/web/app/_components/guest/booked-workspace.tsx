@@ -72,18 +72,7 @@ export function BookedWorkspace({
   );
 
   const aside = (
-    <RequestPanel
-      host={host}
-      note={
-        <>
-          This conversation is private to you: anyone with its link can act on this meeting, so keep the link to yourself.{" "}
-          <a className="underline underline-offset-4" href="/privacy">
-            How we handle your data
-          </a>
-        </>
-      }
-      timezone={<p className="px-1 text-sm text-muted-foreground">Times are shown in {timezone}.</p>}
-    >
+    <RequestPanel host={host}>
       {receipt ? (
         <section aria-label="Booking" className="flex flex-col gap-2 py-2 text-sm">
           <Receipt receipt={receipt} timeZone={timezone} />
