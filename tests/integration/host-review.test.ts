@@ -23,7 +23,7 @@ import { createTestRequest } from "./support/requests";
 // (remove-host-web-chat), so a browser cannot open or read this discussion.
 
 const isApplicationTool = (name: string) => !name.includes("__");
-const HOST_REVIEW_TOOLS = ["allow_host_trip", "approve_proposal", "ask_guest", "cancel_booking", "change_booking", "change_settings", "decline_request", "dismiss_changes", "evaluate_candidates", "finish_sample_tutorial", "list_host_requests", "propose_shared_changes", "read_booking_status", "read_request", "read_settings", "share_changes", "start_request", "switch_conversation", "waive_weekly_limit"];
+const HOST_REVIEW_TOOLS = ["allow_host_trip", "approve_proposal", "ask_guest", "cancel_booking", "change_booking", "change_settings", "decline_request", "disconnect_google_calendar", "dismiss_changes", "evaluate_candidates", "finish_sample_tutorial", "list_host_requests", "propose_shared_changes", "read_booking_status", "read_request", "read_settings", "set_request_intake", "share_changes", "start_request", "switch_conversation", "waive_weekly_limit"];
 
 const db = testDatabase();
 let fake: FakeOpenAI;
