@@ -60,10 +60,11 @@ The user who suggested the idea answered these questions. They are the user's ch
 | Do numbered answers in the group count, and are they labelled? | They count, with no "unverified" label. Only the organizer can book, so a forged answer can sway the count but cannot book anything |
 | Who gets a Google invitation? (was Q5) | Members who left an email on the poll page |
 | A member who has already connected: can they skip the question? (was Q4) | Yes, for existing hosts and for members of past groups. The bot cannot see members' KakaoTalk IDs, so it cannot skip anyone in the room itself. Once a member opens the link and signs in with Google, an existing host's conflict calendars, or a past member's remembered connection, are used with no new calendar step |
-| When are the numbered times posted? (was Q3, so Q3 to Q7 are left unused below) | As soon as the number of members the organizer expects have connected or ticked, or when the organizer asks, or after 24 hours at the latest |
+| When are the numbered times posted? (was Q3, so Q3 to Q8 are left unused below) | As soon as the number of members the organizer expects have connected or ticked, or when the organizer asks, or after 24 hours at the latest |
 | How many candidate times? | Five, as drafted |
 | Should an unbooked group close on its own? (was Q6) | No. It stays open until it is booked, the organizer cancels, or someone sends `stop` |
 | Telegram groups too? (was Q7) | Later. This change covers KakaoTalk only; Telegram groups, where the bot sees invitations and stable member IDs, are left for a follow-up change |
+| How long is a past member's connection remembered? (was Q8) | 180 days after their last group request closes, or until **Forget me** |
 
 ## Unresolved decisions for the team
 
@@ -71,7 +72,6 @@ The user who suggested the idea answered these questions. They are the user's ch
 |---|---|---|
 | Q1 | Does the team want group scheduling at all? The PRD lists "group scheduling, internal team coordination" outside the initial release | Changing it is a product scope decision, and only the team can make it. Without a yes, this change stays a draft |
 | Q2 | Does `host-kakaotalk-channel` land, and does its Q3 get the answer "yes, through an organizer's code"? | This change rests on the relay phone, its terms-of-service risk (that change's Q1) and its reply path |
-| Q8 | How long is a past member's Google connection remembered when they stop using it? This draft says 180 days after their last group request closes | Remembering is what lets them skip the question, but it keeps a calendar grant for a person with no account |
 | Q9 | Is the `Person.key` of a KakaoTalk group notification a stable per-member value? | If it is, the bot could tell members apart in the chat. It still could not link them to a Google sign-in without asking each member once |
 
 ## Conflicts with current documents
@@ -84,7 +84,7 @@ These conflicts are open on purpose. None of them is resolved by this draft.
 | PRD FR-26, FR-37, FR-40, AC-17, AC-33 | Group conversations cannot retrieve host-only details or act as the host | Still true here: a group gets no host-only details and cannot act. What changes is that a group can now *receive* candidate times and confirmations. The FR and AC text needs that distinction |
 | [`host-imessage-channel`](../../specs/host-imessage-channel/spec.md) "No session for unlinked or group senders" | Group conversations get nothing | Unchanged for iMessage. Only an activated KakaoTalk room is handled, and only by the rules in this change |
 | `host-kakaotalk-channel` (unmerged) D3 | Group and open-chat text never leaves the relay phone | Kept for every room that is not activated. An activated room's text is forwarded for parsing (D5) |
-| [`requester-calendar-access`](../../specs/requester-calendar-access/spec.md) "Request-bound grant lifetime" | A requester's Google grant is used for its own request only and ends with it | A group member's grant is remembered across group requests until they press **Forget me** or stop using it (Q8). It is still read-only and busy-only |
+| [`requester-calendar-access`](../../specs/requester-calendar-access/spec.md) "Request-bound grant lifetime" | A requester's Google grant is used for its own request only and ends with it | A group member's grant is remembered across group requests until they press **Forget me** or 180 days after their last group request closes. It is still read-only and busy-only |
 | [`calendar-booking`](../../specs/calendar-booking/spec.md) "Host-owned event with stable identity" | The requester is the only attendee | A group booking has zero or more member attendees: those who left an email |
 | [`meeting-requests`](../../specs/meeting-requests/spec.md) | A request has one requester, one guest conversation and one agreement | A group request has many answering members and no single agreement. This draft makes it a separate record type instead of stretching the request model |
 

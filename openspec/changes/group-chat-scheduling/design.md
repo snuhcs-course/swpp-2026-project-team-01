@@ -73,7 +73,7 @@ The user chose on 2026-11-26 that everyone connects Google Calendar from one lin
 - **An existing host's** conflict calendars, as saved in their setup, are used with no new calendar step.
 - **A member of a past group** who connected Google is remembered. Their grant is reused with no new consent screen.
 
-The page shows which calendars count, and offers **Don't use my calendar** for this group and **Forget me**, which deletes the remembered grant and identity. A remembered member grant is deleted 180 days after the member's last group request closes (Q8). A remembered member is not a host and gets no `/app` workspace.
+The page shows which calendars count, and offers **Don't use my calendar** for this group and **Forget me**, which deletes the remembered grant and identity. A remembered member grant is deleted 180 days after the member's last group request closes (user, 2026-11-26). A remembered member is not a host and gets no `/app` workspace.
 
 **Finding candidates.** The service runs the organizer's feasibility over the date range. It treats every connected member's busy times as busy for the meeting. When every candidate would be removed, it keeps the times that the most connected members can attend instead. That way one very busy member does not empty the list. Up to five candidates are picked, spread across the range, as in "Offered times spread across the range". For an in-person meeting, each candidate is paired with one of the organizer's confirmed places, as in "Time and place pairs".
 
