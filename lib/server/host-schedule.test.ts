@@ -94,6 +94,7 @@ describe("schedule for the model", () => {
     ],
     googleWarning: null,
     timeZone: zone,
+    weeklyWindows: [],
   };
 
   it("labels each entry by where it comes from, with local times, weeks and quoted text", () => {
@@ -122,13 +123,13 @@ describe("schedule for the model", () => {
   it("puts an all-day Sunday in its own week in a zone far ahead of UTC", () => {
     const kiritimati = "Pacific/Kiritimati";
     const sunday = event({ allDay: true, end: "2026-11-30", id: "google:s", start: "2026-11-29", title: "Hike" });
-    const schedule = scheduleForModel({ events: [sunday], googleWarning: null, timeZone: kiritimati }, { from: "2026-11-23", last: "2026-11-29" }, new Date("2026-11-23T01:00:00.000Z"));
+    const schedule = scheduleForModel({ events: [sunday], googleWarning: null, timeZone: kiritimati, weeklyWindows: [] }, { from: "2026-11-23", last: "2026-11-29" }, new Date("2026-11-23T01:00:00.000Z"));
     expect(schedule.entries[0]).toMatchObject({ date: "2026-11-29", week: "this_week" });
     expect(schedule.entries[0]).not.toHaveProperty("lastDate");
   });
 
   it("says when Google Calendar could not be read", () => {
-    const schedule = scheduleForModel({ events: [], googleWarning: "Reconnect Google Calendar.", timeZone: zone }, { from: "2026-11-23", last: "2026-11-23" }, now);
+    const schedule = scheduleForModel({ events: [], googleWarning: "Reconnect Google Calendar.", timeZone: zone, weeklyWindows: [] }, { from: "2026-11-23", last: "2026-11-23" }, now);
     expect(schedule.googleCalendar).toBe("unavailable");
     expect(schedule.entries).toEqual([]);
     expect(schedule.replyNote).toContain("Google Calendar could not be read");
@@ -136,7 +137,7 @@ describe("schedule for the model", () => {
 });
 
 describe("schedule image data", () => {
-  const data = (events: DashboardEvent[], googleWarning: string | null = null): DashboardData => ({ events, googleWarning, timeZone: zone });
+  const data = (events: DashboardEvent[], googleWarning: string | null = null): DashboardData => ({ events, googleWarning, timeZone: zone, weeklyWindows: [] });
   const week = { from: "2026-11-23", last: "2026-11-29" };
 
   it("lays the week out by local day with each entry's kind", () => {

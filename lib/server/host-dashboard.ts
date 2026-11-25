@@ -1,6 +1,8 @@
+import { z } from "zod";
 import { readCalendarRoles } from "./calendar-roles";
 import { bookingJoinUrl } from "../contracts/booking";
 import type { LinkPlan, RequestState } from "../contracts/request";
+import { weeklyWindowSchema, type WeeklyWindow } from "../contracts/setup";
 import type { Queryable } from "./database";
 import { CalendarAccessError, openHostCalendar, type GoogleCalendarDependencies } from "./google-calendar";
 
@@ -38,8 +40,12 @@ export type BookedMeeting = {
 export type DashboardData = {
   readonly events: DashboardEvent[];
   readonly timeZone: string;
+  // The host's confirmed weekly hours, so the week grid covers every open hour.
+  readonly weeklyWindows: readonly WeeklyWindow[];
   readonly googleWarning: string | null;
 };
+
+const weeklyWindowsSchema = z.array(weeklyWindowSchema);
 
 export type BookingRow = {
   id: string;
@@ -130,8 +136,8 @@ export async function readHostDashboard(
   hostAccountId: string,
   range: { start: Date; end: Date },
 ): Promise<DashboardData> {
-  const [settings] = await db<{ time_zone: string | null }[]>`
-    select settings ->> 'timezone' as time_zone
+  const [settings] = await db<{ time_zone: string | null; weekly_windows: unknown }[]>`
+    select settings ->> 'timezone' as time_zone, settings -> 'weeklyWindows' as weekly_windows
     from app.host_settings where host_account_id = ${hostAccountId}
   `;
   const bookings = await db<BookingRow[]>`
@@ -233,6 +239,7 @@ export async function readHostDashboard(
   return {
     events: events.sort((a, b) => a.start.localeCompare(b.start)),
     timeZone: settings?.time_zone || "UTC",
+    weeklyWindows: weeklyWindowsSchema.safeParse(settings?.weekly_windows).data ?? [],
     googleWarning,
   };
 }
