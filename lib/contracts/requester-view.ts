@@ -118,6 +118,8 @@ export type OpenRequesterView = {
   // sharing a change after the latest agreement, or the requester with Change
   // (guest-flow-completion D10). Null while nothing reopened it.
   readonly reopenedBy?: "host" | "requester" | null;
+  // Restoring an edit requires a saved baseline or an unchanged legacy opening.
+  readonly canCancelChanges?: boolean;
   // The thread's cards in order.
   readonly thread: readonly ThreadCard[];
   // The booking once the host approved: in progress, failed, or confirmed with

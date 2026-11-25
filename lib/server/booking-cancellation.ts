@@ -4,6 +4,7 @@ import { enqueueHostCancellation, enqueueStatusNotice, type NoticeDependencies, 
 import { type BookingDependencies, bookingDependenciesFromEnvironment, lockHost, openCalendar } from "./bookings";
 import { assertRevision, type CommandDefinition, CommandError } from "./commands";
 import type { Transaction } from "./database";
+import { captureChangeBaseline, type ChangeBaseline } from "./request-change-baseline";
 import { CalendarAccessError } from "./google-calendar";
 import { enqueueButtonRetirement, enqueueHostNotice } from "./imessage-notices";
 import { cancelReservedBooking, standingBookingOf } from "./request-lifecycle";
@@ -217,7 +218,7 @@ export const CHANGE_BOOKING_OPERATION = "booking.change";
 // A change gets the request's usual seven days, but never past the meeting.
 export const CHANGE_LIFETIME_DAYS = 7;
 
-export type ChangeBookingResult = { readonly state: "negotiating"; readonly revision: number; readonly expiresAt: string };
+export type ChangeBookingResult = { readonly state: "negotiating"; readonly revision: number; readonly expiresAt: string; readonly restore?: ChangeBaseline };
 
 // Either side reopens a booked meeting, until it starts, so a new time or
 // place can go through the usual proposal, agreement and approval. The booked
@@ -247,12 +248,13 @@ export const changeBookingCommand: CommandDefinition<Record<string, never>, Chan
     const [clock] = await tx<{ now: Date }[]>`select clock_timestamp() as now`;
     if (booking.start_at.getTime() <= clock!.now.getTime()) throw new CommandError("invalid_input", { reason: "start_passed" });
 
+    const restore = context.actor.kind === "requester_request" ? await captureChangeBaseline(tx, request.id, "booked") : null;
     const expiresAt = new Date(Math.min(clock!.now.getTime() + CHANGE_LIFETIME_DAYS * 86_400_000, booking.start_at.getTime()));
     await tx`
       update app.requests
       set state = 'negotiating', closed_at = null, expires_at = ${expiresAt}, revision = revision + 1, updated_at = now()
       where id = ${request.id} and state = 'booked'
     `;
-    return { expiresAt: expiresAt.toISOString(), revision: request.revision + 1, state: "negotiating" };
+    return { expiresAt: expiresAt.toISOString(), revision: request.revision + 1, state: "negotiating", ...(restore ? { restore } : {}) };
   },
 };
