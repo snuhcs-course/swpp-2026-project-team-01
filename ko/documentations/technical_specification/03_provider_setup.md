@@ -202,6 +202,39 @@ iMessage 채널에 관한 Photon과 eve 문서입니다. 6단계는 Spectrum SDK
 - [eve Photon channel](https://eve.dev/docs/channels/photon): eve의 네이티브 `photonIMessageChannel`로, [`host-imessage-channel` 설계 1](../../openspec/changes/archive/2026-11-24-host-imessage-channel/design.md#1-the-transport-spike-and-the-adapter)(D1)은 이를 채택하지 않았습니다.
 - [Photon documentation index](https://photon.codes/docs/llms.txt)와 [Photon site index](https://photon.codes/llms.txt): [webhook events](https://photon.codes/docs/webhooks/events.md)와 [iMessage deliverability](https://photon.codes/docs/best-practices/imessage-deliverability)를 포함해 모든 문서 페이지를 기계가 읽을 수 있게 나열한 목록.
 
+## Photon SMS
+
+SMS는 [`sms-channel` 변경](../../openspec/changes/sms-channel/proposal.md)이 규정하며 아직 구현되지 않았습니다. iMessage와 WhatsApp이 쓰는 Spectrum 호스트 `spectrum.photon.codes`가 아니라 Photon의 Beta(2.0) API(`https://api.photon.codes/v1`)에서 동작합니다. Beta 프로젝트는 `FineMeatime`(`pho_prj_01m6h26pn8fap8znkf4rc98v53`)이며 Beta 대시보드 `app.beta.photon.codes`에 있습니다. API의 OpenAPI 문서는 `https://api.photon.codes/openapi.json`입니다.
+
+### 스파이크, 2026-11-26
+
+`sms-channel`의 작업 1.3과 1.4를 프로젝트 API 키 `sms-spike`(30일, `project:read`, `project:write`, `messages:read`, `platforms:read`)로 실제 API에 대해 실행했습니다. 이 키는 Git이 무시하는 로컬 파일에 있으며 어떤 환경 변수에도 없습니다.
+
+**번호.** 프로젝트는 이미 미국 지역 번호 하나, `+1 415-718-0442`(리소스 `pho_res_01m6h2cxvfe07r4n27r9bwzzgt`, 유형 `voip_line`, 기능 `sms`와 `pstn_voice`, 2026-11-03부터 활성)를 보유하고 있습니다. 번호를 새로 구매하지 않았습니다. Photon은 미국 번호만 판매합니다(`countryCode`는 상수 `US`).
+
+**10DLC 상태.** `GET /v1/projects/{id}/platforms/sms/lines/{resourceId}/campaign`은 `campaign: null`, `eligibility: "blocked"`, `reasonCode: "SMS_CAMPAIGN_NOT_ASSIGNED"`로 응답합니다. 브랜드 "Find Me A Time"(Personal, 개인사업자)은 인증되었습니다. 이 스파이크 시점까지 제출된 캠페인은 없었습니다. 캠페인이 승인되면 `PUT …/sms/lines/{resourceId}/campaign`으로 회선에 할당합니다.
+
+**발송.** 발송은 세 번의 호출로 이루어지며, 각 호출에 `Idempotency-Key` 헤더를 붙입니다.
+1. `POST /v1/projects/{id}/users`에 `{ "platform": "sms", "handle": "<E.164>" }`를 보냅니다. 사용자를 생성하거나 조회합니다. 우리 번호에는 `details.resourceId`가 있는 `kind: "agent"`를 반환합니다. 사람에게는 `kind: "human"`과 함께 `details`에 통신사 조회 결과 `countryCode`, `nationalFormat`, `carrier`(`name`, `lineType`, `mobileCountryCode`, `mobileNetworkCode`)를 반환합니다.
+2. `POST /v1/projects/{id}/spaces`에 `{ "platform": "sms", "participantIds": [agent, human] }`를 보냅니다. `direct` 스페이스를 반환하며, 같은 참가자로 반복 호출하면 같은 스페이스로 수렴합니다.
+3. `POST /v1/projects/{id}/messages`에 `{ spaceId, senderId: <agent user>, content: { type: "text", format: "plain", text } }`를 보냅니다. `project:write`가 필요합니다.
+
+프로젝트 API 키는 `project:write`를 갖고 있습니다. `messages:write` 권한은 없습니다.
+
+**캠페인 전 결과.** 한국(`+82`) 휴대전화 번호로 보낸 메시지는 `409`와 문제 코드 `SMS_CAMPAIGN_NOT_ELIGIBLE`("The sender campaign is not eligible for these recipients")로 거절되었습니다. API는 이 규칙을 "campaign eligibility is required unless every recipient is in-network"라고 문서화하지만 "in-network"가 무엇인지는 정의하지 않습니다. Photon의 SMS 플랫폼은 스스로를 "Carrier text messaging to US mobile numbers"라고 설명합니다. 미국 캠페인이 승인되면 `+82`로 발송할 수 있게 되는지는 아직 열려 있으며, 승인 후 다시 시험합니다.
+
+**캠페인 전 수신.** 사용자가 한국 휴대전화와 미국 휴대전화에서 이 번호로 문자를 보냈습니다. `platform=sms`, `resourceId`, `createdSince` 필터를 쓰든 쓰지 않든 어느 쪽도 `GET /v1/projects/{id}/messages`에 나타나지 않았습니다. 회선이 차단된 동안에는 수신 SMS가 프로젝트에 도달하지 않는 것으로 보이지만, 읽을 오류가 없으므로 이는 나타나지 않았다는 사실에서 추론한 것입니다.
+
+**웹훅 이벤트.** `GET …/webhooks/event-types?apiVersion=2026-07-01`은 통화 및 외부 웹훅 이벤트 외에 `message.received`, `message.accepted`, `message.dispatched`, `message.delivered`, `message.failed`, `space.updated`, `space.typing.updated`, `platform.connection.status.changed`, `platform.sending.paused`, `platform.sending.resumed`를 나열합니다. 따라서 전달 결과는 이벤트로 도착합니다. `message.received` 스키마에는 다른 플랫폼과 같은 필드를 가진 SMS 변형이 있습니다.
+- `id`, `platform: "sms"`, `status`;
+- `sentBy`와 `receivedBy`: `id`, `handle`(E.164), `kind`, `details`를 가진 사용자;
+- `space`: `id`, `kind`(`direct` 또는 그룹), `participantIds`;
+- `content`, `timestamps`, `acceptance`, `failure`.
+
+대상 엔드포인트는 Standard Webhooks로 서명됩니다.
+
+**아직 열려 있는 항목, 캠페인이 승인되고 할당된 뒤 다시 시험:** 수신 도착과 그 이벤트, STOP/HELP/START 전달, `+82`로의 전달, 수신 거부한 수신자의 문제 코드, 메시지당 가격.
+
 ## WhatsApp Business
 
 WhatsApp Business는 호스트 WhatsApp 채널의 전송 수단입니다. 2026-11-02에 [`host-whatsapp-channel` 변경](../../openspec/changes/archive/2026-11-24-host-whatsapp-channel/proposal.md#decisions)에서 제안되었고 2026-11-03에 루프백 대역(`PHOTON_API_URL`이 `/whatsapp/messages`에서 WhatsApp에 응답함)을 상대로 구현되었으며, 실제 WhatsApp 메시지는 아직 보내거나 받은 적이 없습니다. 사용자가 2026-11-02에 활성화한, iMessage와 같은 Photon 프로젝트(`findmeatime`)의 Photon Spectrum `whatsapp_business` 플랫폼을 통해 동작합니다. Photon은 WhatsApp 이벤트를 같은 서명이 붙은 같은 웹훅 `https://findmeatime.com/photon/webhook`으로 전달합니다. 수신기는 서명을 한 번 확인하고 플랫폼에 따라 라우팅합니다(D2). 이 변경 이전에는 iMessage 수신기가 이를 확인 응답하고 무시했으며(이슈 #62, PR #63), 지금도 그렇게 하고, WhatsApp 이벤트는 그 뒤에 WhatsApp 파서에 도달합니다. 발신 메시지는 기존 `PHOTON_PROJECT_ID`와 `PHOTON_PROJECT_SECRET`을 사용해 클라우드 모드의 `@spectrum-ts/whatsapp-business` 12.14.0으로 보내므로, Meta 자격 증명은 Photon이 보관합니다(D1). 발신자는 WhatsApp 연락처 ID, 즉 `+` 없이 숫자만 적은 국제 전화번호입니다(D3).
