@@ -39,6 +39,7 @@ Rejected:
 - **KakaoTalk Channel chatbot (Kakao i Open Builder).** It is the official route, but a skill can only answer the message the user just sent. Every notice the service starts would be lost.
 - **알림톡 and 친구톡.** They can write first, but they need a business registration, a reseller contract, a fee per message and a review of every template. Phase 9 showed how a provider review can disable a channel before its first message.
 - **KakaoTalk for Mac with `kakaocli`.** It reads the local database and drives the app through accessibility. On 2026-11-26 both `status` and `send` hung on this machine. It also needs a Mac that is always signed in and awake.
+- **A Mac relay: `kakaocli` to read and `openkakao-cli` to send.** Tried on 2026-11-26. `kakaocli` read the Mac database once the user ID was recovered from the preferences hash, and it gives exact room and member IDs. `openkakao-cli` 1.19.4 could not read or send: on an account with many chats its accessibility snapshot exceeds a fixed 30-second budget (about 7,900 nodes). It may work on a product account with few chats, and could become a second relay behind the same routes later.
 - **adb from a server.** It needs a computer tethered to the phone, and `input text` cannot type Korean without an extra keyboard app.
 - **Private content through the accessibility path, checked by name.** A renamed host or a friend with the host's old name would receive another person's summary (reviewer finding, 2026-11-26).
 
@@ -60,7 +61,7 @@ KakaoTalk notifications carry no user ID. The room ID of a 1:1 chat is stable fo
 
 The `Person` name is the host's KakaoTalk profile name, which the host can change. It is sealed at linking for display and for the nudge, and updated when a later notification shows a new name.
 
-Each message has its own event ID: `<room ID>:<message timestamp>:<index>`, where the index counts the messages that share that timestamp. A notification that is updated with more messages yields only the new IDs. The relay keeps a ring of the last 500 acknowledged IDs, so a re-posted notification is not forwarded twice.
+The relay forwards no message posted before it was first configured, so the notifications already on the phone when it starts are not replayed. Each message has its own event ID: `<room ID>:<message timestamp>:<index>`, where the index counts the messages that share that timestamp. A notification that is updated with more messages yields only the new IDs. The relay keeps a ring of the last 500 acknowledged IDs, so a re-posted notification is not forwarded twice.
 
 Group and open-chat text never leaves the phone. Open chats are told apart by the chat type the KakaoTalk notification reports (a device check during implementation confirms which field). When such a message contains `FMAT-` followed by the code pattern, the relay sends `{ kind: "void_code", codeHash }`, keyed under the inbound secret. The service then voids a pending attempt whose code hashes the same.
 
@@ -78,9 +79,11 @@ At claim time the service runs these checks first:
 
 - Suppress the message if its binding is no longer active.
 - Suppress a summary whose proposal version is no longer the latest.
-- Hand out private content only for a room in the posted list. Otherwise hand out a nudge, at most one per chat per hour, and keep the content queued.
+- Hand out private content only for a room in `postedRooms` or `replyableRooms`. Otherwise hand out a nudge, at most one per chat per hour, and keep the content queued.
 
 The claim returns `{ id, leaseToken, mode: "reply" | "nudge", roomId?, displayName?, text }`.
+
+Firing a notification's **답장** action makes KakaoTalk remove that room's notification, but the action's `PendingIntent` stays valid. The relay keeps the newest reply action per room in memory and reuses it after the notification is gone. The device test on 2026-11-26 sent three separate replies to one room from one incoming message, with the phone locked, and all three arrived. The claim body therefore lists `replyableRooms` (rooms with a posted or kept action) beside `postedRooms`, and private content may go to either. A restart of the relay empties the kept actions; a room then gets the nudge until the host writes again.
 
 The relay reports through `POST /kakaotalk/outbox/<id>/result` with `{ leaseToken, outcome }`. The outcomes map to the existing outbox states:
 
@@ -97,7 +100,7 @@ When a lease ends with no report, the message becomes `uncertain`. A later repor
 
 The card keeps the device's default channel and adds **Use KakaoTalk instead**. The KakaoTalk card shows these, after the privacy sentence:
 
-- The account's KakaoTalk ID (`KAKAOTALK_ACCOUNT_ID`) and a friend-add link.
+- The account's KakaoTalk ID (`KAKAOTALK_ACCOUNT_ID`) with **Copy ID**. KakaoTalk has no public link that adds a personal account as a friend, so the host searches the ID in KakaoTalk.
 - The `FMAT-` code with **Copy code**.
 - When the host has another binding, the sentence that linking KakaoTalk ends it.
 
@@ -112,13 +115,16 @@ The relay app posts `POST /kakaotalk/heartbeat` every minute. The heartbeat repo
 - The KakaoTalk version.
 - The rooms with a posted notification.
 
-The service treats the relay as down after five minutes with no heartbeat, or after a heartbeat that reports a disabled listener. While the relay is down, claims stop and messages stay queued. While the phone is locked, only reply-mode claims are handed out. An operational alert is written when the relay goes down and again if it is still down an hour later.
+The service treats the relay as down after five minutes with no heartbeat, or after a heartbeat that reports a disabled listener. While the relay is down, claims stop and messages stay queued. While the phone is locked, only reply-mode claims are handed out, for rooms with a posted notification or a kept reply action. An operational alert is written when the relay goes down and again if it is still down an hour later.
 
 ### 8. Privacy
 
 The relay phone sees every notification for the account, including chats that never link. The relay app forwards only 1:1 events and keeps no text after the webhook acknowledges it. The phone's own KakaoTalk app keeps every chat for as long as the account exists. The privacy policy says so, because the 30-day retention of `imessage_*` rows does not reach it. The phone is enrolled with no other accounts, and its notification history is turned off.
 
 ## Risks / Trade-offs
+
+- **Inbound secret is full trust.** Whoever holds the inbound secret can post a message event for any room ID, and room IDs are numeric. A leaked inbound secret therefore lets someone speak as any bound host, approvals included. The outbox secret is separate so a leak of one does not expose both directions; rotation (design 2) and the lost-phone steps are the response.
+- **Kept reply actions and shared intents.** Android identifies a `PendingIntent` by its intent and request code, not its extras. If KakaoTalk reused one intent across rooms, a kept action could point at another room. On 2026-11-26 the 답장 actions of two rooms on the relay phone (a 1:1 chat and a group) were different `PendingIntentRecord`s, so KakaoTalk appears to build one intent per room. The relay still drops a kept action whose intent equals one held for another room, and a test with two 1:1 rooms is a release task.
 
 - **Terms of service (Q1).** Kakao can suspend the account. Every linked host loses the channel at once, and the service cannot tell them through KakaoTalk. Mitigation: hosts keep `/app` and email, and the relay-down alert fires within five minutes.
 - **Nudge delay.** A notice the service starts reaches the host as a nudge first. The content follows only when the host writes back. This is the price of never sending private content to a chat chosen by name.

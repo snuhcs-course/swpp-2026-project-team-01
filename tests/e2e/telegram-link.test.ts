@@ -22,7 +22,8 @@ import { E2E_TOKEN_ENCRYPTION_KEY } from "./support/token-key";
 // iPhone gets iMessage with Use Telegram instead (and Use WhatsApp instead); another computer asks among the
 // configured channels. The host's /start is driven through the real Telegram webhook and the receipt job;
 // it links on arrival (link-on-code D1), with the privacy sentence beside the code. "Without WhatsApp" hides the
-// WhatsApp number from the statuses the browser reads, since the web service's configuration is fixed per run.
+// WhatsApp number from the statuses the browser reads, since the web service's configuration is fixed per run;
+// it hides KakaoTalk too, so those deployments offer Telegram alone (KakaoTalk is in tests/e2e/kakaotalk-link.test.ts).
 
 const tokenKey = parseTokenKey(E2E_TOKEN_ENCRYPTION_KEY);
 const BOT = "findmeatime_e2e_bot";
@@ -74,14 +75,14 @@ async function activeChannel(db: Database, hostAccountId: string) {
   return db<{ channel: string }[]>`select channel from app.imessage_bindings where host_account_id = ${hostAccountId} and state = 'active'`;
 }
 
-// The statuses the browser reads, as a deployment without a WhatsApp number answers them.
+// The statuses the browser reads, as a deployment without a WhatsApp number (or KakaoTalk) answers them.
 async function withoutWhatsApp(page: Page) {
   const strip = async (route: Route) => {
     try {
       const response = await route.fetch();
       const body = (await response.json()) as Record<string, unknown> & { status?: Record<string, unknown> };
       const hide = (status: Record<string, unknown> | undefined) =>
-        status && typeof status.channels === "object" ? { ...status, channels: { ...(status.channels as object), whatsapp: null } } : status;
+        status && typeof status.channels === "object" ? { ...status, channels: { ...(status.channels as object), kakaotalk: undefined, whatsapp: null } } : status;
       await route.fulfill({ json: "state" in body ? hide(body) : { ...body, status: hide(body.status) }, response });
     } catch {
       // The page moved on (to telegram.me) while the answer was in flight.

@@ -169,3 +169,27 @@ describe("stripChannelMarkers", () => {
     expect(stripChannelMarkers("[Note] Booked for Friday.")).toBe("[Note] Booked for Friday.");
   });
 });
+
+describe("KakaoTalk beside the device default (host-kakaotalk-channel D6)", () => {
+  const withKakaoTalk = { ...noWhatsApp, kakaotalk: "findmeatime" };
+
+  it("keeps each device's default and offers Use KakaoTalk instead beside it", () => {
+    expect(shownChannel("android", withKakaoTalk)).toBe("telegram");
+    expect(switchChannels("android", withKakaoTalk, "telegram")).toEqual(["kakaotalk"]);
+    expect(shownChannel("apple", withKakaoTalk)).toBe("imessage");
+    expect(switchChannels("apple", withKakaoTalk, "imessage")).toEqual(["telegram", "kakaotalk"]);
+    expect(switchChannels("other", withKakaoTalk, "kakaotalk")).toEqual(["imessage", "telegram"]);
+    expect(askChannels(withKakaoTalk)).toEqual(["imessage", "telegram"]);
+  });
+
+  it("is not offered when it is not configured", () => {
+    expect(switchChannels("android", noWhatsApp, "telegram")).toEqual([]);
+    expect(askChannels(noWhatsApp)).not.toContain("kakaotalk");
+  });
+
+  it("names and marks KakaoTalk text, and drops a copied marker from a reply", () => {
+    expect(channelName("kakaotalk")).toBe("KakaoTalk");
+    expect(isMessagingChannel("kakaotalk")).toBe(true);
+    expect(stripChannelMarkers("[KakaoTalk] 좋아요")).toBe("좋아요");
+  });
+});

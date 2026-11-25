@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">FMAT KakaoTalk Relay</string>
+    <string name="listener_label">FMAT KakaoTalk Relay listener</string>
+    <string name="accessibility_label">FMAT KakaoTalk Relay nudge</string>
+    <string name="accessibility_description">Opens a KakaoTalk chat by name and sends only the fixed Find Me a Time nudge. It reads no other screen and sends no other text.</string>
+    <string name="relay_channel">Relay status</string>
+    <string name="relay_running">Relaying KakaoTalk messages</string>
+</resources>

@@ -27,13 +27,22 @@
 -- A schedule_image row (messenger-schedule-image design 1) is the host's
 -- schedule for up to a week as a picture, sealed as JSON in text_ciphertext. It
 -- has no review_hash: only an image row is a settings preview.
+-- KakaoTalk (host-kakaotalk-channel design 4 and 5): the relay phone claims its
+-- rows instead of the service sending them. A claim moves a row to dispatching
+-- with a lease: lease_token_hash is the SHA-256 of the opaque token the relay
+-- reports with, and lease_expires_at ends the lease 120 seconds later. A lease
+-- that ends unreported makes the row uncertain. claim_attempts counts claims,
+-- so a not_started report requeues a row at most three times. A nudge row is
+-- the fixed text with no private content that asks the host to write back, so
+-- queued content can follow through the reply action; it is KakaoTalk only.
 CREATE TABLE "app"."imessage_outbox" (
   "id" uuid PRIMARY KEY DEFAULT gen_random_uuid(),
-  "channel" text NOT NULL DEFAULT 'imessage' CHECK ("channel" IN ('imessage', 'whatsapp', 'telegram')),
+  "channel" text NOT NULL DEFAULT 'imessage' CHECK ("channel" IN ('imessage', 'whatsapp', 'telegram', 'kakaotalk')),
   "kind" text NOT NULL CHECK (
     "kind" IN (
       'link_received', 'link_refused', 'linked', 'fallback_code', 'unlinked_sender', 'text_only',
-      'command', 'turn', 'notice', 'image', 'schedule_image', 'contact_card', 'signal', 'template', 'edit_markup', 'callback_answer'
+      'command', 'turn', 'notice', 'image', 'schedule_image', 'contact_card', 'signal', 'template', 'edit_markup', 'callback_answer',
+      'nudge'
     )
   ),
   "review_hash" text CHECK ("review_hash" ~ '^[0-9a-f]{64}$'),
@@ -59,6 +68,9 @@ CREATE TABLE "app"."imessage_outbox" (
   "updated_at" timestamptz NOT NULL DEFAULT now(),
   "dispatched_at" timestamptz,
   "completed_at" timestamptz,
+  "lease_token_hash" text CHECK ("lease_token_hash" ~ '^[0-9a-f]{64}$'),
+  "lease_expires_at" timestamptz,
+  "claim_attempts" integer NOT NULL DEFAULT 0 CHECK ("claim_attempts" >= 0),
   CONSTRAINT "imessage_outbox_image_review" CHECK (("kind" = 'image') = ("review_hash" IS NOT NULL)),
   CONSTRAINT "imessage_outbox_kind_dedupe_key_key" UNIQUE ("kind", "dedupe_key"),
   CONSTRAINT "imessage_outbox_final" CHECK (
@@ -73,6 +85,11 @@ CREATE TABLE "app"."imessage_outbox" (
   ),
   CONSTRAINT "imessage_outbox_telegram_kinds" CHECK ("kind" NOT IN ('edit_markup', 'callback_answer') OR "channel" = 'telegram'),
   CONSTRAINT "imessage_outbox_one_binding" CHECK ("binding_id" IS NULL OR "requester_binding_id" IS NULL),
+  CONSTRAINT "imessage_outbox_lease" CHECK (
+    ("lease_token_hash" IS NULL) = ("lease_expires_at" IS NULL)
+    AND ("lease_token_hash" IS NULL OR ("channel" = 'kakaotalk' AND "state" = 'dispatching'))
+  ),
+  CONSTRAINT "imessage_outbox_kakaotalk_kinds" CHECK ("kind" <> 'nudge' OR "channel" = 'kakaotalk'),
   CONSTRAINT "imessage_outbox_turn_input" CHECK ("kind" <> 'turn' OR "input_id" IS NOT NULL OR "completed_at" IS NOT NULL)
 );
 
@@ -87,6 +104,10 @@ CREATE INDEX "imessage_outbox_recipient_last_idx" ON "app"."imessage_outbox" ("r
 
 -- Button retirement reads the buttoned rows of a request.
 CREATE INDEX "imessage_outbox_buttons_idx" ON "app"."imessage_outbox" ("request_id") WHERE "buttons" IS NOT NULL;
+
+-- The relay's claim reads each KakaoTalk chat's open rows in queue order.
+CREATE INDEX "imessage_outbox_kakaotalk_queue_idx" ON "app"."imessage_outbox" ("recipient_hash", "created_at", "id")
+  WHERE "channel" = 'kakaotalk' AND "state" IN ('waiting', 'queued', 'dispatching');
 
 CREATE INDEX "imessage_outbox_created_idx" ON "app"."imessage_outbox" ("created_at");
 

@@ -303,6 +303,26 @@ Telegram is the transport of the host Telegram channel, proposed on 2026-11-04 i
 
 Never set the bot's token, register its webhook or send a Telegram message from an agent session without the user's approval.
 
+## KakaoTalk relay
+
+KakaoTalk is the transport of the proposed host KakaoTalk channel in the [`host-kakaotalk-channel` change](../../openspec/changes/host-kakaotalk-channel/proposal.md#decisions), pending a teammate's approval. KakaoTalk has no API for personal accounts, so a team-owned Android phone runs the relay app in [`apps/kakaotalk-relay/`](../../apps/kakaotalk-relay/README.md). The relay reads KakaoTalk notifications, posts each 1:1 message to the agent service, and claims outgoing messages from it (D1).
+
+- **Account and phone.** One KakaoTalk account for the product, signed in on one Android phone (KakaoTalk allows one phone per account). The phone keeps notification access and the relay's accessibility service on, has battery optimization off for the relay and KakaoTalk, has no other accounts, and has notification history off. Who owns it is open question Q2.
+- **Variables.** On Vercel Production only, under the messaging gate:
+  - `KAKAOTALK_ACCOUNT_ID`: the account's KakaoTalk ID, shown on the card.
+  - `KAKAOTALK_RELAY_INBOUND_SECRET`: signs the relay's webhook events.
+  - `KAKAOTALK_RELAY_OUTBOX_SECRET`: signs claims, results and heartbeats.
+  - The same two with a `_PREVIOUS` suffix during a rotation.
+
+  Each secret is 32 or more random URL-safe characters. With any of these unset, KakaoTalk is not offered and every relay route refuses. Tests use the loopback relay stand-in.
+- **Routes.** `POST /kakaotalk/webhook`, `POST /kakaotalk/outbox/claim`, `POST /kakaotalk/outbox/<id>/result` and `POST /kakaotalk/heartbeat` on `https://findmeatime.com`. Each request is signed over method, path, timestamp, a single-use nonce and body (D2); [`PROTOCOL.md`](../../apps/kakaotalk-relay/PROTOCOL.md) gives the shapes and a test vector.
+- **Rotation.** Move the current value to `…_PREVIOUS`, set the new value, deploy, and update the relay. Then remove `…_PREVIOUS` and deploy again.
+- **Lost phone.** Remove both secrets and deploy, so every relay route refuses. Sign the KakaoTalk account out from another device, then set new secrets on the replacement phone.
+- **Health.** The relay sends a heartbeat every minute. An operational alert is written when the relay is down for five minutes and again after an hour (D7).
+- **Terms.** Kakao's terms prohibit programs that use the service in ways Kakao has not authorized, and the account may be suspended (Q1). Hosts keep `/app` and email.
+
+Never sign the product's KakaoTalk account in, set the relay secrets, or send a KakaoTalk message from an agent session without the user's approval.
+
 ## PostHog
 
 Product analytics for the web app, the agent and the messaging channels, in the [`web-analytics` change](../../openspec/changes/web-analytics/proposal.md) (#469, which replaces the Google Analytics tag of #341). It uses PostHog Cloud through `posthog-js` in the browser and `posthog-node` on the server (D1, D7).

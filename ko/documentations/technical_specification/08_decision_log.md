@@ -906,3 +906,16 @@ Dohyeon Park이 2026-11-25에 Photon의 10DLC 캠페인 등록을 시작한 뒤,
 | # | 선택 | 대안 | 기록된 곳 | 바꾸려면 |
 |---|---|---|---|---|
 | — | Photon을 통한 SMS가 옵트인 메시징 채널로 다시 범위에 들어옵니다. 이는 "Photon을 통한 SMS 또는 RCS"를 기각한 2026-11-02의 제품 결정([9단계](#9단계--host-whatsapp-channel))과, 이슈 #90을 계획 없음으로 닫은 것을 뒤집습니다. 동의는 SMS 연결 코드를 여는 선택 사항이며 기본값이 해제된 SMS 체크박스이고([이슈 #488](https://github.com/snuhcs-course/swpp-2026-project-team-01/issues/488)), SMS에는 번호를 입력하지 않습니다([`sms-channel`](../../openspec/changes/sms-channel/proposal.md) D6). HELP, START, STOP에는 Photon이 직접 응답하므로 이 채널이 같은 키워드에 또 응답해서는 안 됩니다. 누구를 위한 것인지, 무엇을 담는지, 미국 외 번호, 비용과 한도는 OpenSpec 변경에 맡깁니다 | SMS를 계속 범위 밖에 두고 Android는 WhatsApp과 Telegram에 의존(2026-11-04의 입장); RCS | PRD 1, 3절; 이슈 #488, #489 | PRD를 먼저, 그다음 SMS 채널의 OpenSpec 변경 |
+
+## `host-kakaotalk-channel`
+
+[제안서](../../openspec/changes/host-kakaotalk-channel/proposal.md#decisions)는 이 선택들을 기록합니다. KakaoTalk 호스트 채널을 eve에 연결해 달라는 사용자의 요청에 따라, 변경을 작성한 세션에서 2026-11-26에 제안했습니다. 이 선택들은 **보류 중**입니다. 풀 리퀘스트에 대한 팀원의 승인이 열린 질문 Q1부터 Q5와 함께 이를 결정합니다. 그때까지 [PRD](../02_product_requirements.md#outside-the-initial-release)는 KakaoTalk을 범위 밖에 둡니다.
+
+| # | 선택 | 대안 | 기록 위치 | 바꾸려면 |
+|---|---|---|---|---|
+| D1 | 팀이 보유한 Android 릴레이 폰. 알림은 리스너로 들어옵니다. 비공개 내용은 연결된 대화방 알림의 답장 동작으로만 나갑니다. 고정 안내는 접근성을 통해 보낼 수 있습니다 | 먼저 쓸 수 없는 KakaoTalk 채널 챗봇, 리셀러와 템플릿 심사가 필요한 알림톡과 친구톡, Mac의 `kakaocli`, 채팅 이름으로 보내는 비공개 내용 | 제안서, 설계 1 | 설계 1, 그다음 `apps/kakaotalk-relay/` |
+| D2 | 메서드, 경로, 타임스탬프, nonce, 본문에 대한 HMAC-SHA256. 수신용과 발신함용 시크릿을 따로 두며 각각 교체할 수 있습니다 | 공유 시크릿 하나, 본문만 서명하는 방식 | 제안서, 설계 2 | `lib/server/kakaotalk.ts`와 릴레이의 서명기 |
+| D3 | 1:1 대화방 ID가 발신자를 대신합니다. 그룹과 오픈채팅의 텍스트는 폰 밖으로 나가지 않으며, 거기서 본 코드는 그 시도를 무효로 합니다 | 표시 이름을 신원으로 쓰는 방식 | 제안서, 설계 3 | 설계 3 |
+| D5 | 토큰이 있는 120초 임대. 결과는 `accepted`, `failed`, `uncertain`으로 대응되고, 다시 대기열에 넣는 `not_started`가 더해집니다 | 폰으로 푸시, 불확실한 메시지 재전송 | 제안서, 설계 5 | 설계 5와 발신함 클레임 |
+| D7 | 1분마다 보내는 하트비트로 보는 릴레이 상태. 5분간 조용하면 클레임하지 않고, 폰이 잠긴 동안에는 안내를 보내지 않습니다 | 하트비트 없음 | 제안서, 설계 7 | 설계 7 |
+

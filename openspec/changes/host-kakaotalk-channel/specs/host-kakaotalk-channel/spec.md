@@ -20,7 +20,7 @@ Every request from the relay to the webhook, outbox, result and heartbeat routes
 - **THEN** every outbox, result and heartbeat request is answered `401` and no queued message changes state
 
 ### Requirement: KakaoTalk relay webhook
-The service SHALL accept one relay event per KakaoTalk message at `POST /kakaotalk/webhook`. The event ID SHALL identify the room, the message's post time and its position among messages posted at that time, so each message has one ID however many times its notification is updated. An accepted 1:1 event SHALL be stored as a receipt with channel `kakaotalk`, keyed by its event ID, with one processing job, before the service answers `200`. A repeated event ID with the same payload SHALL be answered `200` with no new receipt or job. A repeated event ID with a different payload SHALL be refused and SHALL leave the stored receipt unchanged. A failure to store SHALL be answered with an error so the relay retries. The relay SHALL forward each message that appears in a KakaoTalk notification exactly once after the service has acknowledged it, and SHALL retry until it is acknowledged.
+The service SHALL accept one relay event per KakaoTalk message at `POST /kakaotalk/webhook`. The event ID SHALL identify the room, the message's post time and its position among messages posted at that time, so each message has one ID however many times its notification is updated. An accepted 1:1 event SHALL be stored as a receipt with channel `kakaotalk`, keyed by its event ID, with one processing job, before the service answers `200`. A repeated event ID with the same payload SHALL be answered `200` with no new receipt or job. A repeated event ID with a different payload SHALL be refused and SHALL leave the stored receipt unchanged. A failure to store SHALL be answered with an error so the relay retries. The relay SHALL forward each message that appears in a KakaoTalk notification, and was posted after the relay was first configured, until the service acknowledges it, and SHALL NOT forward it again after that.
 
 #### Scenario: Event stored before acknowledgment
 - **WHEN** the relay posts a correctly signed 1:1 message event
@@ -29,6 +29,10 @@ The service SHALL accept one relay event per KakaoTalk message at `POST /kakaota
 #### Scenario: Two messages in one notification
 - **WHEN** a notification is updated to show two new messages from the same chat
 - **THEN** the relay posts two events with different IDs, and two receipts are stored in their order
+
+#### Scenario: Notification already posted at first start
+- **WHEN** the relay is configured while a notification from before that moment is still posted
+- **THEN** the relay forwards none of that notification's earlier messages
 
 #### Scenario: Redelivered event
 - **WHEN** the relay posts the same event ID twice with the same payload
@@ -65,7 +69,7 @@ The KakaoTalk sender SHALL be the room ID of the 1:1 chat that the event came fr
 - **THEN** the binding still applies and the sealed display name is updated
 
 ### Requirement: Linking KakaoTalk by a code
-An authenticated active host SHALL be able to create a KakaoTalk link attempt whose one-time code, expiry and limits are those of the iMessage channel. The card SHALL show the product's KakaoTalk ID, a friend-add QR code and the code with a copy action. Before the code is shown, the card SHALL state in one sentence that KakaoTalk chats pass through Kakao and a relay phone. When the host has another active messaging binding, the card SHALL also say that linking KakaoTalk ends it. Only a 1:1 message whose text is the pending unexpired code SHALL bind its chat to the host, as soon as it arrives and with no confirmation in the browser. In the same transaction the host's other binding SHALL end and its undispatched messages SHALL be suppressed. The page SHALL then show **Linked** with the KakaoTalk name. A code arriving on another channel SHALL void the attempt. A linking message SHALL never reach the model or a transcript.
+An authenticated active host SHALL be able to create a KakaoTalk link attempt whose one-time code, expiry and limits are those of the iMessage channel. The card SHALL show the product's KakaoTalk ID and the code, each with a copy action. Before the code is shown, the card SHALL state in one sentence that KakaoTalk chats pass through Kakao and a relay phone. When the host has another active messaging binding, the card SHALL also say that linking KakaoTalk ends it. Only a 1:1 message whose text is the pending unexpired code SHALL bind its chat to the host, as soon as it arrives and with no confirmation in the browser. In the same transaction the host's other binding SHALL end and its undispatched messages SHALL be suppressed. The page SHALL then show **Linked** with the KakaoTalk name. A code arriving on another channel SHALL void the attempt. A linking message SHALL never reach the model or a transcript.
 
 #### Scenario: Link by sending the code
 - **WHEN** the host adds the product's account as a friend and sends the code in a 1:1 chat
@@ -83,14 +87,18 @@ The channel card SHALL keep each device's default channel and SHALL offer **Use 
 - **THEN** the card offers Telegram with **Use KakaoTalk instead**
 
 ### Requirement: Private content only to the verified chat
-A KakaoTalk message with any private content (a summary, a proposal, a booking, a calendar detail or a reply to the host) SHALL be sent only through the reply action of a notification posted for the bound chat's room ID. When no such notification is posted, the relay MAY send only the fixed nudge text, which carries no request, person, time or place, by opening the chat by the sealed display name. The private message SHALL stay queued until the host writes and a notification for that room is posted again.
+A KakaoTalk message with any private content (a summary, a proposal, a booking, a calendar detail or a reply to the host) SHALL be sent only through the reply action of a notification that was posted for the bound chat's room ID, either while it is posted or, after KakaoTalk removed it, from the reply action the relay kept for that room. When the relay holds no reply action for that room, the relay MAY send only the fixed nudge text, which carries no request, person, time or place, by opening the chat by the sealed display name. The private message SHALL stay queued until the host writes and a notification for that room is posted again.
 
 #### Scenario: Notice with a waiting notification
 - **WHEN** a summary is queued for a host whose chat has a posted notification
 - **THEN** the relay sends the summary through that notification's reply action
 
+#### Scenario: Several notices after one host message
+- **WHEN** three messages are queued for a host who wrote once, and the relay still holds that room's reply action
+- **THEN** the three are sent as three separate replies in queue order
+
 #### Scenario: Notice with no waiting notification
-- **WHEN** a summary is queued for a host whose chat has no posted notification
+- **WHEN** a summary is queued for a host whose room has no posted notification and no kept reply action
 - **THEN** the relay sends only the fixed nudge, and the summary is sent through the reply action after the host writes back
 
 #### Scenario: Renamed host, name now held by another friend
@@ -121,7 +129,7 @@ The service SHALL hand outgoing KakaoTalk messages to the relay only through an 
 - **THEN** it sends nothing and reports `failed`
 
 ### Requirement: KakaoTalk relay health
-The relay SHALL send a heartbeat every minute that reports whether the notification listener and the accessibility service are enabled, whether the phone is locked, the KakaoTalk version, and the room IDs that have a posted notification. The service SHALL treat the relay as down when there has been no heartbeat for five minutes or the last heartbeat reports a disabled service. While the relay is down, the service SHALL hand out no claims and SHALL keep messages queued. While the last heartbeat reports the phone locked, the service SHALL hand out claims only for chats with a posted notification. The service SHALL record an operational alert naming the cause when the relay goes down, and again if it stays down for an hour.
+The relay SHALL send a heartbeat every minute that reports whether the notification listener and the accessibility service are enabled, whether the phone is locked, the KakaoTalk version, and the room IDs that have a posted notification. The service SHALL treat the relay as down when there has been no heartbeat for five minutes or the last heartbeat reports a disabled service. While the relay is down, the service SHALL hand out no claims and SHALL keep messages queued. While the last heartbeat reports the phone locked, the service SHALL hand out no nudge, and SHALL still hand out reply-mode claims for chats with a posted notification or a kept reply action, because a reply action needs no screen. The service SHALL record an operational alert naming the cause when the relay goes down, and again if it stays down for an hour.
 
 #### Scenario: Relay goes silent
 - **WHEN** no heartbeat arrives for five minutes
@@ -129,7 +137,7 @@ The relay SHALL send a heartbeat every minute that reports whether the notificat
 
 #### Scenario: Phone locked
 - **WHEN** the last heartbeat reports the phone locked
-- **THEN** no nudge is claimed, and messages for chats with a posted notification are still claimed
+- **THEN** no nudge is claimed, and messages for chats with a posted notification or a kept reply action are still claimed
 
 #### Scenario: Relay returns
 - **WHEN** a heartbeat with both services enabled arrives after the relay was down

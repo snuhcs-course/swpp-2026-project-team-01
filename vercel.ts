@@ -14,6 +14,8 @@ export default await withEve({
     { src: "^/photon/(.*)$", destination: { type: "service", service: "eve" } },
     // And the Telegram bot's webhook (host-telegram-channel design 2).
     { src: "^/telegram/(.*)$", destination: { type: "service", service: "eve" } },
+    // And the KakaoTalk relay phone's routes (host-kakaotalk-channel design 2).
+    { src: "^/kakaotalk/(.*)$", destination: { type: "service", service: "eve" } },
     { src: "^(.*)$", destination: { type: "service", service: "web" } },
   ],
 });

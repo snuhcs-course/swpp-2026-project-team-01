@@ -80,6 +80,10 @@ import { openToken, sealToken, type TokenKey, tokenKeyFromEnvironment } from "./
 // nothing from the host, so it goes out silently (D10). Signals, callback
 // answers and failed edits are best-effort and take no slot in the chat's
 // one-second spacing, since none is a message.
+// KakaoTalk rows (host-kakaotalk-channel design 5) are not sent from here: the
+// job freezes the text and runs the same checks, then leaves the row queued for
+// the relay phone, which claims it (kakaotalk-outbox.ts). A row the relay has
+// leased is the relay's, so the job never makes it uncertain.
 
 export const IMESSAGE_SEND_JOB = "imessage_send";
 // A refusal before sending retries with backoff; five attempts span about five minutes.
@@ -128,7 +132,9 @@ export type OutboxKind =
   | "signal"
   | "template"
   | "edit_markup"
-  | "callback_answer";
+  | "callback_answer"
+  // The fixed KakaoTalk nudge the relay's claim records (host-kakaotalk-channel design 1).
+  | "nudge";
 
 export type OutboxState = "waiting" | "queued" | "dispatching" | "accepted" | "failed" | "uncertain" | "suppressed";
 
@@ -364,7 +370,9 @@ async function finish(
   const rows = await q`
     update app.imessage_outbox
     set state = ${to}, failure_category = ${details.category ?? null}, provider_message_id = ${details.providerMessageId ?? null},
-        recipient_ciphertext = null, text_ciphertext = null, completed_at = now(), updated_at = now()
+        recipient_ciphertext = null, text_ciphertext = null, completed_at = now(), updated_at = now(),
+        -- A final row holds no relay lease (imessage_outbox_lease).
+        lease_token_hash = null, lease_expires_at = null
     where id = ${outboxId} and state = ${from}
   `;
   return rows.count > 0;
@@ -495,13 +503,15 @@ export function createImessageSendHandler(load: () => ImessageSendDependencies =
       const [row] = await select(claimTx);
       if (!row) return { state: "missing" as const };
 
-      // An earlier attempt began this send and lost its answer.
-      if (row.state === "dispatching") {
+      // An earlier attempt began this send and lost its answer. A leased
+      // KakaoTalk row belongs to the relay, which reports it.
+      if (row.state === "dispatching" && row.channel !== "kakaotalk") {
         await finish(claimTx, row.id, "dispatching", "uncertain", { category: "lost_answer" });
         return { state: "uncertain" as const };
       }
 
-      if (row.state !== "waiting" && row.state !== "queued") return { state: row.state };
+      // A leased KakaoTalk row is left to the relay, as a final row is.
+      if (row.state !== "waiting" && row.state !== "queued") return { state: row.state as Exclude<OutboxState, "dispatching"> };
 
       // A Telegram typing signal can be queued before its reply and claimed after it.
       if (row.channel === "telegram" && row.kind === "signal" && row.input_id) {
@@ -603,6 +613,15 @@ export function createImessageSendHandler(load: () => ImessageSendDependencies =
 
       const context = outboxSealContext(row.id);
       const frozen = text === null ? null : sealToken({ id: row.sealed_key_id!, key: keyOf(deps, row.sealed_key_id!) }, text, context);
+      // The relay claims a KakaoTalk row once its text is frozen here.
+      if (row.channel === "kakaotalk") {
+        await claimTx`
+          update app.imessage_outbox
+          set state = 'queued', text_ciphertext = coalesce(${frozen?.ciphertext ?? null}, text_ciphertext), updated_at = now()
+          where id = ${row.id}
+        `;
+        return { state: "queued" as const };
+      }
       const waitMs = row.channel === "telegram" && !UNSPACED.has(row.kind) ? await telegramSlot(claimTx, row.recipient_hash) : 0;
       await claimTx`
         update app.imessage_outbox

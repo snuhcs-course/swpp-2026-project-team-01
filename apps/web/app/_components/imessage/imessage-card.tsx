@@ -70,6 +70,11 @@ import { cn } from "@/lib/utils";
 // code is addressed to the number Photon assigned. The number is kept while the card is open.
 // WhatsApp asks for the number the same way (guest-whatsapp-link D3): it is registered, and the code stays
 // addressed to the WhatsApp number. Each channel's number is kept apart.
+// KakaoTalk (host-kakaotalk-channel design 6, D6) is never a device's default: where it is configured every
+// device gets Use KakaoTalk instead beside its default. Its code takes no number and opens no app; the card says
+// first that the chat passes through Kakao and the relay phone and, when the host is linked elsewhere, that
+// linking KakaoTalk ends that link, then shows Thyme's KakaoTalk ID with Copy and the code with Copy code. It
+// links on arrival like the others, and the linked sender is the KakaoTalk profile name.
 
 export const IMESSAGE_CARD_ID = "imessage-card";
 
@@ -144,6 +149,8 @@ export function useDeviceKind(): DeviceKind | null {
 // WhatsApp, the platform's sms: link for iMessage, and for Telegram the telegram.me
 // start link, whose message is the bare code.
 export function appLinkFor(channel: MessagingChannel, platform: MessagesPlatform, lineNumber: string, message: string) {
+  // KakaoTalk has no link that adds a friend by ID or writes a message: the host sends the code themselves.
+  if (channel === "kakaotalk") return null;
   if (channel === "whatsapp") return whatsAppLinkFor(lineNumber, message);
   if (channel === "telegram") return telegramLinkFor(lineNumber, message);
   return deepLinkFor(platform, lineNumber, message);
@@ -372,7 +379,9 @@ export function ImessageCard({ onLater, expandedInitially = false }: { readonly 
           description={
             channel === "telegram"
               ? "Get request summaries and approve meetings from your own Telegram. You start Thyme's bot to link it."
-              : `Get request summaries and approve meetings from your own ${name}. You send one message to link it.`
+              : channel === "kakaotalk"
+                ? "Get request summaries and approve meetings from your own KakaoTalk. You send Thyme a code to link it."
+                : `Get request summaries and approve meetings from your own ${name}. You send one message to link it.`
           }
           label={name}
           title={`Use Find Me a Time from ${name}`}
@@ -469,7 +478,11 @@ export function ImessageCard({ onLater, expandedInitially = false }: { readonly 
                   }
                 }}
               >
-                {busy === "imessage.unlink" ? "Unlinking..." : status.channel === "telegram" ? "Not my Telegram — unlink" : "Not my number — unlink"}
+                {busy === "imessage.unlink"
+                  ? "Unlinking..."
+                  : status.channel === "telegram" || status.channel === "kakaotalk"
+                    ? `Not my ${name} — unlink`
+                    : "Not my number — unlink"}
               </QuietButton>
               <QuietButton onClick={() => setExpanded(false)}>Hide</QuietButton>
             </CardActions>
@@ -555,7 +568,7 @@ function CardShell({
   );
 }
 
-export function CopyButton({ text, label }: { readonly text: string; readonly label: string }) {
+export function CopyButton({ text, label, title = "Copy" }: { readonly text: string; readonly label: string; readonly title?: string }) {
   const [state, setState] = useState<"idle" | "copied" | "failed">("idle");
   useEffect(() => {
     if (state === "idle") return;
@@ -578,7 +591,7 @@ export function CopyButton({ text, label }: { readonly text: string; readonly la
         variant="outline"
       >
         {state === "copied" ? <CheckIcon aria-hidden /> : <CopyIcon aria-hidden />}
-        Copy
+        {title}
       </Button>
       <span aria-live="polite" className="text-sm text-muted-foreground" role="status">
         {state === "copied" ? "Copied" : state === "failed" ? "Couldn't copy; select the message instead." : ""}
@@ -603,6 +616,7 @@ export function PendingCode({
   // Use ... instead: a new attempt on another channel, which ends this one.
   readonly switchers: React.ReactNode;
 }) {
+  if (status.channel === "kakaotalk") return <PendingKakaoTalk busy={busy} notice={notice} onCancel={onCancel} status={status} switchers={switchers} />;
   if (status.channel === "telegram") return <PendingTelegram busy={busy} notice={notice} onCancel={onCancel} platform={platform} status={status} switchers={switchers} />;
   const whatsapp = status.channel === "whatsapp";
   const phone = platform === "ios" || platform === "android";
@@ -739,6 +753,58 @@ function PendingTelegram({
       <p className="text-sm text-muted-foreground">{TELEGRAM_PRIVACY}</p>
       <p className="text-sm text-muted-foreground" role="status">
         Waiting for you to tap Start. The code works until {when(status.expiresAt)}.
+      </p>
+      <CardActions>
+        {switchers}
+        <QuietButton disabled={busy} onClick={onCancel}>
+          Cancel
+        </QuietButton>
+      </CardActions>
+    </CardShell>
+  );
+}
+
+// A KakaoTalk code (host-kakaotalk-channel design 6): the privacy sentence and what linking ends come first,
+// then Thyme's KakaoTalk ID to add as a friend and the code to send in that 1:1 chat. KakaoTalk has no
+// friend-add link for an ID, so the ID is shown with Copy. The card polls and moves to linked by itself.
+function PendingKakaoTalk({
+  busy,
+  notice,
+  onCancel,
+  status,
+  switchers,
+}: {
+  readonly busy: boolean;
+  readonly notice: React.ReactNode;
+  readonly onCancel: () => void;
+  readonly status: Extract<ImessageStatus, { state: "pending" }>;
+  readonly switchers: React.ReactNode;
+}) {
+  const t = COPY.en.kt.code;
+  return (
+    <CardShell description={COPY.en.kt.link.lede} label="KakaoTalk" title="Send Thyme your code on KakaoTalk">
+      {notice}
+      <p className="text-sm text-muted-foreground">{t.privacy}</p>
+      {status.replaces ? <p className="text-sm">{t.replaces(channelName(status.replaces))}</p> : null}
+      <div className="flex min-w-0 flex-col gap-1 rounded-lg border border-border px-3 py-2">
+        <p className="text-xs font-medium text-muted-foreground">{t.idLabel}</p>
+        <p className="font-mono text-sm break-all" data-testid="kakaotalk-id">
+          {status.lineNumber}
+        </p>
+        <p className="text-xs text-muted-foreground">{t.idHelp}</p>
+        <div className="flex flex-wrap items-center gap-2 pt-1">
+          <CopyButton label={t.copyIdLabel} text={status.lineNumber} title={t.copyId} />
+        </div>
+        <p className="pt-1 text-xs font-medium text-muted-foreground">{t.codeLabel}</p>
+        <p className="font-mono text-sm break-all" data-testid="imessage-link-message">
+          {status.message}
+        </p>
+        <div className="flex flex-wrap items-center gap-2 pt-1">
+          <CopyButton label={t.copyCodeLabel} text={status.message} title={t.copyCode} />
+        </div>
+      </div>
+      <p className="text-sm text-muted-foreground" role="status">
+        {t.waiting(when(status.expiresAt))}
       </p>
       <CardActions>
         {switchers}

@@ -304,6 +304,26 @@ Telegram은 2026-11-04에 [`host-telegram-channel` 변경](../../openspec/change
 
 사용자의 승인 없이는 에이전트 세션에서 봇의 토큰을 설정하거나, 웹훅을 등록하거나, Telegram 메시지를 보내서는 안 됩니다.
 
+## KakaoTalk 릴레이
+
+KakaoTalk은 팀원 승인을 기다리는 [`host-kakaotalk-channel` 변경](../../openspec/changes/host-kakaotalk-channel/proposal.md#decisions)에서 제안된 호스트 KakaoTalk 채널의 전송 수단입니다. KakaoTalk은 개인 계정용 API가 없으므로, 팀이 보유한 Android 폰이 [`apps/kakaotalk-relay/`](../../apps/kakaotalk-relay/README.md)의 릴레이 앱을 실행합니다. 릴레이는 KakaoTalk 알림을 읽어 각 1:1 메시지를 에이전트 서비스로 전달하고, 서비스에서 보낼 메시지를 가져옵니다(D1).
+
+- **계정과 폰.** 제품용 KakaoTalk 계정 하나를 Android 폰 한 대에 로그인해 둡니다(KakaoTalk은 계정당 폰 한 대만 허용합니다). 폰은 알림 접근과 릴레이의 접근성 서비스를 켜 두고, 릴레이와 KakaoTalk의 배터리 최적화를 끄며, 다른 계정을 두지 않고, 알림 기록을 끕니다. 폰의 소유자는 열린 질문 Q2입니다.
+- **변수.** Vercel Production에만, 메시징 게이트 아래에 둡니다.
+  - `KAKAOTALK_ACCOUNT_ID`: 계정의 KakaoTalk ID로, 카드에 표시됩니다.
+  - `KAKAOTALK_RELAY_INBOUND_SECRET`: 릴레이의 웹훅 이벤트에 서명합니다.
+  - `KAKAOTALK_RELAY_OUTBOX_SECRET`: 클레임, 결과, 하트비트에 서명합니다.
+  - 교체 중에는 이 두 값에 `_PREVIOUS` 접미사를 붙인 변수를 함께 둡니다.
+
+  각 시크릿은 32자 이상의 무작위 URL 안전 문자열입니다. 이 중 하나라도 설정되지 않으면 KakaoTalk은 제공되지 않으며 모든 릴레이 경로가 요청을 거부합니다. 테스트는 로컬 루프백 릴레이 대역을 사용합니다.
+- **경로.** `https://findmeatime.com`의 `POST /kakaotalk/webhook`, `POST /kakaotalk/outbox/claim`, `POST /kakaotalk/outbox/<id>/result`, `POST /kakaotalk/heartbeat`. 각 요청은 메서드, 경로, 타임스탬프, 일회용 nonce, 본문에 대해 서명됩니다(D2). 형식과 테스트 벡터는 [`PROTOCOL.md`](../../apps/kakaotalk-relay/PROTOCOL.md)에 있습니다.
+- **교체.** 현재 값을 `…_PREVIOUS`로 옮기고 새 값을 설정한 뒤 배포하고 릴레이를 갱신합니다. 그다음 `…_PREVIOUS`를 제거하고 다시 배포합니다.
+- **폰 분실.** 두 시크릿을 모두 제거하고 배포해 모든 릴레이 경로가 요청을 거부하게 합니다. 다른 기기에서 KakaoTalk 계정을 로그아웃시킨 다음, 교체한 폰에 새 시크릿을 설정합니다.
+- **상태 확인.** 릴레이는 1분마다 하트비트를 보냅니다. 릴레이가 5분간 내려가 있으면 운영 알림을 남기고, 1시간이 지나면 다시 남깁니다(D7).
+- **약관.** Kakao의 약관은 Kakao가 허용하지 않은 방식으로 서비스를 이용하는 프로그램을 금지하며, 계정이 정지될 수 있습니다(Q1). 호스트는 `/app`과 이메일을 계속 사용할 수 있습니다.
+
+에이전트 세션에서는 사용자의 승인 없이 제품의 KakaoTalk 계정에 로그인하거나, 릴레이 시크릿을 설정하거나, KakaoTalk 메시지를 보내지 마십시오.
+
 ## PostHog
 
 웹 앱, 에이전트, 메시징 채널의 제품 분석으로, [`web-analytics` 변경](../../openspec/changes/web-analytics/proposal.md)(#469, #341의 Google Analytics 태그를 대체합니다)에서 다룹니다. 브라우저에서는 `posthog-js`, 서버에서는 `posthog-node`를 통해 PostHog Cloud를 사용합니다(D1, D7).

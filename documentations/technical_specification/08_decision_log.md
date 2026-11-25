@@ -908,3 +908,16 @@ Dohyeon Park decided this on 2026-11-26 in [issue #489](https://github.com/snuhc
 | # | Choice | Alternatives | Recorded in | To change it |
 |---|---|---|---|---|
 | — | SMS through Photon is back in scope as an opt-in messaging channel. It reverses the 2026-11-02 product decision ([Phase 9](#phase-9--host-whatsapp-channel)), which rejected "SMS or RCS through Photon", and the closing of issue #90 as not planned. Consent is an optional, unchecked SMS checkbox ([issue #488](https://github.com/snuhcs-course/swpp-2026-project-team-01/issues/488)) that gates the SMS link code, with no number entered for SMS ([`sms-channel`](../../openspec/changes/sms-channel/proposal.md) D6); Photon answers HELP, START and STOP itself, so the channel must not reply to them too. Whom it serves, what it carries, non-US numbers, cost and limits are left to its OpenSpec change | Keep SMS out and rely on WhatsApp and Telegram for Android (the 2026-11-04 position); RCS | PRD sections 1 and 3; issues #488, #489 | The PRD first, then the SMS channel's OpenSpec change |
+
+## `host-kakaotalk-channel`
+
+The [proposal](../../openspec/changes/host-kakaotalk-channel/proposal.md#decisions) records these choices. They were proposed on 2026-11-26 in the session that wrote the change, at the user's request for a KakaoTalk host channel connected to eve. They are **pending**: a teammate's approval of the pull request decides them, together with the open questions Q1 to Q5. Until then the [PRD](../02_product_requirements.md#outside-the-initial-release) keeps KakaoTalk out of scope.
+
+| # | Choice | Alternatives | Recorded in | To change it |
+|---|---|---|---|---|
+| D1 | A team-owned Android relay phone. Notifications come in through a listener. Private content goes out only through the reply action of the linked room's notification. A fixed nudge may go through accessibility | A KakaoTalk Channel chatbot, which cannot write first; 알림톡 and 친구톡, which need a reseller and template review; `kakaocli` on a Mac; private content by chat name | Proposal; design 1 | Design 1, then `apps/kakaotalk-relay/` |
+| D2 | HMAC-SHA256 over method, path, timestamp, nonce and body, with separate inbound and outbox secrets, each rotatable | One shared secret; a body-only signature | Proposal; design 2 | `lib/server/kakaotalk.ts` and the relay's signer |
+| D3 | The 1:1 room ID stands in for the sender. Group and open-chat text never leaves the phone, and a code seen there voids its attempt | Display names as identity | Proposal; design 3 | Design 3 |
+| D5 | A 120-second lease with a token. The outcomes map to `accepted`, `failed` and `uncertain`, plus `not_started`, which requeues | Push to the phone; resending uncertain messages | Proposal; design 5 | Design 5 and the outbox claim |
+| D7 | Relay health from a heartbeat every minute. No claims after five minutes of silence, and no nudges while the phone is locked | No heartbeat | Proposal; design 7 | Design 7 |
+

@@ -1,6 +1,6 @@
 import { getChatMessageLengthError } from "../contracts/chat-message";
 import { handleFromText } from "./host-conversation-bindings";
-import { IMESSAGE_PREFIX, type StoredChannel, TELEGRAM_PREFIX, WHATSAPP_PREFIX } from "../contracts/messaging-channel";
+import { IMESSAGE_PREFIX, KAKAOTALK_PREFIX, type StoredChannel, TELEGRAM_PREFIX, WHATSAPP_PREFIX } from "../contracts/messaging-channel";
 import { type NoticeDependencies, noticeDependenciesFromEnvironment } from "./booking-notices";
 import { AdmissionLimitError } from "./conversation-admission";
 import {
@@ -21,6 +21,7 @@ import { internalSigningKey } from "./internal-bearer";
 import {
   activeBindingOfSender,
   bindingContext,
+  kakaotalkDisplayName,
   lockActiveBindingOfSender,
   receiveLinkCode,
   refusalSentRecently,
@@ -41,6 +42,7 @@ import { requesterBindingContext, stopRequesterChannelBindings } from "./request
 import { type CreationLimits } from "./request-start";
 import { isRevisable, readRevisedSummary, reviseClosedRequest } from "./revised-requests";
 import { type SetupDependencies, setupDependenciesFromEnvironment } from "./setup";
+import { type KakaoTalkDetails, openKakaoTalkText } from "./kakaotalk";
 import { openTelegramText, parseCallbackData, type TelegramDetails, THANKS_REACTION } from "./telegram";
 import { startTypingRepeats } from "./telegram-jobs";
 import { openToken, sealToken, type TokenKey, tokenKeyFromEnvironment } from "./token-encryption";
@@ -71,6 +73,10 @@ import { openToken, sealToken, type TokenKey, tokenKeyFromEnvironment } from "./
 // The outcome is recorded with the sealed values cleared in the same write. An
 // admission limit fails the attempt, so the receipt waits and retries no earlier
 // than the job's backoff, and the ordering check keeps later messages behind it.
+// A KakaoTalk receipt (host-kakaotalk-channel) follows the same steps: its code
+// binds the chat with the sender's KakaoTalk name, a bound chat's later message
+// reseals that name when it changed, and nothing is a signal, since the relay
+// can send only text (no read mark, typing or tapback).
 
 type Environment = Readonly<Record<string, string | undefined>>;
 
@@ -112,9 +118,14 @@ function receiptDependenciesFromEnvironment(): ImessageReceiptDependencies {
 
 // Forwarded text is marked, so the shared transcript and the assistant know
 // where it came from (D11). The prefixes live in the browser-safe contract.
-export { IMESSAGE_PREFIX, TELEGRAM_PREFIX, WHATSAPP_PREFIX };
+export { IMESSAGE_PREFIX, KAKAOTALK_PREFIX, TELEGRAM_PREFIX, WHATSAPP_PREFIX };
 
-const PREFIXES: Readonly<Record<StoredChannel, string>> = { imessage: IMESSAGE_PREFIX, telegram: TELEGRAM_PREFIX, whatsapp: WHATSAPP_PREFIX };
+const PREFIXES: Readonly<Record<StoredChannel, string>> = {
+  imessage: IMESSAGE_PREFIX,
+  kakaotalk: KAKAOTALK_PREFIX,
+  telegram: TELEGRAM_PREFIX,
+  whatsapp: WHATSAPP_PREFIX,
+};
 
 // The fixed replies are in English and Korean (channel-actions-in-words D4);
 // these are the English ones.
@@ -286,6 +297,8 @@ export type OpenedReceipt = {
   // Telegram only: the sender's profile and a callback's locators, from the
   // sealed envelope (host-telegram-channel design 3); null on other channels.
   readonly telegram: TelegramDetails | null;
+  // KakaoTalk only: the sender's profile name (host-kakaotalk-channel design 3).
+  readonly kakaotalk?: KakaoTalkDetails | null;
 };
 
 export function openReceipt(keys: readonly TokenKey[], row: ReceiptRow): OpenedReceipt | null {
@@ -297,6 +310,8 @@ export function openReceipt(keys: readonly TokenKey[], row: ReceiptRow): OpenedR
     // A Telegram receipt seals its text with the update's details as one envelope.
     const envelope = row.channel === "telegram" && sealed !== null ? openTelegramText(sealed) : null;
     if (row.channel === "telegram" && sealed !== null && !envelope) return null;
+    const kakaotalk = row.channel === "kakaotalk" && sealed !== null ? openKakaoTalkText(sealed) : null;
+    if (row.channel === "kakaotalk" && sealed !== null && !kakaotalk) return null;
     return {
       channel: row.channel,
       contentType: row.content_type,
@@ -308,7 +323,8 @@ export function openReceipt(keys: readonly TokenKey[], row: ReceiptRow): OpenedR
       spaceId: open(row.space_ciphertext),
       spaceType: row.space_type,
       telegram: envelope?.details ?? null,
-      text: envelope ? envelope.text : sealed,
+      ...(row.channel === "kakaotalk" ? { kakaotalk: kakaotalk?.details ?? null } : {}),
+      text: envelope ? envelope.text : kakaotalk ? kakaotalk.text : sealed,
     };
   } catch {
     return null;
@@ -637,6 +653,7 @@ async function guestReply(
 }
 
 async function stopGuestMessages(tx: Transaction, deps: ImessageReceiptDependencies, receipt: OpenedReceipt): Promise<ReceiptOutcome> {
+  if (receipt.channel === "kakaotalk") return "ignored";
   const ended = await stopRequesterChannelBindings(tx, receipt.senderHash, receipt.channel);
   if (ended === 0) return "ignored";
   await recordOutbound(tx, {
@@ -908,6 +925,7 @@ export async function processReceipt(
       receiptId: receipt.id,
       sender: receipt.sender,
       senderHash: receipt.senderHash,
+      ...(receipt.channel === "kakaotalk" ? { senderName: kakaotalkDisplayName(receipt.kakaotalk?.displayName ?? null) } : {}),
       spaceId: receipt.spaceId,
       spaceType: receipt.spaceType,
     });
@@ -1017,6 +1035,12 @@ export async function processReceipt(
     update app.imessage_bindings set space_ciphertext = ${space.ciphertext}, last_inbound_at = now()
     where id = ${binding.id} and state = 'active'
   `;
+  // A KakaoTalk host who renamed their profile keeps the binding, by room ID;
+  // the sealed name the nudge and the card use follows (design 3).
+  if (receipt.channel === "kakaotalk" && receipt.kakaotalk?.displayName) {
+    const name = sealToken({ id: binding.sealed_key_id, key: keyFor(deps, binding.sealed_key_id) }, receipt.kakaotalk.displayName, bindingContext(binding.id));
+    await tx`update app.imessage_bindings set sender_name_ciphertext = ${name.ciphertext} where id = ${binding.id} and state = 'active'`;
+  }
   // The request conversations bound to this one share its WhatsApp window.
   await tx`
     update app.requester_imessage_bindings set last_inbound_at = now()
@@ -1073,6 +1097,8 @@ export async function processReceipt(
 
   // A message that only says thanks is marked read and gets a tapback, and
   // starts no turn (D21, design 18; on WhatsApp a ❤️ reaction, D16).
+  // KakaoTalk can send no reaction, so a thanks there starts no turn and gets nothing.
+  if (receipt.channel === "kakaotalk" && isOnlyThanks(receipt.text)) return "ignored";
   if (!button && receipt.channel !== "telegram" && isOnlyThanks(receipt.text)) {
     await recordSignal(tx, deps, receipt, binding, recipient, { messageId: receipt.messageId, reaction: THANKS_TAPBACK, typing: false });
     return "replied";
@@ -1117,7 +1143,7 @@ export async function processReceipt(
       await startTypingRepeats(tx, receipt.id, turn.id);
     }
   }
-  if (receipt.channel === "telegram") return outcome;
+  if (receipt.channel === "telegram" || receipt.channel === "kakaotalk") return outcome;
 
   // Every other message is marked read, and shows typing when it started a
   // turn, whose reply comes later; a command's reply is immediate, and rows of

@@ -120,6 +120,8 @@
 /* WhatsApp's green, for controls that open WhatsApp and the message as WhatsApp shows it */
 .ink .wa-glyph { background: linear-gradient(180deg, #5FFC7B 0%, #28D146 100%); }
 .ink .tg-glyph { background: linear-gradient(180deg, #37AEE2 0%, #1E96C8 100%); }
+/* KakaoTalk's yellow, with its dark brown mark */
+.ink .kt-glyph { background: #FEE500; color: #3A1D1D; }
 .ink .blue.wa { background: #008069; }
 .ink .blue.tg { background: #2AABEE; }
 /* Compact messaging choices keep every configured app on one row. */

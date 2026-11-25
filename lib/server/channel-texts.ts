@@ -385,11 +385,13 @@ export const CHANNEL_REPLIES = {
     telegramHelp: "You can also tap Approve, Decline or Show details under a proposal.",
     stop: {
       imessage: "Unlinked. You won't get iMessages from Find Me a Time.",
+      kakaotalk: "Unlinked. You won't get KakaoTalk messages from Find Me a Time.",
       telegram: "Unlinked. You won't get Telegram messages from Find Me a Time.",
       whatsapp: "Unlinked. You won't get WhatsApp messages from Find Me a Time.",
     } satisfies Record<StoredChannel, string>,
     guestStop: {
       imessage: "Stopped. You won't get request updates from Find Me a Time on this channel. To start again, open the booking link from your request email and connect this messenger again.",
+      kakaotalk: "Stopped. You won't get request updates from Find Me a Time on this channel. To start again, open the booking link from your request email and connect this messenger again.",
       telegram: "Stopped. You won't get request updates from Find Me a Time on this channel. To start again, open the booking link from your request email and connect this messenger again.",
       whatsapp: "Stopped. You won't get request updates from Find Me a Time on this channel. To start again, open the booking link from your request email and connect this messenger again.",
     } satisfies Record<StoredChannel, string>,
@@ -529,11 +531,16 @@ export const CHANNEL_REPLIES = {
     requestGone: "That request isn't available any more, so this went to your setup conversation. Tell me which request you'd like to talk about.",
     unlinked: {
       imessage: "This number isn't linked to a Find Me a Time host. Sign in at findmeatime.com/app and choose Connect iMessage.",
+      kakaotalk: "This KakaoTalk chat isn't linked to a Find Me a Time host. Sign in at findmeatime.com/app and choose Use KakaoTalk instead.",
       telegram: "This Telegram account isn't linked to a Find Me a Time host. Sign in at findmeatime.com/app and choose Connect Telegram.",
       whatsapp: "This number isn't linked to a Find Me a Time host. Sign in at findmeatime.com/app and choose Connect WhatsApp.",
     } satisfies Record<StoredChannel, string>,
     textOnly: "I can read text messages only.",
     textOnlyTelegram: "I can read text messages only. Photos, stickers and voice messages don't reach Thyme.",
+    // KakaoTalk carries no image (host-kakaotalk-channel, Q5): the open times
+    // and the schedule are a link to the same view on /app instead.
+    kakaotalkSlotReview: (url: string) => `KakaoTalk can't show the picture, so check the open times and confirm them on the web: ${url}`,
+    kakaotalkSchedule: (url: string) => `KakaoTalk can't show the picture of your schedule. See it on the web: ${url}`,
     guestClosed: "This request is closed, so messages here no longer reach Thyme.",
     guestSwitched: (host: string) => `Now talking about your request with ${host}.`,
     yourHost: "your host",
@@ -571,11 +578,13 @@ export const CHANNEL_REPLIES = {
     telegramHelp: "제안 아래의 승인, 거절, 자세히 보기 버튼을 눌러도 돼요.",
     stop: {
       imessage: "연결을 끊었어요. 이제 Find Me a Time의 iMessage를 받지 않아요.",
+      kakaotalk: "연결을 끊었어요. 이제 Find Me a Time의 KakaoTalk 메시지를 받지 않아요.",
       telegram: "연결을 끊었어요. 이제 Find Me a Time의 Telegram 메시지를 받지 않아요.",
       whatsapp: "연결을 끊었어요. 이제 Find Me a Time의 WhatsApp 메시지를 받지 않아요.",
     } satisfies Record<StoredChannel, string>,
     guestStop: {
       imessage: "중단했어요. 이 채널로는 Find Me a Time의 요청 업데이트를 더 이상 보내지 않아요. 다시 받으려면 요청 이메일의 예약 링크를 열어 이 메신저를 다시 연결해 주세요.",
+      kakaotalk: "중단했어요. 이 채널로는 Find Me a Time의 요청 업데이트를 더 이상 보내지 않아요. 다시 받으려면 요청 이메일의 예약 링크를 열어 이 메신저를 다시 연결해 주세요.",
       telegram: "중단했어요. 이 채널로는 Find Me a Time의 요청 업데이트를 더 이상 보내지 않아요. 다시 받으려면 요청 이메일의 예약 링크를 열어 이 메신저를 다시 연결해 주세요.",
       whatsapp: "중단했어요. 이 채널로는 Find Me a Time의 요청 업데이트를 더 이상 보내지 않아요. 다시 받으려면 요청 이메일의 예약 링크를 열어 이 메신저를 다시 연결해 주세요.",
     } satisfies Record<StoredChannel, string>,
@@ -707,11 +716,14 @@ export const CHANNEL_REPLIES = {
     requestGone: "그 요청은 더 이상 볼 수 없어서 이 메시지는 설정 대화로 보냈어요. 어떤 요청에 대해 이야기할지 말씀해 주세요.",
     unlinked: {
       imessage: "이 번호는 Find Me a Time 호스트와 연결되어 있지 않아요. findmeatime.com/app 에 로그인한 뒤 Connect iMessage를 선택해 주세요.",
+      kakaotalk: "이 KakaoTalk 채팅은 Find Me a Time 호스트와 연결되어 있지 않아요. findmeatime.com/app 에 로그인한 뒤 Use KakaoTalk instead를 선택해 주세요.",
       telegram: "이 Telegram 계정은 Find Me a Time 호스트와 연결되어 있지 않아요. findmeatime.com/app 에 로그인한 뒤 Connect Telegram을 선택해 주세요.",
       whatsapp: "이 번호는 Find Me a Time 호스트와 연결되어 있지 않아요. findmeatime.com/app 에 로그인한 뒤 Connect WhatsApp을 선택해 주세요.",
     } satisfies Record<StoredChannel, string>,
     textOnly: "텍스트 메시지만 읽을 수 있어요.",
     textOnlyTelegram: "텍스트 메시지만 읽을 수 있어요. 사진, 스티커, 음성 메시지는 Thyme에게 전달되지 않아요.",
+    kakaotalkSlotReview: (url: string) => `카카오톡에서는 사진을 보여드릴 수 없어서, 열 시간은 웹에서 확인하고 확정해 주세요: ${url}`,
+    kakaotalkSchedule: (url: string) => `카카오톡에서는 일정 사진을 보여드릴 수 없어요. 웹에서 확인해 주세요: ${url}`,
     guestClosed: "이 요청은 종료되어 이제 여기 메시지는 Thyme에게 전달되지 않아요.",
     guestSwitched: (host: string) => `이제 ${host}님과의 요청에 대해 이야기해요.`,
     yourHost: "상대 호스트",

@@ -53,6 +53,9 @@ export type ImessageStatus =
       readonly code: string;
       readonly message: string;
       readonly expiresAt: string;
+      // The channel of the host's other active binding, which linking this one
+      // ends (host-kakaotalk-channel "Linking KakaoTalk by a code").
+      readonly replaces?: MessagingChannel;
     }
   // The fallback: a code sent to the entered number, typed back here.
   | {
