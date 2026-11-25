@@ -285,10 +285,10 @@ On 2026-11-23 the repository owner decided every sub-issue of #325. #326, #329, 
 | G01 W-8/2 | Times found | Look at the candidate card<br>Case: Candidates needing travel | "These times depend on your trip" + Your trip takes |  |  |  |  |  |
 | G01 W-8.1 | Three candidates shown | "Any other times?" | Expected AI behavior: Give the next three from laterCandidates, numbered; search again only when none are left |  |  |  |  |  |
 | G01 W-8.2 | Candidates shown | "Mondays aren't great" | Expected AI behavior: Record all of Monday as less preferred only and say other times remain possible; do not remove Monday |  |  |  |  |  |
-| G01 W-8.3/1 | Choosing a time (before agreeing) | Request actions menu → Edit details | Meeting details card: purpose · length · mode · place or link · time zone · free times · preferences → Save details → times found again |  |  |  |  |  |
-| G01 W-8.3/2 | Choosing a time (before agreeing) | Request actions menu → Edit details<br>Case: Changed elsewhere | "This request changed since you last saw it. Check it and try again." |  |  |  |  |  |
-| G01 W-8.3/3 | Choosing a time (before agreeing) | Request actions menu → Edit details<br>Case: Link format | "A meeting link must start with https://." |  |  |  |  |  |
-| G01 W-8.3/4 | Choosing a time (before agreeing) | Request actions menu → Edit details<br>Case: Changed after a proposal | back to choosing; the earlier proposal is void |  |  |  |  |  |
+| G01 W-8.3/1 | Choosing a time (before agreeing) | **Change** on the meeting details reply ("Change the meeting details") | Meeting details card: purpose · length · mode · place or link · time zone · free times · preferences → Save details → times found again |  |  |  |  |  |
+| G01 W-8.3/2 | Choosing a time (before agreeing) | **Change** on the meeting details reply ("Change the meeting details")<br>Case: Changed elsewhere | "This request changed since you last saw it. Check it and try again." |  |  |  |  |  |
+| G01 W-8.3/3 | Choosing a time (before agreeing) | **Change** on the meeting details reply ("Change the meeting details")<br>Case: Link format | "A meeting link must start with https://." |  |  |  |  |  |
+| G01 W-8.3/4 | Choosing a time (before agreeing) | **Change** on the meeting details reply ("Change the meeting details")<br>Case: Changed after a proposal | back to choosing; the earlier proposal is void |  |  |  |  |  |
 | G01 W-8.4 | Choosing a time (before agreeing) | In words: "Make it Thursday" / "Seongsu instead" | Expected AI behavior: Times, or a detail the request does not hold yet → applied at once with new candidates. A detail that differs from what the request holds ("Seongsu instead" over another place) → a details draft, applied after confirmation |  |  |  |  |  |
 | G01 W-9 | Candidates shown | Choose this time, or "the second one"<br>Case: Already started | "That time has already started. Choose or give a later time." |  |  |  |  |  |
 | G01 W-10/1 | Proposal card | Agree to this proposal, or "Yes, that time"<br>Case: The host's time became busy | "This time is no longer free on the host's calendar, so nothing was agreed. Choose another time." |  |  |  |  |  |
@@ -329,9 +329,9 @@ On 2026-11-23 the repository owner decided every sub-issue of #325. #326, #329, 
 | G02 W-2 | Agreement reopened | Choose a new time and agree again (as G01 W-9, W-10)<br>Case: No new time chosen | the request stays in choosing a time with nothing for the host to approve |  |  |  |  |  |
 | G02 W-2.1/1 | The host already approved | "I want to change the time" | Expected AI behavior: Point to the change-after-booking flow (M01): the booking stays while a change is requested |  |  |  |  |  |
 | G02 W-2.1/2 | The host already approved | "I want to change the time"<br>Case: Approved and booking | nothing changes here ("After the host approves nothing changes here until the meeting is booked") |  |  |  |  |  |
-| G02 W-3/1 | Open request | Request actions → Withdraw request<br>Case: Dialog closed | nothing changes |  |  |  |  |  |
-| G02 W-3/2 | Open request | Request actions → Withdraw request<br>Case: Changed elsewhere | "This request changed. Check it and try again." |  |  |  |  |  |
-| G02 W-3/3 | Open request | Request actions → Withdraw request<br>Case: Already closed | shown as closed |  |  |  |  |  |
+| G02 W-3/1 | Request sent, awaiting the host's approval | **Cancel meeting** tab above the composer<br>Case: Dialog closed | nothing changes |  |  |  |  |  |
+| G02 W-3/2 | Request sent, awaiting the host's approval | **Cancel meeting** tab above the composer<br>Case: Changed elsewhere | the page reloads with the request's current state |  |  |  |  |  |
+| G02 W-3/3 | Request sent, awaiting the host's approval | **Cancel meeting** tab above the composer<br>Case: Already closed | shown as closed |  |  |  |  |  |
 | G02 W-3.1 | Open request | In words: "Just cancel it" | Expected AI behavior: Ask once whether to withdraw; withdraw_request only on a clear yes |  |  |  |  |  |
 | G02 W-3.2 | Withdrawn | A late host approval or the guest's old link | Nothing booked; shown only as closed |  |  |  |  |  |
 
@@ -422,7 +422,7 @@ On 2026-11-23 the repository owner decided every sub-issue of #325. #326, #329, 
 
 | Case | Precondition | Steps | Expected result | Known status | Deployment | Channel | Result | Defect |
 |---|---|---|---|---|---|---|---|---|
-| A01 W-G3 | Requested through an agent | Request actions → Connected agents → Revoke<br>Case: None | "No agent is connected to this request." |  |  |  |  |  |
+| A01 W-G3 | Requested through an agent | **Request details** panel → Connected agents → Revoke<br>Case: None | "No agent is connected to this request." |  |  |  |  |  |
 
 #### A01 · Message · host and guest messengers
 

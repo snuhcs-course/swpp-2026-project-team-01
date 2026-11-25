@@ -12,6 +12,7 @@ import { agentDependencies, issueToken, type Tokens } from "./support/agents";
 import { bookingDeps, runBooking } from "./support/booking";
 import { fakeGoogleConfig } from "./support/calendar-host";
 import { testDatabase } from "./support/database";
+import { testNotices } from "./support/requests";
 import { type FakeGoogle, startFakeGoogle } from "./support/fake-google";
 import { calendarKey, evaluationDeps, runEvaluation, seedSchedulingRequest } from "./support/scheduling";
 
@@ -56,6 +57,9 @@ beforeAll(async () => {
   const mcpDeps = {
     ...deps,
     evaluationWaitMs: 200,
+    // The seeded request's booking link is sealed with the test key, which the
+    // agreement receipt (guest-agreement-email) opens, as in production.
+    notices: () => testNotices,
     setup: { appOrigin: origin, calendar: { config: fakeGoogleConfig(google), db, tokenKeys: [calendarKey] }, db },
   };
   const metadata = createAuthorizationServerMetadataHandler(() => deps);

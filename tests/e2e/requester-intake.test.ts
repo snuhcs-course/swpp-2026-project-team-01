@@ -223,16 +223,19 @@ for (const viewport of [
     `;
     expect(agreed).toEqual({ state: "awaiting_host_approval", version: 1 });
 
-    // Request actions sit inside the composer, immediately before Send.
+    // The meeting tabs sit above the composer (post-booking-changes, #449);
+    // Send is the composer's only button.
     const composerButtons = page.locator('[data-chat-composer] [data-slot="input-group-addon"] > button');
-    await expect(composerButtons).toHaveCount(2);
-    await expect(composerButtons.first()).toHaveAttribute("aria-label", "Request actions");
-    await expect(composerButtons.last()).toHaveAttribute("aria-label", "Send message");
-    // Withdraw request remains available by keyboard.
-    await press(page, /^Request actions$/);
-    await expect(page.getByRole("menuitem", { name: "Withdraw request" })).toBeVisible();
+    await expect(composerButtons).toHaveCount(1);
+    await expect(composerButtons).toHaveAttribute("aria-label", "Send message");
+    const tabs = page.locator("[data-guest-meeting-actions]");
+    await expect(tabs.getByRole("button", { name: "Change meeting" })).toBeEnabled();
+    // Withdrawing stays available by keyboard and asks once before it runs.
+    await press(page, /^Cancel meeting$/);
+    await expect(page.getByRole("dialog", { name: "Withdraw this meeting request?" })).toBeVisible();
     await page.keyboard.press("Escape");
-    await expect(page.getByRole("button", { name: "Request actions" })).toBeFocused();
+    await expect(page.getByRole("dialog", { name: "Withdraw this meeting request?" })).toHaveCount(0);
+    await expect(tabs.getByRole("button", { name: "Cancel meeting" })).toBeFocused();
 
     await press(page, /^Email updates only$/);
     await expect(waiting.locator('[data-notification-preference="email-only"]')).toBeVisible();
