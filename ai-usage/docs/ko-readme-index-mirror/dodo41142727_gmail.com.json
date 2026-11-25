@@ -1,0 +1,23 @@
+{
+  "branch": "docs/ko-readme-index-mirror",
+  "user": "dodo41142727@gmail.com",
+  "sessions": {
+    "claude:8d4e1ccf-c6c7-4d6f-8cec-b0e5c29d2a55": {
+      "agent": "claude-code",
+      "client": "claude-desktop",
+      "agent_ms": 0,
+      "models": {
+        "claude-opus-5-5": {
+          "input": 2,
+          "cache_read": 118197,
+          "cache_write_5m": 0,
+          "cache_write_1h": 740,
+          "output": 335,
+          "reasoning": 0
+        }
+      },
+      "first": "2026-11-25T07:12:34.230Z",
+      "last": "2026-11-25T07:12:34.230Z"
+    }
+  }
+}
