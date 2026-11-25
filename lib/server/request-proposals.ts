@@ -22,6 +22,7 @@ import {
   type StoredCandidate,
 } from "./evaluation";
 import { enqueueAgreementNotice, enqueueButtonRetirement, enqueueHostNotice } from "./imessage-notices";
+import { agreementEmailDependenciesFromEnvironment, enqueueAgreementEmail, type AgreementEmailDependencies } from "./agreement-notice";
 import { assertIdentified, lockOpenRequest } from "./request-guard";
 import { detailsComplete } from "./request-lifecycle";
 
@@ -356,6 +357,7 @@ export type AgreeResult =
 // event is written.
 export function agreeCommand(
   loadEvaluation: () => EvaluationDependencies = evaluationDependenciesFromEnvironment,
+  loadAgreementEmail: () => AgreementEmailDependencies = agreementEmailDependenciesFromEnvironment,
 ): CommandDefinition<z.infer<typeof agreeInput>, AgreeResult> {
   return {
     input: agreeInput,
@@ -423,6 +425,7 @@ export function agreeCommand(
         where id = ${request.id}
       `;
       await enqueueHostNotice(tx, request.id, { kind: "awaiting_approval", version: latest.version });
+      await enqueueAgreementEmail(tx, request.id, latest.version, loadAgreementEmail());
       await enqueueAgreementNotice(tx, request.id, latest.version);
       await enqueueButtonRetirement(tx, request.id);
 

@@ -46,4 +46,46 @@ describe("email templates", () => {
     expect(email.html).not.toContain("<script>");
     expect(email.html).toContain("&lt;script&gt;");
   });
+
+  it("renders the separate agreement receipt with the agreed details and no confirmation action", () => {
+    const email = renderEmail("agreement_receipt", "ko", {
+      version: 1,
+      changesBooking: false,
+      hostName: "Ada",
+      requesterName: "Grace",
+      purpose: "Review the plan",
+      start: "2026-11-02T01:00:00.000Z",
+      end: "2026-11-02T01:30:00.000Z",
+      timezone: "Asia/Seoul",
+      durationMinutes: 30,
+      mode: "online",
+      location: null,
+    }, { bookingUrl, confirmUrl });
+
+    expect(email.subject).toBe("Your request is awaiting host approval");
+    expect(email.html).toContain('lang="en"');
+    expect(email.html).toContain('font-size:15px;line-height:24px">Hi Grace,');
+    expect(email.text).toContain("Your request was successfully sent to the host and is awaiting approval.");
+    expect(email.html).toContain("approval. The booking is not confirmed yet, and we’ll let you know once the host approves it and the booking is confirmed.");
+    expect(email.text).toContain("Review the plan");
+    expect(email.text).toContain("Asia/Seoul");
+    expect(email.text).toContain("30 minutes");
+    expect(email.text).toContain("Meeting type: Online");
+    expect(email.text).toContain(`View request: ${bookingUrl}`);
+    expect(email.html).not.toContain(confirmUrl);
+    expect(email.text).not.toContain("Confirm email address");
+  });
+
+  it("keeps an existing booking confirmed while a change waits for approval", () => {
+    const email = renderEmail("agreement_receipt", "en", {
+      version: 2, changesBooking: true, hostName: "Ada", requesterName: "Grace",
+      purpose: null, start: "2026-11-02T01:00:00.000Z", end: "2026-11-02T01:30:00.000Z",
+      timezone: "Asia/Seoul", durationMinutes: 30, mode: "in_person", location: "SNU",
+    }, { bookingUrl });
+
+    expect(email.subject).toBe("Your change request is awaiting host approval");
+    expect(email.text).toContain("Your existing booking remains confirmed");
+    expect(email.text).toContain("Where: SNU");
+    expect(email.text).not.toContain("The booking is not confirmed yet");
+  });
 });

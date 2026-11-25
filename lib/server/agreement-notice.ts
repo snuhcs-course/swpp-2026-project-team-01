@@ -1,5 +1,10 @@
 import { isValidTimeZone } from "../contracts/timezone";
-import type { Queryable } from "./database";
+import { bookingUrl } from "./booking-links";
+import { type Queryable, type Transaction } from "./database";
+import { enqueueEmail } from "./email-delivery";
+import { openRequestBookingId } from "./request-start";
+import { appOriginsFromEnvironment } from "./same-origin";
+import { type TokenKey, tokenKeyFromEnvironment } from "./token-encryption";
 
 // What the guest sent the host when they agreed to a proposal
 // (guest-email-and-agree-notices design 4; issue #179). One summary, read from
@@ -105,4 +110,43 @@ export function agreementNoticeText(summary: AgreementSummary) {
     status,
     "I'll tell you here when they decide.",
   ].join("\n");
+}
+
+export type AgreementEmailDependencies = { readonly origin: string; readonly tokenKey: TokenKey; readonly tokenKeys?: readonly TokenKey[] };
+
+export function agreementEmailDependenciesFromEnvironment(): AgreementEmailDependencies {
+  return { origin: appOriginsFromEnvironment().appOrigin, tokenKey: tokenKeyFromEnvironment() };
+}
+
+// Record the guest's copy with the agreement, one frozen delivery per version.
+export async function enqueueAgreementEmail(tx: Transaction, requestId: string, version: number, deps: AgreementEmailDependencies) {
+  const summary = await readAgreementSummary(tx, requestId, version);
+  const [request] = await tx<{ contact_email: string | null; language: string | null }[]>`
+    select contact_email, details ->> 'language' as language from app.requests where id = ${requestId}
+  `;
+  const bookingId = await openRequestBookingId(tx, deps.tokenKeys ?? [deps.tokenKey], requestId);
+  if (!summary || !request?.contact_email || !bookingId) throw new Error("An agreed request needs its email recipient and booking link.");
+
+  return enqueueEmail(tx, {
+    dedupeKey: `${requestId}:v${version}`,
+    kind: "agreement_receipt",
+    language: "en",
+    parameters: {
+      version,
+      changesBooking: summary.changesBooking,
+      hostName: summary.hostName,
+      requesterName: summary.requesterName,
+      purpose: summary.purpose,
+      start: summary.start.toISOString(),
+      end: summary.end.toISOString(),
+      timezone: summary.timezone,
+      durationMinutes: summary.durationMinutes,
+      mode: summary.mode,
+      location: summary.location,
+    },
+    recipient: request.contact_email,
+    requestId,
+    secrets: { bookingUrl: bookingUrl(deps.origin, bookingId) },
+    tokenKey: deps.tokenKey,
+  });
 }

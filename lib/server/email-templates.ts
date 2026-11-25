@@ -10,6 +10,7 @@ import {
   type BookingEmailParameters,
   isBookingEmailTemplate,
   renderBookingEmail,
+  whenLine,
 } from "./booking-emails";
 
 // The transactional email templates use English copy and render as HTML with
@@ -20,6 +21,7 @@ import {
 export const EMAIL_TEMPLATES = [
   "request_creation",
   "link_resend",
+  "agreement_receipt",
   ...BOOKING_EMAIL_TEMPLATES,
   ...ACCOUNT_EMAIL_TEMPLATES,
 ] as const;
@@ -35,8 +37,23 @@ type RequestEmailParameters = {
   readonly requesterName?: string;
 };
 
+export type AgreementEmailParameters = {
+  readonly version: number;
+  readonly changesBooking: boolean;
+  readonly hostName: string;
+  readonly requesterName: string;
+  readonly purpose: string | null;
+  readonly start: string;
+  readonly end: string;
+  readonly timezone: string;
+  readonly durationMinutes: number;
+  readonly mode: "online" | "in_person";
+  readonly location: string | null;
+};
+
 export type EmailParameters =
   | RequestEmailParameters
+  | AgreementEmailParameters
   | BookingEmailParameters
   | AccountEmailParameters;
 
@@ -72,6 +89,8 @@ type Copy = {
   readonly bookingAction: string;
   readonly confirm?: { readonly title: string; readonly lead: string; readonly action: string };
   readonly footer: string;
+  readonly details?: readonly { readonly label: string; readonly value: string }[];
+  readonly compactGreeting?: boolean;
 };
 
 const FALLBACK_HOST = "your host";
@@ -120,6 +139,32 @@ function resendCopy(parameters: RequestEmailParameters): Copy {
   };
 }
 
+function agreementCopy(parameters: AgreementEmailParameters): Copy {
+  const changesBooking = parameters.changesBooking;
+  return {
+    bookingAction: "View request",
+    compactGreeting: true,
+    details: [
+      { label: "You", value: parameters.requesterName },
+      { label: "With", value: parameters.hostName },
+      { label: "Purpose", value: parameters.purpose?.trim() || "Meeting" },
+      { label: "When", value: whenLine(parameters.start, parameters.end, parameters.timezone, "en") },
+      { label: "Duration", value: `${parameters.durationMinutes} minutes` },
+      { label: "Meeting type", value: parameters.mode === "online" ? "Online" : "In person" },
+      { label: "Where", value: parameters.mode === "online" ? "Online meeting" : parameters.location?.trim() || "In person" },
+    ],
+    eyebrow: "MEETING REQUEST",
+    footer: "This private link opens your request. Keep it to yourself. If you did not start this request, you can ignore this email.",
+    greeting: `Hi ${parameters.requesterName},`,
+    paragraphs: [changesBooking
+      ? "Your change request was successfully sent to the host and is awaiting approval. Your existing booking remains confirmed until the host approves the change, and we’ll email you when the updated booking is confirmed."
+      : "Your request was successfully sent to the host and is awaiting approval. The booking is not confirmed yet, and we’ll let you know once the host approves it and the booking is confirmed."],
+    preheader: changesBooking ? "Your change request is awaiting host approval." : "Your request was sent and is awaiting host approval.",
+    subject: changesBooking ? "Your change request is awaiting host approval" : "Your request is awaiting host approval",
+    title: changesBooking ? "Your change request is awaiting host approval" : "Your request is awaiting host approval",
+  };
+}
+
 function button(url: string, label: string, variant: "primary" | "secondary") {
   const primary = variant === "primary";
   const background = primary ? "#2C3E63" : "#FFFFFF";
@@ -144,8 +189,14 @@ function render(language: RequestLanguage, copy: Copy, secrets: EmailSecrets & {
     `<tr><td bgcolor="#FFFFFF" style="background-color:#FFFFFF;border:1px solid #D4D9E2;border-top:4px solid #2C3E63;border-radius:16px;padding:34px 36px 30px">`,
     `<p style="margin:0 0 12px;color:#586172;font-family:Arial,Helvetica,sans-serif;font-size:11px;font-weight:700;letter-spacing:1.2px;line-height:16px">${escapeHtml(copy.eyebrow)}</p>`,
     `<h1 style="margin:0 0 18px;color:#1E2430;font-family:Georgia,'Times New Roman',serif;font-size:30px;font-weight:400;line-height:1.2">${escapeHtml(copy.title)}</h1>`,
-    `<p style="margin:0 0 14px;color:#1E2430;font-size:16px;line-height:24px">${escapeHtml(copy.greeting)}</p>`,
+    `<p style="margin:0 0 14px;color:#1E2430;font-size:${copy.compactGreeting ? 15 : 16}px;line-height:24px">${escapeHtml(copy.greeting)}</p>`,
     ...copy.paragraphs.map((paragraph) => `<p style="margin:0 0 18px;color:#3E444E;font-size:15px;line-height:24px">${escapeHtml(paragraph)}</p>`),
+    ...(copy.details ? [
+      `<h2 style="margin:4px 0 10px;color:#1E2430;font-family:Georgia,'Times New Roman',serif;font-size:20px;font-weight:400;line-height:26px">Meeting details</h2>`,
+      `<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="width:100%;border-collapse:collapse">`,
+      ...copy.details.map(({ label, value }) => `<tr><td valign="top" style="width:112px;padding:9px 8px 9px 0;border-top:1px solid #E3E6EB;color:#586172;font-size:13px;line-height:20px">${escapeHtml(label)}</td><td valign="top" style="padding:9px 0;border-top:1px solid #E3E6EB;color:#1E2430;font-size:14px;line-height:20px">${escapeHtml(value)}</td></tr>`),
+      `</table>`,
+    ] : []),
     `<table role="presentation" cellpadding="0" cellspacing="0" border="0" style="margin:24px 0 0"><tr><td>${button(secrets.bookingUrl, copy.bookingAction, "primary")}</td></tr></table>`,
     ...(copy.confirm && secrets.confirmUrl
       ? [
@@ -167,6 +218,7 @@ function render(language: RequestLanguage, copy: Copy, secrets: EmailSecrets & {
     copy.title,
     "",
     ...copy.paragraphs.flatMap((paragraph) => [paragraph, ""]),
+    ...(copy.details ? ["Meeting details", ...copy.details.map(({ label, value }) => `${label}: ${value}`), ""] : []),
     `${copy.bookingAction}: ${secrets.bookingUrl}`,
     "",
     ...(copy.confirm && secrets.confirmUrl ? [copy.confirm.title, copy.confirm.lead, `${copy.confirm.action}: ${secrets.confirmUrl}`, ""] : []),
@@ -193,6 +245,10 @@ export function renderEmail(
   }
 
   const request = parameters as RequestEmailParameters;
+  if (template === "agreement_receipt") {
+    if (!secrets.bookingUrl) throw new Error("An agreement email needs its booking link.");
+    return render("en", agreementCopy(parameters as AgreementEmailParameters), { bookingUrl: secrets.bookingUrl });
+  }
   const copy =
     template === "request_creation"
       ? creationCopy(request, Boolean(secrets.confirmUrl))
