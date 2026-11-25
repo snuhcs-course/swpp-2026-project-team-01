@@ -143,6 +143,38 @@ function recordedReturn(request: Request) {
   return parseCookieHeader(request.headers.get("cookie") ?? "").find((cookie) => cookie.name === RETURN_COOKIE)?.value ?? null;
 }
 
+// Whether this browser's sign-in asked for Calendar without the consent screen
+// (imessage-onboarding-calendar-consent D3, #407): "asked" when it did, cleared
+// otherwise. Only such a sign-in may be followed by the renewed consent below,
+// so the renewed one never repeats.
+export const CONSENT_COOKIE = "fmat_auth_consent";
+const CONSENT_ASKED = "asked";
+
+function consentCookie(origin: string, asked: boolean) {
+  const secure = origin.startsWith("https:") ? "; Secure" : "";
+  return `${CONSENT_COOKIE}=${asked ? CONSENT_ASKED : ""}; Path=/auth; Max-Age=${asked ? RETURN_SECONDS : 0}; HttpOnly; SameSite=Lax${secure}`;
+}
+
+function consentAsked(request: Request) {
+  return parseCookieHeader(request.headers.get("cookie") ?? "").some((cookie) => cookie.name === CONSENT_COOKIE && cookie.value === CONSENT_ASKED);
+}
+
+// The renewed Calendar consent for a recorded return, so a sign-in that goes on
+// to Google's consent screen still ends where it would have.
+function renewedConsentPath(recorded: string | null) {
+  const params = new URLSearchParams({ consent: "calendar" });
+  if (recorded?.startsWith("link:")) {
+    params.set("return", "link");
+    params.set("token", recorded.slice(5));
+  } else if (recorded === RETURN_IMESSAGE) {
+    params.set("return", RETURN_IMESSAGE);
+  } else if (recorded) {
+    params.set("return", "consent");
+    params.set("transaction", recorded);
+  }
+  return `/auth/sign-in?${params}`;
+}
+
 // GET /auth/sign-in: one Google consent for identity and the Calendar scopes,
 // with PKCE (the verifier stays in this browser's cookie) and offline access.
 // `?consent=calendar` (Connect Google Calendar) asks Google to show the consent
@@ -157,7 +189,10 @@ function recordedReturn(request: Request) {
 // account that authorized this client before would otherwise sign in with no
 // lasting Calendar access, and the welcome in iMessage would ask for Calendar again.
 // Who signs in is unknown until the callback, so it cannot be limited to hosts
-// without a usable grant.
+// without a usable grant. Any other sign-in that asks for Calendar records that
+// it skipped the consent screen (CONSENT_COOKIE), so the callback can go on to
+// the renewed consent when Google gave every Calendar scope but no lasting
+// access (D3).
 export function createGoogleSignInHandler(load: () => GoogleSignInDependencies = dependenciesFromEnvironment) {
   return async (request: Request) => {
     const deps = load();
@@ -186,13 +221,16 @@ export function createGoogleSignInHandler(load: () => GoogleSignInDependencies =
     });
 
     if (error || !data.url) {
-      return auth.redirect(`${origin}/app?sign_in=failed`);
+      return auth.redirect(`${origin}/app?sign_in=failed`, [consentCookie(origin, false)]);
     }
 
     const linkToken = params.get("return") === "link" ? params.get("token") : null;
     const linkAttempt = linkToken ? await readConnectAttempt(deps.db, [deps.tokenKey], linkToken) : null;
     const returnTo = linkAttempt?.role === "host" ? `link:${linkToken}` : consentReturn ?? (params.get("return") === RETURN_IMESSAGE ? RETURN_IMESSAGE : null);
-    return auth.redirect(data.url, [returnCookie(returnTo ?? "", origin, returnTo ? RETURN_SECONDS : 0)]);
+    return auth.redirect(data.url, [
+      returnCookie(returnTo ?? "", origin, returnTo ? RETURN_SECONDS : 0),
+      consentCookie(origin, !identityOnly && !renewConsent),
+    ]);
   };
 }
 
@@ -213,7 +251,13 @@ export function createGoogleCallbackHandler(load: () => GoogleSignInDependencies
     const recorded = recordedReturn(request);
     const started = startSecretOf(request);
     const continued = continuationOf(request);
-    const clear = [...(recorded === null ? [] : [returnCookie("", origin, 0)]), ...(started === null ? [] : [clearStartCookie(origin)]), ...(continued === null ? [] : [continuationCookie("", origin, 0)])];
+    const asked = consentAsked(request);
+    const clear = [
+      ...(recorded === null ? [] : [returnCookie("", origin, 0)]),
+      ...(started === null ? [] : [clearStartCookie(origin)]),
+      ...(continued === null ? [] : [continuationCookie("", origin, 0)]),
+      ...(asked ? [consentCookie(origin, false)] : []),
+    ];
 
     if (!code) {
       return auth.redirect(failed, clear);
@@ -274,6 +318,17 @@ export function createGoogleCallbackHandler(load: () => GoogleSignInDependencies
       }
     }
 
+    // A sign-in that asked for Calendar without the consent screen, where Google
+    // granted every Calendar scope but the grant still cannot use Calendar (no
+    // refresh token, as for an account that authorized this client before, or a
+    // stored token Google has since rejected), goes straight on to the renewed
+    // consent, which returns a refresh token, instead of /app and the messenger
+    // welcome asking the host for Calendar again (D3, #407). Unticked Calendar
+    // boxes are the host's choice and are not asked again here.
+    if (asked && account.status === "active" && (await needsLastingAccess(deps.db, account.id).catch(() => false))) {
+      return auth.redirect(`${origin}${renewedConsentPath(recorded)}`, clear);
+    }
+
     const linkToken = recorded?.startsWith("link:") ? recorded.slice(5) : null;
     const linkReturn = linkToken ? openConnectLink([deps.tokenKey], linkToken) : null;
     if (linkReturn?.role === "host") {
@@ -291,6 +346,16 @@ async function calendarConnected(db: Database, hostAccountId: string) {
     select ${calendarUsable(db)} as usable from app.provider_grants g where g.host_account_id = ${hostAccountId}
   `;
   return row?.usable === true;
+}
+
+// Every Calendar scope is granted, yet the grant cannot use Calendar: what is
+// missing is lasting access, which only Google's consent screen gives.
+async function needsLastingAccess(db: Database, hostAccountId: string) {
+  const [row] = await db<{ renew: boolean }[]>`
+    select coalesce(g.granted_scopes @> ${[...GOOGLE_CALENDAR_SCOPES]}::text[], false) and not ${calendarUsable(db)} as renew
+    from app.provider_grants g where g.host_account_id = ${hostAccountId}
+  `;
+  return row?.renew === true;
 }
 
 // POST /auth/sign-out: ends the Supabase session and its cookies, then returns to
