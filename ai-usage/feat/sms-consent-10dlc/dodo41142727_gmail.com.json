@@ -1,0 +1,74 @@
+{
+  "branch": "feat/sms-consent-10dlc",
+  "user": "dodo41142727@gmail.com",
+  "sessions": {
+    "claude:3f3c144f-5d7c-4397-92cf-418c63a90490": {
+      "agent": "claude-code",
+      "client": "claude-desktop",
+      "agent_ms": 0,
+      "models": {
+        "claude-opus-5-5": {
+          "input": 108,
+          "cache_read": 8103051,
+          "cache_write_5m": 0,
+          "cache_write_1h": 117158,
+          "output": 35475,
+          "reasoning": 0
+        }
+      },
+      "first": "2026-11-25T17:04:54.658Z",
+      "last": "2026-11-25T17:16:38.556Z"
+    },
+    "claude:3f3c144f-5d7c-4397-92cf-418c63a90490/agent-a39f7271d78aaef38": {
+      "agent": "claude-code",
+      "client": "claude-desktop",
+      "agent_ms": 0,
+      "models": {
+        "claude-sonnet-5-5": {
+          "input": 8,
+          "cache_read": 232594,
+          "cache_write_5m": 83186,
+          "cache_write_1h": 0,
+          "output": 1538,
+          "reasoning": 0
+        }
+      },
+      "first": "2026-11-25T17:15:36.399Z",
+      "last": "2026-11-25T17:15:50.756Z"
+    },
+    "claude:3f3c144f-5d7c-4397-92cf-418c63a90490/agent-a3d530496267a1d7d": {
+      "agent": "claude-code",
+      "client": "claude-desktop",
+      "agent_ms": 0,
+      "models": {
+        "claude-sonnet-5-5": {
+          "input": 12,
+          "cache_read": 409017,
+          "cache_write_5m": 89219,
+          "cache_write_1h": 0,
+          "output": 4803,
+          "reasoning": 0
+        }
+      },
+      "first": "2026-11-25T17:09:45.972Z",
+      "last": "2026-11-25T17:10:17.068Z"
+    },
+    "claude:3f3c144f-5d7c-4397-92cf-418c63a90490/agent-a52900f9e5d6ce635": {
+      "agent": "claude-code",
+      "client": "claude-desktop",
+      "agent_ms": 0,
+      "models": {
+        "claude-opus-5-5": {
+          "input": 40,
+          "cache_read": 2215082,
+          "cache_write_5m": 136912,
+          "cache_write_1h": 0,
+          "output": 18797,
+          "reasoning": 0
+        }
+      },
+      "first": "2026-11-25T17:10:46.642Z",
+      "last": "2026-11-25T17:14:05.297Z"
+    }
+  }
+}

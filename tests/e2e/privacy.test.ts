@@ -11,7 +11,7 @@ for (const width of [390, 1280]) {
     await page.goto("/privacy");
 
     await expect(page.getByRole("heading", { level: 1, name: "Privacy and your data" })).toBeVisible();
-    for (const name of ["Who we are", "Hosts", "How we use your calendar", "Google user data", "Who processes your data", "How we protect your data", "How long we keep it", "Deleting your data"]) {
+    for (const name of ["Who we are", "Hosts", "How we use your calendar", "Google user data", "Who processes your data", "How we protect your data", "How long we keep it", "Deleting your data", "Text messages (SMS)"]) {
       await expect(page.getByRole("heading", { level: 2, name })).toBeVisible();
     }
     await expect(page.getByText(/storage turned off/)).toBeVisible();
@@ -20,6 +20,8 @@ for (const width of [390, 1280]) {
     await expect(page.getByText(/AES-256-GCM/)).toBeVisible();
     await expect(page.getByText(/You delete your account in Settings/)).toBeVisible();
     await expect(page.getByText(/support@findmeatime\.com/).first()).toBeVisible();
+    // The statement the Photon 10DLC campaign review checks (#488).
+    await expect(page.getByText(/Mobile information will not be sold or shared with third parties for promotional or marketing purposes\./)).toBeVisible();
     expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
 
     await page.getByRole("link", { name: "한국어" }).click();
@@ -46,6 +48,9 @@ test("the landing page and a host page link to the notice", async ({ db, page })
   // The home page links the address the Google OAuth consent screen lists.
   await expect(page.getByRole("link", { name: "Privacy and your data" })).toHaveAttribute("href", "/privacy-policy");
   await expect(page.getByRole("link", { name: "Terms of service" })).toHaveAttribute("href", "/terms-of-service");
+  // The business name and a contact address, for Photon's brand-website check (#488).
+  await expect(page.getByText("© 2026 Find Me a Time.")).toBeVisible();
+  await expect(page.getByRole("link", { name: "support@findmeatime.com" })).toHaveAttribute("href", "mailto:support@findmeatime.com");
 
   const { handle } = await makeHostReady(db, await newHostAccount(db), { displayName: "Ada Lovelace" });
   await page.goto(`/${handle}`);

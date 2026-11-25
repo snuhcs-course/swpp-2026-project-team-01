@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { type ChangeEvent, type FormEvent, useId, useLayoutEffect, useRef, useState } from "react";
 import { cn } from "@/lib/utils";
 import { COUNTRY_CODES, type CountryCode, nationalDigits, PLACEHOLDER, reformat, validLocal } from "./phone";
@@ -10,6 +11,13 @@ import { COUNTRY_CODES, type CountryCode, nationalDigits, PLACEHOLDER, reformat,
 // (feat/web-language-switch d3ca3be8, components/thyme/phone-step.tsx): the country code on its own, hyphens
 // added while typing, sent as E.164. `look` picks the ink screens' classes or the conversation cards' (PR #23's
 // phone-step.tsx, fd429eeb).
+//
+// Under the field sits the SMS consent the Photon 10DLC campaign review asks for (#488): its own checkbox,
+// unchecked at first and never required, so a number is taken whether it is ticked or not, and bundled with
+// no other consent. Nothing is sent by SMS yet (#489 brings the channel back), so the choice is handed to
+// onSubmit but not stored; the SMS change records it before the first text and asks again for numbers
+// linked before then (the privacy notice says so). The submit button follows the checkbox, as in Photon's
+// example form, so nobody reaches Next before the choice.
 
 export type NumberCopy = {
   readonly label: string;
@@ -19,10 +27,17 @@ export type NumberCopy = {
   readonly errorOther: string;
   readonly errorServer: string;
   readonly submit: string;
+  // The SMS consent beside the checkbox, followed by links to the privacy policy and the terms.
+  readonly smsConsent: string;
+  readonly privacyLink: string;
+  readonly termsLink: string;
+  readonly and: string;
 };
 
+export type NumberConsent = { readonly sms: boolean };
+
 // Resolves to null once the number was taken, or to why it was not.
-export type SubmitNumber = (e164: string) => Promise<"invalid" | "other" | null>;
+export type SubmitNumber = (e164: string, consent: NumberConsent) => Promise<"invalid" | "other" | null>;
 
 const CARD_FIELD =
   "min-h-11 rounded-md border border-input bg-card px-3 text-base outline-none focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50";
@@ -45,6 +60,7 @@ export function NumberForm({
   const [cc, setCc] = useState<CountryCode>("+82");
   const [value, setValue] = useState("");
   const [busy, setBusy] = useState(false);
+  const [sms, setSms] = useState(false);
   // Which message to show, kept as a kind so it follows a language change.
   const [error, setError] = useState<"" | "errorKr" | "errorOther" | "errorServer">("");
   const caret = useRef<number | null>(null);
@@ -81,7 +97,7 @@ export function NumberForm({
       return;
     }
     setBusy(true);
-    const refused = await onSubmit(`${cc}${digits}`);
+    const refused = await onSubmit(`${cc}${digits}`, { sms });
     setBusy(false);
     if (!refused) return;
     setError(refused === "invalid" ? wrong : "errorServer");
@@ -149,7 +165,6 @@ export function NumberForm({
             {field}
           </>
         )}
-        {button}
       </div>
       <p
         className={ink ? (error ? "field-help error" : "field-help") : error ? "text-sm text-destructive" : "text-sm text-muted-foreground"}
@@ -158,6 +173,29 @@ export function NumberForm({
       >
         {error ? t[error] : t.help}
       </p>
+      <label className={ink ? "sms-consent" : "flex items-start gap-2 text-sm text-muted-foreground"} htmlFor={`${id}-sms`}>
+        <input
+          checked={sms}
+          className={ink ? undefined : "mt-0.5 size-4 shrink-0 accent-primary"}
+          id={`${id}-sms`}
+          name="sms-consent"
+          onChange={(event) => setSms(event.target.checked)}
+          type="checkbox"
+        />
+        <span>
+          {t.smsConsent}{" "}
+          <Link className="underline underline-offset-2" href="/privacy-policy" rel="noreferrer" target="_blank">
+            {t.privacyLink}
+          </Link>{" "}
+          {t.and}{" "}
+          <Link className="underline underline-offset-2" href="/terms-of-service" rel="noreferrer" target="_blank">
+            {t.termsLink}
+          </Link>
+          .
+        </span>
+      </label>
+      {/* After the consent, so a keyboard or screen-reader user meets the checkbox before submitting. */}
+      <div className={ink ? "field-row" : "flex"}>{button}</div>
     </form>
   );
 }
