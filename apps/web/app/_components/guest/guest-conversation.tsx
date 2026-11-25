@@ -2,6 +2,7 @@
 
 import { type DiscussionEvent, isRedeliveredInput } from "@lib/contracts/discussion-events";
 import { REVISED_SUMMARY_PREFIX } from "@lib/contracts/request";
+import { HOST_QUESTION_PREFIX } from "@lib/contracts/host-question";
 import { isCurrentTurnBoundaryEvent } from "eve/client";
 import { conversationReducer, type EveMessage } from "eve/react";
 import { AlertCircleIcon, XIcon } from "lucide-react";
@@ -115,6 +116,9 @@ function isWritingText(message: EveMessage | undefined) {
 function authoredNote(message: EveMessage) {
   const part = message.parts[0];
   if (message.role !== "user" || part?.type !== "text") return null;
+  // #327 host-question: show the exact host question as an application note,
+  // not as words the guest wrote. Remove with the provisional question action.
+  if (part.text.startsWith(HOST_QUESTION_PREFIX)) return part.text;
   return AUTHORED_NOTES.find((authored) => part.text.startsWith(authored.prefix))?.note ?? null;
 }
 

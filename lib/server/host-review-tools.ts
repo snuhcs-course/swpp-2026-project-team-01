@@ -1,5 +1,7 @@
 import { cancelBookingCommand, changeBookingCommand } from "./booking-cancellation";
+import { createHash } from "node:crypto";
 import { z } from "zod";
+import { HOST_QUESTION_PREFIX } from "../contracts/host-question";
 import { tutorialAction } from "../contracts/host-tutorial";
 import { BOOKING_STATUS_TEXT } from "../contracts/booking";
 import type { HostRequestItem, HostRequestView, HostSuggestion } from "../contracts/host-request";
@@ -9,13 +11,17 @@ import { finishSampleCommand, tutorialCompletionText } from "./host-tutorial";
 import { approveCommand, declinedDatesSchema, declineCommand, readBookingStatus } from "./bookings";
 import { channelOfTurn, matchHostRequests } from "./channel-selection";
 import { type Actor, runCommand } from "./commands";
+import { agentUrlFromEnvironment, type ConversationRuntime, eveRuntime } from "./conversations";
 import type { Database, Queryable } from "./database";
 import { encodeDisplayName } from "./entry-documents";
 import { awaitHostEvaluation } from "./evaluation";
 import { HOST_REVIEW_AUDIENCE } from "./eve-auth";
+import { acceptGuestMessage } from "./guest-conversations";
 import { listHostRequests, readHostRequest, readHostTimezone } from "./host-requests";
 import type { NoticeDependencies } from "./booking-notices";
-import { hostEvaluateCommand } from "./request-exceptions";
+import { enqueueGuestNotice } from "./imessage-notices";
+import { internalSigningKey } from "./internal-bearer";
+import { allowHostTripCommand, allowHostTripInput, hostEvaluateCommand, waiveWeeklyLimitCommand } from "./request-exceptions";
 import { listSentRequests, type SentRequestItem } from "./host-sent-requests";
 import { requestRef } from "./request-ref";
 import type { SessionPrincipal } from "./setup-tools";
@@ -26,9 +32,9 @@ import { dismissChangesCommand, shareChangesCommand, sharedChangesSchema, sugges
 // discussions: they exist only in a host's private review session of one
 // request. Every call first checks the fence: an active host, a request it hosts
 // that is not a draft and is the session's own `requestId`, and the session is
-// its review discussion's current, active generation. Exceptions are not tools:
-// the model can read, evaluate and suggest, and the host allows them on the
-// cards. The decisions that are tools act in the host's own words from their
+// its review discussion's current, active generation. The host can allow
+// rule and trip exceptions on the web cards or in their linked conversation.
+// The decisions that are tools act in the host's own words from their
 // linked iMessage, WhatsApp or Telegram, and only while the message being
 // answered came from there: approve_proposal (host-imessage-channel D23), and
 // decline_request, share_changes and dismiss_changes (channel-actions-in-words
@@ -101,7 +107,7 @@ export const LANGUAGE_NOTE =
   "Reply in the language of the host's latest message. The requester's name, purpose and place keep the requester's language and never decide the language of the reply.";
 
 const NEXT_STEPS =
-  "On the web, only the cards decide: Approve this proposal, Request changes and Decline on the proposal review card; Share revised details and Dismiss suggestions on the suggestion card; Allow N minutes for this trip and Allow this request beyond my weekly limit on the rule and travel review. A message typed on the web such as approve it records nothing; point to the button instead. From the host's linked iMessage, WhatsApp or Telegram, approve_proposal, decline_request, share_changes and dismiss_changes act on the host's clear words.";
+  "On the web, only the cards decide: Approve this proposal, Request changes and Decline on the proposal review card; Share revised details and Dismiss suggestions on the suggestion card; Allow N minutes for this trip and Allow this request beyond my weekly limit on the rule and travel review. A message typed on the web such as approve it records nothing; point to the button instead. From the host's linked iMessage, WhatsApp or Telegram, approve_proposal, decline_request, share_changes, dismiss_changes, waive_weekly_limit and allow_host_trip act on the host's clear words. A request-specific waiver does not change the saved weekly limit.";
 
 function when(start: string, end: string, timezone: string) {
   return `${displayTime(new Date(start), timezone)} to ${displayTime(new Date(end), timezone)}`;
@@ -377,6 +383,99 @@ export async function evaluateCandidatesForHostTool(
   const view = await readHostRequest(db, hostAccountId, requestId);
   if (!view) throw new HostReviewToolDeniedError();
   return { evaluated: true as const, evaluation: hostModelProjection(view).evaluation, next: NEXT_STEPS };
+}
+
+async function hostExceptionForTool(
+  db: Database,
+  call: HostReviewToolCall,
+  kind: "weekly_limit" | "host_trip",
+  input: z.infer<typeof allowHostTripInput> | Record<string, never>,
+) {
+  const { hostAccountId, requestId } = await authorizeHostReviewTool(db, call);
+  if (!(await channelOfTurn(db, call.sessionId, hostAccountId))) {
+    return { allowed: false as const, problem: "This exception works in words only from the host's linked iMessage, WhatsApp or Telegram. On the web, use the rule and travel card." };
+  }
+  const view = await readHostRequest(db, hostAccountId, requestId);
+  if (!view || ENDED_STATES.has(view.state)) return { allowed: false as const, problem: "This request is closed; nothing changed." };
+  if (view.sample) return { allowed: false as const, problem: "This is a tutorial request; no exception was recorded." };
+  if (kind === "weekly_limit" && !view.evaluation?.weeklyLimitHold) {
+    return { allowed: false as const, problem: "This request is not held by the weekly limit. Nothing changed." };
+  }
+
+  const pipeline = { authenticate: async () => hostActor(hostAccountId), db };
+  const request = { expectedRevision: view.revision, resourceId: requestId, retryKey: `tool:${call.callId}` };
+  const outcome = kind === "weekly_limit"
+    ? await runCommand(pipeline, waiveWeeklyLimitCommand(), { ...request, input: {} })
+    : await runCommand(pipeline, allowHostTripCommand(), { ...request, input: input as z.infer<typeof allowHostTripInput> });
+  if (!outcome.ok) {
+    const problem = outcome.error.category === "stale_revision"
+      ? "The request or candidate changed. Read the request again; nothing was allowed."
+      : outcome.error.category === "invalid_input"
+        ? "That trip is not an unresolved host trip in the current evaluation, or the minutes are not allowed. Nothing changed."
+        : "The request cannot take this exception now. Nothing changed.";
+    return { allowed: false as const, problem };
+  }
+
+  const checked = await awaitHostEvaluation(db, outcome.result.evaluationId, HOST_REVIEW_EVALUATION_WAIT_MS);
+  const current = await readHostRequest(db, hostAccountId, requestId);
+  const evaluation = current ? hostModelProjection(current).evaluation : null;
+  return {
+    allowed: true as const,
+    evaluation: checked ? evaluation : null,
+    message: kind === "weekly_limit"
+      ? `This request alone may exceed the weekly limit. The saved weekly limit did not change. ${checked ? "Times were checked again; describe only the times in the returned evaluation." : "The new time check is still running; do not describe earlier times as newly checked."} Nothing is booked.`
+      : `The host trip allowance was recorded for this candidate only. ${checked ? "Times were checked again; describe only the times in the returned evaluation." : "The new time check is still running; do not describe earlier times as newly checked."} Nothing is booked.`,
+  };
+}
+
+export function waiveWeeklyLimitForHostTool(db: Database, call: HostReviewToolCall) {
+  return hostExceptionForTool(db, call, "weekly_limit", {});
+}
+
+export function allowHostTripForHostTool(db: Database, call: HostReviewToolCall, input: z.infer<typeof allowHostTripInput>) {
+  return hostExceptionForTool(db, call, "host_trip", input);
+}
+
+export const hostQuestionToolInput = z.object({ question: z.string().trim().min(1).max(500) }).strict();
+
+function questionInputId(requestId: string, callId: string) {
+  const hash = createHash("sha256").update(`host-question:${requestId}:${callId}`).digest("hex");
+  return `${hash.slice(0, 8)}-${hash.slice(8, 12)}-${hash.slice(12, 16)}-${hash.slice(16, 20)}-${hash.slice(20, 32)}`;
+}
+
+// #327 host-question: provisional host-to-guest action. Keep its write and
+// notice together here so the team can remove this feature after review.
+export async function askGuestForHostTool(
+  db: Database,
+  call: HostReviewToolCall,
+  input: z.infer<typeof hostQuestionToolInput>,
+  delivery: { readonly runtime: ConversationRuntime; readonly signingKey: string } = {
+    runtime: eveRuntime(agentUrlFromEnvironment()),
+    signingKey: internalSigningKey(),
+  },
+) {
+  const { hostAccountId, requestId } = await authorizeHostReviewTool(db, call);
+  if (!(await channelOfTurn(db, call.sessionId, hostAccountId))) {
+    return { asked: false as const, problem: "Ask the guest works only from the host's linked iMessage, WhatsApp or Telegram." };
+  }
+  const view = await readHostRequest(db, hostAccountId, requestId);
+  if (!view || ENDED_STATES.has(view.state) || view.state === "booking" || view.state === "booked" || view.sample) {
+    return { asked: false as const, problem: "This request cannot take a host question now; nothing was sent." };
+  }
+
+  const outcome = await acceptGuestMessage(
+    { db, ...delivery },
+    { id: requestId, type: "requester_request" },
+    { clientInputId: questionInputId(requestId, call.callId), message: `${HOST_QUESTION_PREFIX} ${input.question}` },
+  );
+  const messengerQueued = await db.begin((tx) => enqueueGuestNotice(tx, requestId, { kind: "host_question", inputId: outcome.inputId }));
+  return {
+    asked: true as const,
+    messengerQueued,
+    message: messengerQueued
+      ? "The host's question was added to the guest's web conversation and queued for their linked messenger. It is a question, not a change or booking."
+      : "The host's question was added to the guest's web conversation. The guest has no linked messenger, so no messenger notice was queued. It is a question, not a change or booking.",
+  };
 }
 
 export const proposeSharedChangesToolInput = z.object({

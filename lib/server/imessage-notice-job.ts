@@ -16,6 +16,7 @@ import { activeRequesterBinding, requesterBindingRecipient } from "./requester-i
 import type { JobHandler } from "./jobs";
 import type { HostRequestView } from "../contracts/host-request";
 import { isValidTimeZone } from "../contracts/timezone";
+import { HOST_QUESTION_PREFIX } from "../contracts/host-question";
 import { appOriginsFromEnvironment } from "./same-origin";
 import { type TokenKey, tokenKeyFromEnvironment } from "./token-encryption";
 
@@ -93,8 +94,29 @@ export const GUEST_NOTICE_TEXTS = {
   },
 } as const;
 
+// #327 host-question: one fixed wrapper around the host's exact words.
+export function hostQuestionNoticeText(language: "en" | "ko", question: string) {
+  return language === "ko"
+    ? `미팅 호스트가 묻습니다: ${question}\n여기나 예약 페이지의 대화에서 답해 주세요.`
+    : `${HOST_QUESTION_PREFIX} ${question}\nReply here or in your booking page conversation.`;
+}
+
 // A guest notice's text from the event's own records, or null when the record is gone.
 async function guestNoticeText(q: Transaction, requestId: string, notice: Exclude<GuestNotice, { kind: "agreement_sent" }>) {
+  // #327 host-question: read the one authored input so the web and messenger
+  // show the same host words; a closed request suppresses a queued question.
+  if (notice.kind === "host_question") {
+    const [question] = await q<{ language: string | null; message: string }[]>`
+      select r.details ->> 'language' as language, i.message
+      from app.requests r
+      join app.discussions d on d.principal_type = 'requester_request' and d.principal_id = r.id and d.audience = 'requester'
+      join app.conversation_inputs i on i.discussion_id = d.id and i.id = ${notice.inputId}
+      where r.id = ${requestId} and r.closed_at is null
+    `;
+    if (!question?.message.startsWith(HOST_QUESTION_PREFIX)) return null;
+    const text = question.message.slice(HOST_QUESTION_PREFIX.length).trim();
+    return hostQuestionNoticeText(question.language === "ko" ? "ko" : "en", text);
+  }
   const [request] = await q<{ host_name: string | null; language: string | null; timezone: string | null }[]>`
     select s.settings ->> 'displayName' as host_name, r.details ->> 'language' as language, r.details ->> 'timezone' as timezone
     from app.requests r left join app.host_settings s on s.host_account_id = r.host_account_id
@@ -180,6 +202,12 @@ export function followsText(view: Pick<HostRequestView, "revisedFrom">, language
   }
 }
 
+export function weeklyLimitHoldText(language: ChannelLanguage, ref: string, requester: string, limit: number) {
+  return language === "ko"
+    ? `요청 ${ref} · ${requester}님\n가능한 시간이 모두 주간 한도(${limit}회)에 걸려 게스트가 시간을 고르지 못하고 있어요.\n이번 요청만 한도를 넘어 진행할까요?`
+    : `Request ${ref} · ${requester}\nEvery available time falls in a week at your limit of ${limit} meetings, so the guest cannot choose a time.\nAllow this request beyond the weekly limit?`;
+}
+
 // The notice's text, with the decision buttons a WhatsApp summary of a proposal
 // awaiting approval carries (host-whatsapp-channel D17), or null when it no
 // longer applies.
@@ -230,11 +258,7 @@ async function noticeText(
         !current || current.revision !== notice.requestRevision || current.settings_revision !== notice.settingsRevision ||
         current.weekly_limit !== notice.weeklyLimit || !view.evaluation?.weeklyLimitHold
       ) return null;
-      const settingsLink = `${deps.origin}/app?settings=weekly-limit`;
-      const text = language === "ko"
-        ? `${view.requester.name}님이 신청한 미팅은 주간 한도(${notice.weeklyLimit}회)를 초과해 가능한 시간을 선택하지 못하고 있어요. 주간 한도를 조정할까요? 설정에서 변경할 수 있습니다: ${settingsLink}`
-        : `${view.requester.name} cannot choose a time because every available week is at your ${notice.weeklyLimit}-meeting weekly limit. Would you like to adjust it? Change the limit in Settings: ${settingsLink}`;
-      return { text };
+      return { text: weeklyLimitHoldText(language, ref, view.requester.name, notice.weeklyLimit) };
     }
     default: {
       const [booking] = await q<{ start_at: Date; end_at: Date }[]>`
@@ -284,11 +308,11 @@ export function createImessageNoticeHandler(load: () => NoticeJobDependencies = 
       text: summary.text,
       tokenKey: deps.tokenKey,
     });
-    // The host's next plain reply goes to this request, so "book it" reaches the
-    // discussion that can approve it (D23), as request <ref> would select it.
+    // The host's next plain reply goes to this request, so a decision on the
+    // approval or weekly-limit question reaches the discussion that can act.
     if (hostNotice.kind === "sample_request") {
       await tx`update app.imessage_bindings set selected_request_id = ${requestId} where id = ${binding.id} and state = 'active'`;
-    } else if (hostNotice.kind === "awaiting_approval") {
+    } else if (hostNotice.kind === "awaiting_approval" || hostNotice.kind === "weekly_limit_hold") {
       // Keep a tutorial's unqualified replies away from a real request even
       // when a new guest proposal arrives while the host is practising.
       await tx`select id from app.imessage_bindings where id = ${binding.id} for no key update`;

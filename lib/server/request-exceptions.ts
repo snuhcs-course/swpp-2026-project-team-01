@@ -84,7 +84,7 @@ export function waiveWeeklyLimitCommand(): CommandDefinition<Record<string, neve
   };
 }
 
-const allowInput = z
+export const allowHostTripInput = z
   .object({
     evaluationId: z.uuid(),
     candidateId: z.string().min(1).max(64),
@@ -98,9 +98,9 @@ const allowInput = z
 // latest evaluation, then a new evaluation that reads it. A commitment without
 // a usable place is named by the leg's `unknown:<reason>` key (#324), so its
 // trip can take one too; a leg without a travel mode or meeting place cannot.
-export function allowHostTripCommand(): CommandDefinition<z.infer<typeof allowInput>, EvaluateResult> {
+export function allowHostTripCommand(): CommandDefinition<z.infer<typeof allowHostTripInput>, EvaluateResult> {
   return {
-    input: allowInput,
+    input: allowHostTripInput,
     operation: ALLOW_HOST_TRIP_OPERATION,
     async run(tx, context) {
       const request = await lockHostRequest(tx, context.actor, context.resourceId);
