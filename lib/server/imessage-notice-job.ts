@@ -180,6 +180,12 @@ export function followsText(view: Pick<HostRequestView, "revisedFrom">, language
   }
 }
 
+export function weeklyLimitHoldText(language: ChannelLanguage, ref: string, requester: string, limit: number) {
+  return language === "ko"
+    ? `요청 ${ref} · ${requester}님\n가능한 시간이 모두 주간 한도(${limit}회)에 걸려 게스트가 시간을 고르지 못하고 있어요.\n이번 요청만 한도를 넘어 진행할까요?`
+    : `Request ${ref} · ${requester}\nEvery available time falls in a week at your limit of ${limit} meetings, so the guest cannot choose a time.\nAllow this request beyond the weekly limit?`;
+}
+
 // The notice's text, with the decision buttons a WhatsApp summary of a proposal
 // awaiting approval carries (host-whatsapp-channel D17), or null when it no
 // longer applies.
@@ -230,11 +236,7 @@ async function noticeText(
         !current || current.revision !== notice.requestRevision || current.settings_revision !== notice.settingsRevision ||
         current.weekly_limit !== notice.weeklyLimit || !view.evaluation?.weeklyLimitHold
       ) return null;
-      const settingsLink = `${deps.origin}/app?settings=weekly-limit`;
-      const text = language === "ko"
-        ? `${view.requester.name}님이 신청한 미팅은 주간 한도(${notice.weeklyLimit}회)를 초과해 가능한 시간을 선택하지 못하고 있어요. 주간 한도를 조정할까요? 설정에서 변경할 수 있습니다: ${settingsLink}`
-        : `${view.requester.name} cannot choose a time because every available week is at your ${notice.weeklyLimit}-meeting weekly limit. Would you like to adjust it? Change the limit in Settings: ${settingsLink}`;
-      return { text };
+      return { text: weeklyLimitHoldText(language, ref, view.requester.name, notice.weeklyLimit) };
     }
     default: {
       const [booking] = await q<{ start_at: Date; end_at: Date }[]>`
@@ -284,11 +286,11 @@ export function createImessageNoticeHandler(load: () => NoticeJobDependencies = 
       text: summary.text,
       tokenKey: deps.tokenKey,
     });
-    // The host's next plain reply goes to this request, so "book it" reaches the
-    // discussion that can approve it (D23), as request <ref> would select it.
+    // The host's next plain reply goes to this request, so a decision on the
+    // approval or weekly-limit question reaches the discussion that can act.
     if (hostNotice.kind === "sample_request") {
       await tx`update app.imessage_bindings set selected_request_id = ${requestId} where id = ${binding.id} and state = 'active'`;
-    } else if (hostNotice.kind === "awaiting_approval") {
+    } else if (hostNotice.kind === "awaiting_approval" || hostNotice.kind === "weekly_limit_hold") {
       // Keep a tutorial's unqualified replies away from a real request even
       // when a new guest proposal arrives while the host is practising.
       await tx`select id from app.imessage_bindings where id = ${binding.id} for no key update`;
