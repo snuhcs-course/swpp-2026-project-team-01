@@ -7,6 +7,7 @@ import { type DeploymentEnvironment, deploymentEnvironment } from "./deployment"
 import { JOB_BATCH_LIMITS, JOB_HANDLERS } from "./job-handlers";
 import { type ClaimedJob, claimJobs, type JobHandler, type JobResult, processJob } from "./jobs";
 import { messagingAdmitted } from "./messaging";
+import { captureServerEvent } from "./product-analytics";
 import { TELEGRAM_TYPING_JOB, TYPING_INTERVAL_SECONDS } from "./telegram-jobs";
 
 // The one job worker. The internal route (POST /api/internal/jobs) and
@@ -79,6 +80,8 @@ export async function runWorkerBatch(deps: JobWorkerDependencies): Promise<Worke
     }
 
     results[result] = (results[result] ?? 0) + 1;
+    // A job's kind and result, such as a booking written to the calendar.
+    captureServerEvent({ event: "job_processed", properties: { attempt: job.attempts, kind: job.kind, result }, subject: { kind: "anonymous", scope: "job" } }, deps.env);
   }
 
   return { claimed: jobs.length, results };
