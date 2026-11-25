@@ -26,7 +26,7 @@ This change is a draft. Only group 1 can start now. Groups 2 to 5 wait for a tea
 
 - [ ] 4.1 Build the fixed templates for the introduction, the candidates, the counts and the confirmation. A test renders every template from a fixture that holds private event titles, notes, emails and busy reasons, and asserts that none appear.
 - [ ] 4.2 Add the ranking, the settle rule and booking by number from the organizer's chat, `/app` and `host:decide`. Tests cover a group message that tries to book, a stale time, a repeated booking and attendees from emails.
-- [ ] 4.3 Add closing on booking, cancel, `stop` and 14 days, and the 30-day deletion in the retention pass.
+- [ ] 4.3 Add closing on booking, cancel and `stop` only, the one-time request for a new date range when every candidate has passed, and the 30-day deletion in the retention pass.
 
 ## 5. Documents and release
 

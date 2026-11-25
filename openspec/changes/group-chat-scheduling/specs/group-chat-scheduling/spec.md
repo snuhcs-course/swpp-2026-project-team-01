@@ -123,11 +123,15 @@ The organizer SHALL book a group request by naming one candidate time from their
 - **THEN** nothing is booked, the organizer is told, and they can choose another time
 
 ### Requirement: Group request lifetime and retention
-A group request SHALL close when it is booked, when the organizer cancels, after `stop`, or 14 days after activation without a booking. Members' answers, display names and emails SHALL be deleted 30 days after the group request closes. No group message text SHALL be stored beyond parsing.
+A group request SHALL close only when it is booked, when the organizer cancels, or after `stop`; it SHALL NOT close because time has passed. When every candidate has passed, the organizer SHALL be asked once, in their own chat, for a new date range. Members' answers, display names and emails SHALL be deleted 30 days after the group request closes. No group message text SHALL be stored beyond parsing.
 
-#### Scenario: Unbooked poll expires
-- **WHEN** 14 days pass after activation without a booking
-- **THEN** the group request closes, the room stops being forwarded and the organizer is told
+#### Scenario: Unbooked poll stays open
+- **WHEN** a month passes after activation without a booking, a cancel or `stop`
+- **THEN** the group request is still open and the room is still forwarded for parsing
+
+#### Scenario: All candidates have passed
+- **WHEN** the last candidate time passes without a booking
+- **THEN** the organizer is asked once in their own chat for a new date range, and the group is sent nothing
 
 #### Scenario: Retention after closure
 - **WHEN** 30 days pass after a group request closed

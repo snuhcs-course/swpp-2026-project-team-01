@@ -126,6 +126,8 @@ The organizer books by number: "2번으로 잡아줘" in their chat, or **Book t
 
 The group request then closes. The relay stops forwarding the room's text.
 
+An unbooked group request never closes on its own (user, 2026-11-26). It stays open until it is booked, the organizer cancels, or someone sends `stop`. When every candidate has passed, the organizer is asked once in their 1:1 chat for a new date range, and the group is told nothing until new times are found.
+
 ### 8. What the group never sees
 
 Messages to the group are built from fixed templates. These are the only fields they may hold:
@@ -148,6 +150,8 @@ They never contain any of these:
 The ranked list in the organizer's 1:1 chat may name who answered what, because the organizer runs the poll. It still carries no member calendar detail.
 
 ## Risks / Trade-offs
+
+- **Rooms that stay active.** With no automatic close, a forgotten room keeps forwarding its messages to the parser for as long as the group exists. Mitigation: nothing is stored or sent to the model, anyone can send `stop`, and the organizer can cancel from `/app`.
 
 - **Forged names in the group.** Anyone can post "1 3" under another person's name. The user chose to count them without a label. Mitigation: only the organizer books, and connected calendars remove times by real busy times, not by a claim.
 - **The bot speaks only after someone writes.** The confirmation can wait for a message in the group. Mitigation: the 24-hour fallback asks the organizer to prompt the group.
