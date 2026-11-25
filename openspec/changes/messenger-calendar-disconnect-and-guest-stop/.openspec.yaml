@@ -1,0 +1,4 @@
+schema: spec-driven
+created: 2026-11-25
+goal: Let hosts disconnect Google Calendar from linked messengers and let guests
+  stop request messages with a clear re-opt-in path.

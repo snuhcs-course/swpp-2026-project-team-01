@@ -37,7 +37,7 @@ import { photonConfig, type PhotonConfig, photonTransport, SPECTRUM_ENDPOINT } f
 import { WHATSAPP_BUTTON_CONTENT } from "./whatsapp";
 import { IMESSAGE_RECEIPT_JOB, receiptSealContext } from "./photon-receiver";
 import { emailSourceHash } from "./email-receipts";
-import { requesterBindingContext } from "./requester-imessage-bindings";
+import { requesterBindingContext, stopRequesterChannelBindings } from "./requester-imessage-bindings";
 import { type CreationLimits } from "./request-start";
 import { isRevisable, readRevisedSummary, reviseClosedRequest } from "./revised-requests";
 import { type SetupDependencies, setupDependenciesFromEnvironment } from "./setup";
@@ -538,8 +538,10 @@ export function namedSentRequest<Binding extends { readonly request_id: string; 
   return matches.length === 1 ? matches[0]! : null;
 }
 
-async function guestRoute(tx: Transaction, receipt: OpenedReceipt, origin: string): Promise<GuestRoute | "ambiguous" | "host" | "host_link" | null> {
+async function guestRoute(tx: Transaction, receipt: OpenedReceipt, origin: string): Promise<GuestRoute | "ambiguous" | "guest_stop" | "host" | "host_link" | null> {
   const command = receipt.text ? parseCommand(receipt.text) : null;
+  const stopText = receipt.text?.trim() ?? "";
+  const isGuestStop = stopText.toLowerCase() === "stop" || (receipt.channel === "telegram" && /^\/stop(?:@[a-z][a-z0-9_]{1,28}bot)?$/i.test(stopText));
   const all = await activeGuestBindings(tx, receipt.senderHash);
   const host = await activeBindingOfSender(tx, receipt.senderHash);
   const here = host ? all.filter((binding) => binding.link_id === null && binding.channel === host.channel) : [];
@@ -548,6 +550,13 @@ async function guestRoute(tx: Transaction, receipt: OpenedReceipt, origin: strin
   if (host && here.length) {
     const route = await hostConversationRoute(tx, receipt, origin, command, host, here);
     if (route !== undefined) return route;
+  }
+
+  // A standalone guest link may have several requests on this channel. STOP
+  // applies to all of them before the picker or assistant sees the text; a
+  // repeated STOP with no active binding is idempotent and stays silent.
+  if (!host && isGuestStop && command?.name === "stop") {
+    return "guest_stop";
   }
 
   if (command?.name === "request") {
@@ -625,6 +634,21 @@ async function guestReply(
     text: message.text,
     tokenKey: deps.tokenKey,
   });
+}
+
+async function stopGuestMessages(tx: Transaction, deps: ImessageReceiptDependencies, receipt: OpenedReceipt): Promise<ReceiptOutcome> {
+  const ended = await stopRequesterChannelBindings(tx, receipt.senderHash, receipt.channel);
+  if (ended === 0) return "ignored";
+  await recordOutbound(tx, {
+    channel: receipt.channel,
+    dedupeKey: `receipt:${receipt.id}`,
+    kind: "command",
+    recipient: { address: receipt.sender, spaceId: receipt.spaceId },
+    recipientHash: receipt.senderHash,
+    text: channelReplies(senderLanguage(receipt)).guestStop[receipt.channel],
+    tokenKey: deps.tokenKey,
+  });
+  return "command";
 }
 
 // The guest's message: a switch is answered; content other than text gets one
@@ -901,6 +925,7 @@ export async function processReceipt(
   // design 4); a Telegram button tap or block is never a guest's message.
   const guestContent = receipt.channel !== "telegram" || receipt.contentType === "text" || receipt.contentType === "command";
   let guest = guestContent ? await guestRoute(tx, receipt, deps.origin) : null;
+  if (guest === "guest_stop") return stopGuestMessages(tx, deps, receipt);
   // A sender with several conversations and no current choice (#137): a
   // message that names one in words goes there; otherwise the choice is asked
   // in the message's language, answerable in words.

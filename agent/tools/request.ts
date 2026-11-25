@@ -43,6 +43,7 @@ import {
   suggestionToolInput,
 } from "../../lib/server/host-review-tools";
 import { setupDependenciesFromEnvironment } from "../../lib/server/setup";
+import { disconnectCalendarForTool } from "../../lib/server/setup-channel-tools";
 import {
   changeSettingsFromRequestForTool,
   changeSettingsToolInput,
@@ -238,6 +239,11 @@ function hostReviewTools() {
         "Change the host's saved settings when the host, writing from their linked iMessage, WhatsApp or Telegram, asks to change a setting for all their meetings (\"change my preferred meeting location to Gangnam\", \"my usual place is now Cafe Onion\"), not this request's place or time, which propose_shared_changes drafts. Act only on the host's own words, never on the requester's name or purpose. Pass the draftRevision from read_settings and only the fields to change, each with source stated; a location is {kind: \"places\", areas, venue} or {kind: \"decide_per_meeting\"}. Once setup is saved it saves the change at once and reports savedChange: only \"saved\" means guests book against it now; say so then, and otherwise say it is not saved yet and why. On the web it returns a problem.",
       inputSchema: changeSettingsToolInput,
       execute: (input, toolCtx) => changeSettingsFromRequestForTool(setupDependenciesFromEnvironment(), call(toolCtx), input),
+    }),
+    disconnect_google_calendar: defineTool({
+      description: "Disconnect the host's Google Calendar only after they clearly ask you to disconnect it. Use this for a request in the linked iMessage, WhatsApp or Telegram conversation, not for a question about how to disconnect. It removes the saved grant and calendar choices, pauses new requests, keeps existing requests open, and leaves existing bookings and Calendar events in place. Calendar-dependent work resumes after reconnecting and completing setup. If the host only asks how, explain that they can ask you to disconnect it or use Connected apps in /app.",
+      inputSchema: z.object({}),
+      execute: (_input, toolCtx) => disconnectCalendarForTool(setupDependenciesFromEnvironment(), call(toolCtx)),
     }),
     start_request: defineTool({
       description: START_REQUEST_DESCRIPTION,

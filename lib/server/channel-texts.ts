@@ -386,6 +386,11 @@ export const CHANNEL_REPLIES = {
       telegram: "Unlinked. You won't get Telegram messages from Find Me a Time.",
       whatsapp: "Unlinked. You won't get WhatsApp messages from Find Me a Time.",
     } satisfies Record<StoredChannel, string>,
+    guestStop: {
+      imessage: "Stopped. You won't get request updates from Find Me a Time on this channel. To start again, open the booking link from your request email and connect this messenger again.",
+      telegram: "Stopped. You won't get request updates from Find Me a Time on this channel. To start again, open the booking link from your request email and connect this messenger again.",
+      whatsapp: "Stopped. You won't get request updates from Find Me a Time on this channel. To start again, open the booking link from your request email and connect this messenger again.",
+    } satisfies Record<StoredChannel, string>,
     callbackStale: "This proposal has changed. Here is the current one.",
     callbackNotLinked: "Not linked",
     request: (ref: string, name: string, purpose: string | null) => `Request ${ref} from ${name}${purpose ? `: ${purpose}` : ""}.`,
@@ -566,6 +571,11 @@ export const CHANNEL_REPLIES = {
       imessage: "연결을 끊었어요. 이제 Find Me a Time의 iMessage를 받지 않아요.",
       telegram: "연결을 끊었어요. 이제 Find Me a Time의 Telegram 메시지를 받지 않아요.",
       whatsapp: "연결을 끊었어요. 이제 Find Me a Time의 WhatsApp 메시지를 받지 않아요.",
+    } satisfies Record<StoredChannel, string>,
+    guestStop: {
+      imessage: "중단했어요. 이 채널로는 Find Me a Time의 요청 업데이트를 더 이상 보내지 않아요. 다시 받으려면 요청 이메일의 예약 링크를 열어 이 메신저를 다시 연결해 주세요.",
+      telegram: "중단했어요. 이 채널로는 Find Me a Time의 요청 업데이트를 더 이상 보내지 않아요. 다시 받으려면 요청 이메일의 예약 링크를 열어 이 메신저를 다시 연결해 주세요.",
+      whatsapp: "중단했어요. 이 채널로는 Find Me a Time의 요청 업데이트를 더 이상 보내지 않아요. 다시 받으려면 요청 이메일의 예약 링크를 열어 이 메신저를 다시 연결해 주세요.",
     } satisfies Record<StoredChannel, string>,
     callbackStale: "제안이 바뀌었어요. 현재 제안을 보내 드릴게요.",
     callbackNotLinked: "연결되지 않음",
