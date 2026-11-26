@@ -84,16 +84,16 @@
       "agent_ms": 4319006,
       "models": {
         "gpt-6.1-sol": {
-          "input": 713813,
-          "cache_read": 73363456,
+          "input": 714746,
+          "cache_read": 74555904,
           "cache_write_5m": 0,
           "cache_write_1h": 0,
-          "output": 229206,
-          "reasoning": 97571
+          "output": 231280,
+          "reasoning": 99113
         }
       },
       "first": "2026-11-25T17:16:01.639Z",
-      "last": "2026-11-26T02:12:48.489Z"
+      "last": "2026-11-26T02:13:37.177Z"
     },
     "codex:01a213f0-5092-7b62-bfdc-2a561a5e2b92": {
       "agent": "codex",

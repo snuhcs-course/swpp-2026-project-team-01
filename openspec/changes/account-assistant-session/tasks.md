@@ -69,6 +69,6 @@ RV-10/RV-X09 are executed from account-assistant/review-routing.eval.ts with hos
 - [x] 8.2 Unify schedule reply guidance and sample approve/decline completion; keep one sample decision path and explicit no-event/no-notification results.
 - [x] 8.3 Expose the production service hours question from original analysis/outbox state, preserving ledger precedence, currentness, delivery and reply eligibility; add visibility tests.
 - [x] 8.4 Bound current request reads and retain unconfirmed same-turn staging across compaction; update owning docs and existing Korean mirrors without weakening live eval checks.
-- [ ] 8.5 Run required local checks, record results, commit and push the repair; no evals, stack lifecycle, shared Supabase, migration application, deployment or merge.
+- [x] 8.5 Run required local checks, record results, commit and push the repair; no evals, stack lifecycle, shared Supabase, migration application, deployment or merge.
 
 Third repair local evidence (Node.js 24.22.3): lint passed with six existing warnings; typecheck passed; 162 unit files / 1,444 tests passed; Eve + Next.js build passed; strict OpenSpec validation passed; documentation check passed (1,822 links / 448 files); git diff --check passed. Unit serialization checks use postgres.js's actual JSONB serializer without a database connection. All live eval assertions and trial counts are unchanged. Live evals, database execution, integration/e2e and deployment are NOT RUN.
