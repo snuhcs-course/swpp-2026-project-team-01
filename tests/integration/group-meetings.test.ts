@@ -13,7 +13,11 @@ import {
   type GroupToolDependencies,
   moreGroupOptionsForTool,
 } from "../../lib/server/group-host-tools";
+import { joinGroupForTool } from "../../lib/server/group-account-join";
 import { GROUP_CLOSE_JOB, readGroup } from "../../lib/server/group-meetings";
+import { startRequestForTool } from "../../lib/server/host-sent-requests";
+import { outboxSealContext } from "../../lib/server/imessage-outbox";
+import { openToken } from "../../lib/server/token-encryption";
 import { assignHandle } from "../../lib/server/handles";
 import { listHostRequests } from "../../lib/server/host-requests";
 import { sessionIdHash } from "../../lib/server/model-limits";
@@ -364,9 +368,9 @@ function toolDeps(close: () => GroupCloseDependencies = () => closeDeps()): Grou
 }
 
 // A ready host with a dense calendar on the fake Google, linked from iMessage.
-async function linkedHost(events: Ev[] = HOST_EVENTS) {
+async function linkedHost(events: Ev[] = HOST_EVENTS, overrides: Partial<ConfirmedSettings> = {}) {
   const host = await createCalendarHost(db, calendarKey);
-  const settings = settingsFor(host.email, HOST_SETTINGS);
+  const settings = settingsFor(host.email, { ...HOST_SETTINGS, ...overrides });
   google.setFixture(host.refreshToken!, {
     calendars: [{ accessRole: "owner", conferenceSolutionTypes: ["hangoutsMeet"], id: host.email, primary: true, summary: "Work" }],
     events: { [host.email]: events.map((ev) => fakeEvent(ev, host.email)) },
@@ -773,6 +777,94 @@ describe("a five-person group meeting over the web and the host's messenger", ()
     expect(options.length).toBeGreaterThan(0);
     for (const option of options.filter((entry) => entry.missing.length === 0)) {
       expect(conflict(PEOPLE[3]!, option.start.getTime(), option.end.getTime(), option.place)).toBeNull();
+    }
+  });
+
+  it("lets a host who uses the service answer from their own chat as usual, with one yes", async () => {
+    const host = await linkedHost();
+    const created = await createGroupForTool(toolDeps(), await hostSays(host, "2명이랑 스터디 잡아줘"), {
+      durationMinutes: 60,
+      participants: 2,
+      purpose: "스터디",
+      rangeEnd: day(4),
+      rangeStart: day(0),
+    });
+    const { groupId, link } = created;
+    if (!groupId || !link) throw new Error("not created");
+
+    // Another host: meets weekdays 13:00–19:00 from Seongsu by transit, with a
+    // client meeting on Monday and a day off on Friday.
+    const joiner = await linkedHost(
+      [
+        { day: 0, end: "16:00", location: "성수동 카페거리", start: "14:00", title: "고객 미팅" },
+        { allDay: true, day: 4, end: "", endDay: 5, start: "", title: "휴가" },
+      ],
+      {
+        displayName: "한지수",
+        location: { areas: [], kind: "places", venue: "성수동 카페거리" },
+        weeklyWindows: (["monday", "tuesday", "wednesday", "thursday", "friday"] as const).map((weekday) => ({ end: "19:00", start: "13:00", weekday })),
+      },
+    );
+
+    // The link is never a booking link, and the host's own link joins nothing.
+    const started = await startRequestForTool({ appOrigin: ORIGIN, db, tokenKey: testTokenKey, tokenKeys: [testTokenKey] }, await hostSays(joiner, link), { another: false, to: link });
+    expect(started).toMatchObject({ problem: expect.stringContaining("join_group_meeting"), started: false });
+    expect(await joinGroupForTool(toolDeps(), await hostSays(host, link), { commitments: [], link })).toMatchObject({ joined: false, problem: expect.stringContaining("own group") });
+
+    // The link alone: no question first, one picture of their usual open times.
+    const images = async () =>
+      (await db<{ id: string; text_ciphertext: string; sealed_key_id: string }[]>`
+        select o.id, o.text_ciphertext, o.sealed_key_id from app.imessage_outbox o
+        where o.host_account_id = ${joiner.hostAccountId} and o.kind = 'image' and o.dedupe_key like 'group-join:%' order by o.created_at, o.dedupe_key
+      `).map((row) => JSON.parse(openToken([testTokenKey], { ciphertext: row.text_ciphertext, keyId: row.sealed_key_id }, outboxSealContext(row.id))) as { summary: string; preview: { group?: boolean; days: { date: string; open: { start: string; end: string }[] }[] } });
+    const first = await joinGroupForTool(toolDeps(), await hostSays(joiner, `이거 참여할게 ${link}`), { commitments: [], link });
+    if (!("queued" in first)) throw new Error(JSON.stringify(first));
+    const [shown] = await images();
+    expect(shown!.summary).toContain("하던 대로");
+    expect(shown!.summary).toContain("맞으시죠");
+    expect(shown!.summary).not.toContain("선호");
+    expect(shown!.preview.group).toBe(true);
+    const openOn = (offset: number) => shown!.preview.days.find((entry) => entry.date === day(offset))!.open;
+    expect(openOn(0)).toEqual([{ end: "14:00", start: "13:00" }, { end: "19:00", start: "16:00" }]);
+    expect(openOn(1)).toEqual([{ end: "19:00", start: "13:00" }]);
+    expect(openOn(4)).toEqual([]);
+    // Nothing reached the group yet.
+    expect(await groupProgressForTool(toolDeps(), await hostSays(host, "몇 명 했어?"))).toMatchObject({ groups: [expect.objectContaining({ done: 0 })] });
+
+    // A fixed commitment the calendar lacks gives a new picture; a yes to the old one only resends.
+    const tutoring = [{ allDay: false as const, end: at(3, "19:00"), start: at(3, "17:00") }];
+    const corrected = await joinGroupForTool(toolDeps(), await hostSays(joiner, "목요일 5시부터는 과외 있어"), { commitments: tutoring, link });
+    if (!("queued" in corrected)) throw new Error(JSON.stringify(corrected));
+    expect(corrected.fingerprint).not.toBe(first.fingerprint);
+    expect((await images()).at(-1)!.preview.days.find((entry) => entry.date === day(3))!.open).toEqual([{ end: "17:00", start: "13:00" }]);
+    expect(await joinGroupForTool(toolDeps(), await hostSays(joiner, "응"), { commitments: tutoring, confirm: first.fingerprint, link })).toMatchObject({ queued: true });
+
+    const yes = await joinGroupForTool(toolDeps(), await hostSays(joiner, "응 맞아"), { commitments: tutoring, confirm: corrected.fingerprint, link });
+    expect(yes).toMatchObject({ joined: true });
+    expect(await joinGroupForTool(toolDeps(), await hostSays(joiner, link), { commitments: [], link })).toMatchObject({ joined: false, problem: expect.stringContaining("already answered") });
+
+    // The host sees one done, by name, and no request of its own.
+    const progress = await groupProgressForTool(toolDeps(), await hostSays(host, "몇 명 했어?"));
+    expect(JSON.stringify(progress)).toContain("한지수");
+    expect(await listHostRequests(db, host.hostAccountId)).toEqual([]);
+
+    // A web participant fills the group; the options fit both.
+    const web = await joinWithGoogle(new URL(link).pathname.split("/").at(-1)!, PEOPLE[0]!);
+    await chooseCalendars(web);
+    await answer(web);
+    expect((await confirm(web.bookingId, (await review(web.bookingId)).fingerprint)).status).toBe(200);
+    const job = (await jobFor(db, GROUP_CLOSE_JOB, `group:${groupId}`))!;
+    expect(await runJob(db, job.id, createGroupCloseHandler(() => closeDeps()))).toBe("completed");
+    const options = (await readOptions(db, groupId)).filter((entry) => entry.missing.length === 0);
+    expect(options.length).toBeGreaterThan(0);
+    const hour = (date: Date) => Number(new Intl.DateTimeFormat("en-GB", { hour: "2-digit", hour12: false, timeZone: "Asia/Seoul" }).format(date));
+    for (const option of options) {
+      expect(conflict(PEOPLE[0]!, option.start.getTime(), option.end.getTime(), option.place)).toBeNull();
+      expect(hour(option.start)).toBeGreaterThanOrEqual(13);
+      expect(option.end.getTime()).toBeLessThanOrEqual(Date.parse(`${new Date(option.start).toISOString().slice(0, 10)}T10:00:00Z`));
+      expect(option.start.getTime() < Date.parse(at(3, "19:00")) && option.end.getTime() > Date.parse(at(3, "17:00"))).toBe(false);
+      expect(option.start.getTime() < Date.parse(at(0, "16:00")) && option.end.getTime() > Date.parse(at(0, "14:00"))).toBe(false);
+      expect(option.start.getTime()).toBeLessThan(Date.parse(`${day(4)}T00:00:00+09:00`));
     }
   });
 });

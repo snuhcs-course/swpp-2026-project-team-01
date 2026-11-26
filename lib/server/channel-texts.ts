@@ -1,6 +1,6 @@
 import type { StoredChannel } from "../contracts/messaging-channel";
 import type { RequestState } from "../contracts/request";
-import type { MeetingMode, SetupFieldName, TravelMode, Weekday } from "../contracts/setup";
+import { type MeetingMode, type SetupFieldName, type TravelMode, WEEKDAYS, type Weekday, type WeeklyWindow } from "../contracts/setup";
 import type { HoursSuggestion, LocalRange, SlotPreview, SlotPreviewDay } from "../contracts/slot-preview";
 import { PERMISSION_REASONS } from "../contracts/permission-reasons";
 import type { ChannelLanguage } from "./channel-language";
@@ -245,6 +245,20 @@ function openSummary(preview: SlotPreview, language: ChannelLanguage) {
     }, 0);
   const hours = Math.round(minutes / 60);
   return language === "ko" ? `${days}에 모두 약 ${hours}시간` : `${days}, about ${hours} hours in all`;
+}
+
+// Weekly hours in one line, days with the same hours together: "월~금 10시~오후 6시", "Mon–Fri 10 AM–6 PM".
+export function weeklyHoursText(windows: readonly WeeklyWindow[], language: ChannelLanguage) {
+  const days: SlotPreviewDay[] = WEEKDAYS.map((weekday) => ({
+    date: "",
+    open: windows.filter((window) => window.weekday === weekday).map(({ end, start }) => ({ end, start })).toSorted((a, b) => a.start.localeCompare(b.start)),
+    weekday,
+  }));
+  const same = (a: SlotPreviewDay, b: SlotPreviewDay) =>
+    a.open.length === b.open.length && a.open.every((range, i) => range.start === b.open[i].start && range.end === b.open[i].end);
+  return dayRuns(days, same)
+    .map((run) => `${runLabel(run, language)} ${run[0].open.map((range) => rangeText(range, language)).join(", ")}`)
+    .join(" / ");
 }
 
 // The meeting the slots are for: "대면 30분, 역삼동 근처, 대중교통", "30 min, in person, …, by transit".

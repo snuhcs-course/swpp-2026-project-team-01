@@ -55,4 +55,10 @@ describe("renderSlotPreviewPng", () => {
 
     expect(png.subarray(0, 8)).toEqual(PNG_SIGNATURE);
   });
+
+  it("renders a host's open times for a group meeting", { timeout: 30_000 }, async () => {
+    const png = await renderSlotPreviewPng({ ...preview, group: true });
+
+    expect(png.subarray(0, 8)).toEqual(PNG_SIGNATURE);
+  });
 });

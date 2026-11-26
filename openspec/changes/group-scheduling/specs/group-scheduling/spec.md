@@ -56,6 +56,21 @@ A participant request SHALL proceed in this order: Google identity and Calendar;
 - **WHEN** a participant answers "보통 신촌에 있고 지하철 타요"
 - **THEN** 신촌 is stored as their usual place and public transit as their travel mode
 
+### Requirement: A host joins another host's group from their own chat
+A host with saved settings who sends another host's group link in their linked messenger SHALL be asked nothing their settings answer. The service SHALL send their open times within the group's date range, from their meeting hours and conflict calendars, as a picture with one question whether that is right, naming their usual place, travel mode, hours and calendars. A correction in words SHALL send a new picture. Only a yes to the picture last sent SHALL make them a done participant, with everything in the range outside those open times stored as times they cannot meet. Their own group link, a full or closed group, or a second answer SHALL change nothing.
+
+#### Scenario: Link sent in the host's chat
+- **WHEN** a host whose meeting hours are weekdays 13:00–19:00 sends a group link in their linked iMessage
+- **THEN** nothing is asked first, and they get a picture of their open times in the group's dates with "하던 대로 … 맞으시죠?"
+
+#### Scenario: Fixed commitment added
+- **WHEN** they answer "목요일 5시부터는 과외 있어"
+- **THEN** a new picture without Thursday from 17:00 is sent, and a yes to the earlier picture only sends the new one again
+
+#### Scenario: Yes
+- **WHEN** they say yes to the latest picture
+- **THEN** they count as done for the group, the group's host can see their name in the progress, and the options leave out every time outside their open times
+
 ### Requirement: Participant confirms the times they cannot meet
 The review SHALL list, within the group's date range, the participant's calendar busy times and the commitments they stated, and SHALL ask them to confirm or correct the list. A correction in words SHALL update the stated commitments and show the list again. Confirming SHALL store each listed interval with its start, end, all-day flag and, for a calendar event, its place, at neighborhood level or finer, together with the usual place, travel mode and any preferred hours the participant volunteered, and SHALL mark the participant done. A done participant SHALL NOT be able to change their answers. A participant's places and events SHALL NOT be shown to the host or other participants.
 

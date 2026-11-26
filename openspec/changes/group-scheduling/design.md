@@ -30,6 +30,10 @@ The number of people counts participants who reached **done**, not drafts, so so
 4. **Messenger.** The existing link card, with a skip.
 5. **Done.** The request records that it is done, and the guest is told they will get an invitation by email. A done participant cannot change their answers (D13).
 
+### A host who already uses the service
+
+A host who gets another host's group link can send it in their own linked messenger instead of opening it (`lib/server/group-account-join.ts`, tool `join_group_meeting`). Nothing their settings already answer is asked: their usual place (the first of their venue and areas), travel mode, meeting hours and conflict calendars stand in for the question, and Calendar is already connected. The service sends their open times in the group's date range as the slot image, one per week, with one question ("as usual, is that right?"); everything in the range outside those open times is what they cannot meet. A correction in words (a fixed commitment missing from the calendar, other hours, another place or travel mode) sends a new picture; a yes confirms exactly the picture last sent, by its fingerprint. Only on that yes is a participant request created for the account, already identified and done, with the unavailable times stored as the web review stores them, so the close and the booking treat it like any other participant. `start_request` refuses a group link and points to this tool.
+
 ## 4. Confirmed unavailable times
 
 What the participant confirms in step 3 is what the host gets (D11). Confirming stores each listed interval on the participant request with its start, end, whether it lasts all day and, for a calendar event, its place (D17), together with the stated commitments, preferred hours, usual place and travel mode. A place may be kept at neighborhood level. This is a written exception to "Private read-only Calendar access" in `requester-calendar-access`; event titles, attendees and descriptions are not stored, and no participant's places or events are shown to the host or other participants. The participant's calendar is not read again at the close or at booking.
