@@ -1,8 +1,8 @@
 # Proposal
 
-Tracking issue: none yet. This is a draft for the team to discuss. An issue is opened only if the team decides to take the idea forward (Q1).
+Tracking issue: none yet. The user said yes to taking the idea forward on 2026-11-26 (Q1), so the next step is to open one (task 1.2).
 
-**Status: draft, not agreed.** The [PRD](../../../documentations/02_product_requirements.md#outside-the-initial-release) puts group scheduling, internal team coordination and group conversations outside the initial release. Nothing in this change is settled scope. It records one way the idea could work, so the team can decide whether to take it on.
+**Status: draft, accepted in scope by the user on 2026-11-26, not yet reviewed by a teammate.** The [PRD](../../../documentations/02_product_requirements.md#outside-the-initial-release) still puts group scheduling, internal team coordination and group conversations outside the initial release, until task 1.1 updates it and the decision log.
 
 ## Why
 
@@ -73,7 +73,7 @@ The user who suggested the idea answered these questions. They are the user's ch
 | Do numbered answers in the group count, and are they labelled? | They count, with no "unverified" label. Only the organizer can book, so a forged answer can sway the count but cannot book anything |
 | Who gets a Google invitation? (was Q5) | Members who left an email on the poll page |
 | A member who has already connected: can they skip the question? (was Q4) | Yes, for existing hosts and for members of past groups. The bot cannot see members' KakaoTalk IDs, so it cannot skip anyone in the room itself. Once a member opens the link and signs in with Google, an existing host's conflict calendars, or a past member's remembered connection, are used with no new calendar step |
-| When are the numbered times posted? (was Q3; Q3 to Q12 are now answered or dropped, so the table below keeps Q1, Q2 and Q13) | As soon as the number of members the organizer expects have connected or ticked, or when the organizer asks, or after 24 hours at the latest |
+| When are the numbered times posted? (was Q3; Q3 to Q14 are answered or dropped) | As soon as the number of members the organizer expects have connected or ticked, or when the organizer asks, or after 24 hours at the latest |
 | How many candidate times? | Five, as drafted |
 | Should an unbooked group close on its own? (was Q6) | No. It stays open until it is booked, the organizer cancels, or someone sends `stop` |
 | Telegram groups too? (was Q7) | Later. This change covers KakaoTalk only; Telegram groups, where the bot sees invitations and stable member IDs, are left for a follow-up change |
@@ -83,15 +83,14 @@ The user who suggested the idea answered these questions. They are the user's ch
 | When should the account leave a booked group on its own? (was Q12) | Never. It stays until a member sends `/kickout` |
 | Should a quiet, unbooked room be left? (was Q12) | No. It stays, as an unbooked request stays open |
 | How does this change fit eve's group conversation? (was Q14) | The user chose on 2026-11-26, in the `host-kakaotalk-mac-relay` session, that eve answers every member's message in every group, owned by no host and with no host tools, and then asked here to rework this draft to fit it. Scheduling becomes commands before the model and tools inside that conversation (D5) |
+| Does the team want group scheduling? (was Q1) | Yes (user, 2026-11-26). The PRD and the decision log are updated in task 1.1 |
+| Do `host-kakaotalk-channel` and `host-kakaotalk-mac-relay` land with the Mac relay active, and does the first's Q3 get "yes, through an organizer's code"? (was Q2) | Yes (user, 2026-11-26) |
+| Can the Mac relay's helper read an opened chat window's newest messages, and does the window menu's **나가기** work? (was Q13) | Yes, the user reports both work (2026-11-26). Task 1.3 still runs them once on a test group |
 | How does the bot post in or leave a group that has no name of its own? (asked on 2026-11-26) | It opens the room and checks that the message it is answering, such as the `/kickout`, shows there, and acts only then (D16) |
 
 ## Unresolved decisions for the team
 
-| # | Question | Why it blocks |
-|---|---|---|
-| Q1 | Does the team want group scheduling at all? The PRD lists "group scheduling, internal team coordination" outside the initial release | Changing it is a product scope decision, and only the team can make it. Without a yes, this change stays a draft |
-| Q2 | Do `host-kakaotalk-channel` and `host-kakaotalk-mac-relay` land with the Mac relay active, and does the first's Q3 get the answer "yes, through an organizer's code"? | This change rests on the Mac relay (D15), the terms-of-service risk (both changes' Q1) and a Mac mini kept signed in, awake and unlocked (the Mac change's Q2) |
-| Q13 | Can the Mac relay's helper read the newest messages of an opened chat window, so that D16 can confirm the room, and does the window menu's **나가기** work? | Neither is checked on a device; the Mac change's task 5.3 covers the leave. If the window cannot be read, a group with no name of its own, or a shared name, can be neither answered nor left, and `/kickout` there only deactivates the room |
+None. Every question has an answer in the table above. A teammate's review may reopen any of them.
 
 ## Conflicts with current documents
 
@@ -145,7 +144,7 @@ These conflicts are open on purpose. None of them is resolved by this draft.
 
 ### Modified Capabilities
 
-None are written yet. The table in [Conflicts with current documents](#conflicts-with-current-documents) lists the requirements a later version would change: `calendar-booking` (attendees), `host-kakaotalk-channel` and `host-kakaotalk-mac-relay` (group text, `/kickout`, member IDs and opening a room by what it shows), and the PRD functional requirements. Their deltas are written only after Q1 and Q2 are decided, so that no main spec is changed for a draft.
+None are written yet. The table in [Conflicts with current documents](#conflicts-with-current-documents) lists the requirements a later version would change: `calendar-booking` (attendees), `host-kakaotalk-channel` and `host-kakaotalk-mac-relay` (group text, `/kickout`, member IDs and opening a room by what it shows), and the PRD functional requirements. Q1 and Q2 are answered, so these deltas are task 1.4.
 
 ## Impact
 

@@ -1,12 +1,12 @@
 # Tasks
 
-This change is a draft. Only group 1 can start now. Groups 2 to 6 wait for a team yes on Q1 and Q2 in the [proposal](proposal.md#unresolved-decisions-for-the-team), and for `host-kakaotalk-channel`, `host-kakaotalk-mac-relay` and the group conversation change in PR #501 to be merged.
+The user said yes to Q1 and Q2 on 2026-11-26 (see the [proposal](proposal.md#answers-from-the-user-2026-11-26)). Group 1 can start now. Groups 2 to 6 wait for a teammate's review and for `host-kakaotalk-channel`, `host-kakaotalk-mac-relay` and the group conversation change in PR #501 to be merged.
 
 ## 1. Decision
 
-- [ ] 1.1 Team discussion of the open questions and D1 to D8. Record the outcome in the [PRD](../../../documentations/02_product_requirements.md#outside-the-initial-release) and the [decision log](../../../documentations/technical_specification/08_decision_log.md), and regenerate their Korean mirrors.
-- [ ] 1.2 If the team says yes, open a tracking issue that names this change, and add its number to the proposal.
-- [ ] 1.3 On the Mac mini, check that the helper can read the newest messages of an opened chat window and leave a group through the window menu (Q13), that an untitled group's chat-list label matches the label computed from its member names, and that membership events list a test group's members.
+- [ ] 1.1 A teammate reviews D1 to D16 and the user's answers. Record the outcome in the [PRD](../../../documentations/02_product_requirements.md#outside-the-initial-release) and the [decision log](../../../documentations/technical_specification/08_decision_log.md), and regenerate their Korean mirrors.
+- [ ] 1.2 Open a tracking issue that names this change, and add its number to the proposal.
+- [ ] 1.3 On the Mac mini, check that the helper can read the newest messages of an opened chat window and leave a group through the window menu, which the user reports work, that an untitled group's chat-list label matches the label computed from its member names, and that membership events list a test group's members.
 - [ ] 1.4 Write the deltas for `calendar-booking` (attendees), `host-kakaotalk-channel`, `host-kakaotalk-mac-relay` (`/kickout` from any group, member IDs and the room check) and the group conversation change (commands before the model and the scheduling tools) and the PRD functional requirements.
 
 ## 2. Activation and parsing (service and relay)

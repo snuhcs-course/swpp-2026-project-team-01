@@ -1,6 +1,6 @@
 # Design
 
-This design is a draft for team discussion. Nothing in it is agreed, and the [proposal](proposal.md#unresolved-decisions-for-the-team) lists the open questions.
+This design is a draft. The user accepted it in scope on 2026-11-26, and no teammate has reviewed it yet; the [proposal](proposal.md#answers-from-the-user-2026-11-26) lists the answers.
 
 ## Context
 
@@ -228,7 +228,7 @@ This change asks three things of the Mac relay beyond that change:
 3. Reads the newest messages in the opened window. It goes on only in the window that shows the message being answered, such as the code, the `/kickout` or the member's message, with the same sender name and text. A post that answers no message, such as the times after 24 hours, needs the window to show the room's three newest messages from the database, in order.
 4. Types the post, or runs the leave, in that window only.
 
-When no window matches, or more than one does, nothing is sent or left, and the outcome is `failed`. The Mac change's landing check still runs after every send. Its leave check still requires that this room, and no other, disappears from the database. Reading a chat window's messages through accessibility is not checked on a device yet (Q13).
+When no window matches, or more than one does, nothing is sent or left, and the outcome is `failed`. The Mac change's landing check still runs after every send. Its leave check still requires that this room, and no other, disappears from the database. The user reports that reading a chat window's messages through accessibility works (2026-11-26).
 
 The Mac relay can send at any time to a room it can address. The times and the confirmation are therefore posted when they are ready, not after the next group message.
 
@@ -250,7 +250,7 @@ The Mac relay can send at any time to a room it can address. The times and the c
 
 ## Open Questions
 
-- The open questions in the [proposal](proposal.md#unresolved-decisions-for-the-team).
+- None of the proposal's questions is open; the ones below are smaller.
 - Should a group whose only members are the organizer and the account be refused?
 - Does the Mac database record who added the account to a group? This draft does not rely on it.
 - How does a member who left the group get their answer removed if they never used the poll page?
