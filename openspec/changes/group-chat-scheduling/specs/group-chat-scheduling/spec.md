@@ -12,7 +12,7 @@ The service SHALL store a keyed hash of a linked host's KakaoTalk user ID on the
 - **THEN** that member is not treated as the host, and no group meeting is created
 
 ### Requirement: Group meeting started from a KakaoTalk group
-A message in a KakaoTalk group that calls the account and asks for a meeting SHALL create a `group-scheduling` group meeting bound to that room, with the message's relay-reported sender as organizer, whether or not the sender has an account. The meeting SHALL keep a keyed hash of the organizer's user ID. A linked, set-up host's meeting SHALL use that host's settings; any other caller's meeting SHALL start with an untied organizer, as "Organizer with no account". The meeting's purpose SHALL default to the room's title, and its number of people SHALL default to the room's member count less the account and the organizer. A missing length or date range SHALL be asked for once in the room and SHALL be filled only by the organizer. A caller SHALL organize at most three meetings that are not booked or cancelled. A room SHALL be bound to at most one meeting that is not booked or cancelled. Meetings SHALL start from a room only while the KakaoTalk for Mac relay is active. The service, not the model, SHALL decide whether a meeting is created, and the model's own reply to such a call SHALL be replaced by a fixed message. A linked host SHALL also be told in their linked conversation, where the meeting then works as any group meeting does.
+A message in a KakaoTalk group that calls the account and asks for a meeting SHALL create a `group-scheduling` group meeting bound to that room, with the message's relay-reported sender as organizer, whether or not the sender has an account. The meeting SHALL keep a keyed hash of the organizer's user ID. A linked, set-up host's meeting SHALL use that host's settings; any other caller's meeting SHALL follow "Organizer with no account". The meeting's purpose SHALL default to the room's title, and its number of people SHALL default to the room's member count less the account and, for a linked host, the organizer. A missing length or date range SHALL be asked for once in the room and SHALL be filled only by the organizer. A caller SHALL organize at most three meetings that are not booked or cancelled. A room SHALL be bound to at most one meeting that is not booked or cancelled. Meetings SHALL start from a room only while the KakaoTalk for Mac relay is active. The service, not the model, SHALL decide whether a meeting is created, and the model's own reply to such a call SHALL be replaced by a fixed message. A linked host SHALL also be told in their linked conversation, where the meeting then works as any group meeting does.
 
 #### Scenario: Linked host starts from the group
 - **WHEN** a linked, set-up host writes "타임래빗, 다음 주 금요일 저녁 2시간 잡아줘" in a group of seven members besides the account
@@ -20,7 +20,7 @@ A message in a KakaoTalk group that calls the account and asks for a meeting SHA
 
 #### Scenario: Caller with no account
 - **WHEN** a member with no Find Me a Time account calls the account and asks it to schedule a meeting
-- **THEN** a meeting is created with that member as untied organizer, and the room gets the introduction with the link and the request that the caller sign in and post the number shown
+- **THEN** a meeting is created with that member's user ID as organizer, the room gets the introduction with the link, and the caller is asked for nothing more than any member
 
 #### Scenario: Caller at the limit
 - **WHEN** a member who already organizes three live meetings calls the account to start another
@@ -35,34 +35,44 @@ A message in a KakaoTalk group that calls the account and asks for a meeting SHA
 - **THEN** nothing new is created, and the bot reposts that meeting's link
 
 ### Requirement: Organizer with no account
-For a meeting with an untied organizer, the shared link SHALL let a person sign in with Google, with Calendar read and event-create access, and SHALL then show a six-digit number valid for 15 minutes and bound to that page session. A room message that is that number SHALL tie the session's Google account to the meeting as organizer only when its relay-reported user ID hashes to the meeting's organizer ID and it came through the KakaoTalk for Mac relay. From any other user ID it SHALL tie nothing. Five wrong numbers from the organizer's ID SHALL end that page session. Once tied, the account's confirmed calendars SHALL count as the organizer's, meeting hours SHALL default to 09:00 to 22:00 every day of the range, the organizer SHALL have no places of their own, and the event SHALL be booked in the account's primary calendar. The grant SHALL be used only for this meeting and SHALL end with it, and no host account or workspace SHALL be created. A tied account that is a set-up host's SHALL use that host's settings. Options SHALL NOT be computed while the organizer is untied. When the meeting fills with an untied organizer, the room SHALL be reminded once. A meeting still untied seven days after it started SHALL be cancelled and the room told once. An organizer with no account SHALL get the options and confirm only in the room.
+A meeting started by a caller who is not a linked, set-up host SHALL have the caller's KakaoTalk user ID as its only organizer identity, and no sign-in SHALL be tied to it. The caller SHALL answer on the shared link like any member and SHALL count as one of the people. Meeting hours SHALL default to 09:00 to 22:00 every day of the range, with no host places. The event SHALL be created in the service's own scheduling calendar, with every member who signed in on the link as an attendee, and no one else invited. The options and the confirmation SHALL happen only in the room. No host account, workspace or calendar write grant SHALL be created for the organizer.
 
-#### Scenario: Caller ties their sign-in
-- **WHEN** the caller signs in on the link and posts the number the page shows in the room
-- **THEN** their Google account becomes the meeting's organizer, and the room gets one fixed line saying so
+#### Scenario: Caller who never opens the link
+- **WHEN** the caller of a meeting never opens its link and the meeting fills
+- **THEN** the options are found from the participants' answers and posted to the room, and the caller can still confirm one
 
-#### Scenario: Another member tries to claim the meeting
-- **WHEN** another member signs in on the link as organizer and posts the number their page shows
-- **THEN** nothing is tied, because the message's user ID is not the organizer's
+#### Scenario: Booking for an organizer with no account
+- **WHEN** an organizer with no account confirms option 2 in the room
+- **THEN** one event is created in the service's scheduling calendar with every signed-in participant as an attendee
 
-#### Scenario: Caller's number posted by someone else
-- **WHEN** a member copies the caller's number from the room and posts it again
-- **THEN** nothing changes, because the number is bound to the caller's page session and user ID
+### Requirement: Two-tap participant flow
+For a meeting bound to a room, the shared link SHALL let a member be done in two taps: Google sign-in with identity and read-only Calendar on one consent screen, then one send on a grid of the date range with their busy times already filled in and no event titles. Name and email SHALL come from the Google account. No account setup, profile, handle or question SHALL come before availability is collected, and `group-scheduling`'s question and messenger step SHALL be left out. The member MAY paint extra unavailable times before sending, and the sent grid SHALL be stored as their confirmed unavailable times. The link SHALL keep working: a member who opens it again SHALL see their own answer and the done count, and SHALL be able to change their answer until the meeting closes. The page SHALL NOT show who else is done or what anyone answered. No message in the room SHALL record availability or any answer for a member.
 
-#### Scenario: Organizer never signs in
-- **WHEN** a meeting's organizer is still untied seven days after the call
-- **THEN** the meeting is cancelled and the room is told once
+#### Scenario: Member done in two taps
+- **WHEN** a member opens the link from the room, taps **구글로 계속하기**, approves the consent screen and taps **이대로 보내기**
+- **THEN** they are done, with their calendar's busy times as their unavailable times, and nothing else was asked
 
-#### Scenario: Meeting fills before the organizer ties
-- **WHEN** the last expected participant is done and the organizer is untied
-- **THEN** no options are posted, and the room is reminded once to have the caller sign in and post the number
-
-### Requirement: Participants answer only on the shared link
-Members SHALL take part only through the bound meeting's `group-scheduling` shared link and participant flow. No message in the room SHALL record availability or any answer for a participant.
+#### Scenario: Member returns
+- **WHEN** a done member opens the link again before the meeting closes
+- **THEN** they see their own grid and the done count, and can change it
 
 #### Scenario: Numbers in the room
 - **WHEN** a member writes "1 3" in a bound room
 - **THEN** nothing is recorded for that member
+
+### Requirement: Painting without Google
+For a meeting bound to a room, the shared link SHALL also offer to paint availability with no sign-in: the member types a name, paints the times they can meet on the same grid, and sends. Unpainted times SHALL count as times they cannot meet. A device-bound token SHALL let them change it until the close. A painted answer SHALL count toward the done count and the options like any other, and its member SHALL get no Google invitation.
+
+#### Scenario: Member without Google
+- **WHEN** a member taps **구글 없이 직접 칠하기**, types a name, paints Friday evening and sends
+- **THEN** they are done, and only Friday evening counts as a time they can meet
+
+### Requirement: Done count in the room
+When members of a bound meeting finish, the room SHALL get one fixed line with the done count against the set number and the link, at most once every 30 minutes, naming no one.
+
+#### Scenario: Several members finish
+- **WHEN** three members finish within ten minutes
+- **THEN** the room gets one line such as "4/6명 완료했어요" with the link, and no names
 
 ### Requirement: What the room sees
 Every post to a bound room, and the group conversation's context, SHALL contain only the organizer's display name, the meeting's purpose, length and date range, the shared link, the number of done participants against the set number, the numbered options with their time, place or online mode and the number of done participants who can make each, and the confirmation. No room post, fixed or from the model, SHALL contain:
@@ -92,7 +102,7 @@ When a bound meeting closes, the room SHALL receive the options that `group-sche
 - **THEN** the meeting stays open
 
 ### Requirement: Organizer confirms in the room
-The organizer SHALL be able to book an offered option by the fixed command `<n>번으로 확정` or `<n>번 확정` in the bound room, handled before the model, from a message whose relay-reported user ID hashes to the organizer's binding and that came through the KakaoTalk for Mac relay. A linked host SHALL still be able to choose in their linked conversation. Booking SHALL follow `group-scheduling`'s host choice, including the recheck of the organizer's calendars. A recheck that fails SHALL book nothing and tell the room the option is no longer open, with no reason. A second confirmation SHALL book nothing more. The room SHALL receive one fixed confirmation, after which the binding SHALL end. No other room message SHALL book, cancel or change the meeting, and the group conversation SHALL have no tool that books or cancels.
+The organizer SHALL be able to book an offered option by the fixed command `<n>번으로 확정` or `<n>번 확정` in the bound room, handled before the model, from a message whose relay-reported user ID hashes to the organizer's binding and that came through the KakaoTalk for Mac relay. A linked host SHALL still be able to choose in their linked conversation. Booking SHALL follow `group-scheduling`'s host choice, including, for a linked host, the recheck of the host's calendars. A recheck that fails SHALL book nothing and tell the room the option is no longer open, with no reason. A second confirmation SHALL book nothing more. The room SHALL receive one fixed confirmation, after which the binding SHALL end. No other room message SHALL book, cancel or change the meeting, and the group conversation SHALL have no tool that books or cancels.
 
 #### Scenario: Organizer confirms
 - **WHEN** the organizer writes "2번으로 확정" in the room after the options were posted
@@ -111,7 +121,7 @@ The organizer SHALL be able to book an offered option by the fixed command `<n>�
 - **THEN** nothing is booked, and the room is told the option is no longer open, with no reason
 
 ### Requirement: Commands and tools in the group conversation
-The organizer's confirmation, the organizer's six-digit number, `stop`, `그만` and `/kickout` SHALL be handled before a group message reaches eve's group conversation, whatever the model would do. A call SHALL get the tool that starts a group meeting in any group. While a room is bound, a call SHALL also get the room projection, the shared link and the early close. Every such tool SHALL take its sender from the relay event and SHALL have no sender argument. The introduction, the organizer prompt and tie line, the options, the confirmation and the goodbye SHALL be fixed templates.
+The organizer's confirmation, `stop`, `그만` and `/kickout` SHALL be handled before a group message reaches eve's group conversation, whatever the model would do. A call SHALL get the tool that starts a group meeting in any group. While a room is bound, a call SHALL also get the room projection, the shared link and the early close. Every such tool SHALL take its sender from the relay event and SHALL have no sender argument. The introduction, the done-count line, the options, the confirmation and the goodbye SHALL be fixed templates.
 
 #### Scenario: Stop never reaches the model
 - **WHEN** a member sends `그만` in a bound room
