@@ -6,7 +6,7 @@ Run these with the owner's isolated local stack already running and the migratio
 FMAT_EVAL_AUDIENCE=host_setup npx eve eval account-assistant --strict
 ```
 
-The original nine cases plus four appended corrections each run three times (39 trials, pass^3). Historical defective cases remain in the full counts under the append-only case policy; no historical failure is hidden. To select one case while retaining all three trials:
+The original nine cases plus four appended corrections each run three times (39 trials, pass^3). RV-10 and RV-X09 also run here after their explicit account-audience reversal (six more trials, 45 total); they no longer run under the incompatible host-review auth set. Historical defective cases remain in the full counts under the append-only case policy; no historical failure is hidden. To select one case while retaining all three trials:
 
 ```sh
 FMAT_EVAL_AUDIENCE=host_setup npx eve eval account-assistant --tag case:AS-03 --strict

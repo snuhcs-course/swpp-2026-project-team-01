@@ -84,16 +84,16 @@
       "agent_ms": 3540437,
       "models": {
         "gpt-6.1-sol": {
-          "input": 671077,
-          "cache_read": 63214080,
+          "input": 672381,
+          "cache_read": 64204416,
           "cache_write_5m": 0,
           "cache_write_1h": 0,
-          "output": 198504,
-          "reasoning": 81253
+          "output": 201567,
+          "reasoning": 83017
         }
       },
       "first": "2026-11-25T17:16:01.639Z",
-      "last": "2026-11-26T01:51:34.980Z"
+      "last": "2026-11-26T01:52:42.949Z"
     },
     "codex:01a213f0-5092-7b62-bfdc-2a561a5e2b92": {
       "agent": "codex",
@@ -135,16 +135,16 @@
       "agent_ms": 0,
       "models": {
         "codex-auto-review": {
-          "input": 22164,
-          "cache_read": 10880,
+          "input": 26580,
+          "cache_read": 43776,
           "cache_write_5m": 0,
           "cache_write_1h": 0,
-          "output": 148,
-          "reasoning": 74
+          "output": 279,
+          "reasoning": 127
         }
       },
       "first": "2026-11-26T01:51:12.472Z",
-      "last": "2026-11-26T01:51:12.472Z"
+      "last": "2026-11-26T01:52:41.787Z"
     }
   }
 }
