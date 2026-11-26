@@ -1,6 +1,6 @@
 # Proposal
 
-Tracking issue: none yet; it is opened with the pull request that carries this change.
+Tracking issue: [#494](https://github.com/snuhcs-course/swpp-2026-project-team-01/issues/494).
 
 The [PRD](../../../documentations/02_product_requirements.md#outside-the-initial-release) lists KakaoTalk as out of scope. This change and its implementation land in one pull request, and a teammate's approval of that pull request is the team decision on Q1. Until it is approved, KakaoTalk stays out of scope and the channel stays unconfigured in production.
 
