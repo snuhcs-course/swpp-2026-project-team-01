@@ -1,0 +1,40 @@
+{
+  "branch": "feat/group-scheduling",
+  "user": "enu3379@gmail.com",
+  "sessions": {
+    "claude:15d65d61-2019-4645-b8ed-6809e4bf0799": {
+      "agent": "claude-code",
+      "client": "cli",
+      "agent_ms": 2332373,
+      "models": {
+        "claude-opus-5-5": {
+          "input": 694,
+          "cache_read": 74511259,
+          "cache_write_5m": 0,
+          "cache_write_1h": 1127447,
+          "output": 270337,
+          "reasoning": 0
+        }
+      },
+      "first": "2026-11-25T15:37:25.017Z",
+      "last": "2026-11-26T10:07:45.708Z"
+    },
+    "claude:3d333159-4e89-489f-ba59-16ad916b46ad": {
+      "agent": "claude-code",
+      "client": "cli",
+      "agent_ms": 707389,
+      "models": {
+        "claude-opus-5-5": {
+          "input": 116,
+          "cache_read": 8840728,
+          "cache_write_5m": 0,
+          "cache_write_1h": 97442,
+          "output": 37553,
+          "reasoning": 0
+        }
+      },
+      "first": "2026-11-25T15:55:31.905Z",
+      "last": "2026-11-25T16:24:25.611Z"
+    }
+  }
+}

@@ -5,6 +5,7 @@ import { EMAIL_LINK_CREATE_OPERATION, EMAIL_LINK_UNLINK_OPERATION, type EmailLin
 import { deepLinkFor, qrDeepLink } from "@lib/contracts/imessage";
 import { channelName, displayWhatsAppNumber, telegramLinkFor, whatsAppLinkFor } from "@lib/contracts/messaging-channel";
 import { type GuestChannel, REQUESTER_IMESSAGE_OPERATIONS, type RequesterImessageStatus } from "@lib/contracts/requester-imessage";
+import type { GroupReview, GroupUnavailableTime } from "@lib/contracts/group-meeting";
 import type { HostProfileItem, OpenRequesterView } from "@lib/contracts/requester-view";
 import { displayTime } from "@lib/contracts/timezone";
 import { type ReactNode, useCallback, useEffect, useId, useMemo, useRef, useState } from "react";
@@ -32,7 +33,7 @@ import { CheckIcon } from "lucide-react";
 
 export type CommandOutcome =
   | { readonly ok: true; readonly result: unknown; readonly replayed: boolean }
-  | { readonly ok: false; readonly error: { readonly category: string; readonly message: string }; readonly status?: string };
+  | { readonly ok: false; readonly error: { readonly category: string; readonly message: string; readonly reason?: string }; readonly status?: string };
 
 export type AgreementFailure = {
   readonly title: string;
@@ -191,6 +192,31 @@ export function ConnectCalendarCard({ context }: { readonly context: RequesterCa
     const outcome = await context.run("request.set_manual_availability", { manual: true });
     if (outcome.ok) context.openDetails();
     else setError(outcome.error.message);
+  }
+
+  // A group meeting's participant must connect Calendar (group-scheduling
+  // design 3): no skip and no screenshot.
+  if (context.view.group) {
+    return (
+      <GuestCard
+        description="The group needs your busy times, so connect Calendar to take part. Access is read-only and used only for this meeting; the host never sees your events."
+        id="calendar-connect"
+        label="Your calendar"
+        title="Connect your Google Calendar"
+      >
+        <form action="/connections/google/start" method="post">
+          <input name="purpose" type="hidden" value="request" />
+          <input name="bookingId" type="hidden" value={context.bookingId} />
+          <input name="timezone" type="hidden" value={context.timezone} />
+          <input name="language" type="hidden" value={browserLanguage()} />
+          <GuestCardActions>
+            <Button className="min-h-11" type="submit">
+              Connect Google Calendar
+            </Button>
+          </GuestCardActions>
+        </form>
+      </GuestCard>
+    );
   }
 
   return (
@@ -1184,5 +1210,118 @@ function BookingLine({ context }: { readonly context: RequesterCardContext }) {
         Check booking status
       </Button>
     </div>
+  );
+}
+
+// A group participant's review (group-scheduling design 4): the times they
+// cannot meet within the group's range, from their calendar and what they
+// said. **These are right** stores them as they are; a correction is written
+// in the conversation, and the list is shown again.
+export function GroupReviewCard({ context }: { readonly context: RequesterCardContext }) {
+  const [review, setReview] = useState<GroupReview | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const [busy, setBusy] = useState(false);
+  const { bookingId, timezone, view } = context;
+  const revision = view.request.revision;
+
+  const load = useCallback(async () => {
+    setError(null);
+    try {
+      const response = await fetch(`/api/requests/${bookingId}/group-review`, { cache: "no-store" });
+      const body = (await response.json().catch(() => null)) as (GroupReview & { error?: string }) | null;
+      if (!response.ok || !body?.fingerprint) throw new Error(body?.error ?? "Your calendar could not be read right now.");
+      setReview(body);
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : "Your calendar could not be read right now.");
+    }
+  }, [bookingId]);
+
+  // Read again whenever the request changes, such as after a correction in words.
+  useEffect(() => {
+    void load();
+  }, [load, revision, view.thread.length]);
+
+  async function confirm() {
+    if (!review) return;
+    setBusy(true);
+    const outcome = await context.run("request.group.confirm", { fingerprint: review.fingerprint });
+    setBusy(false);
+    if (outcome.ok) return;
+    if (outcome.error.reason === "group_review_changed") {
+      setError("Your calendar changed. Check the list again.");
+      await load();
+      return;
+    }
+    setError(outcome.error.message);
+  }
+
+  const group = view.group;
+  const line = (time: GroupUnavailableTime) =>
+    time.allDay
+      ? `${time.start === time.end ? time.start : `${time.start} to ${time.end}`}, all day`
+      : timeRangeText(time.start, time.end, timezone);
+
+  return (
+    <GuestCard
+      description={group ? `Between ${group.rangeStart} and ${group.rangeEnd}. Only that you can't meet is shared, never what or where.` : undefined}
+      id="group-review"
+      label="Times you can't meet"
+      title="Are these the times you can't meet?"
+    >
+      {review ? (
+        review.times.length > 0 ? (
+          <ul className="flex flex-col gap-1 text-sm">
+            {review.times.map((time) => (
+              <li key={`${time.source}:${time.start}:${time.end}`}>
+                {line(time)}
+                {time.source === "stated" ? <span className="text-muted-foreground"> · you said</span> : null}
+              </li>
+            ))}
+          </ul>
+        ) : (
+          <p className="text-sm">Nothing in that range: you can meet any time.</p>
+        )
+      ) : error ? null : (
+        <p className="text-muted-foreground text-sm" role="status">Reading your calendar...</p>
+      )}
+      <p className="text-muted-foreground text-sm">To add or change something, write it below, such as "I have class Wednesday afternoon".</p>
+      <GuestCardActions>
+        <Button className="min-h-11" disabled={!review || busy} onClick={() => void confirm()} type="button">
+          These are right
+        </Button>
+        {error ? (
+          <Button className="min-h-11" onClick={() => void load()} type="button" variant="outline">
+            Try again
+          </Button>
+        ) : null}
+      </GuestCardActions>
+      {error ? <p className="text-destructive" role="status">{error}</p> : null}
+    </GuestCard>
+  );
+}
+
+function timeRangeText(start: string, end: string, timeZone: string) {
+  const day = new Intl.DateTimeFormat("en-US", { day: "numeric", month: "short", timeZone, weekday: "short" });
+  const clock = new Intl.DateTimeFormat("en-US", { hour: "numeric", minute: "2-digit", timeZone });
+  const from = new Date(start);
+  const until = new Date(end);
+  return day.format(from) === day.format(until)
+    ? `${day.format(from)}, ${clock.format(from)}–${clock.format(until)}`
+    : `${day.format(from)} ${clock.format(from)} – ${day.format(until)} ${clock.format(until)}`;
+}
+
+// A done participant: their answers went to the host, an invitation comes by
+// email, and they can link a messenger or leave it (group-scheduling design 3).
+export function GroupDoneCard({ context }: { readonly context: RequesterCardContext }) {
+  return (
+    <GuestCard
+      description="When everyone has answered, the host picks a time. The invitation comes from Google to your email."
+      id="group-done"
+      label="Done"
+      title="Your answers were sent"
+    >
+      <p className="text-sm">You can also get updates in a messenger, or skip it.</p>
+      <ImessageUpdates context={context} />
+    </GuestCard>
   );
 }

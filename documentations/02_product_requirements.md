@@ -33,7 +33,7 @@ Telegram decision (2026-11-04): Meta disabled the WhatsApp Business account on 2
 
 SMS decision (2026-11-26, Dohyeon Park; no teammate review yet): SMS comes back into scope as a messaging channel, reversing the 2026-11-02 and 2026-11-04 decisions that kept it out ([issue #489](https://github.com/snuhcs-course/swpp-2026-project-team-01/issues/489), which revisits the closed issue #90). It is opt-in: a person ticks an optional, unchecked SMS consent box ([issue #488](https://github.com/snuhcs-course/swpp-2026-project-team-01/issues/488)) before getting the code that links SMS, and no number is entered for SMS. The [`sms-channel` change](../openspec/changes/sms-channel/proposal.md) specifies the channel. Gateway decision (2026-11-26, Dohyeon Park): a spike showed that Photon's SMS reaches US numbers only, and only after a 10DLC campaign is approved. SMS therefore goes through an Android phone with a Korean SIM, used as a gateway with SMS Gate, and the service answers the HELP, START and STOP keywords itself. iPhone, iPad and Mac get iMessage, and every other device gets SMS. The channel serves hosts and guests, carries the same content as the other chats, and accepts any country code. The OpenSpec change sets the limits.
 
-Internal team scheduling and group meetings are outside the product's initial scope.
+Internal team scheduling is outside the product's initial scope. Group meeting decision (2026-11-26): a host can find one time with several people at once from their linked messenger conversation, through one shared link ([`group-scheduling`](../openspec/changes/group-scheduling/proposal.md), tracking issue #486; FR-44).
 
 ## 2. Goals and success measures
 
@@ -69,7 +69,7 @@ Drafted on 2026-11-23 by a coding agent, as the repository owner decided on #168
 
 - Google-only host login for the MVP through Supabase Auth. Do not offer email/password, email OTP or magic-link login. The sign-in consent screen requests Calendar access together with identity; completing it creates an active host account even if the Calendar part is declined, and a host can connect Calendar later. Requesters retain account-free access. Contact confirmation, recovery and booking emails retain their separate purposes.
 
-- One host and one external requester per meeting.
+- One host and one external requester per meeting, or a group meeting of one host and several participants from one shared link (FR-44).
 - Hosting is open: anyone with a Google account can become a host by signing in, which creates an active host account. Publishing your own booking link and receiving meeting requests additionally requires completed setup. Abuse controls (rate limits on sign-up and handle changes, reserved handles and operator suspension) replace a pre-approval gate. Requesters do not need an account to request meetings or optionally connect Google Calendar.
 - Google Calendar connection, event-informed suggestions from checked visible calendars, host-selected calendars for conflict checking, and a designated calendar for booking. Show suggested conflict calendars checked first, then ask for the booking destination; save only after confirmation. Requesters can optionally connect their Google Calendar for availability checks without a host account or a product account.
 - Host-configured availability, meeting duration, focus-time rules, preferences, meeting mode/location, and travel buffers, with map-based travel-time estimates between physical commitments.
@@ -88,7 +88,7 @@ Drafted on 2026-11-23 by a coding agent, as the repository owner decided on #168
 ### Outside the initial release
 
 - Host messaging channels other than iMessage, WhatsApp Business, Telegram and SMS: RCS, KakaoTalk, personal WhatsApp accounts and host proposal-notification email. Requester messaging over any chat app other than iMessage and WhatsApp, and WhatsApp templates for requesters. WhatsApp group conversations. Until 2026-11-02 this list deferred every Android channel. The [Android audience decision](#target-users) now adds WhatsApp for hosts only, and the [Telegram decision](#target-users) adds Telegram for hosts only, without groups or channels. The [SMS decision](#target-users) of 2026-11-26 takes SMS off this list; its OpenSpec change sets whom it serves, and until it lands no text message is sent. The public consent and policy pages came first (#488). Existing Auth, recovery and booking emails retain their defined purposes.
-- Group scheduling, internal team coordination, round-robin assignment, and pooled host availability.
+- Internal team coordination, round-robin assignment, and pooled host availability. Group meetings started by inviting a Slack or KakaoTalk room (only the shared link of FR-44 is in scope).
 - Calendar providers other than Google Calendar.
 - Automatic booking without host approval, including approval delegated to an AI's judgment.
 - Moving existing calendar events to make room for a request.
@@ -278,6 +278,14 @@ For example, if the previous meeting ends at 14:00 and the proposed meeting star
 | FR-43 | Let either party cancel a booked meeting, and later change it, through the conversation. | Until the meeting starts, the requester or the host can cancel it after confirming once: the request becomes cancelled, the Google event is deleted with updates sent to attendees, and the side that did not cancel is told through their usual channel. A meeting that has started, or whose booking is still pending, cannot be cancelled. Until it starts, either party can also reopen it for a change of time, place or meeting type: the existing proposal flow runs (new version, requester agreement, host approval) while the booked meeting stands, approval updates the same Google event with updates sent, and a change that is withdrawn, declined or expires leaves the meeting as it was. |
 
 The [booking invitation design](user_experience/03_interfaces.md#booking-confirmation-email-and-calendar-invitation) defines the proposed email/calendar presentation for FR-23. The requester booking page covers the scheduling process before confirmation as well as its final receipt; its name does not imply an event already exists. FR-43 replaces the earlier non-goal "automated post-booking rescheduling and cancellation" (decided 2026-11-16 for #234, after the TA asked for renegotiation after booking in #169). Cancellation and changes after booking are specified in the [`post-booking-changes`](../openspec/changes/post-booking-changes/proposal.md) change.
+
+### Group meetings
+
+This requirement was added on 2026-11-26 and takes the next free number.
+
+| ID | Requirement | Acceptance criterion |
+|---|---|---|
+| FR-44 | Let a host find one time with several people through one shared link. | In the linked messenger conversation only, the host gives the purpose, length, date range and number of people and gets one link; online or in person and the place are not asked. Each person who opens it connects Google Calendar (no skip), answers one question (preferred hours, usual place, travel, commitments the calendar lacks), confirms the times they cannot meet, may link a messenger and is done; nobody picks a time and the terms cannot change. Participants do not appear as separate requests and the host hears nothing until the link is full or the host closes it early, but can ask who is done. At the close the host gets up to three options that fit everyone, from the host's calendars and the participants' confirmed times without reading their calendars again, at a place everyone can reach (the host's places first, then the participants' usual places, then a station between them) or online; with no option for everyone, the ones that fit the most people with who cannot make each. The host names one, which may be one that not everyone can make, and after only the host's calendars are rechecked one event is booked with every participant invited by Google's email. Participants' events and places are never shown to the host ([`group-scheduling`](../openspec/changes/group-scheduling/proposal.md)). |
 
 ### Named agent integrations
 

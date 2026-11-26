@@ -11,6 +11,7 @@ import { GOOGLE_OAUTH_TOKEN_URL } from "./google-calendar";
 import { createGrantedScopesFetcher, type FetchGrantedScopes, GOOGLE_TOKEN_INFO_URL } from "./google-token-info";
 import { internalSigningKey } from "./internal-bearer";
 import { lockOpenRequest } from "./request-guard";
+import { groupOfRequest, groupUrl, openGroupToken } from "./group-meetings";
 import { identifyDraft, openRequestBookingId, settleCalendarStep } from "./request-start";
 import { REQUESTER_CALENDAR_SCOPES } from "./requester-calendar";
 import { recordRequesterGrants, type RequesterGoogleIdentity } from "./requester-grants";
@@ -328,11 +329,14 @@ export function createGoogleCallbackHandler(load: () => RequesterGoogleDependenc
     const requestId = claimed.request_id;
     // A draft's thread lives on the public page until the guest is identified;
     // its booking link never reaches the address bar before then.
+    // A group participant's draft returns to the group's shared link.
     const returnTo = async (query: string) => {
       const [request] = await deps.db<{ state: string }[]>`select state from app.requests where id = ${requestId}`;
       const bookingId = request && request.state !== "draft" ? await openRequestBookingId(deps.db, [deps.tokenKey], requestId) : null;
-      return bookingId
-        ? redirect(`${bookingUrl(origin, bookingId)}?google=${query}`, clear)
+      if (bookingId) return redirect(`${bookingUrl(origin, bookingId)}?google=${query}`, clear);
+      const group = await groupOfRequest(deps.db, requestId);
+      return group
+        ? redirect(`${groupUrl(origin, openGroupToken([deps.tokenKey], group))}?google=${query}`, clear)
         : redirect(`${origin}/${handle ?? ""}?google=${query}`, clear);
     };
 

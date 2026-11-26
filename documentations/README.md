@@ -16,6 +16,7 @@ Read product purpose and requirements, then UX and architecture. Detailed agreed
 | [Page list](user_experience/04_page_list.md) | Single host workspace, the guest thread from the public page to the protected requester destination, and action cards |
 | [Host onboarding flow](user_experience/05_host_onboarding_flow.md) | Setup states, step-by-step server checks, recorded data and resume behavior for hosts |
 | [Guest booking flow](user_experience/06_guest_booking_flow.md) | Request states from the draft to confirmation, agent and email variants, recovery and closure |
+| [Group meeting flow](user_experience/07_group_meeting_flow.md) | One host and several participants from one shared link: steps, what each side sees, and how options are found |
 | [Technical overview](04_technical_specification.md) | System responsibilities and retained technical direction |
 | [Backend architecture](technical_specification/01_backend_architecture.md) | Authority, domain transactions, feasibility and external-effect recovery |
 | [Frontend architecture](technical_specification/02_frontend_architecture.md) | Proposed layout, UI/server boundaries, chat state and recovery |

@@ -8,6 +8,8 @@ import { createEmailDeliveryHandler, EMAIL_DELIVERY_JOB } from "./email-delivery
 import { createEmailReceiptHandler } from "./email-receipts";
 import { createEmailReplyHandler, EMAIL_REPLY_JOB } from "./email-replies";
 import { createEvaluationHandler, EVALUATION_JOB } from "./evaluation";
+import { createGroupCloseHandler } from "./group-close";
+import { GROUP_CLOSE_JOB } from "./group-meetings";
 import { createImessageSendHandler, IMESSAGE_SEND_JOB } from "./imessage-outbox";
 import { createImessageNoticeHandler } from "./imessage-notice-job";
 import { IMESSAGE_NOTICE_JOB, TELEGRAM_BUTTONS_JOB } from "./imessage-notices";
@@ -35,6 +37,7 @@ export const JOB_HANDLERS: Readonly<Record<string, JobHandler>> = {
   [EMAIL_RECEIPT_JOB]: createEmailReceiptHandler(),
   [EMAIL_REPLY_JOB]: createEmailReplyHandler(),
   [EVALUATION_JOB]: createEvaluationHandler(),
+  [GROUP_CLOSE_JOB]: createGroupCloseHandler(),
   [HOST_DELETION_JOB]: createHostDeletionHandler(),
   [IMESSAGE_NOTICE_JOB]: createImessageNoticeHandler(),
   [IMESSAGE_RECEIPT_JOB]: createImessageReceiptHandler(),
@@ -63,13 +66,16 @@ export const JOB_HANDLERS: Readonly<Record<string, JobHandler>> = {
 // with a 10-second timeout, so five do. An onboarding slot image reads the
 // conflict calendars for next week, each read with its own timeout, so two do.
 // A weekly note list re-sent on WhatsApp may read the listed calendars, so two
-// do; the weekly check and its review only read the database.
+// do; the weekly check and its review only read the database. A group close
+// reads the host's calendars and runs the engine once per participant and
+// place tier with their Routes estimates, so one runs at a time.
 export const JOB_BATCH_LIMITS: Readonly<Record<string, number>> = {
   [WEEKLY_NOTE_LIST_JOB]: 2,
   [BOOKING_JOB]: 3,
   [CALENDAR_ANALYSIS_JOB]: 1,
   [EMAIL_RECEIPT_JOB]: 4,
   [EVALUATION_JOB]: 4,
+  [GROUP_CLOSE_JOB]: 1,
   [IMESSAGE_RECEIPT_JOB]: 4,
   [IMESSAGE_SEND_JOB]: 2,
   [NOTE_WRITEBACK_JOB]: 5,

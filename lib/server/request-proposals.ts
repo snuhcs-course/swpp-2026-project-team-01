@@ -12,6 +12,7 @@ import {
   type RequestState,
 } from "../contracts/request";
 import { assertRevision, type CommandDefinition, CommandError } from "./commands";
+import { refuseGroupRequest } from "./group-participants";
 import type { Queryable, Transaction } from "./database";
 import {
   checkInterval,
@@ -145,6 +146,7 @@ export const evaluateCommand: CommandDefinition<Record<string, never>, EvaluateR
   operation: EVALUATE_OPERATION,
   async run(tx, context) {
     const request = await lockOpenRequest(tx, requester(context));
+    await refuseGroupRequest(tx, request.id);
 
     assertIdentified(request);
     if (request.state === "awaiting_host_approval") throw new CommandError("invalid_input");
@@ -266,6 +268,7 @@ export const chooseCandidateCommand: CommandDefinition<ChooseInput, ChooseResult
   operation: CHOOSE_CANDIDATE_OPERATION,
   async run(tx, context) {
     const request = await lockOpenRequest(tx, requester(context));
+    await refuseGroupRequest(tx, request.id);
     assertIdentified(request);
     assertRevision(request.revision, context.expectedRevision);
 
@@ -365,6 +368,7 @@ export function agreeCommand(
     operation: AGREE_OPERATION,
     async run(tx, context) {
       const request = await lockOpenRequest(tx, requester(context));
+      await refuseGroupRequest(tx, request.id);
       assertIdentified(request);
       assertRevision(request.revision, context.expectedRevision);
 

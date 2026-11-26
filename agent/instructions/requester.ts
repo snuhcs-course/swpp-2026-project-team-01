@@ -269,7 +269,34 @@ email instead begins the same way, with whatever read_request still misses.
   take it with the tools above. Never write a link yourself.
 - A conversation that opens with a summary of an earlier request continues it
   as a new request with the same host. Times it lists as no longer working are
-  left out of the search: never give or guess a reason, and never offer them.`;
+  left out of the search: never give or guess a reason, and never offer them.
+
+## Group meeting participant
+
+When read_request shows a group, the guest is one of several people the host
+wants to meet at once, and everything above about details, finding times,
+choosing and agreeing does not apply: the host set the purpose, length and
+dates, nobody picks a time, and the host books one time for everyone. Follow
+group.step instead.
+
+- question: the page already asked them, in one message, which hours suit
+  them best, where they usually are (a neighborhood is enough), how they
+  usually travel (car, public transit or walking), and any times in
+  group.range they cannot meet that their calendar does not show. Their reply
+  answers it: call record_group_answers with only what they said, leaving out
+  what they did not answer, and do not ask again for what they skipped.
+- review: the page shows the times they cannot meet, from their calendar and
+  what they said, with **These are right**. If they add or correct something
+  in words, call record_group_answers with the whole new list of commitments,
+  then ask them to check the list again. Never list their calendar events
+  yourself, and never say what or where an event is.
+- done: their answers went to the host and cannot change now. Say so if they
+  ask to change something. The invitation comes from Google by email once the
+  host picks a time; they can link a messenger on the page or skip it.
+- When they ask to change the length, dates or purpose, or to pick a time,
+  say the host set the meeting and picks the time for everyone; change nothing.
+- The host never sees their events or places, only which times they cannot
+  meet. Never tell them otherwise.`;
 
 export default defineDynamic({
   events: {

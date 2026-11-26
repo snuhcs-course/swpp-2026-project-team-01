@@ -739,7 +739,7 @@ async function framePayload(tx: Transaction, booking: JobBooking) {
     location: row!.details.location ?? null,
     mode: row!.details.mode,
     purpose: row!.purpose,
-    requester: { email: row!.contact_email, name: row!.requester_name },
+    attendees: [{ email: row!.contact_email, name: row!.requester_name }],
     start: booking.start_at.toISOString(),
   });
 }

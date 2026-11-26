@@ -16,6 +16,7 @@ import {
 import { MEETING_MODES, weeklyWindowSchema } from "../contracts/setup";
 import { isValidTimeZone } from "../contracts/timezone";
 import { assertRevision, canonicalJson, type CommandDefinition, CommandError } from "./commands";
+import { refuseGroupRequest } from "./group-participants";
 import { CONFIRMATION_LIMITS, type ConfirmationLimits, issueContactConfirmation, lockConfirmationBounds } from "./contact-confirmation";
 import type { Transaction } from "./database";
 import { invalidateExceptions } from "./request-exceptions";
@@ -116,7 +117,9 @@ export type PatchProblem =
   | "unsupported_clarification"
   | "invalid_contact"
   | "awaiting_host_approval"
-  | "excluded_window";
+  | "excluded_window"
+  // A group meeting's terms are the host's (group-scheduling).
+  | "group_terms_fixed";
 
 // Converts a local patch to a stored one in `timeZone`. A local time a clock
 // change repeats or skips, or a date that does not exist, rejects the whole
@@ -448,6 +451,7 @@ export function draftReviewCommand(
     operation: DRAFT_REVIEW_OPERATION,
     async run(tx, context) {
       const request = await lockRequester(tx, context);
+      await refuseGroupRequest(tx, request.id);
       await fence(tx, request.id);
 
       const language = requestLanguage(request.details);
@@ -523,6 +527,7 @@ export function applyReviewCommand(options: ContactOptions): CommandDefinition<z
     operation: APPLY_REVIEW_OPERATION,
     async run(tx, context) {
       const request = await lockRequester(tx, context);
+      await refuseGroupRequest(tx, request.id);
       assertRevision(request.revision, context.expectedRevision);
 
       const review = await lockPendingReview(tx, request.id, context.input.reviewId);
@@ -575,6 +580,7 @@ export function updateDetailsCommand(options: ContactOptions): CommandDefinition
     operation: UPDATE_DETAILS_OPERATION,
     async run(tx, context) {
       const request = await lockRequester(tx, context);
+      await refuseGroupRequest(tx, request.id);
       assertRevision(request.revision, context.expectedRevision);
 
       if (request.state === "awaiting_host_approval") throw new CommandError("invalid_input");

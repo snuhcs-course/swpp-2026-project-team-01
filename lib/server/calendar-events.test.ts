@@ -9,7 +9,7 @@ const source = {
   location: "Cafe Onion, Seongsu",
   mode: "in_person" as const,
   purpose: "Talk about compilers",
-  requester: { email: "grace@example.test", name: "Grace Hopper" },
+  attendees: [{ email: "grace@example.test", name: "Grace Hopper" }] as const,
   start: "2026-11-02T01:00:00.000Z",
 };
 
@@ -29,6 +29,21 @@ describe("calendar events", () => {
     expect(payload.reminders).toEqual({ useDefault: true });
     expect(JSON.stringify(payload)).not.toContain("/booking/");
     expect(payload).not.toHaveProperty("conferenceData");
+  });
+
+  it("invites every participant of a group meeting", () => {
+    const payload = buildEventPayload({
+      ...source,
+      attendees: [
+        { email: "grace@example.test", name: "Grace Hopper" },
+        { email: "ada@example.test", name: "Ada Lovelace" },
+      ],
+    });
+
+    expect(payload.attendees).toEqual([
+      { displayName: "Grace Hopper", email: "grace@example.test" },
+      { displayName: "Ada Lovelace", email: "ada@example.test" },
+    ]);
   });
 
   it("asks for a Meet conference for a Google Meet plan", () => {

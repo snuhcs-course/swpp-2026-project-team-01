@@ -1,11 +1,13 @@
 import { createHash, randomUUID } from "node:crypto";
 import { z } from "zod";
+import { GROUP_OPEN_EXPIRY } from "../contracts/group-meeting";
 import { REQUEST_LANGUAGES, type RequestDetails, type RequestLanguage, type RequestState } from "../contracts/request";
 import { isValidTimeZone } from "../contracts/timezone";
 import { hashBookingId, openBookingLink, sealBookingLink } from "./booking-links";
 import { type CommandDefinition, CommandError } from "./commands";
 import { issueContactConfirmation } from "./contact-confirmation";
 import type { Queryable, Transaction } from "./database";
+import { addDays, startOfLocalDay } from "./feasibility";
 import { hostAcceptsRequests, hostCanContinueRequests, type LockedRequest, lockOpenRequest } from "./request-guard";
 import { requestExpiresAt } from "./request-lifecycle";
 import { recordRequesterGrants, type RequesterGoogleIdentity } from "./requester-grants";
@@ -143,6 +145,17 @@ export async function insertDraftRequest(
     readonly timezone: string;
     readonly sourceHash: string;
     readonly tokenKey: TokenKey;
+    // A group's participant (group-scheduling design 1 and 2): the request
+    // holds the group's terms, and neither it nor its booking link expires
+    // while the group collects.
+    readonly group?: {
+      readonly id: string;
+      readonly purpose: string;
+      readonly durationMinutes: number;
+      readonly rangeStart: string;
+      readonly rangeEnd: string;
+      readonly timezone: string;
+    };
   },
 ) {
   const requestId = randomUUID();
@@ -151,28 +164,48 @@ export async function insertDraftRequest(
     select (settings ->> 'durationMinutes')::int as duration_minutes, settings ->> 'meetingMode' as meeting_mode
     from app.host_settings where host_account_id = ${draft.hostAccountId}
   `;
-  const details: RequestDetails = {
-    durationMinutes: offer?.duration_minutes ?? null,
-    language: draft.language,
-    linkPlan: null,
-    location: null,
-    mode: offer?.meeting_mode === "online" || offer?.meeting_mode === "in_person" ? offer.meeting_mode : null,
-    purpose: null,
-    timezone: draft.timezone,
-    travelMode: null,
-    windows: [],
-  };
+  const { group } = draft;
+  const details: RequestDetails = group
+    ? {
+        durationMinutes: group.durationMinutes,
+        language: draft.language,
+        linkPlan: null,
+        location: null,
+        mode: null,
+        purpose: group.purpose,
+        timezone: draft.timezone,
+        travelMode: null,
+        windows: [
+          {
+            end: new Date(startOfLocalDay(addDays(group.rangeEnd, 1), group.timezone)).toISOString(),
+            start: new Date(startOfLocalDay(group.rangeStart, group.timezone)).toISOString(),
+          },
+        ],
+      }
+    : {
+        durationMinutes: offer?.duration_minutes ?? null,
+        language: draft.language,
+        linkPlan: null,
+        location: null,
+        mode: offer?.meeting_mode === "online" || offer?.meeting_mode === "in_person" ? offer.meeting_mode : null,
+        purpose: null,
+        timezone: draft.timezone,
+        travelMode: null,
+        windows: [],
+      };
 
   await tx`
-    insert into app.requests (id, host_account_id, state, details, expires_at)
+    insert into app.requests (id, host_account_id, state, details, expires_at, group_meeting_id)
     values (${requestId}, ${draft.hostAccountId}, 'draft', ${tx.json(details as unknown as Parameters<typeof tx.json>[0])},
-            now() + make_interval(hours => ${DRAFT_LIMITS.lifetimeHours}))
+            now() + make_interval(hours => ${DRAFT_LIMITS.lifetimeHours}), ${group?.id ?? null})
   `;
   const sealed = sealBookingLink(draft.tokenKey, requestId, bookingId);
   await tx`
     insert into app.booking_links (request_id, link_hash, link_ciphertext, link_key_id)
     values (${requestId}, ${hashBookingId(bookingId)}, ${sealed.ciphertext}, ${sealed.keyId})
   `;
+  if (group) await tx`update app.booking_links set expires_at = ${GROUP_OPEN_EXPIRY} where request_id = ${requestId}`;
+  if (group) await tx`insert into app.group_participants (request_id) values (${requestId})`;
   await tx`
     insert into app.discussions (principal_type, principal_id, audience)
     values ('requester_request', ${requestId}, 'requester')
@@ -228,6 +261,13 @@ export async function identifyDraft(
 ): Promise<IdentifyResult> {
   if (request.state !== "draft") throw new CommandError("invalid_input");
   if (!(await hostCanContinueRequests(tx, request.host_account_id))) throw new CommandError("forbidden");
+  // A group's participant identifies only while the group collects, and then
+  // does not expire until it closes (group-scheduling design 2).
+  const [group] = await tx<{ state: string }[]>`
+    select g.state from app.requests r join app.group_meetings g on g.id = r.group_meeting_id
+    where r.id = ${request.id} for share of g
+  `;
+  if (group && group.state !== "collecting") throw new CommandError("request_closed");
 
   const verified =
     identity.accountVerifiedEmail === true ||
@@ -245,7 +285,7 @@ export async function identifyDraft(
         details = ${tx.json(details as Parameters<typeof tx.json>[0])},
         state = 'gathering', identified_at = now(),
         identity_requested_at = coalesce(identity_requested_at, now()),
-        expires_at = ${requestExpiresAt(request.created_at, details.windows ?? [])},
+        expires_at = ${group ? GROUP_OPEN_EXPIRY : requestExpiresAt(request.created_at, details.windows ?? [])},
         revision = revision + 1, updated_at = now()
     where id = ${request.id}
   `;
@@ -279,6 +319,11 @@ export function identifyRequestCommand(options: IdentifyOptions): CommandDefinit
       }
 
       const request = await lockOpenRequest(tx, context.actor.id);
+      // A group's participant connects Calendar; there is no start without Google.
+      const [grouped] = await tx<{ found: boolean }[]>`
+        select true as found from app.requests where id = ${request.id} and group_meeting_id is not null
+      `;
+      if (grouped) throw new CommandError("forbidden");
       const result = await identifyDraft(tx, request, context.input, options);
       await settleCalendarStep(tx, request.id);
       return result;
@@ -290,11 +335,13 @@ export function identifyRequestCommand(options: IdentifyOptions): CommandDefinit
 // U10): without Google, or when the Google consent left out its Calendar part,
 // the step is settled as skipped. A granted Calendar leaves it open, for the
 // guest to choose which calendars count before any times are found. The guest
-// can still change it from the Calendar receipt.
+// can still change it from the Calendar receipt. A group's participant has no
+// skip (group-scheduling design 3): their step stays open until Calendar is
+// connected and its calendars are chosen.
 export async function settleCalendarStep(tx: Transaction, requestId: string) {
   await tx`
     update app.requests set calendar_settled_at = coalesce(calendar_settled_at, now())
-    where id = ${requestId}
+    where id = ${requestId} and group_meeting_id is null
       and not exists (
         select 1 from app.requester_grants g
         where g.request_id = ${requestId} and g.kind = 'calendar' and g.revoked_at is null
