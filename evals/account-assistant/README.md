@@ -3,13 +3,13 @@
 Run these with the owner's isolated local stack already running and the migration chain applied. This suite never starts, stops or resets Supabase. The story runtime refuses non-loopback databases and starts only fake Google/Routes providers. It shares `TOKEN_ENCRYPTION_KEY` with the Eve runtime; grants, booking links and messenger bindings all use that key.
 
 ```sh
-FMAT_EVAL_AUDIENCE=host_setup npx eve eval account-assistant
+FMAT_EVAL_AUDIENCE=host_setup npx eve eval account-assistant --strict
 ```
 
 Each of the nine cases runs three times (27 trials, pass^3). To select one case while retaining all three trials:
 
 ```sh
-FMAT_EVAL_AUDIENCE=host_setup npx eve eval account-assistant --tag case:AS-03
+FMAT_EVAL_AUDIENCE=host_setup npx eve eval account-assistant --tag case:AS-03 --strict
 ```
 
 Use `EVAL_DATABASE_URL` for the isolated loopback database and the existing model/grader environment from the story eval setup. The suite uses real account tools and the existing rubric grader, not tool stubs. Messages enter the canonical `host_setup` discussion with `[Telegram]`, matching the live messenger audience, accepted input and binding fences. Outbox sends run through the real handler into a recording loopback messaging transport; only delivery is simulated, including acceptance of slot previews and sample/request notices. No real messenger or Google account is contacted.

@@ -46,7 +46,7 @@ Draft implementation PR: [#499](https://github.com/snuhcs-course/swpp-2026-proje
 
 - [x] 6.1 Replace function/schema-capturing account tool factories with inline replayable definitions; inspect setup/request tools and capture only JSON scope/turn values in memory tools. Document the live eval guard because Eve exposes no public unit resolution checker.
 - [x] 6.2 Replace integration-key request seeds with story runtime builders/key; add the requested H01, H03, H04 and A7 account-session UAT cases, with real tools, tool/database/rubric checks and three trials each. Do not execute evals or start/stop/reset a stack.
-- [ ] 6.3 Run lint, typecheck, unit tests, build and strict OpenSpec validation; record results and push the repair to PR #499 without merging or force-pushing.
+- [x] 6.3 Run lint, typecheck, unit tests, build and strict OpenSpec validation; record results and push the repair to PR #499 without merging or force-pushing.
 
 Repair verification is separate from the original implementation record above. The owner's isolated-stack run found the live resolution/key failures; no successful live eval result is claimed by this repair. The owner runs the new 27 trials separately.
 
