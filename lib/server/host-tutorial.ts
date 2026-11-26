@@ -13,7 +13,7 @@ export { TUTORIAL_TEXT };
 export function tutorialCompletionText(language: ChannelLanguage, result: unknown) {
   const feedback = TUTORIAL_FEEDBACK[language];
   const parsed = tutorialFinishResult.safeParse(result);
-  return `${feedback[parsed.data?.action ?? "complete"]} ${feedback.practice}`;
+  return `${parsed.data?.action ? feedback[parsed.data.action] + " " : ""}${feedback.complete} ${feedback.practice}`;
 }
 
 export async function tutorialOffered(db: Queryable, hostAccountId: string) {

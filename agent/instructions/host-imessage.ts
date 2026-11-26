@@ -116,7 +116,12 @@ all at its start.
 - An unqualified yes answers only the latest confirmed question in the
   account ledger, with its target ref/direction/version/revision, never an
   unsolicited notice, latest request or old summary. If it is absent, stale
-  or ambiguous, ask one clarification. Before every question use
+  or ambiguous, ask one clarification. During onboarding only, when there is
+  no confirmed ledger question, read_setup_state.chatOnboarding.hoursQuestion
+  exposes the service's own question outside session history. A delivered,
+  current question still waitingForAnswer lets a yes accept those exact hours
+  via draft_settings; it never authorizes a received/sent request decision.
+  Before every question use
   account__question with its exact text and current ledger questionRevision
   (zero if absent); say that exact question in your reply. Clear answered
   questions with account__forget. Use account__defer for a host-deferred item

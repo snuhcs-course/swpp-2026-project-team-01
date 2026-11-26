@@ -1,3 +1,5 @@
+import { hoursSuggestion } from "./analysis";
+import type { AnalysisEvidence } from "../contracts/analysis";
 import type { Queryable, Transaction } from "./database";
 import { activeBindingOfHost } from "./imessage-links";
 import { publishJob } from "./jobs";
@@ -58,6 +60,27 @@ export function slotImageDelivery(state: string): SlotImageDelivery {
   return state === "waiting" || state === "queued" || state === "dispatching" ? "sending" : "not_delivered";
 }
 
+// Outbound service questions do not enter Eve history. Recover the question's
+// original analysis, not a later suggestion, and expose it only as service
+// state; it never becomes authority for received/sent request decisions.
+export async function pendingHoursQuestion(q: Queryable, hostAccountId: string, bindingId: string) {
+  const [row] = await q<{ evidence: AnalysisEvidence | null; state: string; delivery: string; current: boolean; answered: boolean }[]>`
+    select a.evidence, a.state, o.state as delivery,
+      not exists (select 1 from app.calendar_analyses newer where newer.host_account_id = a.host_account_id and newer.created_at > a.created_at) as current,
+      (exists (select 1 from app.setup_drafts d where d.host_account_id = a.host_account_id and d.fields -> 'weeklyWindows' ->> 'source' = 'stated')
+        or exists (select 1 from app.host_settings s where s.host_account_id = a.host_account_id)) as answered
+    from app.imessage_outbox o
+    join app.calendar_analyses a on a.host_account_id = o.host_account_id and a.created_at <= o.created_at
+    where o.host_account_id = ${hostAccountId} and o.binding_id = ${bindingId}
+      and o.dedupe_key = ${`onboarding-hours:${bindingId}`} and o.kind = 'notice'
+    order by a.created_at desc limit 1
+  `;
+  return row && row.state !== "pending" ? {
+    source: "service", suggestion: hoursSuggestion(row.state === "completed" ? row.evidence : null), timezone: row.evidence?.timezone ?? null,
+    current: row.current, delivery: slotImageDelivery(row.delivery), waitingForAnswer: !row.answered,
+  } : null;
+}
+
 // What read_setup_state tells the host assistant about the chat onboarding
 // (issue #216): jobs send the slot image after 확인 or the wait, and that
 // message never enters the agent session, so the assistant reads it here.
@@ -70,6 +93,7 @@ export async function chatOnboardingForModel(q: Queryable, hostAccountId: string
   const step = await noteStepOf(q, binding.id);
   const image = await latestSlotImage(q, hostAccountId, binding.id);
   return {
+    hoursQuestion: await pendingHoursQuestion(q, hostAccountId, binding.id),
     noteReview: step ? (step.waiting ? ("waiting" as const) : ("done" as const)) : null,
     slotPreview: image
       ? { current: image.review_hash === proposalHash, delivery: slotImageDelivery(image.state), reviewRef: settingsRef(image.review_hash) }

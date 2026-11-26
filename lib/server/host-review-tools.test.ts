@@ -1,8 +1,10 @@
+import { tutorialCompletionText } from "./host-tutorial";
 import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 import {
   hostRequestsForModel,
   proposalFeasibility,
+  accountEvaluationSummary,
   LANGUAGE_NOTE,
   proposeSharedChangesToolInput,
   SHARE_REPEATED_TEXT,
@@ -73,4 +75,22 @@ describe("current proposal explanation", () => {
     expect(proposalFeasibility({ ...view, proposal: { ...view.proposal!, start: "2026-12-01T02:00:00Z" } })).toBeNull();
     expect(proposalFeasibility({ ...view, evaluation: null })).toBeNull();
   });
+});
+
+it("keeps account request reads bounded while alternative discovery retains its full evaluation", () => {
+  const evaluation: NonNullable<Parameters<typeof accountEvaluationSummary>[0]> = {
+    id: "evaluation", state: "completed", weeklyLimitHold: false,
+    candidates: Array.from({ length: 40 }, (_, index) => ({ basis: ["hours", "busy"], id: String(index), status: "offered", time: "next Tuesday", unresolvedHostTrips: [] })),
+    excluded: Array.from({ length: 20 }, () => "Busy calendar time"),
+  };
+  const summary = accountEvaluationSummary(evaluation);
+  expect(summary).toMatchObject({ id: "evaluation", candidateCount: 40, excludedCount: 20 });
+  expect(summary).not.toHaveProperty("candidates");
+  expect(summary).not.toHaveProperty("excluded");
+  expect(JSON.stringify(summary).length).toBeLessThan(JSON.stringify(evaluation).length / 2);
+  expect(evaluation.candidates).toHaveLength(40);
+});
+
+it("makes sample completion explicit without claiming a real booking or guest notice", () => {
+  expect(tutorialCompletionText("ko", { sample: true, action: "approve" })).toContain("튜토리얼이 끝났어요. 캘린더 일정이나 게스트 알림은 생성되지 않았어요.");
 });

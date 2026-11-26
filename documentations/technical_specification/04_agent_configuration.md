@@ -172,6 +172,13 @@ Memory stores exact eligible phrases from the host's own current input, never re
 
 The ledger stores the latest exact pending question with target direction/ref/version/revision and decision, plus deferred items not in domain state. Unqualified yes is checked against its live target; notices never replace it. Writes use observed revisions, account-scoped locking, source input provenance and deduplication. Context tools and recalls recheck the active account/session generation and linked input. The one-active-binding-per-host index remains unchanged.
 
+Service-sent onboarding questions live in the outbox rather than Eve history. `read_setup_state.chatOnboarding.hoursQuestion` exposes the delivered question's original analysis-based hours, timezone, delivery, currentness and whether an answer is still pending. A confirmed ledger question takes precedence; only a delivered/current/still-waiting service hours question can supply the concrete hours for a setup yes. It never authorizes received or sent request decisions, and later analysis cannot silently replace its original suggestion.
+
+During the active turn, the provider's ledger recall/list also exposes `inFlight` writes from that same turn so compaction does not cause a second staging call. They remain unconfirmed, require the exact final acknowledgement and never authorize a decision. Context writes/captures bind JSONB objects with the driver's JSON encoder once; the database object/size checks remain unchanged.
+
+Account `read_request` returns the current request/proposal, exact feasibility basis and compact evaluation counts; full alternative candidates and exclusions stay in `evaluate_candidates`. This keeps long alternative lists from forcing compaction during a simple explanation. Schedule results have one reply rule shared with week-label guidance, including separately labeled nearby confirmed bookings. Sample approve/decline uses the decision batch once and returns an explicit completed-tutorial message with no real event or guest notification; `finish_sample_tutorial` is reserved for sample change/end in the account tool set.
+
+
 The root has no sandbox-using tools (`defaultTools: false`). An explicit `JustBashSandbox` environment, pinned through `just-bash`, lets eve prepare its required environment without a container/VM; all private context stays in Postgres, not that filesystem or Blob.
 
 ## Connections

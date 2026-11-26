@@ -1,7 +1,7 @@
 import { beforeEach, expect, it, vi } from "vitest";
 import { createDatabase } from "./database";
 import { authorizeSetupTool } from "./setup-tools";
-import { readHostSchedule } from "./host-schedule";
+import { SCHEDULE_REPLY_NOTE, readHostSchedule } from "./host-schedule";
 import { listHostRequests, readHostTimezone } from "./host-requests";
 import { listSentRequests } from "./host-sent-requests";
 import { openProposalVersions } from "./host-review-tools";
@@ -24,11 +24,11 @@ it("keeps this week's named booking beside an empty next-week schedule without r
   const today = new Date();
   vi.mocked(listHostRequests).mockResolvedValue([{ bookedStart: today.toISOString(), proposalStart: null, needsDecision: false,
     purpose: "investment", requestId: "4f1c7a52-2b8e-4a36-9b1d-0e6a7d1f2c33", requesterName: "Dohyeon", state: "booked", sample: false, updatedAt: today.toISOString() }]);
-  const schedule: Awaited<ReturnType<typeof readHostSchedule>> = { current: { now: "now", thisWeek: "this", nextWeek: "next" }, dataNote: "data", entries: [], googleCalendar: "read", period: { from: "2026-11-30", through: "2026-12-06", timezone: "Asia/Seoul" }, replyNote: "note" };
+  const schedule: Awaited<ReturnType<typeof readHostSchedule>> = { current: { now: "now", thisWeek: "this", nextWeek: "next" }, dataNote: "data", entries: [], googleCalendar: "read", period: { from: "2026-11-30", through: "2026-12-06", timezone: "Asia/Seoul" }, replyNote: SCHEDULE_REPLY_NOTE };
   vi.mocked(readHostSchedule).mockResolvedValue(schedule);
   const result = await readScheduleForSetupTool({ db, appOrigin: "http://localhost:3000", calendar: { db, tokenKeys: [], config: { apiBaseUrl: "http://127.0.0.1:9", tokenUrl: "http://127.0.0.1:9", clientId: "eval", clientSecret: "eval", timeoutMs: 100 } } },
     { auth: null, sessionId: "account", callId: "read" }, { from: "2026-11-30", days: 7 });
   expect(result.entries).toEqual([]);
   expect(result.nearbyBookings).toMatchObject([{ requester: '"Dohyeon"', purpose: '"investment"', booked: { week: "this_week" } }]);
-  expect(result.weekNote).toContain("No meetings are booked next week");
+  expect(result.replyNote).toContain("No meetings are booked next week");
 });

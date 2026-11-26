@@ -14,7 +14,7 @@ export const TUTORIAL_FEEDBACK = {
     change: "You requested changes to the sample.",
     end: "You ended the tutorial.",
     complete: "Tutorial complete.",
-    practice: "This was practice. No calendar event was created and no guest was notified.",
+    practice: "No calendar event or guest notification was created.",
   },
   ko: {
     approve: "샘플 요청을 승인했어요.",
@@ -22,7 +22,7 @@ export const TUTORIAL_FEEDBACK = {
     change: "샘플 요청에 변경을 부탁했어요.",
     end: "튜토리얼을 종료했어요.",
     complete: "튜토리얼이 끝났어요.",
-    practice: "연습이었어요. 실제 일정은 만들어지지 않았고, 게스트에게도 알림이 가지 않았어요.",
+    practice: "캘린더 일정이나 게스트 알림은 생성되지 않았어요.",
   },
 } as const;
 

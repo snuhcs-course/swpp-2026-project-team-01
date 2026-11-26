@@ -75,7 +75,7 @@ export async function readScheduleForSetupTool(deps: SetupDependencies, call: Se
   const actor = await authorizeSetupTool(deps.db, call.auth, call.sessionId);
   const schedule = await readHostSchedule(deps.db, deps.calendar, actor.id, readScheduleToolInput.parse(input));
   const requests = await listHostRequestsForSetupTool(deps, call);
-  return { ...schedule, weekNote: requests.weekNote,
+  return { ...schedule,
     nearbyBookings: requests.requests.filter(item => item.booked?.week === "this_week" || item.booked?.week === "next_week"),
     nearbySentBookings: requests.sent.filter(item => item.booked?.week === "this_week" || item.booked?.week === "next_week"),
   };

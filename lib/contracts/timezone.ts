@@ -143,3 +143,6 @@ export function instantFromLocal(date: string, clock: string, timeZone: string) 
 
   return candidates.length > 0 ? new Date(candidates[0]!).toISOString() : null;
 }
+
+export const BOOKING_WEEK_REPLY_NOTE =
+  "booked is a confirmed meeting, which stands while a change is negotiated; proposed is a time not yet booked. Each week is Monday to Sunday in the host's timezone, as current gives this and next week. Asked about a week's meetings, name only those whose week matches, each with the requester and the time; when there are none, say so and name any booked this week or next week instead, such as \"No meetings are booked next week. This week you meet {requester} on {date} at {time}.\"";

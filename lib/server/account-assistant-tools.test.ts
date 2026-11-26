@@ -29,6 +29,13 @@ beforeEach(() => {
 });
 
 describe("account assistant refs and independent decisions", () => {
+  it("treats a sample decision result as a completed tutorial without directing another finish/status call", async () => {
+    vi.mocked(runCommand).mockResolvedValueOnce({ ok: true, result: { sample: true, action: "approve", finished: true, message: "Tutorial complete" }, replayed: false, correlationId: "sample" });
+    const output = await decideAccountRequests(db, call, { items: [{ ref: "Eunwoo", action: "approve", version: 1, expectedRevision: 2 }] });
+    expect(output.results[0]!.result).toMatchObject({ result: { sample: true, finished: true, message: "Tutorial complete" } });
+    expect(output.note).toContain("do not call another finish or booking-status tool");
+    expect(runCommand).toHaveBeenCalledTimes(1);
+  });
   it("resolves any owned ref without changing session authority", async () => {
     expect(await accountRequestCall(db, call, requestRef(b))).toEqual({ ...call, requestId: b });
     expect(listHostRequests).toHaveBeenCalledWith(db, owner, { limit: null });

@@ -1,3 +1,4 @@
+import { z } from "zod";
 import { describe, expect, it, vi } from "vitest";
 import { readFileSync, readdirSync } from "node:fs";
 import { assistantText, eligibleMemory, memoryNotice, memorySchema, questionSchema, recalledContext, type ContextEntry } from "./host-assistant-context";
@@ -43,6 +44,14 @@ describe("private account context", () => {
     const slots = readdirSync(new URL("../../agent/memory/", import.meta.url)).filter(name => name.endsWith(".ts")).map(name => name.slice(0, -3));
     const authored = readdirSync(new URL("../../agent/tools/", import.meta.url)).filter(name => name.endsWith(".ts")).map(name => name.slice(0, -3));
     expect(authored.filter(name => slots.includes(name))).toEqual([]);
+  });
+  it("keeps sample approval in the decision batch and reserves finish_sample_tutorial for change/end", () => {
+    const schema = accountTools().finish_sample_tutorial.inputSchema;
+    if (!(schema instanceof z.ZodObject)) throw new Error("Expected the authored sample-action schema");
+    expect(schema.safeParse({ ref: "SAMPLE", action: "approve" }).success).toBe(false);
+    expect(schema.safeParse({ ref: "SAMPLE", action: "decline" }).success).toBe(false);
+    expect(schema.safeParse({ ref: "SAMPLE", action: "change" }).success).toBe(true);
+    expect(schema.safeParse({ ref: "SAMPLE", action: "end" }).success).toBe(true);
   });
   it("declares private FK/RLS boundaries, expiry and replay tombstones without changing the active-binding constraint", () => {
     const schema = readFileSync(new URL("../../supabase/schemas/app/tables/host_assistant_context.sql", import.meta.url), "utf8");

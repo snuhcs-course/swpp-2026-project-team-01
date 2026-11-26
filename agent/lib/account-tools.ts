@@ -2,7 +2,7 @@ import { defineTool } from "eve/tools";
 import { z } from "zod";
 import { accountRequestCall, accountRequestInput, accountSentCall, assertSentAnswer, batchDecisionsInput, decideAccountRequests } from "../../lib/server/account-assistant-tools";
 import { database } from "../../lib/server/database";
-import { readRequestForHostTool, evaluateCandidatesForHostTool, proposeSharedChangesForTool, proposeSharedChangesToolInput, resolveChangesForTool, suggestionToolInput, askGuestForHostTool, hostQuestionToolInput, waiveWeeklyLimitForHostTool, allowHostTripForHostTool, readBookingStatusForHostTool, changeBookingForHostTool, finishSampleForTool, finishSampleToolInput } from "../../lib/server/host-review-tools";
+import { readAccountRequestForTool, evaluateCandidatesForHostTool, proposeSharedChangesForTool, proposeSharedChangesToolInput, resolveChangesForTool, suggestionToolInput, askGuestForHostTool, hostQuestionToolInput, waiveWeeklyLimitForHostTool, allowHostTripForHostTool, readBookingStatusForHostTool, changeBookingForHostTool, finishSampleForTool, finishSampleToolInput } from "../../lib/server/host-review-tools";
 import { allowHostTripInput } from "../../lib/server/request-exceptions";
 import { readRequestForTool, draftRequestReviewForTool, draftRequestReviewToolInput, evaluateCandidatesForTool, chooseTimeForTool, chooseTimeToolInput, agreeToProposalForTool, agreeToolInput, applyRequestReviewForTool, changeAgreementForTool, withdrawRequestForTool, cancelBookingForTool, changeBookingForTool, useHostCalendarsForTool, useHostCalendarsToolInput, readBookingStatusForTool, resendBookingLinkForTool } from "../../lib/server/request-tools";
 import { readSetupStateForTool, type SetupToolCall } from "../../lib/server/setup-tools";
@@ -35,7 +35,7 @@ export function accountTools() {
       execute: async (input, ctx) => {
         const { ref } = input;
         const target = await accountRequestCall(database(), call(ctx), ref);
-        return readRequestForHostTool(database(), target);
+        return readAccountRequestForTool(database(), target);
       },
     }),
     evaluate_candidates: defineTool({
@@ -121,8 +121,8 @@ export function accountTools() {
       },
     }),
     finish_sample_tutorial: defineTool({
-      inputSchema: finishSampleToolInput.extend(accountRequestInput.shape),
-      description: "Finish only the sample ref's tutorial after its action or an explicit request to end it.",
+      inputSchema: finishSampleToolInput.extend(accountRequestInput.shape).extend({ action: z.enum(["change", "end"]) }),
+      description: "Use only for a sample change or end. Sample approve/decline uses decide_requests, which already finishes the tutorial; never call this after its successful sample result.",
       execute: async (input, ctx) => {
         const { ref, ...args } = input;
         const target = await accountRequestCall(database(), call(ctx), ref);

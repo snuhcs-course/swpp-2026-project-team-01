@@ -162,7 +162,12 @@ unless they set one.
    question once, such as "캘린더를 보니 평일엔 9시부터 저녁 10시까지 보통
    약속이 있으시네요. 미팅 가능 시간을 평일 9시~22시로 잡아둘까요?" or
    "Looking at your recent and upcoming calendar, …". It may not appear in your context; the suggestion it
-   states is read_setup_state's weeklyWindows suggestion. The host's next
+   states is available as read_setup_state.chatOnboarding.hoursQuestion, with
+   its original suggestion, timezone, delivery, current and waitingForAnswer.
+   If delivered/current/still waiting and no newer ledger question overrides
+   it, accept a yes as those exact hours, even though the service message is
+   absent from history. A stale or undelivered question needs clarification.
+   The host's next
    reply about times answers it: "응" or "좋아요" agrees, and "8시까지만" or
    "주말은 빼줘" changes it. Record weeklyWindows with draft_settings, source
    stated, then ask the place question in the same reply.

@@ -41,6 +41,17 @@ describe("account custom memory provider lifecycle", () => {
     expect(captureContext).not.toHaveBeenCalled();
     expect(readContext).toHaveBeenCalledWith("test-db", "owner", "scoped-key");
   });
+  it("retains only this turn's staged acknowledgements across compaction without confirming them", async () => {
+    vi.mocked(readContext).mockResolvedValue([
+      { kind: "deferred", entry_key: "later", revision: 1, content: { text: "think later" }, confirmed: false, operation_id: "turn-one:defer", source_input_id: "input" },
+      { kind: "question", entry_key: "latest", revision: 2, content: { question: "old?" }, confirmed: false, operation_id: "old-turn:question", source_input_id: "old-input" },
+    ]);
+    const result = await accountMemoryProvider.recall["compaction.completed"](ctx);
+    const ledger: unknown = JSON.parse(result.messages[1]!.content);
+    expect(ledger).toMatchObject({ ledger: [], inFlight: [{ kind: "deferred", content: { text: "think later" } }] });
+    expect(result.messages[1]!.content).not.toContain("old?");
+    expect(captureContext).not.toHaveBeenCalled();
+  });
   it("captures settled turns with the stable operation id but never ingests compaction text", async () => {
     await accountMemoryProvider.capture["turn.completed"]({ ...ctx, operationId: "capture-one" });
     expect(captureContext).toHaveBeenCalledExactlyOnceWith("test-db", expect.objectContaining({ sessionId: "session" }), "scoped-key", "capture-one", [], "turn-one");

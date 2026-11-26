@@ -618,3 +618,5 @@ M-9–M-12 구현 검증: 단위 테스트는 배치 독립성, 현재 대상, �
 | P-7 | 보낸 요청이 승인 대기 | "박도현이 승인했어?" | AI 기대 동작: check_sent_booking / get_sent_request → 기록된 상태 보고 | **분기**: MCP에는 푸시가 없음. 소식은 조회와 이메일로 옴<br>**코드 지원**: 지원 | agent-account-requester-tools.ts (check_sent_booking) |
 | P-8 | 보낸 요청이 열려 있음 | "내 설정 45분으로 바꿔줘" | AI 기대 동작: 호스트 설정 도구(H02 P-2). 보낸 요청은 그대로 | **하면 안 됨**: 보낸 요청의 길이를 바꿈<br>**AI 판단**: M-7과 같음<br>**지원**: 보낸 update_request_details 설명이, 그 사람의 미팅 전반에 대한 변경은 update_setup_field라고 알려줌(host-as-guest-calendars-in-words) | agent-host-tools.ts (update_setup_field) · agent-account-requester-tools.ts |
 | ↳ P-9 | 벗어난 입력. 아무 때나 | 자기 handle | AI 기대 동작: 본인 예약 링크라고 말함 | **실패**: create_request가 거절됨(forbidden)<br>**확인 필요**: 거절 사유가 나오지 않음. 에이전트가 설명하는지 | agent-account-requester-tools.ts (createCommand) |
+
+세 번째 계정 수정은 질문·기억·보류 JSONB 객체와 capture의 오프라인 드라이버 인코딩 회귀 검사, 서비스 시간 질문의 가시성·현재 유효 여부, 간결한 요청 평가, compaction 뒤 같은 턴의 준비 상태 회상, 단일 샘플 승인·완료 경로를 검사합니다. 기존 라이브 eval 기대 동작과 반복 횟수는 유지합니다. 제공된 2026-11-26T01-57-24 산출물로 실패를 확인했으며, 이 수정에서 라이브 재실행·DB 실행·integration/e2e는 NOT RUN입니다.

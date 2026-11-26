@@ -1,3 +1,4 @@
+import { textLanguage } from "./channel-language";
 import { z } from "zod";
 import { channelOfTurn, matchHostRequests } from "./channel-selection";
 import type { Database } from "./database";
@@ -6,7 +7,7 @@ import { listHostRequests, readHostRequest } from "./host-requests";
 import { listSentRequests } from "./host-sent-requests";
 import { approveCommand, declineCommand, declinedDatesSchema } from "./bookings";
 import { cancelBookingCommand } from "./booking-cancellation";
-import { finishSampleCommand } from "./host-tutorial";
+import { finishSampleCommand, tutorialCompletionText } from "./host-tutorial";
 import { assertRevision, CommandError, runCommand, type CommandDefinition } from "./commands";
 import { questionSchema } from "./host-assistant-context";
 import { requestRef } from "./request-ref";
@@ -101,7 +102,10 @@ function decisionCommand(call: HostReviewToolCall): CommandDefinition<z.infer<ty
       // Delegate to the exact domain command used by web and MCP. The outer
       // command stores each item's original fingerprint/outcome for retries.
       const result = view.sample
-        ? await finishSampleCommand.run(tx, { ...context, input: { action: context.input.action === "cancel" ? "end" : context.input.action } })
+        ? await (async () => {
+          const finished = await finishSampleCommand.run(tx, { ...context, input: { action: context.input.action === "cancel" ? "end" : context.input.action } });
+          return { ...finished, finished: true, message: tutorialCompletionText(textLanguage(turn.message) ?? "en", finished) };
+        })()
         : context.input.action === "approve"
           ? context.input.version === null
             ? (() => { throw new CommandError("invalid_input"); })()
@@ -133,5 +137,5 @@ export async function decideAccountRequests(db: Database, call: HostReviewToolCa
       results.push({ ref: item.ref, action: item.action, result: { problem: "Unavailable, ambiguous or failed item. Clarify only it; other results stand." } });
     }
   }
-  return { results, note: "An approved item is not confirmed booked; read_booking_status reports confirmation." };
+  return { results, note: "Use each item result independently. A successful sample:true result finishes the tutorial; repeat its message and do not call another finish or booking-status tool for it. A real approved item is not confirmed booked; read_booking_status reports confirmation only if needed." };
 }

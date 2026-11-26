@@ -57,6 +57,17 @@ export function recalledContext(entries: readonly ContextEntry[]) {
   };
 }
 
+// postgres.js selects the JSONB encoder for this parameter. Pass an object,
+// not a pre-stringified JSON string that the driver would encode a second time.
+const contextObject = z.record(z.string(), z.json());
+
+export function stagedContext(entries: readonly ContextEntry[], turnId: string | null) {
+  return turnId === null ? [] : entries.filter(row => {
+    const content = contextObject.safeParse(row.content);
+    return !row.confirmed && row.operation_id.startsWith(`${turnId}:`) && content.success && Object.keys(content.data).length > 0;
+  });
+}
+
 export async function writeContext(db: Database, call: SetupToolCall, scope: string, entry: {
   kind: ContextKind; key: string; expectedRevision: number; content: unknown; operationId: string; expiresAt?: string | null;
 }) {
@@ -78,7 +89,7 @@ export async function writeContext(db: Database, call: SetupToolCall, scope: str
         and (expires_at is null or expires_at > now())
     `;
     if (!existing && entry.kind !== "question" && count >= 32) return { saved: false, problem: "Context is full; forget or resolve an item first." };
-    const content = JSON.stringify(entry.content);
+    const content = tx.json(contextObject.parse(entry.content));
     const [written] = await tx<{ revision: number }[]>`
       insert into app.host_assistant_context (host_account_id, scope_key, kind, entry_key, content, source_input_id, operation_id, expires_at)
       values (${actor.id}, ${scope}, ${entry.kind}, ${entry.key}, ${content}::jsonb, ${turn.inputId}, ${entry.operationId}, ${entry.expiresAt ?? null})
@@ -139,7 +150,7 @@ export async function captureContext(db: Database, call: SetupToolCall, scope: s
       // Unacknowledged writes never become recalled facts; clear their content.
       await tx`
         update app.host_assistant_context set confirmed = ${acknowledged},
-          content = ${acknowledged ? JSON.stringify(row.content) : '{}'}::jsonb,
+          content = ${tx.json(acknowledged ? contextObject.parse(row.content) : {})}::jsonb,
           forgotten_at = ${acknowledged ? null : new Date()}, updated_at = now()
         where host_account_id = ${actor.id} and scope_key = ${scope} and kind = ${row.kind}
           and entry_key = ${row.entry_key} and revision = ${row.revision}

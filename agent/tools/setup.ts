@@ -36,7 +36,7 @@ export default defineDynamic({
             ...accountTools(),
             read_setup_state: defineTool({
               description:
-                "Read the host's current setup: the next action, drafted values with their labels, current suggestions with sample sizes, missing required fields, calendar roles, analysis evidence and readiness, and for a linked chat the onboarding note review step and the latest slot image sent there (chatOnboarding). Call it at the start of each turn before talking about setup.",
+                "Read the host's current setup: the next action, drafted values with their labels, current suggestions with sample sizes, missing required fields, calendar roles, analysis evidence and readiness, and for a linked chat the onboarding note review step and the latest slot image sent there (chatOnboarding), including the original delivered service hours question and whether it is current and awaiting an answer. Call it at the start of each turn before talking about setup.",
               inputSchema: z.object({}),
               execute: (_input, toolCtx) =>
                 readSetupStateForTool(setupDependenciesFromEnvironment(), {

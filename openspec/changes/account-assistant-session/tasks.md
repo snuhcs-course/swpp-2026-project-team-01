@@ -62,3 +62,13 @@ Repair local checks (Node.js 24.22.3): lint passed with six existing warnings; t
 Second repair evidence (Node.js 24.22.3): lint passed (six existing warnings), typecheck passed, 161 unit files / 1,436 tests passed, Eve + Next.js build passed, strict OpenSpec validation passed, documentation check passed (1,822 links / 448 files), and git diff --check passed. `eve info --json` refreshed the compiled manifest: `account` resolves from `eve:memory-wrapper:tools/account.ts:from:memory/account.ts` and has no shadowed composition entry. Existing Korean mirrors 04/12 were regenerated and their structure checked; documentation 13 has no existing Korean mirror. No live eval, stack lifecycle command, database application, shared-project access or deployment was run.
 
 RV-10/RV-X09 are executed from account-assistant/review-routing.eval.ts with host_setup auth (six trials transferred from the legacy set, not dropped). The account set now contains 15 cases / 45 trials including historical defective cases; legacy host-review retains 64 cases / 192 trials. Required local commands were rerun successfully after the suite transfer (161 unit files / 1,436 tests). Live runs remain NOT RUN.
+
+## 8. Remaining supplied account rerun findings
+
+- [x] 8.1 Read the rerun transcripts; fix double-encoded JSONB staging/capture with real-driver serialization regressions, keeping revision/acknowledgement/object checks.
+- [x] 8.2 Unify schedule reply guidance and sample approve/decline completion; keep one sample decision path and explicit no-event/no-notification results.
+- [x] 8.3 Expose the production service hours question from original analysis/outbox state, preserving ledger precedence, currentness, delivery and reply eligibility; add visibility tests.
+- [x] 8.4 Bound current request reads and retain unconfirmed same-turn staging across compaction; update owning docs and existing Korean mirrors without weakening live eval checks.
+- [ ] 8.5 Run required local checks, record results, commit and push the repair; no evals, stack lifecycle, shared Supabase, migration application, deployment or merge.
+
+Third repair local evidence (Node.js 24.22.3): lint passed with six existing warnings; typecheck passed; 162 unit files / 1,444 tests passed; Eve + Next.js build passed; strict OpenSpec validation passed; documentation check passed (1,822 links / 448 files); git diff --check passed. Unit serialization checks use postgres.js's actual JSONB serializer without a database connection. All live eval assertions and trial counts are unchanged. Live evals, database execution, integration/e2e and deployment are NOT RUN.
