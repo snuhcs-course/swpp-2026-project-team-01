@@ -820,8 +820,7 @@ describe("a five-person group meeting over the web and the host's messenger", ()
     const first = await joinGroupForTool(toolDeps(), await hostSays(joiner, `이거 참여할게 ${link}`), { commitments: [], link });
     if (!("queued" in first)) throw new Error(JSON.stringify(first));
     const [shown] = await images();
-    expect(shown!.summary).toContain("하던 대로");
-    expect(shown!.summary).toContain("맞으시죠");
+    expect(shown!.summary).toBe(`${host.settings.displayName}님과의 그룹 미팅이군요. 원래 정해두신 대로 이렇게 전달하면 될까요? 캘린더에 없는 고정 일정이 있으면 알려 주세요.`);
     expect(shown!.summary).not.toContain("선호");
     expect(shown!.preview.group).toBe(true);
     const openOn = (offset: number) => shown!.preview.days.find((entry) => entry.date === day(offset))!.open;

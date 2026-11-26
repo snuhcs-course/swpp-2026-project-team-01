@@ -26,7 +26,7 @@ import { authorizeSetupTool, SettingsChannelOnlyError, type SetupToolCall } from
 // answer. Their usual place, travel mode and meeting hours come from their
 // confirmed settings, their busy time from their conflict calendars, and the
 // service sends their open times in the group's range as the slot image with
-// one question: "as usual, is that right?". A yes confirms exactly what the
+// one question: "shall I send it like this, as you've set things up?". A yes confirms exactly what the
 // picture showed (its fingerprint); a correction in words (a fixed commitment
 // missing from the calendar, other hours, another place or travel mode) sends
 // a new picture. Only on the yes is a participant request created, already
@@ -186,22 +186,17 @@ function weekPreviews(group: GroupRow, prepared: Pick<Prepared, "answers" | "ope
   return previews;
 }
 
-function question(language: ChannelLanguage, hostName: string, settings: ConfirmedSettings, answers: Answers, open: boolean) {
-  const travel = answers.travelMode ? TRAVEL_MODE_TEXTS[language][answers.travelMode] : null;
-  const hours = weeklyHoursText(answers.hours, language);
-  const calendars = settings.conflictCalendars.map((calendar) => calendar.summary).join(", ");
+// The one line under the picture, which shows the place, travel and times.
+function question(language: ChannelLanguage, hostName: string, answers: Answers, open: boolean) {
+  const stated = answers.commitments.length > 0;
   if (language === "ko") {
-    const how = [answers.usualPlace ? `${answers.usualPlace} 기준` : null, travel ? `${travel}로` : null].filter(Boolean).join(", ");
-    const said = answers.commitments.length > 0 ? ", 말씀하신 고정 일정은 빼고" : "";
     return open
-      ? `${hostName}님 그룹 미팅이에요. 하던 대로 ${how ? `${how}, ` : ""}${hours} 중 캘린더(${calendars})가 비어 있는 시간으로 할게요${said}. 맞으시죠? 캘린더에 없는 고정 일정이 있으면 알려 주세요.`
-      : `${hostName}님 그룹 미팅 기간에는 하던 대로(${hours}, 캘린더 ${calendars}) 비어 있는 시간이 없어요. 이대로 보낼까요, 아니면 시간을 바꿀까요?`;
+      ? `${hostName}님과의 그룹 미팅이군요. ${stated ? "말씀하신 고정 일정을 빼고" : "원래 정해두신 대로"} 이렇게 전달하면 될까요? 캘린더에 없는 고정 일정이 있으면 알려 주세요.`
+      : `${hostName}님과의 그룹 미팅이군요. 원래 정해두신 대로면 이 기간에 비어 있는 시간이 없어요. 이대로 전달할까요, 아니면 시간을 바꿀까요?`;
   }
-  const how = [answers.usualPlace ? `from ${answers.usualPlace}` : null, travel ? travel.toLowerCase() : null].filter(Boolean).join(", ");
-  const said = answers.commitments.length > 0 ? ", leaving out the commitments you named" : "";
   return open
-    ? `This is ${hostName}'s group meeting. As usual, I'll use your free time on ${calendars} within ${hours}${how ? `, ${how}` : ""}${said}. Is that right? Tell me any fixed commitment that isn't on your calendar.`
-    : `With your usual hours (${hours}) and calendars (${calendars}), you have no open time in ${hostName}'s group meeting. Send it like this, or change your hours?`;
+    ? `This is your group meeting with ${hostName}. Shall I send it like this, ${stated ? "without the commitments you named" : "as you've set things up"}? Tell me any fixed commitment that isn't on your calendar.`
+    : `This is your group meeting with ${hostName}. As you've set things up, you have no open time in its dates. Send it like this, or change your hours?`;
 }
 
 type JoinResult =
@@ -285,7 +280,7 @@ export async function joinGroupForTool(deps: GroupToolDependencies, call: SetupT
 
   const language = textLanguage(turn.message) ?? (await hostConversationLanguage(deps.db, me));
   const previews = weekPreviews(group, prepared, settings.timezone);
-  const summary = question(language, hostName, settings, prepared.answers, prepared.open.length > 0);
+  const summary = question(language, hostName, prepared.answers, prepared.open.length > 0);
   const keys = deps.close().tokenKeys;
   await deps.db.begin(async (tx) => {
     for (const [index, preview] of previews.entries()) {

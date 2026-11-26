@@ -61,7 +61,7 @@ A host with saved settings who sends another host's group link in their linked m
 
 #### Scenario: Link sent in the host's chat
 - **WHEN** a host whose meeting hours are weekdays 13:00–19:00 sends a group link in their linked iMessage
-- **THEN** nothing is asked first, and they get a picture of their open times in the group's dates with "하던 대로 … 맞으시죠?"
+- **THEN** nothing is asked first, and they get a picture of their open times in the group's dates with "… 님과의 그룹 미팅이군요. 원래 정해두신 대로 이렇게 전달하면 될까요? 캘린더에 없는 고정 일정이 있으면 알려 주세요."
 
 #### Scenario: Fixed commitment added
 - **WHEN** they answer "목요일 5시부터는 과외 있어"

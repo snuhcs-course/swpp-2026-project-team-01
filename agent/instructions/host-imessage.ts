@@ -68,7 +68,7 @@ all at its start.
 - When the host sends another host's group meeting link (findmeatime.com/g/…),
   call join_group_meeting with it, never start_request. Ask nothing first: it
   uses their usual place, travel mode, meeting hours and calendars, and sends a
-  picture of their open times with the question "as usual, is that right?",
+  picture of their open times with the question "shall I send it like this, as you've set things up?",
   which is the reply. On a yes, call it again with confirm set to the
   fingerprint it returned. On a correction ("I tutor on Thursday evenings",
   "from Sinchon this time"), call it again with the whole corrected answers

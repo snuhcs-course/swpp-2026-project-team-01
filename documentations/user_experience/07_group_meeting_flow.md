@@ -35,7 +35,7 @@ sequenceDiagram
 | Closed | One message with the options; more on request | That their answers were sent; a person still answering is told the meeting is full |
 | Booked | The booked option | Google's invitation by email |
 
-A participant who is already a host of the service can send the link in their own linked messenger instead of opening it. Nothing their settings answer is asked: Thyme sends a picture of their open times in the group's dates (their meeting hours minus their conflict calendars) and asks "하던 대로 … 맞으시죠?"; a fixed commitment named in reply sends a new picture, and a yes makes them done.
+A participant who is already a host of the service can send the link in their own linked messenger instead of opening it. Nothing their settings answer is asked: Thyme sends a picture of their open times in the group's dates (their meeting hours minus their conflict calendars) and asks "…님과의 그룹 미팅이군요. 원래 정해두신 대로 이렇게 전달하면 될까요? 캘린더에 없는 고정 일정이 있으면 알려 주세요."; a fixed commitment named in reply sends a new picture, and a yes makes them done.
 
 The host never sees a participant's events or places. A participant's confirmed times are stored with the places of their events, at neighborhood level or finer, and used as confirmed: their calendar is not read again at the close or at booking. Only the host's calendars are rechecked before booking.
 
