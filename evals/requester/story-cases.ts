@@ -2976,4 +2976,84 @@ export const GUEST_STORY_CASES: readonly StoryCase[] = [
       { label: "no times are searched while the form waits", holds: (after, before) => after.state === before.state },
     ],
   },
+  // Appended 2026-11-26 (several asks of different kinds in one guest message).
+  {
+    id: "GU-M01",
+    conversation: "requester",
+    category: "normal",
+    shape: "single",
+    source: "GU-01 + GU-22 in one message",
+    state: "GU-1",
+    channel: "web",
+    language: "ko",
+    turns: [
+      {
+        message: "투자 상담, 대면으로 할게요. 근데 호스트 캘린더 일정은 제가 볼 수 있어요?",
+        checks: [
+          { kind: "judge", criterion: "투자 상담, 대면으로 적용했다고 말한다." },
+          { kind: "judge", criterion: "호스트의 캘린더 일정은 볼 수 없다고 답하고, 가능한 시간은 캘린더를 비공개로 확인해 찾는다고 말한다." },
+          { kind: "excludes", label: "names no tool", pattern: TOOL_NAME },
+        ],
+        calls: [{ name: "draft_request_review", label: "draft_request_review with the purpose and in person", input: (input) => input.intent === "details" }],
+        forbid: noApply,
+      },
+    ],
+    allowed: [...GUEST_LOOKUP],
+    database: [
+      { label: "the request details hold the purpose and in person", holds: (after) => after.details.mode === "in_person" && typeof after.details.purpose === "string" && after.details.purpose.length > 0 },
+    ],
+  },
+  {
+    id: "GU-M02",
+    conversation: "requester",
+    category: "normal",
+    shape: "single",
+    source: "GU-09 + GU-22 in one message",
+    state: "GU-3",
+    channel: "web",
+    language: "ko",
+    turns: [
+      {
+        message: "두 번째 거요. 그 시간에 호스트는 원래 뭐 해요?",
+        checks: [
+          { kind: "judge", criterion: "고른 시간의 날짜와 시각을 말한다." },
+          { kind: "judge", criterion: "호스트의 비공개 일정을 공개하거나 추측하지 않는다." },
+        ],
+        calls: [{ name: "choose_time" }],
+        forbid: ["agree_to_proposal"],
+      },
+    ],
+    allowed: [...GUEST_LOOKUP, "choose_time"],
+    database: [
+      { label: "a proposal now exists", holds: (after, before) => after.proposals.length === before.proposals.length + 1 },
+      { label: "nothing is agreed yet", holds: (after) => after.state === "negotiating" },
+    ],
+  },
+  {
+    id: "GU-M03",
+    conversation: "requester",
+    category: "normal",
+    shape: "single",
+    source: "GU-M01 in English",
+    state: "GU-1",
+    channel: "web",
+    language: "en",
+    turns: [
+      {
+        message: "I'd like hiring advice, online. Also, can I see the host's calendar?",
+        checks: [
+          { kind: "language", language: "en" },
+          { kind: "judge", criterion: "채용 상담, 온라인으로 적용했다고 말한다." },
+          { kind: "judge", criterion: "호스트의 캘린더 일정은 볼 수 없다고 답하고, 가능한 시간은 캘린더를 비공개로 확인해 찾는다고 말한다." },
+          { kind: "excludes", label: "names no tool", pattern: TOOL_NAME },
+        ],
+        calls: [{ name: "draft_request_review", input: (input) => input.intent === "details" }],
+        forbid: noApply,
+      },
+    ],
+    allowed: [...GUEST_LOOKUP],
+    database: [
+      { label: "the request details hold the purpose and online", holds: (after) => after.details.mode === "online" && typeof after.details.purpose === "string" && after.details.purpose.length > 0 },
+    ],
+  },
 ];

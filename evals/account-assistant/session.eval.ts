@@ -300,6 +300,47 @@ const cases: readonly Case[] = [
       if (message === turns[1]![0]) called(t, turn, "read_request");
     }
   } },
+  // Appended 2026-11-26: several asks of different kinds in one host message.
+  { id: "AS-M01", source: "A1 + A2: a decision and a schedule question in one message", turns: 1, async test(t) {
+    const { host, a, b } = await twoRequests();
+    const session = await accountSession(t, host.hostAccountId);
+    const message = "Eunwoo 거 승인하고 내일 내 일정도 알려줘";
+    const turn = await session.send(message);
+    called(t, turn, "decide_requests");
+    called(t, turn, "read_schedule");
+    check(t, ["booking", "booked"].includes((await requestState(a.requestId)).state), "Eunwoo approved");
+    check(t, (await requestState(b.requestId)).state === "awaiting_host_approval" && (await requestState(b.requestId)).approvals === 0, "Dohyeon left waiting");
+    await rubric(t, `Host: ${message}\nTool evidence: ${JSON.stringify(turn.toolCalls.map(call => ({ name: call.name, output: call.output })))}`, turn.message,
+      "Eunwoo의 요청을 승인했다고 말하되 예약 완료 결과가 없으면 확정됐다고 말하지 않고, read_schedule 결과로 내일 일정을 답한다. Dohyeon의 요청을 승인하거나 거절했다고 말하지 않는다.");
+  } },
+  { id: "AS-M02", source: "A1 + saved settings change in one message", turns: 1, async test(t) {
+    const { host, a, b } = await twoRequests();
+    await prepareSavedHost(host);
+    const session = await accountSession(t, host.hostAccountId);
+    const message = "Dohyeon 거 거절하고, 앞으로 목요일은 미팅 안 받을래";
+    const turn = await session.send(message);
+    called(t, turn, "decide_requests");
+    called(t, turn, "draft_settings");
+    check(t, (await requestState(b.requestId)).state === "declined", "Dohyeon declined");
+    check(t, (await requestState(a.requestId)).state === "awaiting_host_approval" && (await requestState(a.requestId)).approvals === 0, "Eunwoo left waiting");
+    const row = await settings(host.hostAccountId);
+    check(t, row !== undefined && row.settings.weeklyWindows.every(window => window.weekday !== "thursday")
+      && row.settings.weeklyWindows.some(window => window.weekday === "monday"), "Thursday removed and the other days kept");
+    await rubric(t, `Host: ${message}\nTool evidence: ${JSON.stringify(turn.toolCalls.map(call => ({ name: call.name, output: call.output })))}`, turn.message,
+      "Dohyeon의 요청을 거절했다고 말하고, 목요일을 미팅 가능 시간에서 뺐다고 말한다. 도구 결과가 저장됐다고 할 때만 저장됐다고 말한다. Eunwoo의 요청을 승인하거나 거절했다고 말하지 않는다.");
+  } },
+  { id: "AS-M03", source: "two decisions and a schedule question in one message", turns: 1, async test(t) {
+    const { host, a, b } = await twoRequests();
+    const session = await accountSession(t, host.hostAccountId);
+    const message = "Eunwoo 거 승인하고, Dohyeon 거는 거절하고, 다음 주 일정도 보여줘";
+    const turn = await session.send(message);
+    called(t, turn, "decide_requests");
+    called(t, turn, "read_schedule");
+    check(t, ["booking", "booked"].includes((await requestState(a.requestId)).state), "Eunwoo approved");
+    check(t, (await requestState(b.requestId)).state === "declined", "Dohyeon declined");
+    await rubric(t, `Host: ${message}\nTool evidence: ${JSON.stringify(turn.toolCalls.map(call => ({ name: call.name, output: call.output })))}`, turn.message,
+      "Eunwoo 승인과 Dohyeon 거절 결과를 각각 말하고, 예약 완료 결과가 없으면 확정됐다고 말하지 않으며, read_schedule 결과로 다음 주 일정을 답한다.");
+  } },
 ];
 
 export default cases.flatMap(entry => Array.from({ length: 3 }, (_, index) => defineEval({

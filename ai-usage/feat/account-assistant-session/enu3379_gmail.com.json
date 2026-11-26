@@ -5,19 +5,19 @@
     "claude:b0844e81-4870-4a6a-bfe3-b211c2ed1756": {
       "agent": "claude-code",
       "client": "cli",
-      "agent_ms": 1246266,
+      "agent_ms": 2116296,
       "models": {
         "claude-opus-5-5": {
-          "input": 220,
-          "cache_read": 21257191,
+          "input": 432,
+          "cache_read": 34345869,
           "cache_write_5m": 0,
-          "cache_write_1h": 146785,
-          "output": 57945,
+          "cache_write_1h": 321642,
+          "output": 114641,
           "reasoning": 0
         }
       },
       "first": "2026-11-26T00:39:10.077Z",
-      "last": "2026-11-26T02:23:07.686Z"
+      "last": "2026-11-26T10:30:11.093Z"
     },
     "codex:01a2138f-e25d-7ae1-8d7f-a3e447bec7f4": {
       "agent": "codex",
@@ -81,19 +81,19 @@
     "codex:01a213b4-e93d-7591-bd2b-b1a09711e638": {
       "agent": "codex",
       "client": "codex_exec",
-      "agent_ms": 4915135,
+      "agent_ms": 5672515,
       "models": {
         "gpt-6.1-sol": {
-          "input": 804576,
-          "cache_read": 83388416,
+          "input": 806337,
+          "cache_read": 83620224,
           "cache_write_5m": 0,
           "cache_write_1h": 0,
-          "output": 266061,
-          "reasoning": 117699
+          "output": 267151,
+          "reasoning": 117881
         }
       },
       "first": "2026-11-25T17:16:01.639Z",
-      "last": "2026-11-26T02:35:05.940Z"
+      "last": "2026-11-26T02:35:28.894Z"
     },
     "codex:01a213f0-5092-7b62-bfdc-2a561a5e2b92": {
       "agent": "codex",
@@ -179,6 +179,40 @@
       },
       "first": "2026-11-26T02:34:32.264Z",
       "last": "2026-11-26T02:35:04.774Z"
+    },
+    "codex:01a2175c-b176-77e2-be1b-f715a6628a8c": {
+      "agent": "codex",
+      "client": "codex_exec",
+      "agent_ms": 227581,
+      "models": {
+        "gpt-6.1-sol": {
+          "input": 87045,
+          "cache_read": 1868288,
+          "cache_write_5m": 0,
+          "cache_write_1h": 0,
+          "output": 9565,
+          "reasoning": 1810
+        }
+      },
+      "first": "2026-11-26T10:18:07.404Z",
+      "last": "2026-11-26T10:21:49.661Z"
+    },
+    "codex:01a2175c-b30e-7130-a8eb-f53954974392": {
+      "agent": "codex",
+      "client": "codex_exec",
+      "agent_ms": 0,
+      "models": {
+        "codex-auto-review": {
+          "input": 31507,
+          "cache_read": 81024,
+          "cache_write_5m": 0,
+          "cache_write_1h": 0,
+          "output": 580,
+          "reasoning": 313
+        }
+      },
+      "first": "2026-11-26T10:20:27.696Z",
+      "last": "2026-11-26T10:21:14.364Z"
     }
   }
 }

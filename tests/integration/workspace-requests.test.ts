@@ -2,6 +2,9 @@ import { randomUUID } from "node:crypto";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { createRequesterCommandHandler } from "../../lib/server/requester-routes";
 import { createWorkspaceRequestListHandler } from "../../lib/server/host-request-routes";
+import { scheduleForModel, scheduleImageOf } from "../../lib/server/host-schedule";
+import { scheduleReply } from "../../lib/server/account-replies";
+import { hostRequestsForModel } from "../../lib/server/host-review-tools";
 import { readHostDashboard } from "../../lib/server/host-dashboard";
 import { closeRequest } from "../../lib/server/request-lifecycle";
 import { recordHostSessionMatch } from "../../lib/server/requester-host-profiles";
@@ -131,6 +134,22 @@ describe("signed-in account requests", () => {
     });
     if (!approved.ok) throw new Error(`approve failed: ${approved.error.category}`);
     const bookingId = approved.result.bookingId;
+    const pending = await readHostDashboard(
+      db,
+      { config: fakeGoogleConfig(google), db, tokenKeys: [calendarKey] },
+      request.hostAccountId,
+      { end: new Date(Date.parse(request.end) + 86_400_000), start: new Date(Date.parse(request.start) - 86_400_000) },
+    );
+    expect((await bookingOf(db, bookingId)).state).toBe("reserved");
+    expect(pending.events.filter(event => event.meeting?.requestId === request.requestId)).toEqual([
+      expect.objectContaining({ id: `thyme:${bookingId}`, source: "thyme", state: "booking", start: request.start, end: request.end }),
+    ]);
+    expect(pending.events.some(event => event.received?.requestId === request.requestId)).toBe(false);
+    const range = { from: request.start.slice(0, 10), last: request.end.slice(0, 10) };
+    const schedule = scheduleForModel(pending, range);
+    expect(schedule.entries.find(entry => entry.kind === "approved_meeting")).toBeDefined();
+    expect(scheduleReply(schedule, hostRequestsForModel([], pending.timeZone), "ko").text).toContain("승인됨 · Google Calendar에 추가 중");
+    expect(scheduleImageOf(pending, range).days.flatMap(day => day.entries).some(entry => entry.kind === "approved_meeting")).toBe(true);
     expect(await runBooking(db, bookingDeps(db, google), bookingId)).toBe("completed");
     const data = await readHostDashboard(
       db,
@@ -140,6 +159,9 @@ describe("signed-in account requests", () => {
     );
     const events = data.events.filter((event) => event.id === `thyme:${bookingId}`);
     expect(events).toHaveLength(1);
+    expect(events[0]).not.toHaveProperty("state");
+    expect(data.events.filter(event => event.start === request.start)).toHaveLength(1);
+    expect(scheduleForModel(data, range).entries.some(entry => entry.kind === "approved_meeting")).toBe(false);
     return { booking: await bookingOf(db, bookingId), event: events[0]! };
   }
 

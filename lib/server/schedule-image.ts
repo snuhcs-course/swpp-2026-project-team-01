@@ -18,6 +18,7 @@ const ALL_DAY_SHOWN = 2;
 const AMBER = { fill: "#FDF3E1", line: "#B7791F", text: "#7A4B00" } as const;
 
 const STYLES: Record<ScheduleImageKind, { readonly fill: string; readonly text: string; readonly border: string }> = {
+  approved_meeting: { border: `2px dashed ${INK.primary}`, fill: INK.surface, text: INK.primary },
   booked_meeting: { border: `2px solid ${INK.primary}`, fill: INK.primary, text: INK.surface },
   calendar_event: { border: `2px solid ${INK.softSurface}`, fill: INK.softSurface, text: INK.ink },
   request_to_decide: { border: `2px dashed ${AMBER.line}`, fill: AMBER.fill, text: AMBER.text },
@@ -26,6 +27,7 @@ const STYLES: Record<ScheduleImageKind, { readonly fill: string; readonly text: 
 
 const LEGEND: readonly [ScheduleImageKind, string][] = [
   ["booked_meeting", "Booked"],
+  ["approved_meeting", "Approved · Adding to Google Calendar"],
   ["calendar_event", "Calendar"],
   ["request_to_decide", "To decide"],
   ["sent_request", "You asked"],

@@ -21,8 +21,8 @@ export function scheduleReply(schedule: Schedule, requests: Requests, language: 
   const present = new Set(schedule.entries.map(item => item.ref));
   const otherReceived = requests.requests.filter(item => item.booked && ["this_week", "next_week"].includes(item.booked.week) && !present.has(item.ref));
   const otherSent = requests.sent.filter(item => item.booked && ["this_week", "next_week"].includes(item.booked.week) && !present.has(item.ref));
-  const kinds = language === "ko" ? { booked_meeting: "확정 미팅", calendar_event: "캘린더 일정", request_to_decide: "승인 대기 요청", sent_request: "보낸 요청" }
-    : { booked_meeting: "Booked meeting", calendar_event: "Calendar event", request_to_decide: "Awaiting approval", sent_request: "Sent request" };
+  const kinds = language === "ko" ? { approved_meeting: "승인됨 · Google Calendar에 추가 중", booked_meeting: "확정 미팅", calendar_event: "캘린더 일정", request_to_decide: "승인 대기 요청", sent_request: "보낸 요청" }
+    : { approved_meeting: "Approved · Adding to Google Calendar", booked_meeting: "Booked meeting", calendar_event: "Calendar event", request_to_decide: "Awaiting approval", sent_request: "Sent request" };
   const requested = schedule.entries.map(item => `${kinds[item.kind]}: ${item.title} · ${item.start ?? item.date}${item.end ? `–${item.end}` : item.lastDate && item.lastDate !== item.date ? `–${item.lastDate}` : ""}${item.place ? ` · ${item.place}` : ""}`);
   const period = `${schedule.period.from} to ${schedule.period.through}`;
   const label = period === schedule.current.nextWeek ? (language === "ko" ? "다음 주" : "Next week") : period === schedule.current.thisWeek ? (language === "ko" ? "이번 주" : "This week") : `${schedule.period.from}–${schedule.period.through}`;
@@ -35,7 +35,7 @@ export function scheduleReply(schedule: Schedule, requests: Requests, language: 
   return { kind: "schedule", sections: [
     { kind: "requested_period", period: schedule.period, entries: schedule.entries },
     { kind: "also_confirmed", received: otherReceived, sent: otherSent },
-  ], text: [...(schedule.entries.some(item => item.kind === "booked_meeting" || item.kind === "sent_request" && item.state === "booked") ? [] : [empty]), ...requested, ...other,
+  ], text: [...(schedule.entries.some(item => item.kind === "approved_meeting" || item.kind === "booked_meeting" || item.kind === "sent_request" && item.state === "booked") ? [] : [empty]), ...requested, ...other,
     ...(schedule.googleCalendar === "unavailable" ? [language === "ko" ? "Google Calendar를 읽지 못했어요. Find Me a Time 기록만 표시했어요." : "Google Calendar could not be read; only Find Me a Time records are shown."] : []),
   ].join("\n") };
 }

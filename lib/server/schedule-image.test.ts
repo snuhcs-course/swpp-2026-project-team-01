@@ -16,6 +16,7 @@ const schedule: ScheduleImage = {
             { end: "11:00", kind: "booked_meeting", start: "10:00", title: "Coffee with 박도현" },
             { end: "11:30", kind: "calendar_event", start: "10:30", title: "Standup ☕ 驛" },
             { end: "15:00", kind: "request_to_decide", start: "14:00", title: "Request from 이은우" },
+            { end: "17:00", kind: "approved_meeting", start: "16:00", title: "Approved consultation" },
           ]
         : i === 1
           ? [{ end: "24:00", kind: "sent_request", start: "21:00", title: "Call with Alex" }]

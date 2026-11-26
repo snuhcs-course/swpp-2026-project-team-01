@@ -1,9 +1,19 @@
 import { describe, expect, it } from "vitest";
 import { deferredAcknowledgement, placeQuestion, scheduleReply, setupConfirmationReply } from "./account-replies";
 import { hostRequestsForModel } from "./host-review-tools";
+import { scheduleForModel } from "./host-schedule";
 import type { readHostSchedule } from "./host-schedule";
 
 describe("complete account replies", () => {
+  it.each(["ko", "en"] as const)("reports approved meetings still being added in %s without calling the week empty", (language) => {
+    const now = new Date("2026-11-26T01:00:00Z");
+    const schedule = scheduleForModel({ events: [{ source: "thyme", state: "booking", id: "thyme:b", title: "Eunwoo", start: "2026-12-01T01:00:00Z", end: "2026-12-01T01:30:00Z", allDay: false, location: null }], timeZone: "Asia/Seoul", googleWarning: null }, { from: "2026-11-30", last: "2026-12-06" }, now);
+    const reply = scheduleReply(schedule, hostRequestsForModel([], "Asia/Seoul", now), language);
+    expect(reply.text).toContain(language === "ko" ? "승인됨 · Google Calendar에 추가 중" : "Approved · Adding to Google Calendar");
+    expect(reply.text).toContain("Eunwoo");
+    expect(reply.text).not.toMatch(/확정|없어요|Booked meeting|No meetings/);
+  });
+
   it("acknowledges the host from the assistant's perspective", () => {
     const ownWords = "음, 좀 생각해볼게";
     const reply = deferredAcknowledgement("ko");
