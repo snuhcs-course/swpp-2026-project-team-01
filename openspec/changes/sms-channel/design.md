@@ -145,7 +145,7 @@ When pings resume, the queue drains under the caps. Messages the cloud already a
 - **[Caller ID spoofing]** → Decisions need the reference (section 10). A forged non-decision text can still reach Thyme and get a reply sent to the real host. That costs one SMS and reveals nothing the host doesn't already have.
 - **[SMS is readable by carriers and the relay is trusted]** → The user chose full content (D11). The card says so before the code. SMS Gate's end-to-end mode protects sends in normal operation, but its key distribution trusts the server. Inbound texts never pass through the relay. The privacy notice names SMS Gate and the carrier.
 - **[The phone keeps its own copies]** → Android's message app and SMS Gate's local log keep texts beyond the 30-day rule. Task 1.2 turns off or limits SMS Gate's local history and sets the message app to delete old threads, and the privacy notice names the device.
-- **[Korean regulation and carrier terms]** → These are transactional texts in reply to people who opted in, so advertising rules should not apply, and sender pre-registration targets internet sending services. Two points are not settled and go to Open Questions. Personal plans often cap daily sends even when texting is "unlimited", and exclude international SMS, which limits D7. And relaying a service's messages over a subscriber line may conflict with the carrier's terms or the Telecommunications Business Act's rule against letting others use a line.
+- **[Korean regulation and carrier terms]** → These are transactional texts in reply to people who opted in, so advertising rules should not apply, and sender pre-registration targets internet sending services. Personal plans often cap daily sends even when texting is "unlimited", and exclude international SMS, which limits D7; task 1.2 checks the plan. Relaying a service's messages over a subscriber line may also conflict with the carrier's terms or the Telecommunications Business Act's rule against letting others use a line. The user accepted that risk on 2026-11-26 for this course project, whose few test users opt in themselves; a public launch would move to a business line or an SMS API provider.
 - **[Webhook from a phone on mobile data]** → SMS Gate retries for two days, and receipts are idempotent by event ID.
 
 ## Migration Plan
@@ -156,8 +156,6 @@ When pings resume, the queue drains under the caps. Messages the cloud already a
 4. To roll back, unset `SMS_NUMBER`. Existing SMS bindings stop receiving messages, because the outbox treats an unconfigured channel as unavailable. The widened checks and new tables can stay.
 
 ## Open Questions
-
-- Whether the carrier's terms and the Telecommunications Business Act allow a service to send and receive its texts through a subscriber SIM, or whether a business line is needed. Task 1.2 asks the carrier. If the answer is no, the transport changes, so this blocks task group 3.
 
 - SMS Gate's handling of a repeated message `id`, and its cloud `ttl` while the phone is off. The spike records both, and neither changes the design.
 - The exact `sms:failed` reasons Korean carriers produce. The spike records them for the D10 mapping.

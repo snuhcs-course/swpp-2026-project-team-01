@@ -3,8 +3,8 @@
 ## 1. Review and gateway spike
 
 - [ ] 1.1 Get a teammate's review of D1–D16 and the modified requirements, and record the outcome in the decision log's "SMS channel scope" section (verify: the section names the reviewer and date).
-- [ ] 1.2 With the user, set up and record the gateway phone (verify: provider setup has an "SMS Gate" section listing the device, settings, plan limits and the carrier's answer, with the date):
-  - check the carrier plan's daily send limit, its international SMS coverage, and whether its terms allow a service to relay texts over the SIM;
+- [ ] 1.2 With the user, set up and record the gateway phone (verify: provider setup has an "SMS Gate" section listing the device, settings and plan limits, with the date):
+  - check the carrier plan's daily send limit and its international SMS coverage;
   - an Android phone with a dedicated Korean SIM;
   - SMS Gate in cloud mode with end-to-end encryption (note the device ID), a signing key, a ping interval and a send-rate limit;
   - SMS Gate's local history off or limited, and the message app set to delete old threads;

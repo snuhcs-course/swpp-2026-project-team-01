@@ -16,7 +16,7 @@ Most of the product's people have Korean (`+82`) numbers. The same day the user 
 ## What Changes
 
 - **Transport.** An Android phone with a Korean SIM runs the SMS Gate app in cloud mode. The service sends through SMS Gate's cloud API. The phone delivers each inbound text and delivery update to a new `POST /sms/webhook`, signed with HMAC-SHA256. The phone only calls out, so it works behind mobile NAT.
-- **Open question.** Whether the carrier's terms and Korean law let a service relay its texts over a subscriber SIM. The design's Open Questions has the details, and it blocks the transport code until answered.
+- **Carrier terms.** Relaying a service's texts over a subscriber SIM may conflict with the carrier's terms or the Telecommunications Business Act. The user accepted that risk on 2026-11-26 because this is a course project with a few test users, so it does not block the transport code. A public launch would need a business line or an SMS API provider.
 - **Number.** The phone's number, `SMS_NUMBER`. The channel counts as configured only when the number, the API credentials and the webhook signing key are all set.
 - **Gateway health.** The phone's `system:ping` events show whether it is alive. While it has been silent longer than a threshold, new SMS links are not offered and sends wait.
 - **Records.** The `imessage_*` tables, `requester_imessage_bindings`, `channel_usage_days` and the `channel_usage` function accept a fourth `channel`, `sms`. Senders are normalized to E.164 and hashed as `sms:<E.164>`. A new `sms_consents` table keeps proof of consent.
@@ -92,7 +92,7 @@ This change depends on `link-on-code` (binding on arrival) and `channel-actions-
 - **Systems (left to the user):**
   - an Android phone with a Korean SIM and an unlimited-text plan, kept powered and online;
   - the SMS Gate app in cloud mode with end-to-end encryption, its webhook and signing key, and its send-rate limit;
-  - checking the carrier plan's terms and daily send limit, and whether relaying a service's texts over the SIM is allowed;
+  - checking the carrier plan's daily send limit and international SMS coverage;
   - `SMS_NUMBER`, `SMSGATE_API_URL`, the SMS Gate credentials, `SMSGATE_DEVICE_ID` and `SMSGATE_WEBHOOK_KEY` on Vercel Production;
   - the shared-project migration;
   - the deploy.
