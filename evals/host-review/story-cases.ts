@@ -383,7 +383,7 @@ export const HOST_REVIEW_STORY_CASES: readonly StoryCase[] = [
   },
   {
     id: "RV-10",
-    conversation: "host_review",
+    conversation: "host_setup",
     category: "abnormal",
     shape: "single",
     source: "H03 M-6 branch",
@@ -394,10 +394,11 @@ export const HOST_REVIEW_STORY_CASES: readonly StoryCase[] = [
       {
         message: "박도현 요청 얘기하자",
         checks: [{ kind: "judge", criterion: "박도현의 어느 요청인지 묻는다." }],
-        calls: [{ name: "switch_conversation", input: (input) => typeof input.to === "string" && input.to.includes("박도현") }],
+        calls: [{ name: "list_host_requests" }],
+        forbid: ["switch_conversation", "decide_requests"],
       },
     ],
-    allowed: [...HOST_LOOKUP, "switch_conversation"],
+    allowed: ["read_setup_state", "read_settings", "read_request", "list_host_requests", "account__question", "account__list", "account__forget"],
     database: "unchanged",
   },
   {
@@ -1242,7 +1243,7 @@ export const HOST_REVIEW_STORY_CASES: readonly StoryCase[] = [
   },
   {
     id: "RV-X09",
-    conversation: "host_review",
+    conversation: "host_setup",
     category: "abnormal",
     shape: "out_of_order",
     source: "H03 M-6 · H04 M-1·M-3 · host-imessage.ts:35–36,54–58,66–70",
@@ -1254,17 +1255,22 @@ export const HOST_REVIEW_STORY_CASES: readonly StoryCase[] = [
         message: "다른 요청들도 먼저 보여줘",
         checks: [{ kind: "judge", criterion: "다른 요청 목록을 말한다." }],
         calls: [
-          { name: "read_request" },
           { name: "list_host_requests" },
         ],
       },
       {
         message: "응",
-        checks: [{ kind: "judge", criterion: "박도현의 두 건 중 어느 요청인지 묻는다." }],
-        calls: [{ name: "read_request" }],
+        checks: [{ kind: "judge", criterion: "응만으로 요청을 선택하거나 결정하지 않고 어느 요청에 대해 무엇을 할지 확인한다." }],
+        forbid: ["switch_conversation", "decide_requests"],
+      },
+      {
+        message: "박도현의 투자 상담 요청 자세히 보여줘",
+        checks: [{ kind: "judge", criterion: "박도현의 투자 상담 요청 세부 내용을 말하고 어떤 대화로 이동했다고 하지 않는다." }],
+        calls: [{ name: "read_request", input: (input, context) => typeof context.facts.investment === "string" && input.ref === requestRef(context.facts.investment) }],
+        forbid: ["switch_conversation", "decide_requests"],
       },
     ],
-    allowed: [...HOST_LOOKUP],
+    allowed: ["read_setup_state", "read_settings", "read_request", "list_host_requests", "account__question", "account__list", "account__forget"],
     database: "unchanged",
   },
   {

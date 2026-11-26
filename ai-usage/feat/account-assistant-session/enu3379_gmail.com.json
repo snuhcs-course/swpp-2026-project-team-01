@@ -5,19 +5,19 @@
     "claude:b0844e81-4870-4a6a-bfe3-b211c2ed1756": {
       "agent": "claude-code",
       "client": "cli",
-      "agent_ms": 672443,
+      "agent_ms": 1043674,
       "models": {
         "claude-opus-5-5": {
-          "input": 76,
-          "cache_read": 5837280,
+          "input": 172,
+          "cache_read": 15609757,
           "cache_write_5m": 0,
-          "cache_write_1h": 73144,
-          "output": 21647,
+          "cache_write_1h": 120562,
+          "output": 44163,
           "reasoning": 0
         }
       },
       "first": "2026-11-26T00:39:10.077Z",
-      "last": "2026-11-26T01:01:38.438Z"
+      "last": "2026-11-26T01:40:35.340Z"
     },
     "codex:01a2138f-e25d-7ae1-8d7f-a3e447bec7f4": {
       "agent": "codex",
@@ -81,19 +81,19 @@
     "codex:01a213b4-e93d-7591-bd2b-b1a09711e638": {
       "agent": "codex",
       "client": "codex_exec",
-      "agent_ms": 3069584,
+      "agent_ms": 3540437,
       "models": {
         "gpt-6.1-sol": {
-          "input": 564788,
-          "cache_read": 45911552,
+          "input": 669729,
+          "cache_read": 62232192,
           "cache_write_5m": 0,
           "cache_write_1h": 0,
-          "output": 164767,
-          "reasoning": 68943
+          "output": 197687,
+          "reasoning": 80908
         }
       },
       "first": "2026-11-25T17:16:01.639Z",
-      "last": "2026-11-26T01:08:42.550Z"
+      "last": "2026-11-26T01:51:13.644Z"
     },
     "codex:01a213f0-5092-7b62-bfdc-2a561a5e2b92": {
       "agent": "codex",
@@ -128,6 +128,23 @@
       },
       "first": "2026-11-26T01:08:15.709Z",
       "last": "2026-11-26T01:08:15.709Z"
+    },
+    "codex:01a21582-cb8a-7021-8f48-8ee1d798fc3a": {
+      "agent": "codex",
+      "client": "codex_exec",
+      "agent_ms": 0,
+      "models": {
+        "codex-auto-review": {
+          "input": 22164,
+          "cache_read": 10880,
+          "cache_write_5m": 0,
+          "cache_write_1h": 0,
+          "output": 148,
+          "reasoning": 74
+        }
+      },
+      "first": "2026-11-26T01:51:12.472Z",
+      "last": "2026-11-26T01:51:12.472Z"
     }
   }
 }

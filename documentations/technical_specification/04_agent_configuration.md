@@ -37,7 +37,7 @@ agent/
     setup.ts                read_setup_state, draft_settings and the linked-conversation setup
                             tools (set_calendar_roles, preview_next_week, confirm_settings,
                             choose_note_items, confirm_note_items),
-                            plus account.ts ref-addressed received and sent operations
+                            plus ../lib/account-tools.ts ref-addressed received and sent operations
     request.ts              request-discussion tools, resolved per audience: read_request,
                             draft_request_review, evaluate_candidates, read_booking_status and
                             the decisions in words (apply_request_review, choose_time,
@@ -51,6 +51,7 @@ agent/
   hooks/                    input redaction, usage accounting, audience checks
   instrumentation/          trace and limit reporting without private text
   connections/              intentionally empty (see Connections)
+  lib/account-tools.ts      inline tool definitions imported by setup.ts, not a tool resolver
   memory/account.ts         one Postgres-backed private account context provider
   sandbox.ts                inert JavaScript environment; no container or VM
   subagents/                none in the first release
@@ -165,9 +166,9 @@ The model can be chosen per environment without a code change ([#375](https://gi
 
 ## Memory
 
-`agent/memory/account.ts` uses one custom provider backed by `app.host_assistant_context`, scoped to the verified account, never a requester. It recalls three stable replacement records at turn start and after compaction: fresh DB state (pending refs/versions/times, next-seven-day bookings, sent summaries, setup step, now/timezone), the open-question/deferred-item ledger, and eligible private host memories. Empty replacements clear prior recalled values. Snapshots are excluded from compaction summaries and never captured as remembered facts; recent turns remain verbatim until eve's normal compaction at 0.6.
+`agent/memory/account.ts` uses one custom provider backed by `app.host_assistant_context`, scoped to the verified account, never a requester. It recalls three stable replacement records at turn start and after compaction: fresh DB state (pending refs/versions/times, next-seven-day bookings, sent summaries, setup step, now/timezone), the open-question/deferred-item ledger, and eligible private host memories. Empty replacements clear prior recalled values. The `account` slot reserves the derived `tools/account.ts` path; authored helpers live under `agent/lib/` so they cannot shadow its `account__*` tools. Snapshots are excluded from compaction summaries and never captured as remembered facts; recent turns remain verbatim until eve's normal compaction at 0.6.
 
-Memory stores exact eligible phrases from the host's own current input, never requester names/purposes, calendar titles or tool-derived facts. It is conversational context, not feasibility policy. Rules go to `change_settings`. A save is staged and becomes recalled memory only when the completed reply contains its one-line notice. The host can list and forget memories in words; dated life context requires expiry. Forgotten/expired content is cleared with replay tombstones. Account deletion removes the context through its account FK, including the existing operator and scheduled deletion path; forgetting memory does not erase conversation history. `assistant_notes` remains guest-facing model guidance and never stores private memory.
+Memory stores exact eligible phrases from the host's own current input, never requester names/purposes, calendar titles or tool-derived facts. It is conversational context, not feasibility policy. Rules go to the account session's sole settings writer, `draft_settings` (draft before first confirmation, immediate saved changes once ready). A save is staged and becomes recalled memory only when the completed reply contains its one-line notice. The host can list and forget memories in words; dated life context requires expiry. Forgotten/expired content is cleared with replay tombstones. Account deletion removes the context through its account FK, including the existing operator and scheduled deletion path; forgetting memory does not erase conversation history. `assistant_notes` remains guest-facing model guidance and never stores private memory.
 
 The ledger stores the latest exact pending question with target direction/ref/version/revision and decision, plus deferred items not in domain state. Unqualified yes is checked against its live target; notices never replace it. Writes use observed revisions, account-scoped locking, source input provenance and deduplication. Context tools and recalls recheck the active account/session generation and linked input. The one-active-binding-per-host index remains unchanged.
 

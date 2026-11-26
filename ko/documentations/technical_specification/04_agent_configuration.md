@@ -39,7 +39,7 @@ agent/
     setup.ts                read_setup_state, draft_settings와 연동된 대화의 설정 도구
                             (set_calendar_roles, preview_next_week, confirm_settings,
                             choose_note_items, confirm_note_items),
-                            plus account.ts ref-addressed received and sent operations
+                            plus ../lib/account-tools.ts ref-addressed received and sent operations
     request.ts              요청 논의 도구, 대상별로 해석: 요청자에게는 read_request,
                             draft_request_review, evaluate_candidates, read_booking_status와
                             말로 내리는 결정(apply_request_review, choose_time,
@@ -53,6 +53,7 @@ agent/
   hooks/                    입력 마스킹, 사용량 집계, 대상 검사
   instrumentation/          비공개 텍스트 없이 추적 및 한도 보고
   connections/              의도적으로 비어 있음 (연결 참고)
+  lib/account-tools.ts      setup.ts가 가져오는 인라인 도구 정의; 도구 resolver가 아님
   memory/account.ts         one Postgres-backed private account context provider
   sandbox.ts                inert JavaScript environment; no container or VM
   subagents/                첫 릴리스에서는 없음
@@ -167,9 +168,9 @@ eve의 승인 정책(`once`, `always`, 사용자 정의)은 도구 실행을 제
 
 ## 메모리
 
-`agent/memory/account.ts`는 검증된 계정 범위의 `app.host_assistant_context`를 사용하는 단일 custom provider입니다. 요청자에게는 활성화되지 않습니다. 매 턴 시작과 compaction 뒤 안정된 ID의 세 레코드를 교체해 회상합니다: 최신 DB 상태(결정 대기 ref·버전·시간, 앞으로 7일 예약, 보낸 요청 요약, 설정 단계, 현재 시각·시간대), 미해결 질문·보류 항목 ledger, 적격 비공개 호스트 기억입니다. 빈 값으로 교체하면 과거 회상 값도 비웁니다. 스냅샷은 compaction 요약에서 제외하고 기억으로 저장하지 않습니다. 최근 턴은 eve의 기본 compaction 임계값 0.6에 도달할 때까지 원문으로 유지합니다.
+`agent/memory/account.ts`는 검증된 계정 범위의 `app.host_assistant_context`를 사용하는 단일 custom provider입니다. 요청자에게는 활성화되지 않습니다. 매 턴 시작과 compaction 뒤 안정된 ID의 세 레코드를 교체해 회상합니다: 최신 DB 상태(결정 대기 ref·버전·시간, 앞으로 7일 예약, 보낸 요청 요약, 설정 단계, 현재 시각·시간대), 미해결 질문·보류 항목 ledger, 적격 비공개 호스트 기억입니다. 빈 값으로 교체하면 과거 회상 값도 비웁니다. 스냅샷은 compaction 요약에서 제외하고 기억으로 저장하지 않습니다. 최근 턴은 eve의 기본 compaction 임계값 0.6에 도달할 때까지 원문으로 유지합니다. `account` 슬롯은 파생 `tools/account.ts` 경로를 예약합니다. 작성한 헬퍼는 `agent/lib/`에 두어 `account__*` 도구를 가리지 않습니다.
 
-메모리는 호스트의 현재 입력에서 적격 문구를 그대로 저장하며 요청자 이름·목적, 캘린더 제목, 도구에서 얻은 사실은 저장하지 않습니다. 실행 가능성 정책이 아닌 대화 맥락입니다. 규칙은 `change_settings`로 처리합니다. 저장은 먼저 준비 상태가 되며 완료된 응답에 한 줄 알림이 있을 때만 회상 대상이 됩니다. 말로 조회·잊기를 요청할 수 있고 기한이 있는 생활 맥락에는 만료 시각이 필요합니다. 잊거나 만료된 내용은 지우고 재실행 방지 표식만 남깁니다. 기존 운영자·예약 계정 삭제 경로는 계정 FK를 통해 이 컨텍스트도 지웁니다. 기억을 잊어도 대화 기록은 지워지지 않습니다. `assistant_notes`는 게스트 모델용 지침이며 비공개 기억을 저장하지 않습니다.
+메모리는 호스트의 현재 입력에서 적격 문구를 그대로 저장하며 요청자 이름·목적, 캘린더 제목, 도구에서 얻은 사실은 저장하지 않습니다. 실행 가능성 정책이 아닌 대화 맥락입니다. 규칙은 계정 세션의 유일한 설정 쓰기 도구인 `draft_settings`로 처리합니다(첫 확인 전에는 초안, 준비 완료 뒤에는 변경 즉시 저장). 저장은 먼저 준비 상태가 되며 완료된 응답에 한 줄 알림이 있을 때만 회상 대상이 됩니다. 말로 조회·잊기를 요청할 수 있고 기한이 있는 생활 맥락에는 만료 시각이 필요합니다. 잊거나 만료된 내용은 지우고 재실행 방지 표식만 남깁니다. 기존 운영자·예약 계정 삭제 경로는 계정 FK를 통해 이 컨텍스트도 지웁니다. 기억을 잊어도 대화 기록은 지워지지 않습니다. `assistant_notes`는 게스트 모델용 지침이며 비공개 기억을 저장하지 않습니다.
 
 ledger는 대상 방향·ref·버전·리비전·결정과 함께 최신 질문의 정확한 문구, 도메인 상태에 없는 보류 항목을 저장합니다. 한정 없는 “네”는 현재 대상과 대조하며 알림은 대상을 바꾸지 않습니다. 쓰기는 관찰한 리비전, 계정 범위 잠금, 원본 입력 식별자와 중복 방지를 사용합니다. 도구와 회상은 활성 계정·세션 세대·연결된 입력을 다시 검사합니다. 호스트당 활성 바인딩 하나인 인덱스는 유지합니다.
 

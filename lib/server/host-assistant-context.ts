@@ -3,7 +3,7 @@ import { z } from "zod";
 import type { ModelMessage } from "ai";
 import type { Database, Queryable } from "./database";
 import { linkedMessagingTurn } from "./channel-selection";
-import { authorizeSetupTool, type SetupToolCall } from "./setup-tools";
+import { authorizeSetupTool, modelProjection, type SetupToolCall } from "./setup-tools";
 import { listHostRequests, readHostTimezone } from "./host-requests";
 import { listSentRequests } from "./host-sent-requests";
 import { requestRef } from "./request-ref";
@@ -164,7 +164,7 @@ export async function accountSnapshot(deps: SetupDependencies, call: SetupToolCa
     where r.host_account_id = ${actor.id} and r.state <> 'draft' group by r.id
   `;
   return {
-    current: currentTime(zone), timezone: zone, setupStep: setup?.nextAction ?? "connect_calendar",
+    current: currentTime(zone), timezone: zone, setupStep: setup ? modelProjection(setup, true).nextAction : "connect_calendar",
     pending: received.filter(item => item.needsDecision).map(item => ({ ref: requestRef(item.requestId), state: item.state, proposed: item.proposalStart, ...versions.find(row => row.request_id === item.requestId) })),
     bookings: bookings.map(item => ({ ...item, ref: requestRef(item.ref) })),
     sent: sent.map(item => ({ ref: requestRef(item.requestId), state: item.state, proposed: item.proposalStart, booked: item.bookedStart })),

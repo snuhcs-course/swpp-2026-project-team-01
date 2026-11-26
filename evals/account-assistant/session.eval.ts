@@ -8,7 +8,7 @@ import { seedHost } from "../story/fixtures";
 import { grade } from "../story/grader";
 import { storyRuntime } from "../story/runtime";
 import { agreedForHost, buildState } from "../story/states";
-import { accountSession, setupHost } from "./support";
+import { accountSession, prepareSavedHost, setupHost } from "./support";
 
 // Live dynamic resolution is the serializability guard: eve@0.80.1 exposes no
 // public transform-and-resolve checker for unit tests. Every case resolves the
@@ -101,7 +101,7 @@ const cases: readonly Case[] = [
     check(t, /\/auth\/sign-in\?[^\s]*consent=calendar/.test(turn.message ?? ""), "resends Calendar consent link");
     check(t, !(await settings(host.hostAccountId)), "no settings saved without Calendar");
     await rubric(t, "Host: 캘린더 연결했어\nDB: Calendar is not connected.", turn.message,
-      "한국어로 아직 캘린더 연결이 확인되지 않았다고 알리고 Google 연결 링크를 다시 준다. Google이 선택한 캘린더의 바쁜 시간을 읽어 미팅 시간을 제안하고 승인한 미팅만 추가하며 게스트에게 일정이 보이지 않는 이유를 한국어로 설명한다. 미팅 가능 시간을 묻지 않는다.");
+      "한국어로 아직 캘린더 연결이 확인되지 않았다고 알리고 Google 연결 링크를 다시 준다. Google Calendar를 읽어 바쁜 시간을 찾고 미팅 시간을 제안하며 승인한 미팅만 추가하고 게스트는 일정 내용을 볼 수 없다고 한국어로 알린다. 미팅 가능 시간을 묻지 않는다.");
   } },
   { id: "AS-H01-7-10", source: "H01-7..10: hours, place, revise preview, confirm", turns: 5, async test(t) {
     const host = await setupHost(true);
@@ -206,6 +206,98 @@ const cases: readonly Case[] = [
     await rubric(t, "Host: 다음 주 확정된 미팅 뭐 있어?\nDB: 박도현의 투자 상담 미팅 하나가 이번 주에 예약되어 있고 다음 주 예약은 없다.", turn.message,
       "다음 주에 확정된 미팅은 없다고 분명히 말하고, 박도현의 투자 상담 미팅은 이번 주 일정이라고 이름과 함께 구분한다.");
     check(t, (await requestState(request.requestId)).state === "booked", "existing booking unchanged");
+  } },
+  // Appended fixture corrections; see documentation 13, Appended cases.
+  { id: "AS-H01-11-SAVED", source: "H01-11: exact next-step reply, no tutorial choice", turns: 1, async test(t) {
+    const host = await seedHost();
+    await prepareSavedHost(host);
+    await storyRuntime().db`update app.host_settings set tutorial_offered = true where host_account_id = ${host.hostAccountId}`;
+    const session = await accountSession(t, host.hostAccountId);
+    const turn = await session.send("이제 뭐하면 돼?");
+    const exact = "이 링크를 미팅할 사람과 공유하면 돼요. 제가 사용자님의 시간에 맞춰서 예약을 잡고, 안내해드릴게요.";
+    check(t, (turn.message ?? "").replace(/\s+/g, " ").trim() === exact, "exact H01-11 sentence and nothing appended");
+    forbid(t, turn, ["choose_request_tutorial", ...DECISIONS]);
+    const samples = await storyRuntime().db`select id from app.requests where host_account_id = ${host.hostAccountId} and is_sample`;
+    check(t, samples.length === 0 && (await settings(host.hostAccountId))?.tutorial_offered === true, "tutorial neither started nor skipped");
+  } },
+  { id: "AS-H01-12-13-SAVED", source: "H01-12..13: sample tutorial approval", turns: 2, async test(t) {
+    const host = await seedHost();
+    await prepareSavedHost(host);
+    await storyRuntime().db`update app.host_settings set tutorial_offered = true where host_account_id = ${host.hostAccountId}`;
+    const session = await accountSession(t, host.hostAccountId);
+    const start = await session.send("응, 샘플 요청으로 연습해볼게");
+    called(t, start, "choose_request_tutorial");
+    const [sample] = await storyRuntime().db<{ id: string }[]>`select id from app.requests where host_account_id = ${host.hostAccountId} and is_sample and closed_at is null`;
+    check(t, Boolean(sample), "one active sample request created");
+    check(t, session.delivered.some(item => item.kind === "text" && /샘플/.test(item.text)), "sample request shown in the messenger");
+    const approval = await session.send("샘플 요청 승인해줘");
+    check(t, approval.toolCalls.some(call => ["decide_requests", "finish_sample_tutorial"].includes(call.name)), "sample approval uses guarded tool");
+    const [state] = await storyRuntime().db<{ closed: boolean }[]>`select closed_at is not null as closed from app.requests where id = ${sample!.id}`;
+    check(t, state?.closed === true && (await requestState(sample!.id)).bookings === 0, "tutorial finishes without booking");
+    check(t, storyRuntime().google.createdEvents(host.calendarId).length === 0, "no Google Calendar event created");
+    await rubric(t, "Host: 샘플 요청 승인해줘", approval.message, "샘플 연습을 승인해 끝냈으며 실제 캘린더 일정은 만들지 않았다고 말한다.");
+  } },
+  { id: "AS-H01-7-10-ANALYZED", source: "H01-7..10: hours, place, revise preview, confirm", turns: 4, async test(t) {
+    const host = await setupHost(true);
+    const session = await accountSession(t, host.hostAccountId);
+    const opening = await session.deliverHoursQuestion();
+    const transcript: string[] = [`Service: ${opening}`];
+    check(t, session.delivered.some(item => item.kind === "text" && item.text === opening), "step-6 hours suggestion delivered before the first host line");
+    const hours = await session.send("응, 그렇게 해줘");
+    called(t, hours, "draft_settings");
+    forbid(t, hours, ["confirm_settings"]);
+    await rubric(t, transcript.join("\n"), hours.message, "미팅 가능 시간에 동의한 것으로 받아들이고 평소 만나는 장소를 묻는다.");
+    transcript.push(`Host: 응, 그렇게 해줘\nAssistant: ${hours.message}`);
+    const placeText = "역삼역 근처, 온라인도 괜찮고 지하철로 갈 거 같아";
+    const place = await session.send(placeText);
+    called(t, place, "draft_settings"); called(t, place, "preview_next_week");
+    check(t, place.toolCalls.filter(call => call.name === "draft_settings").length === 1, "one write for the stated place answer");
+    check(t, session.delivered.some(item => item.kind === "image"), "first slot image delivered");
+    check(t, !(await settings(host.hostAccountId)), "place answer does not save settings");
+    transcript.push(`Host: ${placeText}\nAssistant: ${place.message}`);
+    const imageCount = session.delivered.filter(item => item.kind === "image").length;
+    const changed = await session.send("목요일은 빼줘");
+    called(t, changed, "draft_settings"); called(t, changed, "preview_next_week");
+    check(t, changed.toolCalls.filter(call => call.name === "draft_settings").length === 1, "one write for Thursday exclusion");
+    forbid(t, changed, ["confirm_settings"]);
+    const images = session.delivered.filter(item => item.kind === "image");
+    check(t, images.length > imageCount, "changed settings deliver a new image");
+    const image = images.at(-1);
+    check(t, image?.preview.days.some(day => day.weekday === "thursday" && day.open.length === 0) === true, "new image excludes Thursday");
+    check(t, !(await settings(host.hostAccountId)), "no booking settings/link before yes");
+    check(t, !/https?:\/\/\S+/.test(`${place.message ?? ""}\n${changed.message ?? ""}`), "no booking link before yes");
+    const saved = await session.send("ㅇㅋ 이대로 열어줘");
+    called(t, saved, "confirm_settings"); forbid(t, saved, ["choose_request_tutorial"]);
+    const row = await settings(host.hostAccountId);
+    check(t, row !== undefined && row.settings.meetingMode === "either" && row.settings.travelMode === "transit"
+      && row.settings.location !== null && row.settings.location.kind === "places" && row.settings.location.areas.some(area => area.includes("역삼"))
+      && row.settings.weeklyWindows.every(window => window.weekday !== "thursday") && row.tutorial_offered, "saved host answers, Thursday exclusion and tutorial offer");
+    check(t, row !== undefined && (saved.message ?? "").includes(`${process.env.APP_ORIGIN}/${row.settings.handle}`), "actual booking link returned after yes");
+    await rubric(t, [...transcript, "Host: 목요일은 빼줘", `Assistant: ${changed.message}`, "Host: ㅇㅋ 이대로 열어줘", `confirm_settings result: ${JSON.stringify(saved.toolCalls.find(call => call.name === "confirm_settings")?.output)}`].join("\n"), saved.message,
+      "설정이 끝났다고 알리고 실제 도구가 반환한 예약 링크를 공유하며 샘플 요청 연습을 제안한다. 연습은 아직 시작하거나 건너뛰지 않는다.");
+  } },
+  { id: "AS-H03-1-4-BASIS", source: "H03-1..4: understand, explain, defer a waiting request", turns: 3, async test(t) {
+    const { request } = await buildState("RV-A1b", "ko");
+    await prepareSavedHost(request);
+    const session = await accountSession(t, request.hostAccountId);
+    const before = await requestState(request.requestId);
+    const transcript: string[] = [];
+    const turns: readonly (readonly [string, string])[] = [
+      ["이 사람 누구야? 무슨 미팅이야?", "요청자 Minji Kim과 컴파일러 이야기 커피챗이라는 목적을 말한다. 호스트가 합의했거나 예약된 미팅이라고 부르지 않는다."],
+      ["왜 이 시간이 가능한 거야?", "실제 도구가 반환한 미팅 가능 시간, 캘린더의 바쁜 시간과 이동 조건을 근거로 제안된 시각이 가능한 이유를 설명한다. 미팅을 승인하거나 확정했다고 말하지 않는다."],
+      ["음, 좀 생각해볼게", "고민할 시간을 주고 아직 승인이 필요한 요청임을 유지한다. 승인, 거절, 변경 또는 예약 완료를 주장하지 않는다."],
+    ];
+    for (const [message, criterion] of turns) {
+      const turn = await session.send(message);
+      forbid(t, turn, DECISIONS);
+      check(t, turn.toolCalls.filter(call => call.name === "read_request").length <= 1, "at most one current request read per turn");
+      check(t, turn.toolCalls.filter(call => call.name === "evaluate_candidates").length <= 1, "no repeated evaluation per turn");
+      await rubric(t, [...transcript, `Host: ${message}`, `Tool evidence: ${JSON.stringify(turn.toolCalls.map(call => ({ name: call.name, output: call.output })))}`].join("\n"), turn.message, criterion);
+      transcript.push(`Host: ${message}\nAssistant: ${turn.message}`);
+      check(t, JSON.stringify(await requestState(request.requestId)) === JSON.stringify(before), "waiting request decision state unchanged");
+      if (message === turns[0]![0]) called(t, turn, "read_request");
+      if (message === turns[1]![0]) called(t, turn, "read_request");
+    }
   } },
 ];
 

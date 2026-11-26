@@ -5,13 +5,8 @@ import { database } from "../../lib/server/database";
 import { readRequestForHostTool, evaluateCandidatesForHostTool, proposeSharedChangesForTool, proposeSharedChangesToolInput, resolveChangesForTool, suggestionToolInput, askGuestForHostTool, hostQuestionToolInput, waiveWeeklyLimitForHostTool, allowHostTripForHostTool, readBookingStatusForHostTool, changeBookingForHostTool, finishSampleForTool, finishSampleToolInput } from "../../lib/server/host-review-tools";
 import { allowHostTripInput } from "../../lib/server/request-exceptions";
 import { readRequestForTool, draftRequestReviewForTool, draftRequestReviewToolInput, evaluateCandidatesForTool, chooseTimeForTool, chooseTimeToolInput, agreeToProposalForTool, agreeToolInput, applyRequestReviewForTool, changeAgreementForTool, withdrawRequestForTool, cancelBookingForTool, changeBookingForTool, useHostCalendarsForTool, useHostCalendarsToolInput, readBookingStatusForTool, resendBookingLinkForTool } from "../../lib/server/request-tools";
-import { changeSettingsToolInput, draftSettingsForTool, readSetupStateForTool, type SetupToolCall } from "../../lib/server/setup-tools";
+import { readSetupStateForTool, type SetupToolCall } from "../../lib/server/setup-tools";
 import { setupDependenciesFromEnvironment } from "../../lib/server/setup";
-
-// Imported by the account resolver only; this module's default exports no
-// standalone tools, keeping every other audience's registry unchanged.
-import { defineDynamic } from "eve/tools";
-export default defineDynamic({ events: { "session.started": () => null } });
 
 type Context = { readonly callId: string; readonly session: { readonly id: string; readonly auth: { readonly current: SetupToolCall["auth"] } } };
 function call(ctx: Context): SetupToolCall { return { auth: ctx.session.auth.current, sessionId: ctx.session.id, callId: ctx.callId }; }
@@ -36,7 +31,7 @@ export function accountTools() {
   return {
     read_request: defineTool({
       inputSchema: accountRequestInput,
-      description: "Read any received request by ref, including its current revision/version and private host review. No conversation switching.",
+      description: "Read any received request by ref, including its current revision/version and private host review. Reuse this read for the rest of the turn unless state changes; proposalFeasibility answers why the current time works. No conversation switching.",
       execute: async (input, ctx) => {
         const { ref } = input;
         const target = await accountRequestCall(database(), call(ctx), ref);
@@ -45,7 +40,7 @@ export function accountTools() {
     }),
     evaluate_candidates: defineTool({
       inputSchema: accountRequestInput,
-      description: "Find feasible times for the received ref without sharing, deciding or booking.",
+      description: "Find new feasible times for the received ref without sharing, deciding or booking. For why the current proposal works, use read_request.proposalFeasibility first; evaluate only if its basis is absent.",
       execute: async (input, ctx) => {
         const { ref } = input;
         const target = await accountRequestCall(database(), call(ctx), ref);
@@ -135,7 +130,6 @@ export function accountTools() {
       },
     }),
     read_settings: defineTool({ inputSchema: z.object({}), description: "Read account settings and draftRevision at any point.", execute: (_input, ctx) => readSetupStateForTool(setupDependenciesFromEnvironment(), call(ctx)) }),
-    change_settings: defineTool({ inputSchema: changeSettingsToolInput, description: "Change general settings only from the host's own stated words. Saves at once once ready; report saved only when savedChange is saved. A request-specific place/time goes to propose_shared_changes.", execute: (input, ctx) => draftSettingsForTool(setupDependenciesFromEnvironment(), call(ctx), input) }),
     get_sent_request: defineTool({
       inputSchema: accountRequestInput,
       description: "Read a sent request by ref through its requester projection only. The account owner's own calendar is read_schedule; never return the receiving host's private data.",
@@ -147,7 +141,7 @@ export function accountTools() {
     }),
     draft_sent_request: defineTool({
       inputSchema: draftRequestReviewToolInput.extend(accountRequestInput.shape),
-      description: "Apply the account owner's stated details to this sent request only. Global settings use change_settings.",
+      description: "Apply the account owner's stated details to this sent request only. Global settings use draft_settings.",
       execute: async (input, ctx) => {
         const { ref, ...args } = input;
         const target = await accountSentCall(database(), call(ctx), ref);

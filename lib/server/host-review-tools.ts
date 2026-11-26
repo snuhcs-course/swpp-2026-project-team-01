@@ -125,6 +125,17 @@ function when(start: string, end: string, timezone: string) {
   return `${displayTime(new Date(start), timezone)} to ${displayTime(new Date(end), timezone)}`;
 }
 
+export function proposalFeasibility(view: Pick<HostRequestView, "proposal" | "evaluation">) {
+  const proposal = view.proposal;
+  const candidate = proposal && view.evaluation?.state === "completed"
+    ? view.evaluation.candidates.find(item => Date.parse(item.start) === Date.parse(proposal.start) && Date.parse(item.end) === Date.parse(proposal.end))
+    : undefined;
+  return candidate ? { basis: candidate.basis, hostTrips: candidate.hostLegs, status: candidate.status,
+    travel: proposal?.mode === "online" ? "Online: no travel is required." : "Use the evaluated hostTrips; unresolved trips are not cleared." } : null;
+}
+
+const ACCOUNT_NEXT_STEPS = "Use decide_requests with this ref, revision and proposal version only for an explicit host decision. Questions and hesitation decide nothing. The current proposalFeasibility already explains hours, busy checks and travel when present; answer from it without another evaluation/read. Evaluate only when that basis is absent or the host asks for new times; a mutation or stale-version error requires a fresh read.";
+
 // The model's host projection of one request, with the current date and time
 // in the host's timezone so a date the host gives without a year, or "next
 // week", can be worked out.
@@ -134,6 +145,7 @@ export function hostModelProjection(view: HostRequestView, now: Date = new Date(
   return {
     current: currentTime(zone, now),
     revision: view.revision,
+    proposalFeasibility: proposalFeasibility(view),
     ref: requestRef(view.requestId),
     booking: view.booking
       ? { failure: view.booking.failure, state: view.booking.state, text: BOOKING_STATUS_TEXT[view.booking.state].en }
@@ -209,7 +221,8 @@ export async function readRequestForHostTool(db: Database, call: HostReviewToolC
   const { hostAccountId, requestId } = await authorizeHostReviewTool(db, call);
   const view = await readHostRequest(db, hostAccountId, requestId);
   if (!view) throw new HostReviewToolDeniedError();
-  return hostModelProjection(view);
+  const projected = hostModelProjection(view);
+  return isHostSetupSession(call.auth) && !view.sample ? { ...projected, next: ACCOUNT_NEXT_STEPS } : projected;
 }
 
 export const finishSampleToolInput = z.object({ action: tutorialAction });
@@ -396,7 +409,7 @@ export async function evaluateCandidatesForHostTool(
   await awaitHostEvaluation(db, outcome.result.evaluationId, options.waitMs ?? HOST_REVIEW_EVALUATION_WAIT_MS);
   const view = await readHostRequest(db, hostAccountId, requestId);
   if (!view) throw new HostReviewToolDeniedError();
-  return { evaluated: true as const, evaluation: hostModelProjection(view).evaluation, next: NEXT_STEPS };
+  return { evaluated: true as const, evaluation: hostModelProjection(view).evaluation, proposalFeasibility: proposalFeasibility(view), next: isHostSetupSession(call.auth) ? ACCOUNT_NEXT_STEPS : NEXT_STEPS };
 }
 
 async function hostExceptionForTool(

@@ -1,8 +1,8 @@
 import { describe, expect, it, vi } from "vitest";
-import { readFileSync } from "node:fs";
+import { readFileSync, readdirSync } from "node:fs";
 import { assistantText, eligibleMemory, memoryNotice, memorySchema, questionSchema, recalledContext, type ContextEntry } from "./host-assistant-context";
 import { accountMemoryScope } from "../../agent/memory/account";
-import { accountTools } from "../../agent/tools/account";
+import { accountTools } from "../../agent/lib/account-tools";
 
 vi.mock("./database", () => ({ database: () => ({}) }));
 vi.mock("./channel-selection", async importOriginal => ({ ...await importOriginal<typeof import("./channel-selection")>(), linkedMessagingTurn: async () => ({ inputId: "input", message: "[Telegram] hi", channel: "telegram" }) }));
@@ -38,6 +38,11 @@ describe("private account context", () => {
     for (const audience of ["requester", "public_intake", "host_review"]) expect(await accountMemoryScope(context(audience))).toBeNull();
     expect(await accountMemoryScope({ ...context("host_setup"), session: { id: "session", auth: { current: null, initiator: null } } })).toBeNull();
     expect(Object.keys(accountTools())).not.toContain("switch_conversation");
+  });
+  it("keeps authored tool filenames from shadowing Eve's derived memory tool resolvers", () => {
+    const slots = readdirSync(new URL("../../agent/memory/", import.meta.url)).filter(name => name.endsWith(".ts")).map(name => name.slice(0, -3));
+    const authored = readdirSync(new URL("../../agent/tools/", import.meta.url)).filter(name => name.endsWith(".ts")).map(name => name.slice(0, -3));
+    expect(authored.filter(name => slots.includes(name))).toEqual([]);
   });
   it("declares private FK/RLS boundaries, expiry and replay tombstones without changing the active-binding constraint", () => {
     const schema = readFileSync(new URL("../../supabase/schemas/app/tables/host_assistant_context.sql", import.meta.url), "utf8");

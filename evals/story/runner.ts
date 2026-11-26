@@ -2,6 +2,7 @@ import type { EveEvalContext } from "eve/evals";
 import { defineEval } from "eve/evals";
 import { includes, satisfies } from "eve/evals/expect";
 import { CAPABILITY, evalTrials } from "../tags";
+import { accountSession, prepareSavedHost } from "../account-assistant/support";
 import { nextWeek } from "./fixtures";
 import { grade, NO_DECISION_CRITERION } from "./grader";
 import { type EvalContext, type EvalTurn, guestSession, type HostChannel, hostReviewSession, linkHost } from "./sessions";
@@ -80,6 +81,7 @@ export function storyEval(entry: StoryCase, trial: number, set: string) {
       const language = entry.language === "en" ? "en" : "ko";
       const built = await buildState(entry.state, language);
       const { request } = built;
+      if (entry.conversation === "host_setup") await prepareSavedHost(request);
       const context: StoryContext = { dates: nextWeek(), facts: built.facts, hostAccountId: request.hostAccountId, requestId: request.requestId };
       const session = t as unknown as EvalContext;
 
@@ -89,7 +91,9 @@ export function storyEval(entry: StoryCase, trial: number, set: string) {
       if (hostChannel) await linkHost(request.hostAccountId, hostChannel, request.requestId);
 
       const open = (requestId: string): Promise<Conversation> =>
-        entry.conversation === "requester"
+        entry.conversation === "host_setup"
+          ? accountSession(t, request.hostAccountId)
+          : entry.conversation === "requester"
           ? guestSession(session, requestId, entry.channel as "web" | "imessage" | "email")
           : hostReviewSession(session, request.hostAccountId, requestId, hostChannel);
       let conversationRequest = request.requestId;

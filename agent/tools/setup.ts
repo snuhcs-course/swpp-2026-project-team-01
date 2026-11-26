@@ -1,4 +1,4 @@
-import { accountTools } from "./account";
+import { accountTools } from "../lib/account-tools";
 import { defineDynamic, defineTool } from "eve/tools";
 import { z } from "zod";
 import { database } from "../../lib/server/database";

@@ -1,6 +1,6 @@
 import { createHash, randomUUID } from "node:crypto";
 import type { EveEvalContext } from "eve/evals";
-import { setUpManuallyCommand } from "../../lib/server/analysis";
+import { createCalendarAnalysisHandler } from "../../lib/server/analysis";
 import { readCalendarRoles, saveCalendarRolesCommand } from "../../lib/server/calendar-roles";
 import { runCommand } from "../../lib/server/commands";
 import { EVAL_HOST_HEADER } from "../../lib/server/eve-auth";
@@ -12,7 +12,13 @@ import { sessionIdHash } from "../../lib/server/model-limits";
 import { photonConfig, type PhotonContent, type PhotonTransport } from "../../lib/server/photon";
 import { channelHash } from "../../lib/server/photon-receiver";
 import { sealToken } from "../../lib/server/token-encryption";
-import { createCalendarHost, hostCommandDeps, runJob } from "../../tests/integration/support/calendar-host";
+import { createCalendarHost, fakeGoogleConfig, hostCommandDeps, runJob } from "../../tests/integration/support/calendar-host";
+import type { ConfirmedSettings } from "../../lib/contracts/setup";
+import { assignHandle } from "../../lib/server/handles";
+import { readReadiness } from "../../lib/server/readiness";
+import { readSetupState } from "../../lib/server/setup";
+import { channelReplies } from "../../lib/server/channel-texts";
+import { hoursSuggestion, readLatestAnalysis, queueHoursQuestion } from "../../lib/server/analysis";
 import { storyRuntime } from "../story/runtime";
 
 const hash = (text: string) => createHash("sha256").update(text).digest("hex");
@@ -31,10 +37,51 @@ export async function setupHost(connected: boolean) {
       input: { bookingCalendarId: host.email, conflictCalendarIds: [host.email] },
       resourceId: host.hostAccountId, retryKey: randomUUID(),
     });
-    const manual = await runCommand(deps, setUpManuallyCommand, { input: {}, resourceId: host.hostAccountId, retryKey: randomUUID() });
-    if (!roles.ok || !manual.ok) throw new Error("Could not prepare the hours-question start state");
+    if (!roles.ok) throw new Error("Could not prepare calendar roles");
+    await finishAnalysis(host.hostAccountId);
+
   }
   return host;
+}
+
+function setupDependencies() {
+  const { db, google, tokenKey } = storyRuntime();
+  return { db, tokenKey, appOrigin: process.env.APP_ORIGIN!, calendar: { db, config: fakeGoogleConfig(google), tokenKeys: [tokenKey] } };
+}
+
+async function finishAnalysis(hostAccountId: string) {
+  const { db, tokenKey } = storyRuntime();
+  const jobs = await db<{ id: string }[]>`select j.id from app.jobs j join app.calendar_analyses a on a.id::text = j.payload ->> 'analysisId'
+    where a.host_account_id = ${hostAccountId} and j.kind = 'calendar_analysis' and j.state = 'pending'`;
+  for (const job of jobs) await runJob(db, job.id, createCalendarAnalysisHandler(() => ({ config: setupDependencies().calendar.config, tokenKeys: [tokenKey] })));
+  const analysis = await readLatestAnalysis(db, hostAccountId);
+  if (analysis?.state !== "completed" || !analysis.evidence) throw new Error("The fixture must have a finished Calendar analysis");
+}
+
+// Complete the missing durable records of the original story fixture. This is
+// eval preparation only: production setup still saves through its command.
+export async function prepareSavedHost(host: { hostAccountId: string; calendarId: string }) {
+  const { db } = storyRuntime();
+  const [row] = await db<{ settings: ConfirmedSettings }[]>`select settings from app.host_settings where host_account_id = ${host.hostAccountId}`;
+  if (!row) throw new Error("The fixture must already have saved settings");
+  await db.begin(tx => assignHandle(tx, host.hostAccountId, row.settings.handle));
+  const calendar = { accessRole: "owner", id: host.calendarId, primary: true, summary: "Work", timeZone: row.settings.timezone };
+  const outcome = await runCommand(hostCommandDeps(db, host.hostAccountId), saveCalendarRolesCommand([calendar]), {
+    expectedRevision: (await readCalendarRoles(db, host.hostAccountId))?.revision ?? 0,
+    input: { bookingCalendarId: host.calendarId, conflictCalendarIds: [host.calendarId] }, resourceId: host.hostAccountId, retryKey: randomUUID(),
+  });
+  if (!outcome.ok) throw new Error("Could not complete the saved-host fixture roles");
+  await finishAnalysis(host.hostAccountId);
+  await db`update app.host_settings set tutorial_offered = true where host_account_id = ${host.hostAccountId}`;
+  const ready = await readReadiness(db, host.hostAccountId);
+  const state = await readSetupState(setupDependencies(), host.hostAccountId);
+  if (!ready.ready || state?.nextAction !== "ready" || !state.tutorialOffered) throw new Error("UAT H01-10 must be complete before this case");
+}
+
+export async function hoursQuestion(hostAccountId: string) {
+  const analysis = await readLatestAnalysis(storyRuntime().db, hostAccountId);
+  if (analysis?.state !== "completed" || !analysis.evidence) throw new Error("UAT step 6 needs completed analysis evidence");
+  return channelReplies("en").onboarding.hoursQuestion(hoursSuggestion(analysis.evidence));
 }
 
 export async function accountSession(t: EveEvalContext, hostAccountId: string) {
@@ -86,6 +133,13 @@ export async function accountSession(t: EveEvalContext, hostAccountId: string) {
     }
   }
   return { bindingId, delivered, sessionId: session.sessionId, flush,
+    async deliverHoursQuestion() {
+      const analysis = await readLatestAnalysis(db, hostAccountId);
+      if (analysis?.state !== "completed" || !analysis.evidence) throw new Error("No finished hours suggestion");
+      await db.begin(tx => queueHoursQuestion(tx, hostAccountId, [tokenKey], analysis.evidence, analysis.id));
+      await flush();
+      return hoursQuestion(hostAccountId);
+    },
     async send(text: string) {
       const id = randomUUID();
       const message = `[Telegram] ${text}`;

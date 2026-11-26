@@ -50,7 +50,7 @@ export const accountMemoryProvider = defineMemoryProvider({
         const { actor: current } = await contextAuthority(database(), { auth: toolCtx.session.auth.current, sessionId: toolCtx.session.id, callId: toolCtx.callId });
         return recalledContext(await readContext(database(), current.id, scope));
       } }),
-      remember: defineTool({ inputSchema: memorySchema, description: "Remember an eligible exact phrase from this host's own current message only. Never requester names/purposes, calendar titles or rules. life_context needs a future expiry. Repeat the returned notice as one full line in your reply; without it the staged memory is discarded. Rules use change_settings instead.", execute: async (input, toolCtx) => {
+      remember: defineTool({ inputSchema: memorySchema, description: "Remember an eligible exact phrase from this host's own current message only. Never requester names/purposes, calendar titles or rules. life_context needs a future expiry. Repeat the returned notice as one full line in your reply; without it the staged memory is discarded. Rules use draft_settings instead.", execute: async (input, toolCtx) => {
         const target = { auth: toolCtx.session.auth.current, sessionId: toolCtx.session.id, callId: toolCtx.callId };
         const deps = setupDependenciesFromEnvironment();
         const { actor: current, turn } = await contextAuthority(deps.db, target);
@@ -62,7 +62,7 @@ export const accountMemoryProvider = defineMemoryProvider({
           excluded.push(parsed.success ? parsed.data : event.title);
         }
         if (!eligibleMemory(input.text, turn.message, excluded) || (input.expiresAt !== null && Date.parse(input.expiresAt) <= Date.now())) {
-          return { saved: false, problem: "This is not eligible private memory. Use change_settings for a rule; never remember requester/calendar data or expired context." };
+          return { saved: false, problem: "This is not eligible private memory. Use draft_settings for a rule; never remember requester/calendar data or expired context." };
         }
         const result = await writeContext(deps.db, target, scope, { kind: "memory", key: digest(`${turn.inputId}:${input.text}`), expectedRevision: 0, content: { memory: input, notice: memoryNotice(input.text, /[가-힣]/u.test(turn.message)) }, operationId: `${turnId}:${digest(toolCtx.callId)}`, expiresAt: input.expiresAt });
         return result.saved ? { ...result, staged: true, notice: memoryNotice(input.text, /[가-힣]/u.test(turn.message)) } : result;

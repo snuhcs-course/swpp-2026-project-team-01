@@ -73,7 +73,12 @@ export async function disconnectCalendarForTool(deps: SetupDependencies, call: S
 // The host's schedule for a period, read-only (host-schedule-views design 2).
 export async function readScheduleForSetupTool(deps: SetupDependencies, call: SetupToolCall, input: ReadScheduleInput = {}) {
   const actor = await authorizeSetupTool(deps.db, call.auth, call.sessionId);
-  return readHostSchedule(deps.db, deps.calendar, actor.id, readScheduleToolInput.parse(input));
+  const schedule = await readHostSchedule(deps.db, deps.calendar, actor.id, readScheduleToolInput.parse(input));
+  const requests = await listHostRequestsForSetupTool(deps, call);
+  return { ...schedule, weekNote: requests.weekNote,
+    nearbyBookings: requests.requests.filter(item => item.booked?.week === "this_week" || item.booked?.week === "next_week"),
+    nearbySentBookings: requests.sent.filter(item => item.booked?.week === "this_week" || item.booked?.week === "next_week"),
+  };
 }
 
 // The host's schedule as one picture in the linked chat (messenger-schedule-image

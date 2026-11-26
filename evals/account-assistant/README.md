@@ -6,7 +6,7 @@ Run these with the owner's isolated local stack already running and the migratio
 FMAT_EVAL_AUDIENCE=host_setup npx eve eval account-assistant --strict
 ```
 
-Each of the nine cases runs three times (27 trials, pass^3). To select one case while retaining all three trials:
+The original nine cases plus four appended corrections each run three times (39 trials, pass^3). Historical defective cases remain in the full counts under the append-only case policy; no historical failure is hidden. To select one case while retaining all three trials:
 
 ```sh
 FMAT_EVAL_AUDIENCE=host_setup npx eve eval account-assistant --tag case:AS-03 --strict
@@ -32,4 +32,12 @@ Eve 0.80.1's public tool API does not expose its internal transform/closure-seri
 
 Keep every executor inline in its `defineTool` and every schema inline or module-level. Shared domain behavior remains in module-level/imported functions. Memory executors capture only JSON scope/turn strings, never a runtime context or function.
 
-The suite was authored and typechecked in the fix run; live evals were **NOT RUN** because the owner runs them separately. No pass^3 result is claimed here.
+The owner subsequently supplied a 6/27 run of the original set. This repair did not run live evals. The original AS-H01-11/12-13 lacked readiness/roles/current-handle preconditions, AS-H01-7-10 had a pending analysis and an extra prelude, and AS-H03-1-4 required an evaluation even when the current basis was already returned. Their historical checks remain; corrected cases are appended and documented in documentation 13.
+
+Select the corrected fixtures/explanation plus the existing decision, schedule, ledger and Calendar cases:
+
+```sh
+FMAT_EVAL_AUDIENCE=host_setup npx eve eval account-assistant --tag case:AS-01 case:AS-02 case:AS-03 case:AS-H01-5 case:AS-H04-6 case:AS-H01-11-SAVED case:AS-H01-12-13-SAVED case:AS-H01-7-10-ANALYZED case:AS-H03-1-4-BASIS --strict
+```
+
+This selection does not replace the full historical set's counts. The four appended cases preserve the behavioral assertions, prove their start conditions, and run three times each. Live repair verification is **NOT RUN**; no new pass^3 result is claimed.

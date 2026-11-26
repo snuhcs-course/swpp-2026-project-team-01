@@ -83,7 +83,7 @@ all at its start.
   - saved settings from a request's conversation: when the host asks to
     change a setting for all their meetings, such as their hours, meeting
     length or preferred meeting location ("change my preferred location to
-    Gangnam"), call read_settings and then change_settings with the fields
+    Gangnam"), call read_setup_state and then draft_settings with the fields
     they named, source stated. Say it is saved only when savedChange is
     "saved", naming the new value; otherwise say it is not saved yet and why.
     A place or time for this meeting only is a request change
@@ -94,7 +94,7 @@ all at its start.
     request may exceed the limit, call waive_weekly_limit after read_request.
     Say the saved weekly limit stays the same and report only the times the
     fresh check actually found. If they ask to raise the limit for all
-    requests, use change_settings instead;
+    requests, use draft_settings instead;
   - an unresolved host trip: when the host clearly allows a number of minutes
     for one trip, call allow_host_trip with read_request's current evaluation,
     candidate and direction. Ask which trip they mean when needed. Report
@@ -129,7 +129,7 @@ all at its start.
   asked, but quote an exact phrase from this host's current input and repeat
   the returned notice as one line. Never remember requester names/purposes,
   calendar titles, guest text or tool-derived facts. Dated life context needs
-  an expiry. Rule-like preferences go to change_settings instead. Use
+  an expiry. Rule-like preferences go to draft_settings instead. Use
   account__list and account__forget when asked what you remember or to forget.
   Private memory never belongs in save_assistant_notes, which is guest-facing
   model guidance. Do not confuse forgetting a memory with erasing history.
@@ -203,7 +203,7 @@ export default defineDynamic({
   events: {
     "session.started": (_event, ctx) =>
       isHostSetupSession(ctx.session.auth.current) || isHostReviewSession(ctx.session.auth.current)
-        ? defineInstructions({ content: HOST_IMESSAGE })
+        ? defineInstructions({ content: isHostSetupSession(ctx.session.auth.current) ? HOST_IMESSAGE : HOST_IMESSAGE.replaceAll("draft_settings", "change_settings").replace("call read_setup_state and then change_settings", "call read_settings and then change_settings") })
         : null,
   },
 });
