@@ -613,7 +613,8 @@ export async function executeCommand(tx: Transaction, deps: CommandDependencies,
             completed_at = now(), updated_at = now()
         where binding_id = ${message.bindingId} and state in ('waiting', 'queued')
       `;
-      const stoppedGuests = await stopRequesterChannelBindings(tx, message.receipt.senderHash, message.receipt.channel);
+      // KakaoTalk has no guest conversations (host-kakaotalk-channel non-goals).
+      const stoppedGuests = message.receipt.channel === "kakaotalk" ? 0 : await stopRequesterChannelBindings(tx, message.receipt.senderHash, message.receipt.channel);
       await recordOutbound(tx, {
         channel: ended[0]?.channel ?? message.receipt.channel,
         dedupeKey: `receipt:${message.receipt.id}`,

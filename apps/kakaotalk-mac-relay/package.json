@@ -1,0 +1,11 @@
+{
+  "name": "kakaotalk-mac-relay",
+  "private": true,
+  "type": "module",
+  "description": "The KakaoTalk for Mac relay for Find Me a Time (openspec/changes/host-kakaotalk-mac-relay). No dependencies: Node 24 or later runs the TypeScript sources directly.",
+  "engines": { "node": ">=24" },
+  "scripts": {
+    "start": "node src/main.ts",
+    "build:helper": "xcrun swiftc -O -o bin/kakao-ax helper/KakaoAX.swift"
+  }
+}

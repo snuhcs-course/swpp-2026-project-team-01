@@ -9,6 +9,7 @@ import {
 import type { Database, Queryable, Transaction } from "./database";
 import { observeRejection } from "./diagnostics";
 import { findHostAccountByAuthUser } from "./host-accounts";
+import { type AnalyticsSubject, captureServerEvent } from "./product-analytics";
 import { type SupabaseAuthConfig, verifiedUserId } from "./supabase-auth";
 
 // The application command pipeline. Every interface (web route, agent tool, CLI)
@@ -22,7 +23,9 @@ import { type SupabaseAuthConfig, verifiedUserId } from "./supabase-auth";
 //      command (which takes its domain locks, rechecks authority and the expected
 //      revision, and publishes its jobs) and saves the outcome;
 //   5. on failure, reports the category to the bounded rejection observations
-//      (lib/server/diagnostics.ts), which never change the result.
+//      (lib/server/diagnostics.ts), which never change the result;
+//   6. reports the operation and its outcome to product analytics
+//      (lib/server/product-analytics.ts), which never changes the result either.
 // Lock order: the retry-key advisory lock first, then the command's domain locks.
 
 // A host account, a requester holding one request's booking link (id is the
@@ -205,15 +208,17 @@ export async function runCommand<Input, Result>(
   request: CommandRequest,
 ): Promise<CommandOutcome<Result>> {
   const correlationId = randomUUID();
+  let actor: Actor | null = null;
 
   try {
     if (claimsActor(request.input)) {
       throw new CommandError("forbidden");
     }
 
-    const actor = await deps.authenticate();
+    const verified = await deps.authenticate();
+    actor = verified;
 
-    if (!actor) {
+    if (!verified) {
       throw new CommandError("unauthenticated");
     }
 
@@ -232,7 +237,7 @@ export async function runCommand<Input, Result>(
     const inputHash = createHash("sha256")
       .update(canonicalJson({ expectedRevision, input: parsed.data, resourceId: request.resourceId }))
       .digest("hex");
-    const key = actorKey(actor);
+    const key = actorKey(verified);
 
     const outcome = (await deps.db.begin(async (tx) => {
       await assertCommandRole(tx);
@@ -257,7 +262,7 @@ export async function runCommand<Input, Result>(
       }
 
       const result = await command.run(tx, {
-        actor,
+        actor: verified,
         correlationId,
         expectedRevision,
         input: parsed.data,
@@ -275,12 +280,30 @@ export async function runCommand<Input, Result>(
       return { replayed: false, result: stored!.result };
     })) as { replayed: boolean; result: Result };
 
+    if (!outcome.replayed) {
+      captureServerEvent({ event: command.operation, properties: { actor_kind: verified.kind }, subject: analyticsSubject(verified) }, deps.env);
+    }
     return { correlationId, ok: true, ...outcome };
   } catch (error) {
     const failure = commandFailure(error, correlationId, command.operation);
     await observeRejection(deps.db, failure.category, deps.env ?? process.env);
+    captureServerEvent(
+      {
+        event: "command_failed",
+        properties: { actor_kind: actor?.kind ?? null, category: failure.category, operation: command.operation, reason: failure.reason ?? null },
+        subject: actor ? analyticsSubject(actor) : { kind: "anonymous", scope: "command" },
+      },
+      deps.env,
+    );
     return { error: failure, ok: false };
   }
+}
+
+// A host by their account; a requester by a hash of the request and a guest by
+// a hash of its starter, so neither gets a person profile (web-analytics D7).
+function analyticsSubject(actor: Actor): AnalyticsSubject {
+  if (actor.kind === "host_account") return { hostAccountId: actor.id, kind: "host" };
+  return { id: actor.id, kind: "anonymous", scope: actor.kind === "requester_request" ? "request" : "guest" };
 }
 
 // The actor of a browser request: the Supabase user whose access token Auth

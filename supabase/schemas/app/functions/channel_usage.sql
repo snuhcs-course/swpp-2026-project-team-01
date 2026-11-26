@@ -1,5 +1,5 @@
 -- Counts one UTC day of messaging channel use into app.channel_usage_days
--- (channel-usage-report design 2), replacing that day's rows for all three
+-- (channel-usage-report design 2), replacing that day's rows for all four
 -- channels, zeros included:
 --   active_hosts      hosts whose host binding on the channel was active at any
 --                     time in the day
@@ -19,7 +19,7 @@ AS $$
     SELECT p_day::timestamp AT TIME ZONE 'UTC' AS day_start, (p_day + 1)::timestamp AT TIME ZONE 'UTC' AS day_end
   ),
   channels AS (
-    SELECT unnest(array['imessage', 'whatsapp', 'telegram']) AS channel
+    SELECT unnest(array['imessage', 'whatsapp', 'telegram', 'kakaotalk']) AS channel
   )
   INSERT INTO app.channel_usage_days AS u (day, channel, active_hosts, inbound_messages, guest_links, guest_bookings, recorded_at)
   SELECT
@@ -126,7 +126,7 @@ BEGIN
       SELECT (first_start + span * i) AS start FROM generate_series(0, p_count - 1) AS i
     ),
     channels AS (
-      SELECT name, ord FROM unnest(array['imessage', 'whatsapp', 'telegram']) WITH ORDINALITY AS c (name, ord)
+      SELECT name, ord FROM unnest(array['imessage', 'whatsapp', 'telegram', 'kakaotalk']) WITH ORDINALITY AS c (name, ord)
     ),
     cells AS (
       SELECT c.name, c.ord, s.start,

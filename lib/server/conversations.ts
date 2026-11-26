@@ -363,6 +363,14 @@ export async function withPrincipalAuthority<T>(
   if (principal.type === "host_account") return withActiveHostAccount(db, principal.id, operation);
 
   return (await db.begin(async (tx) => {
+    // A KakaoTalk group chat is open while the account is in it (kakaotalk-group-conversations design 2).
+    if (principal.type === "kakaotalk_group") {
+      const [group] = await tx<{ open: boolean }[]>`
+        select left_at is null as open from app.kakaotalk_groups where id = ${principal.id} for share
+      `;
+      if (!group?.open) throw new ConversationClosedError();
+      return operation(tx);
+    }
     if (principal.type !== "requester_request") throw new ConversationClosedError();
 
     // A booked request stays open to questions about its meeting while its

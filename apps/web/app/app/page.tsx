@@ -1,4 +1,5 @@
 import { database } from "@lib/server/database";
+import { hostAnalyticsTraits } from "@lib/server/product-analytics";
 import { tutorialOffered } from "@lib/server/host-tutorial";
 import { openHostWorkspace } from "@lib/server/web-session";
 import { cookies } from "next/headers";
@@ -11,6 +12,8 @@ import { WorkspaceMenu } from "@/app/_components/workspace-menu";
 import { SignInCard } from "@/app/_components/sign-in-card";
 import { WorkspaceLoading } from "@/app/_components/workspace-loading";
 import { HostWordmark } from "@/app/_components/host-wordmark";
+import { AnalyticsIdentity } from "@/app/_components/analytics";
+import { analyticsConfig } from "@/lib/analytics";
 
 // The single host page. Signed out, it offers Google sign-in; a suspended
 // account sees why it cannot continue; an active host gets the conversation,
@@ -58,17 +61,33 @@ async function Workspace({ searchParams }: { readonly searchParams: SearchParams
     );
   }
 
+  // Analytics identifies the host by their account ID (web-analytics D6).
+  const identity =
+    analyticsConfig() && standing.hostAccountId ? (
+      <AnalyticsIdentity
+        hostAccountId={standing.hostAccountId}
+        traits={{ ...(await hostAnalyticsTraits(database(), standing.hostAccountId).catch(() => ({}))), next_action: standing.nextAction, setup_ready: standing.ready }}
+      />
+    ) : null;
   const params = await searchParams;
   // The post-link Home action opens the dashboard even while setup is incomplete.
   const atDefaultPage = standing.ready && !params.view && !params.request;
   const offerTutorial = atDefaultPage && standing.hostAccountId && await tutorialOffered(database(), standing.hostAccountId);
   if (!params.request && (params.view === "dashboard" || (atDefaultPage && !offerTutorial))) {
-    return <HostDashboard />;
+    return (
+      <>
+        {identity}
+        <HostDashboard />
+      </>
+    );
   }
   await standing.openSetupSession();
   return (
-    <LinkStep calendarConnected={params.calendar === "connected"} locale="en" ready={standing.ready}>
-      <HostWorkspace dashboardAvailable={standing.ready} />
-    </LinkStep>
+    <>
+      {identity}
+      <LinkStep calendarConnected={params.calendar === "connected"} locale="en" ready={standing.ready}>
+        <HostWorkspace dashboardAvailable={standing.ready} />
+      </LinkStep>
+    </>
   );
 }

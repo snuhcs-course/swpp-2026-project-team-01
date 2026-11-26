@@ -80,6 +80,10 @@ import { openToken, sealToken, type TokenKey, tokenKeyFromEnvironment } from "./
 // nothing from the host, so it goes out silently (D10). Signals, callback
 // answers and failed edits are best-effort and take no slot in the chat's
 // one-second spacing, since none is a message.
+// KakaoTalk rows (host-kakaotalk-channel design 5) are not sent from here: the
+// job freezes the text and runs the same checks, then leaves the row queued for
+// the relay phone, which claims it (kakaotalk-outbox.ts). A row the relay has
+// leased is the relay's, so the job never makes it uncertain.
 
 export const IMESSAGE_SEND_JOB = "imessage_send";
 // A refusal before sending retries with backoff; five attempts span about five minutes.
@@ -128,7 +132,11 @@ export type OutboxKind =
   | "signal"
   | "template"
   | "edit_markup"
-  | "callback_answer";
+  | "callback_answer"
+  // The fixed KakaoTalk nudge the relay's claim records (host-kakaotalk-channel design 1).
+  | "nudge"
+  // A request for the Mac relay to leave a group room, with no text (host-kakaotalk-mac-relay design 7).
+  | "leave_room";
 
 export type OutboxState = "waiting" | "queued" | "dispatching" | "accepted" | "failed" | "uncertain" | "suppressed";
 
@@ -286,7 +294,7 @@ export const TURN_FALLBACK = "I couldn't finish that. You can continue in Find M
 // A turn's text as iMessage sends it: redacted like any input, so no link or
 // code leaves, and capped with a pointer to the web: /app for a host, and for a
 // guest the booking page, whose link only their email carries.
-export function imessageTurnText(text: string | null, origin: string, audience: "host" | "requester" = "host") {
+export function imessageTurnText(text: string | null, origin: string, audience: "host" | "requester" | "group" = "host") {
   if (!text) return TURN_FALLBACK;
   // turnReplyText already dropped any leading channel marker; a reply frozen
   // before that guard (#410) loses it here too.
@@ -294,6 +302,8 @@ export function imessageTurnText(text: string | null, origin: string, audience: 
   if (!redacted) return TURN_FALLBACK;
   const chars = Array.from(redacted);
   if (chars.length <= MAX_TURN_REPLY_CHARS) return redacted;
+  // A KakaoTalk group has no page of its own: the reply ends where it is cut.
+  if (audience === "group") return `${chars.slice(0, MAX_TURN_REPLY_CHARS - 1).join("").trimEnd()}…`;
   const rest = audience === "requester" ? "The rest is on your booking page, linked in your email." : `The rest is in Find Me a Time: ${origin.replace(/\/+$/, "")}/app`;
   return `${chars.slice(0, MAX_TURN_REPLY_CHARS - 80).join("").trimEnd()}…\n\n${rest}`;
 }
@@ -364,7 +374,9 @@ async function finish(
   const rows = await q`
     update app.imessage_outbox
     set state = ${to}, failure_category = ${details.category ?? null}, provider_message_id = ${details.providerMessageId ?? null},
-        recipient_ciphertext = null, text_ciphertext = null, completed_at = now(), updated_at = now()
+        recipient_ciphertext = null, text_ciphertext = null, completed_at = now(), updated_at = now(),
+        -- A final row holds no relay lease (imessage_outbox_lease).
+        lease_token_hash = null, lease_expires_at = null
     where id = ${outboxId} and state = ${from}
   `;
   return rows.count > 0;
@@ -495,13 +507,15 @@ export function createImessageSendHandler(load: () => ImessageSendDependencies =
       const [row] = await select(claimTx);
       if (!row) return { state: "missing" as const };
 
-      // An earlier attempt began this send and lost its answer.
-      if (row.state === "dispatching") {
+      // An earlier attempt began this send and lost its answer. A leased
+      // KakaoTalk row belongs to the relay, which reports it.
+      if (row.state === "dispatching" && row.channel !== "kakaotalk") {
         await finish(claimTx, row.id, "dispatching", "uncertain", { category: "lost_answer" });
         return { state: "uncertain" as const };
       }
 
-      if (row.state !== "waiting" && row.state !== "queued") return { state: row.state };
+      // A leased KakaoTalk row is left to the relay, as a final row is.
+      if (row.state !== "waiting" && row.state !== "queued") return { state: row.state as Exclude<OutboxState, "dispatching"> };
 
       // A Telegram typing signal can be queued before its reply and claimed after it.
       if (row.channel === "telegram" && row.kind === "signal" && row.input_id) {
@@ -589,7 +603,9 @@ export function createImessageSendHandler(load: () => ImessageSendDependencies =
 
       if (row.kind === "turn" && row.state === "waiting") {
         if (readText === undefined) throw new TurnNotEndedError();
-        text = imessageTurnText(readText, deps.origin, row.requester_binding_id ? "requester" : "host");
+        // A KakaoTalk group's reply has neither binding (kakaotalk-group-conversations design 4).
+        const audience = row.dedupe_key.startsWith("group-input:") ? "group" : row.requester_binding_id ? "requester" : "host";
+        text = imessageTurnText(readText, deps.origin, audience);
       } else if (row.kind !== "contact_card" && !(row.kind === "template" && row.text_ciphertext === null)) {
         // A template with no parameter (the weekly note notice) has no text.
         // Every other message, a turn reply already frozen by an attempt that
@@ -603,6 +619,15 @@ export function createImessageSendHandler(load: () => ImessageSendDependencies =
 
       const context = outboxSealContext(row.id);
       const frozen = text === null ? null : sealToken({ id: row.sealed_key_id!, key: keyOf(deps, row.sealed_key_id!) }, text, context);
+      // The relay claims a KakaoTalk row once its text is frozen here.
+      if (row.channel === "kakaotalk") {
+        await claimTx`
+          update app.imessage_outbox
+          set state = 'queued', text_ciphertext = coalesce(${frozen?.ciphertext ?? null}, text_ciphertext), updated_at = now()
+          where id = ${row.id}
+        `;
+        return { state: "queued" as const };
+      }
       const waitMs = row.channel === "telegram" && !UNSPACED.has(row.kind) ? await telegramSlot(claimTx, row.recipient_hash) : 0;
       await claimTx`
         update app.imessage_outbox

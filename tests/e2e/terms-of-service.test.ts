@@ -10,10 +10,12 @@ for (const width of [390, 1280]) {
     expect(response?.status()).toBe(200);
 
     await expect(page.getByRole("heading", { level: 1, name: "Terms of service" })).toBeVisible();
-    for (const name of ["The service", "Hosts", "People who book with a host", "AI agents and the assistant", "Acceptable use", "Warranties and liability"]) {
+    for (const name of ["The service", "Hosts", "People who book with a host", "AI agents and the assistant", "Acceptable use", "Warranties and liability", "Text messages (SMS)"]) {
       await expect(page.getByRole("heading", { level: 2, name })).toBeVisible();
     }
     await expect(page.getByText(/booked only when the host approves the current proposal/)).toBeVisible();
+    // The SMS program terms the Photon 10DLC campaign review checks (#488).
+    await expect(page.getByText(/reply STOP to any message from us\. For help, reply HELP or email support@findmeatime\.com\./)).toBeVisible();
     await expect(page.getByRole("link", { name: "Privacy and your data" })).toHaveAttribute("href", "/privacy");
     expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
 

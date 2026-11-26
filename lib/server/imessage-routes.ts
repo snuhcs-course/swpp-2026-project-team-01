@@ -11,6 +11,7 @@ import { fallbackDailyLimit, imessageCommands, linkChannels, readImessageStatus 
 import { readStartStatus, startCookieFor, startImessageLink, startSecretOf } from "./imessage-start";
 import { CONTINUATION_SECONDS, continuationCookie, readReceivedContinuation } from "./imessage-continuation";
 import { offeredWhatsappNumber, photonConfig } from "./photon";
+import { kakaotalkAccountIdIfConfigured } from "./kakaotalk";
 import { telegramConfig } from "./telegram";
 import { type AppOrigins, appOriginsFromEnvironment, crossSiteRefusal, requestAppOrigin, unknownHost } from "./same-origin";
 import { sourceHash } from "./signup-limits";
@@ -38,6 +39,8 @@ export type ImessageRouteDependencies = AppOrigins & {
   readonly whatsappNumber?: string;
   // The Telegram bot's username (host-telegram-channel D1), or "".
   readonly telegramUsername?: string;
+  // The product's KakaoTalk ID (host-kakaotalk-channel D6), or "".
+  readonly kakaotalkAccountId?: string;
   readonly lineDayLimit: number;
 };
 
@@ -52,6 +55,7 @@ export function imessageRouteDependenciesFromEnvironment(): ImessageRouteDepende
     lineNumber: photon.lineNumber,
     whatsappNumber: offeredWhatsappNumber(photon),
     telegramUsername: telegramConfig().username,
+    kakaotalkAccountId: kakaotalkAccountIdIfConfigured(),
     tokenKey,
     tokenKeys: [tokenKey],
   };
@@ -129,6 +133,7 @@ export function createImessageCommandHandler(load: () => ImessageRouteDependenci
       origin: deps.appOrigin,
       whatsappNumber: deps.whatsappNumber,
       telegramUsername: deps.telegramUsername,
+      kakaotalkAccountId: deps.kakaotalkAccountId,
       tokenKey: deps.tokenKey,
       tokenKeys: deps.tokenKeys,
     });

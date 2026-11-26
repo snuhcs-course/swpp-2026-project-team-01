@@ -12,7 +12,7 @@ import {
 } from "@lib/contracts/messaging-channel";
 import { type ReactNode, useCallback, useEffect, useRef, useState } from "react";
 import { appLinkFor, readStatus, rememberedLater, sendCommand } from "@/app/_components/imessage/imessage-card";
-import { Brand, InkStage } from "./chrome";
+import { Brand, CopyButton, InkStage } from "./chrome";
 import { channelCopy, COPY, type Locale } from "./copy";
 import { AppGlyph, ExternalIcon, StatusMark } from "./icons";
 import { NumberForm } from "./number-form";
@@ -27,6 +27,9 @@ import { clock, isPhone, MessagePreview, type SendCode, SendPanel, shownNumber, 
 // addressed to the number Photon assigned. The number is kept for this visit, so a new code needs no new entry.
 // A WhatsApp code asks for the number the same way (guest-whatsapp-link D3); it is registered, and the code
 // stays addressed to the WhatsApp number. Each channel's number is kept apart.
+// KakaoTalk (host-kakaotalk-channel design 6) is offered only as Use KakaoTalk instead. Its code has a screen of
+// its own on every device: the privacy sentence and what linking ends, then Thyme's KakaoTalk ID and the code,
+// each with Copy, since no link adds a friend by ID or writes the message.
 
 const POLL_MS = 2000;
 
@@ -63,6 +66,8 @@ export function LinkStep({
   const [numbers, setNumbers] = useState<Partial<Record<MessagingChannel, string>>>({});
   const [askingNumber, setAskingNumber] = useState(false);
   const heading = useRef<HTMLHeadingElement>(null);
+  const idRef = useRef<HTMLSpanElement>(null);
+  const codeRef = useRef<HTMLSpanElement>(null);
   const now = useNow(shown === "step");
 
   const take = useCallback((next: ImessageStatus | null | undefined) => {
@@ -181,7 +186,11 @@ export function LinkStep({
           ? "number"
           : !code
             ? "nocode"
-            : expired && phone
+            : code.channel === "kakaotalk"
+              ? expired
+                ? "expired"
+                : "kakaotalk"
+              : expired && phone
               ? "expired"
               : phone
                 ? opened
@@ -236,7 +245,7 @@ export function LinkStep({
   const others =
     screen === "number"
       ? switchChannels(device, status.channels, channel)
-      : code && (screen === "panel" || screen === "send" || screen === "waiting")
+      : code && (screen === "panel" || screen === "send" || screen === "waiting" || screen === "kakaotalk")
         ? switchChannels(device, status.channels, code.channel)
         : [];
 
@@ -319,6 +328,41 @@ export function LinkStep({
           </div>
         </InkStage>
       );
+
+    case "kakaotalk": {
+      const replaces = status.state === "pending" ? status.replaces : undefined;
+      body = (
+        <main className="handoff">
+          <h1 ref={heading} tabIndex={-1}>
+            {c.link.heading}
+          </h1>
+          <p className="lede small">{c.link.lede}</p>
+          <p className="lede small">{c.kt.code.privacy}</p>
+          {replaces ? <p className="lede small">{c.kt.code.replaces(channelName(replaces))}</p> : null}
+          <p className="sent-to">{c.kt.code.idLabel}</p>
+          <div className="copyrow" style={{ width: "100%" }}>
+            <span className="val" data-testid="kakaotalk-id" ref={idRef}>
+              {code!.lineNumber}
+            </span>
+            <CopyButton className="copy" fallbackTarget={idRef} labels={{ ...c.copy, idle: c.kt.code.copyId }} text={code!.lineNumber} />
+          </div>
+          <p className="fine">{c.kt.code.idHelp}</p>
+          <p className="sent-to">{c.kt.code.codeLabel}</p>
+          <div className="copyrow" style={{ width: "100%" }}>
+            <span className="val" data-testid="imessage-link-message" ref={codeRef}>
+              {code!.message}
+            </span>
+            <CopyButton className="copy" fallbackTarget={codeRef} labels={{ ...c.copy, idle: c.kt.code.copyCode }} text={code!.message} />
+          </div>
+          <span className="code-left" role="status">{c.send.left(clock(Date.parse(code!.expiresAt) - now))}</span>
+          {notice}
+          <p className="fine">{c.send.fine}</p>
+          {switcher ? <p className="opens">{switcher}</p> : null}
+          <p className="alt">{skip(phone ? c.link.altPhone : c.link.altDesktop)}</p>
+        </main>
+      );
+      break;
+    }
 
     case "ask":
       // Another computer: which app the host uses on their phone decides the code (D7).
@@ -441,7 +485,9 @@ export function LinkStep({
 
     case "connected": {
       const linked = status as Extract<ImessageStatus, { state: "linked" }>;
-      const appUrl = linked.channel === "telegram"
+      const appUrl = linked.channel === "kakaotalk"
+        ? null
+        : linked.channel === "telegram"
         ? telegramChatLinkFor(linked.lineNumber)
         : linked.channel === "whatsapp"
           ? "https://wa.me/" + linked.lineNumber.replace(/^\+/, "")

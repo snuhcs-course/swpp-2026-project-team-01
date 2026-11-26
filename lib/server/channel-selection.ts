@@ -1,6 +1,6 @@
 import { z } from "zod";
 import type { HostRequestItem } from "../contracts/host-request";
-import { IMESSAGE_PREFIX, type MessagingChannel, TELEGRAM_PREFIX, WHATSAPP_PREFIX } from "../contracts/messaging-channel";
+import { IMESSAGE_PREFIX, KAKAOTALK_PREFIX, type MessagingChannel, TELEGRAM_PREFIX, WHATSAPP_PREFIX } from "../contracts/messaging-channel";
 import type { Database, Queryable } from "./database";
 import { HOST_REVIEW_AUDIENCE, HOST_SETUP_AUDIENCE } from "./eve-auth";
 import { listHostRequests } from "./host-requests";
@@ -13,7 +13,7 @@ import type { SessionPrincipal } from "./setup-tools";
 // exact commands `request <ref>` and `setup` change it; this tool lets the
 // assistant do the same when the host names a request ("박도현's request",
 // "6ADSRV") or setup in words. It works only while the turn answers a message
-// from the linked iMessage, WhatsApp or Telegram, the session's current input
+// from the linked iMessage, WhatsApp, Telegram or KakaoTalk, the session's current input
 // with its channel prefix; on the web the host opens a request from the inbox.
 
 export const switchConversationToolInput = z
@@ -44,6 +44,7 @@ export function channelOf(message: string): MessagingChannel | null {
   if (message.startsWith(IMESSAGE_PREFIX)) return "imessage";
   if (message.startsWith(WHATSAPP_PREFIX)) return "whatsapp";
   if (message.startsWith(TELEGRAM_PREFIX)) return "telegram";
+  if (message.startsWith(KAKAOTALK_PREFIX)) return "kakaotalk";
   return null;
 }
 

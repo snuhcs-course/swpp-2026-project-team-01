@@ -173,6 +173,7 @@ body:has(.ld) { background: var(--canvas); }
 .ink .ld-giant { font-family: var(--font-instrument-serif), Georgia, serif; font-size: min(17.4cqi, 250px); line-height: 0.82; letter-spacing: -0.04em; color: var(--primary); white-space: nowrap; }
 .ink .ld-foot-row { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 8px 24px; margin-top: 40px; font-size: 13px; color: var(--muted-ink); }
 .ink .ld-legal { display: flex; flex-wrap: wrap; gap: 8px 20px; }
+.ink .ld-foot-row a[href^="mailto:"] { color: var(--ink); text-underline-offset: 4px; }
 .ink .ld-legal a { color: var(--ink); text-underline-offset: 4px; }
 
 @container (max-width: 900px) {

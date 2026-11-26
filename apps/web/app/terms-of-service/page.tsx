@@ -10,6 +10,9 @@ import { type LegalDocument, LegalPage, type LegalSearchParams } from "../_compo
 // and assistant limits, the operator's suspend and delete commands, and a host's
 // own deletion from Settings (self-service-account-deletion D7). Fees,
 // governing law and a minimum age are the team's decisions and are not stated.
+// The text-message section describes the SMS program the Photon 10DLC campaign
+// registers (#488); keep it word-for-word consistent with the SMS consent beside
+// the number field and the privacy notice's text-message section.
 export const metadata: Metadata = {
   description: "The terms for using Find Me a Time as a host, as someone who books with a host, or through an AI agent.",
   title: "Terms of service",
@@ -64,6 +67,16 @@ const EN: LegalDocument = {
       title: "AI agents and the assistant",
     },
     {
+      id: "sms",
+      links: [{ href: "/privacy-policy", label: "Privacy Policy" }],
+      paragraphs: [
+        "When you enter a mobile number to link iMessage or WhatsApp, you may tick a separate, optional box to receive meeting notifications and assistant replies by text from Find Me a Time. Ticking it is not a condition of using the service. We do not send text messages yet; this section applies once we do.",
+        `Message frequency may vary. Message and data rates may apply. To stop receiving texts, reply STOP to any message from us. For help, reply HELP or email ${SUPPORT_ADDRESS}. Carriers are not liable for delayed or undelivered messages.`,
+        "We do not sell or share your mobile information with third parties for promotional or marketing purposes, as our Privacy Policy describes.",
+      ],
+      title: "Text messages (SMS)",
+    },
+    {
       id: "use",
       items: [
         "Send spam or unsolicited bulk requests, or harass, threaten or deceive anyone.",
@@ -111,7 +124,7 @@ const EN: LegalDocument = {
     },
   ],
   title: "Terms of service",
-  updated: "Last updated 2026-11-16",
+  updated: "Last updated 2026-11-26",
 };
 
 const KO: LegalDocument = {
@@ -159,6 +172,16 @@ const KO: LegalDocument = {
       title: "AI 에이전트와 어시스턴트",
     },
     {
+      id: "sms",
+      links: [{ href: "/privacy-policy?lang=ko", label: "개인정보 처리방침" }],
+      paragraphs: [
+        "iMessage나 WhatsApp을 연결하려고 휴대폰 번호를 입력할 때, 별도의 선택 체크박스를 선택해 Find Me a Time의 미팅 알림과 어시스턴트 답장을 문자로 받는 데 동의할 수 있습니다. 선택하지 않아도 서비스를 이용할 수 있습니다. 아직 문자 메시지는 보내지 않으며, 이 조항은 보내기 시작한 뒤부터 적용됩니다.",
+        `메시지 빈도는 달라질 수 있습니다. 메시지 및 데이터 요금이 부과될 수 있습니다. 문자 수신을 멈추려면 저희가 보낸 메시지에 STOP으로 답해 주세요. 도움이 필요하면 HELP로 답하거나 ${SUPPORT_ADDRESS}로 이메일을 보내 주세요. 통신사는 지연되거나 전달되지 않은 메시지에 책임지지 않습니다.`,
+        "개인정보 처리방침에 적힌 대로, 휴대폰 정보를 판촉이나 마케팅 목적으로 제3자에게 판매하거나 공유하지 않습니다.",
+      ],
+      title: "문자 메시지(SMS)",
+    },
+    {
       id: "use",
       items: [
         "스팸이나 원치 않는 대량 요청을 보내거나, 누군가를 괴롭히거나 위협하거나 속이는 일.",
@@ -204,7 +227,7 @@ const KO: LegalDocument = {
     },
   ],
   title: "이용약관",
-  updated: "최종 수정 2026-11-16",
+  updated: "최종 수정 2026-11-26",
 };
 
 export default function Page({ searchParams }: { readonly searchParams: LegalSearchParams }) {

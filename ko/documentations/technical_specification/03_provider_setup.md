@@ -180,6 +180,19 @@ Photon의 전달 가능성 안내에 따라 인바운드 우선이 기본값입�
 
 Photon의 [전달 가능성 안내](https://photon.codes/docs/best-practices/imessage-deliverability.md)에 따라 연결 직후 환영 메시지 뒤에 보류해 연락처 카드를 한 번 공유하고, 다시 공유할 수 있도록 호스트 동작으로서 선택적인 **연락처에 추가(Add to contacts)**를 제공합니다. 각각은 Spectrum SDK를 통해 네이티브 연락처 카드 공유 하나를 대기열에 넣습니다([`host-imessage-channel` 설계 11과 18](../../openspec/changes/archive/2026-11-24-host-imessage-channel/design.md#18-read-marks-typing-tapbacks-and-the-contact-card-after-linking-d20d22)). 읽음 표시, 입력 중 말풍선, 감사 탭백은 같은 SDK를 통해 최선 노력 방식의 발신함 신호(`space.read`, `space.startTyping`, `message.react`)로 전달됩니다. 실제로 선택된 경로를 고정하고, 공급자의 수락/불확실성을 사실대로 보고합니다. 저장 여부는 수신자가 선택하며, 제품은 표시되는 이름을 약속하거나 연락처 카드로부터 신원/동의를 추론할 수 없습니다. 지원한다고 주장하기 전에 실제 계정 프로필과 실제 디바이스에서의 표시를 각각 독립적으로 검증합니다.
 
+### SMS와 10DLC 캠페인
+
+사용자는 2026-11-25에 Beta 대시보드에서 Photon의 10DLC SMS 캠페인 등록을 시작했으며, 사용 사례는 **Account notifications**와 **Customer support**이고 제출한 뒤에는 변경할 수 없습니다. 2026-11-26에 사용자가 SMS 채널을 다시 범위에 넣었으며([#489](https://github.com/snuhcs-course/swpp-2026-project-team-01/issues/489), [#90](https://github.com/snuhcs-course/swpp-2026-project-team-01/issues/90)의 결정을 뒤집음), 채널 자체는 별도의 OpenSpec 변경으로 도입되고 그때까지 SMS는 보내지 않습니다. [#488](https://github.com/snuhcs-course/swpp-2026-project-team-01/issues/488)은 통신사가 검토하는 공개 페이지를 Photon의 [opt-in form](https://photon.codes/docs/beta/messaging/sms/10dlc/opt-in-form.md), [privacy policy](https://photon.codes/docs/beta/messaging/sms/10dlc/privacy-policy.md), [rejection codes](https://photon.codes/docs/beta/messaging/sms/10dlc/rejection-codes.md) 페이지(2026-11-26에 확인)에 따라 준비했습니다.
+
+- **수신 동의 양식(803, 806).** 모든 번호 입력란(`NumberForm`: `/app`의 연결 단계, 랜딩의 iMessage 및 WhatsApp 시작, Connect iMessage 또는 WhatsApp 카드, 게스트의 **Get updates**)은 기본적으로 해제되어 있고 필수가 아닌 별도의 SMS 동의 체크박스를 하나 제공하며, 캠페인의 동의 문구를 그대로 싣고 `/privacy-policy`와 `/terms-of-service`로 연결합니다. 캠페인의 **How people opt in and out** 항목에 쓰는 공개 수신 동의 경로는 랜딩의 **Onboard with iMessage**인 `https://findmeatime.com/?flow=imessage`이며, 로그인 전에 양식을 보여 줍니다. 동의 문구나 사용 사례가 바뀌면 캠페인, 양식, 두 정책 페이지를 함께 바꿉니다. 양식은 모든 서비스 화면과 마찬가지로 영어로만 제공되며(`localeOf`는 항상 영어를 반환), SMS 약관의 한국어 문구는 한국어 정책 페이지에 있습니다. 제출 버튼은 Photon의 예시 양식처럼 체크박스 뒤에 옵니다. 랜딩의 iMessage 및 WhatsApp 시작은 예전에 "By sending, you agree to get texts"라고 했으나 이제는 iMessage 메시지라고 표시하므로, SMS 동의는 체크박스가 유일합니다.
+- **선택은 아직 저장되지 않습니다.** 양식은 선택을 제출 핸들러에 넘기지만 어떤 연결 경로도 이를 기록하지 않습니다. 연결 시도는 입력한 번호를 보관하지 않으므로([공유 회선과 등록된 사용자](#shared-lines-and-registered-users) 참고) 동의 행이 귀속될 번호가 없기 때문입니다. SMS 채널의 변경은 첫 문자 전에 번호, 동의, 동의 시각, 동의 문구의 버전을 저장해야 하고, `/privacy`가 안내하는 대로 그 전에 연결된 번호에는 다시 동의를 묻습니다. 여기에는 선택 없이 기억해 둔 번호를 다시 보내는 랜딩 시작의 재시도(`imessage-start.tsx`의 `postStart`)도 포함됩니다. Photon의 양식 페이지는 양식이 동의를 기록해야 한다고 하므로, 캠페인의 **How people opt in and out**에 SMS가 시작될 때 선택이 번호와 함께 기록된다고 적습니다.
+- **개인정보 처리방침(805, 852).** `/privacy`(그리고 같은 고지를 제공하는 `/privacy-policy`)에는 **Text messages (SMS)** 섹션이 있어 문자가 시작되기 전까지 선택이 보관되지 않는다고 밝히며, "Mobile information will not be sold or shared with third parties for promotional or marketing purposes."(모바일 정보는 판촉 또는 마케팅 목적으로 제3자에게 판매되거나 공유되지 않습니다)라고 명시하고, SMS 수신 동의 정보와 동의 내역은 문자를 전달하는 공급자를 제외한 모든 다른 공유에서 제외합니다. Google Analytics 문구는 Analytics가 전화번호를 보지 못한다고 밝힙니다.
+- **이용약관(806).** `/terms-of-service`에는 **Text messages (SMS)** 섹션이 있으며 발송 내용, 메시지 빈도, 메시지 및 데이터 요금, STOP으로 답장하여 수신 거부, HELP 또는 `support@findmeatime.com`으로 도움 요청, 통신사의 책임 면제 문구를 담습니다.
+- **브랜드 웹사이트(804, 807).** 랜딩의 푸터에 사업자 이름, 운영 주체(SNU SWPP 2026 Team 01), `support@findmeatime.com`을 표시합니다.
+- **키워드 답장.** `lib/server/imessage-commands.ts`는 이미 iMessage, WhatsApp, Telegram에서 `stop`과 `help`에 답합니다. SMS에서 Photon이 캠페인의 키워드 응답으로 STOP, HELP, START에 답하는지는 문서화되어 있지 않으므로, 문자 한 통에 답장이 두 번 가지 않도록 SMS 변경에서 확정합니다.
+
+아직 남은 운영자 단계: 캠페인의 수신 동의 항목에 쓸 체크박스가 보이는 양식의 공개 스크린샷, 그리고 캠페인 재제출. 사용자의 승인 없이 에이전트 세션에서 Photon 프로젝트, 회선, 캠페인을 변경하지 않습니다.
+
 ### 참고 자료
 
 iMessage 채널에 관한 Photon과 eve 문서입니다. 6단계는 Spectrum SDK, eve에 포함된 어댑터, Photon의 웹훅 문서를 기준으로 삼았으며 아래 처음 세 페이지는 읽지 않았습니다. 다섯 가지 모두를 기준으로 채널을 검토하는 일이 [issue #80](https://github.com/snuhcs-course/swpp-2026-project-team-01/issues/80)입니다.
@@ -188,6 +201,39 @@ iMessage 채널에 관한 Photon과 eve 문서입니다. 6단계는 Spectrum SDK
 - [Chat SDK integration](https://photon.codes/docs/integrations/chat-sdk): 애플리케이션 자체 어댑터의 대안인 Chat SDK 어댑터를 통한 Photon.
 - [eve Photon channel](https://eve.dev/docs/channels/photon): eve의 네이티브 `photonIMessageChannel`로, [`host-imessage-channel` 설계 1](../../openspec/changes/archive/2026-11-24-host-imessage-channel/design.md#1-the-transport-spike-and-the-adapter)(D1)은 이를 채택하지 않았습니다.
 - [Photon documentation index](https://photon.codes/docs/llms.txt)와 [Photon site index](https://photon.codes/llms.txt): [webhook events](https://photon.codes/docs/webhooks/events.md)와 [iMessage deliverability](https://photon.codes/docs/best-practices/imessage-deliverability)를 포함해 모든 문서 페이지를 기계가 읽을 수 있게 나열한 목록.
+
+## Photon SMS
+
+사용하지 않습니다. 2026-11-26에 [`sms-channel` 변경](../../openspec/changes/sms-channel/proposal.md)이, 아래 스파이크에서 Photon의 SMS가 미국 번호에만 닿고 그것도 10DLC 캠페인이 승인된 뒤에야 가능하다는 것이 확인된 후, SMS를 Android 게이트웨이 휴대폰(SMS Gate)으로 옮겼습니다. 캠페인 "Find Me a Time scheduling"은 2026-11-26에 제출되어 검토 중이며, 유지할지 철회할지는 사용자가 정합니다. 이어지는 내용은 Photon의 SMS를 확인한 그대로 기록한 것입니다. 이 SMS는 iMessage와 WhatsApp이 쓰는 Spectrum 호스트 `spectrum.photon.codes`가 아니라 Photon의 Beta(2.0) API(`https://api.photon.codes/v1`)에서 동작합니다. Beta 프로젝트는 `FineMeatime`(`pho_prj_01m6h26pn8fap8znkf4rc98v53`)이며 Beta 대시보드 `app.beta.photon.codes`에 있습니다. API의 OpenAPI 문서는 `https://api.photon.codes/openapi.json`입니다.
+
+### 스파이크, 2026-11-26
+
+`sms-channel`의 작업 1.3과 1.4를 프로젝트 API 키 `sms-spike`(30일, `project:read`, `project:write`, `messages:read`, `platforms:read`)로 실제 API에 대해 실행했습니다. 이 키는 Git이 무시하는 로컬 파일에 있으며 어떤 환경 변수에도 없습니다.
+
+**번호.** 프로젝트는 이미 미국 지역 번호 하나, `+1 415-718-0442`(리소스 `pho_res_01m6h2cxvfe07r4n27r9bwzzgt`, 유형 `voip_line`, 기능 `sms`와 `pstn_voice`, 2026-11-03부터 활성)를 보유하고 있습니다. 번호를 새로 구매하지 않았습니다. Photon은 미국 번호만 판매합니다(`countryCode`는 상수 `US`).
+
+**10DLC 상태.** `GET /v1/projects/{id}/platforms/sms/lines/{resourceId}/campaign`은 `campaign: null`, `eligibility: "blocked"`, `reasonCode: "SMS_CAMPAIGN_NOT_ASSIGNED"`로 응답합니다. 브랜드 "Find Me A Time"(Personal, 개인사업자)은 인증되었습니다. 이 스파이크 시점까지 제출된 캠페인은 없었습니다. 캠페인이 승인되면 `PUT …/sms/lines/{resourceId}/campaign`으로 회선에 할당합니다.
+
+**발송.** 발송은 세 번의 호출로 이루어지며, 각 호출에 `Idempotency-Key` 헤더를 붙입니다.
+1. `POST /v1/projects/{id}/users`에 `{ "platform": "sms", "handle": "<E.164>" }`를 보냅니다. 사용자를 생성하거나 조회합니다. 우리 번호에는 `details.resourceId`가 있는 `kind: "agent"`를 반환합니다. 사람에게는 `kind: "human"`과 함께 `details`에 통신사 조회 결과 `countryCode`, `nationalFormat`, `carrier`(`name`, `lineType`, `mobileCountryCode`, `mobileNetworkCode`)를 반환합니다.
+2. `POST /v1/projects/{id}/spaces`에 `{ "platform": "sms", "participantIds": [agent, human] }`를 보냅니다. `direct` 스페이스를 반환하며, 같은 참가자로 반복 호출하면 같은 스페이스로 수렴합니다.
+3. `POST /v1/projects/{id}/messages`에 `{ spaceId, senderId: <agent user>, content: { type: "text", format: "plain", text } }`를 보냅니다. `project:write`가 필요합니다.
+
+프로젝트 API 키는 `project:write`를 갖고 있습니다. `messages:write` 권한은 없습니다.
+
+**캠페인 전 결과.** 한국(`+82`) 휴대전화 번호로 보낸 메시지는 `409`와 문제 코드 `SMS_CAMPAIGN_NOT_ELIGIBLE`("The sender campaign is not eligible for these recipients")로 거절되었습니다. API는 이 규칙을 "campaign eligibility is required unless every recipient is in-network"라고 문서화하지만 "in-network"가 무엇인지는 정의하지 않습니다. Photon의 SMS 플랫폼은 스스로를 "Carrier text messaging to US mobile numbers"라고 설명합니다. 미국 캠페인이 승인되면 `+82`로 발송할 수 있게 되는지는 아직 열려 있으며, 승인 후 다시 시험합니다.
+
+**캠페인 전 수신.** 사용자가 한국 휴대전화와 미국 휴대전화에서 이 번호로 문자를 보냈습니다. `platform=sms`, `resourceId`, `createdSince` 필터를 쓰든 쓰지 않든 어느 쪽도 `GET /v1/projects/{id}/messages`에 나타나지 않았습니다. 회선이 차단된 동안에는 수신 SMS가 프로젝트에 도달하지 않는 것으로 보이지만, 읽을 오류가 없으므로 이는 나타나지 않았다는 사실에서 추론한 것입니다.
+
+**웹훅 이벤트.** `GET …/webhooks/event-types?apiVersion=2026-07-01`은 통화 및 외부 웹훅 이벤트 외에 `message.received`, `message.accepted`, `message.dispatched`, `message.delivered`, `message.failed`, `space.updated`, `space.typing.updated`, `platform.connection.status.changed`, `platform.sending.paused`, `platform.sending.resumed`를 나열합니다. 따라서 전달 결과는 이벤트로 도착합니다. `message.received` 스키마에는 다른 플랫폼과 같은 필드를 가진 SMS 변형이 있습니다.
+- `id`, `platform: "sms"`, `status`;
+- `sentBy`와 `receivedBy`: `id`, `handle`(E.164), `kind`, `details`를 가진 사용자;
+- `space`: `id`, `kind`(`direct` 또는 그룹), `participantIds`;
+- `content`, `timestamps`, `acceptance`, `failure`.
+
+대상 엔드포인트는 Standard Webhooks로 서명됩니다.
+
+**아직 열려 있는 항목, 캠페인이 승인되고 할당된 뒤 다시 시험:** 수신 도착과 그 이벤트, STOP/HELP/START 전달, `+82`로의 전달, 수신 거부한 수신자의 문제 코드, 메시지당 가격.
 
 ## WhatsApp Business
 
@@ -258,15 +304,43 @@ Telegram은 2026-11-04에 [`host-telegram-channel` 변경](../../openspec/change
 
 사용자의 승인 없이는 에이전트 세션에서 봇의 토큰을 설정하거나, 웹훅을 등록하거나, Telegram 메시지를 보내서는 안 됩니다.
 
-## Google Analytics
+## KakaoTalk 릴레이
 
-웹 앱의 페이지 조회 분석으로, 2026-11-23에 [`web-analytics` 변경](../../openspec/changes/web-analytics/proposal.md)(#341)에서 제안되었습니다. Firebase SDK 없이 `gtag.js`를 통해 Google Analytics 4를 사용합니다(D1).
+KakaoTalk은 팀원 승인을 기다리는 [`host-kakaotalk-channel` 변경](../../openspec/changes/host-kakaotalk-channel/proposal.md#decisions)에서 제안된 호스트 KakaoTalk 채널의 전송 수단입니다. KakaoTalk은 개인 계정용 API가 없으므로, 팀이 보유한 Android 폰이 [`apps/kakaotalk-relay/`](../../apps/kakaotalk-relay/README.md)의 릴레이 앱을 실행합니다. 릴레이는 KakaoTalk 알림을 읽어 각 1:1 메시지를 에이전트 서비스로 전달하고, 서비스에서 보낼 메시지를 가져옵니다(D1).
 
-- **속성.** `https://findmeatime.com`의 웹 데이터 스트림을 가진 GA4 속성 하나이며, 팀의 Google 계정이 소유합니다. 팀원에게는 뷰어 또는 분석가 역할을 부여하고, 관리자 권한은 저장소 소유자가 보유합니다. 나중에 같은 속성에 Firebase 프로젝트를 연결할 수 있으며, 앱에는 그것이 필요하지 않습니다.
-- **속성 설정.** 웹 스트림의 향상된 측정에서 "브라우저 기록 이벤트를 기반으로 한 페이지 변경"을 **끕니다**. 앱이 가려 낸 자체 페이지 조회를 보내는데, GA의 것에는 전체 주소가 담기기 때문입니다(D2). Google 신호와 광고 개인 최적화는 끄고, 데이터 보관 기간은 2개월로 설정합니다.
-- **변수.** Vercel 프로젝트의 Production 환경에만 `GOOGLE_ANALYTICS_MEASUREMENT_ID`(`G-...`)를 둡니다. 빌드 시점에 읽히므로 설정한 뒤 다시 배포하십시오. 스테이징(`findmeatime-dev`)은 자체 측정 ID를 받기 전까지 측정하지 않습니다.
-- **전송 내용.** 경로만 담은 페이지 조회로, 더 깊은 경로는 첫 세그먼트와 `[redacted]`로 줄이며(`/booking/[redacted]`), 여기에 리퍼러의 origin과 GA 자체의 브라우저, 기기, 대략적인 위치 필드가 더해지고 속성 설정이 허용하는 2개월 동안 보관됩니다. [개인정보 처리방침](../../apps/web/app/privacy/page.tsx)은 Google Analytics를 명시하므로, 태그가 보내는 내용을 바꿀 때 함께 수정하십시오.
-- **확인.** 배포한 뒤 `/`, `/app`, 예약 링크를 열고 GA4 **보고서 → 실시간**을 확인합니다. 예약 페이지는 `/booking/[redacted]`로 나타나야 합니다.
+- **계정과 폰.** 제품용 KakaoTalk 계정 하나를 Android 폰 한 대에 로그인해 둡니다(KakaoTalk은 계정당 폰 한 대만 허용합니다). 폰은 알림 접근과 릴레이의 접근성 서비스를 켜 두고, 릴레이와 KakaoTalk의 배터리 최적화를 끄며, 다른 계정을 두지 않고, 알림 기록을 끕니다. 폰의 소유자는 열린 질문 Q2입니다.
+- **변수.** Vercel Production에만, 메시징 게이트 아래에 둡니다.
+  - `KAKAOTALK_ACCOUNT_ID`: 계정의 KakaoTalk ID로, 카드에 표시됩니다.
+  - `KAKAOTALK_RELAY_INBOUND_SECRET`: 릴레이의 웹훅 이벤트에 서명합니다.
+  - `KAKAOTALK_RELAY_OUTBOX_SECRET`: 클레임, 결과, 하트비트에 서명합니다.
+  - 교체 중에는 이 두 값에 `_PREVIOUS` 접미사를 붙인 변수를 함께 둡니다.
+
+  각 시크릿은 32자 이상의 무작위 URL 안전 문자열입니다. 이 중 하나라도 설정되지 않으면 KakaoTalk은 제공되지 않으며 모든 릴레이 경로가 요청을 거부합니다. 테스트는 로컬 루프백 릴레이 대역을 사용합니다.
+- **경로.** `https://findmeatime.com`의 `POST /kakaotalk/webhook`, `POST /kakaotalk/outbox/claim`, `POST /kakaotalk/outbox/<id>/result`, `POST /kakaotalk/heartbeat`. 각 요청은 메서드, 경로, 타임스탬프, 일회용 nonce, 본문에 대해 서명됩니다(D2). 형식과 테스트 벡터는 [`PROTOCOL.md`](../../apps/kakaotalk-relay/PROTOCOL.md)에 있습니다.
+- **교체.** 현재 값을 `…_PREVIOUS`로 옮기고 새 값을 설정한 뒤 배포하고 릴레이를 갱신합니다. 그다음 `…_PREVIOUS`를 제거하고 다시 배포합니다.
+- **폰 분실.** 두 시크릿을 모두 제거하고 배포해 모든 릴레이 경로가 요청을 거부하게 합니다. 다른 기기에서 KakaoTalk 계정을 로그아웃시킨 다음, 교체한 폰에 새 시크릿을 설정합니다.
+- **상태 확인.** 릴레이는 1분마다 하트비트를 보냅니다. 릴레이가 5분간 내려가 있으면 운영 알림을 남기고, 1시간이 지나면 다시 남깁니다(D7).
+- **Mac 릴레이.** 제안된 [`host-kakaotalk-mac-relay` 변경](../../openspec/changes/host-kakaotalk-mac-relay/proposal.md#decisions)은 Mac mini의 KakaoTalk for Mac을 같은 경로와 시크릿 뒤의 주 릴레이로 삼고, 폰은 대기 릴레이로 둡니다. 데몬과 헬퍼는 [`apps/kakaotalk-mac-relay/`](../../apps/kakaotalk-mac-relay/README.md)에 있으며, 여기에 Mac의 설정이 나와 있습니다. KakaoTalk for Mac에 로그인한 제품 계정, 패치된 `kakaocli`, 해당 사용자만 읽을 수 있는 파일에 둔 파생 데이터베이스 키, 잠기지 않는 화면, 헬퍼에 대한 접근성 권한입니다.
+  - `KAKAOTALK_ACTIVE_RELAY`: `mac` 또는 `android`(기본값)입니다. 서비스는 다른 릴레이의 이벤트, 클레임, 하트비트를 `409`로 거부하므로 계정에 대해 한 릴레이만 동작합니다. 전환하려면 이전 릴레이를 멈추고, 변수를 설정해 배포한 다음, 새 릴레이를 시작합니다. 클레임은 새 릴레이의 첫 하트비트 뒤에 재개됩니다.
+  - Mac 릴레이가 보낸 뒤 다른 대화방에서 찾은 메시지는 `relay_wrong_room`으로 기록되고 운영자 스냅샷에는 `kakaotalk_wrong_room`으로 표시됩니다.
+- **그룹 채팅.** 제안된 [`kakaotalk-group-conversations` 변경](../../openspec/changes/kakaotalk-group-conversations/proposal.md#decisions)은 Mac 릴레이가 그룹의 모든 구성원의 텍스트를 보내게 합니다. 어시스턴트는 자신을 부르는 메시지에 그룹 안에서 답하며, 이때 어떤 호스트도 소유하지 않은 대화와 도구 없는 상태로 답합니다.
+  - `KAKAOTALK_GROUP_NAMES`: 앞에 `@`가 있든 없든 어시스턴트를 부르는 이름을 쉼표로 구분한 목록입니다. 기본값은 `TimeRabbit,타임래빗`입니다.
+  - `KAKAOTALK_GROUP_DAILY_REPLIES`와 `KAKAOTALK_GROUPS_DAILY_REPLIES`: 24시간 동안 그룹별, 그리고 전체 그룹에 걸쳐 답하는 호출 수이며 기본값은 30과 300입니다.
+  - 릴레이의 `config.json`에 `"groupMessages": false`를 넣으면 그룹 텍스트를 Mac 안에만 둡니다.
+- **약관.** Kakao의 약관은 Kakao가 허용하지 않은 방식으로 서비스를 이용하는 프로그램을 금지하며, 계정이 정지될 수 있습니다(Q1). 호스트는 `/app`과 이메일을 계속 사용할 수 있습니다.
+
+에이전트 세션에서는 사용자의 승인 없이 제품의 KakaoTalk 계정에 로그인하거나, 릴레이 시크릿을 설정하거나, KakaoTalk 메시지를 보내지 마십시오.
+
+## PostHog
+
+웹 앱, 에이전트, 메시징 채널의 제품 분석으로, [`web-analytics` 변경](../../openspec/changes/web-analytics/proposal.md)(#469, #341의 Google Analytics 태그를 대체합니다)에서 다룹니다. 브라우저에서는 `posthog-js`, 서버에서는 `posthog-node`를 통해 PostHog Cloud를 사용합니다(D1, D7).
+
+- **프로젝트.** `https://findmeatime.com`을 위한 PostHog 프로젝트 하나이며, 팀이 EU 클라우드를 택하지 않는 한 US 클라우드에 두며(EU 클라우드를 택하면 미국이라고 적힌 개인정보 처리방침을 같은 배포에서 함께 수정합니다) 팀의 조직이 소유합니다. 팀원은 멤버로 초대하고, 관리자 권한은 저장소 소유자가 보유합니다. 결제 한도를 설정하십시오(무료 등급은 월 이벤트 100만 건과 녹화 5,000건을 포함합니다).
+- **프로젝트 설정.** 세션 리플레이는 켜 두고 **Privacy and masking**은 모든 입력과 텍스트를 가리도록 설정합니다(앱도 스스로 가립니다, D6). 히트맵, 웹 바이탈, 예외 자동 수집을 켭니다. 설문은 꺼 둡니다. **Data retention**에서는 [개인정보 처리방침](../../apps/web/app/privacy/page.tsx)이 안내하는 기본값(이벤트 최대 1년, 녹화 30일)을 유지하고, 이 값이 바뀌면 처리방침도 함께 수정합니다.
+- **변수.** `POSTHOG_PROJECT_KEY`(`phc_...`, 페이지에 공개되는 프로젝트 API 키)와 `POSTHOG_REGION`(`us` 또는 `eu`, 기본값 `us`)을 웹과 에이전트 서비스 모두를 위해 Vercel 프로젝트의 Production 환경에만 둡니다. 개인 API 키(`phx_...`)는 절대 설정하지 마십시오. 웹 앱은 빌드 시점에 읽으므로 설정한 뒤 다시 배포하십시오. 스테이징(`findmeatime-dev`)은 자체 프로젝트를 받기 전까지 측정하지 않습니다.
+- **릴레이.** 브라우저는 이벤트를 앱 자체 origin의 `/ingest`로 보내고, `next.config.ts`가 이를 리전의 호스트로 재작성하므로(D5) Content Security Policy에는 PostHog가 나타나지 않습니다. 분석이 켜져 있으면 PostHog 엔드포인트에 대해서는 Next.js의 후행 슬래시 리디렉션이 꺼지고, `next.config.ts`의 리디렉션이 그 밖의 모든 경로에서는 이를 되살립니다. `ingest`는 예약된 핸들입니다.
+- **전송 내용.** 브라우저에서는 페이지 조회와 이탈, 요소의 태그와 페이지 안 위치는 담지만 텍스트, 클래스, 속성은 담지 않는 클릭, 레이지 클릭과 데드 클릭, 히트맵, 웹 바이탈, 프런트엔드 예외, 모든 텍스트, 입력, 설명용 속성, 이미지를 가린 세션 리플레이를 보냅니다. 오류 메시지와 스택 프레임 안의 주소도 함께 가려 냅니다. 모든 주소는 브라우저를 떠나기 전에 가려 냅니다. 경로가 더 깊으면 첫 세그먼트와 `[redacted]`로 줄이고(`/booking/[redacted]`), 쿼리 문자열과 프래그먼트는 버리며, 리퍼러는 origin만 남깁니다(D2). 로그인한 호스트는 호스트 계정 ID로 식별하고, 핸들, 가입일, 연결된 채널, 캘린더 상태를 사람 속성으로 둡니다(D6). 서버에서는 각 명령을 작업 이름(`request.start`, `request.approve`, `booking.cancel`, ...)으로, 분류를 담은 `command_failed`, 작업의 종류와 결과를 담은 `job_processed`, 채널과 콘텐츠 유형을 담은 `channel_message_received`, 그리고 대상과 도구 이름을 담은 에이전트의 `agent_session_started`, `agent_turn_completed`, `agent_turn_failed`, `agent_tool_called`를 보냅니다(D7). 메시지 본문, 전화번호, 이메일 주소, 이름, 캘린더, 예약 링크는 보내지 않으며, 게스트에게는 해시된 가명을 부여하고 사람 프로필은 만들지 않습니다.
+- **확인.** 배포한 뒤 `/`, `/app`, 예약 링크를 열고, **Activity**에서 페이지 조회(예약 페이지는 `/booking/[redacted]`로 나타나야 합니다)를, **Replay**에서 텍스트가 가려진 녹화를, 그리고 `channel_message_received` 같은 서버 이벤트를 확인합니다. 호스트 퍼널(`/`의 `$pageview`, 이어서 `$identify`, `setup.confirm_settings`, `imessage.link.verify_code`), 게스트 퍼널(`request.start`, `request.agree`, 이어서 종류가 `booking`이고 결과가 `completed`인 `job_processed`), 일별 가입 수, 채널별 `channel_message_received`로 대시보드를 만듭니다. 채널별 예약의 기준은 계속 데이터베이스의 집계 전용 [채널 사용 보고서](#daily-diagnostics)입니다.
 
 ## 모델 접근과 런타임
 

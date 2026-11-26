@@ -24,7 +24,8 @@ export async function bindHostConversation(
     select id from app.imessage_bindings where host_account_id = ${input.hostAccountId} and state = 'active' for update
   `;
   const binding = host ? await activeBindingOfHost(tx, input.hostAccountId) : null;
-  if (!binding) return null;
+  // A guest conversation never runs over KakaoTalk (host-kakaotalk-channel non-goals).
+  if (!binding || binding.channel === "kakaotalk") return null;
 
   const current = await activeRequesterBinding(tx, input.requestId);
   let bindingId = current && current.link_id === null && current.sender_hash === binding.sender_hash ? current.id : null;

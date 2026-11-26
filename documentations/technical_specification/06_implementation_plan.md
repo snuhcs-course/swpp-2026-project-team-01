@@ -482,6 +482,14 @@ Goal: the guest side runs end to end: Google from the guest's forms, updates and
 - [ ] The user's review of 2026-11-01 (U15–U19): decisions in words in every channel, status notices from the product inbox without the booking link, revisions after a withdrawal with the declined time left out, and questions after a booking (tasks 4.5, 5.5, 5.6, 8.11). Implemented on `feat/guest-web-flow`, not yet tested.
 - [ ] Host profile (task group 6 without 6.3), in pull request 1 (user, 2026-11-02). Soft preferences (group 7) and the host-profile iMessage item are host-side issues #60 and #61.
 - [ ] Pull request 2: guest screen redesign (task group 8), after the teammate's app-wide ink migration.
+
+### Host KakaoTalk channel — `host-kakaotalk-channel` (proposed)
+
+Goal: a host can link KakaoTalk through the product's relay phone and use it as they use Telegram, apart from buttons and images. Prerequisite: Phase 10 and `link-on-code`. Pending a teammate's approval (PRD [KakaoTalk proposal](../02_product_requirements.md#target-users)). Delivered as one pull request with the change.
+
+- [ ] Change, schema, relay routes and outbox, channel behavior, `/app` card and the Android relay app ([tasks](../../openspec/changes/host-kakaotalk-channel/tasks.md) groups 1–5).
+- [ ] Release after approval: the relay phone, the product's KakaoTalk account and the production secrets (group 6).
+
 ### Dependencies and overlap
 
 | Phase | Depends on | Can overlap with |
