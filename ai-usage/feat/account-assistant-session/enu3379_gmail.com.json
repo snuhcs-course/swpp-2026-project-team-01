@@ -5,19 +5,19 @@
     "claude:b0844e81-4870-4a6a-bfe3-b211c2ed1756": {
       "agent": "claude-code",
       "client": "cli",
-      "agent_ms": 0,
+      "agent_ms": 672443,
       "models": {
         "claude-opus-5-5": {
-          "input": 6,
-          "cache_read": 399039,
+          "input": 76,
+          "cache_read": 5837280,
           "cache_write_5m": 0,
-          "cache_write_1h": 2352,
-          "output": 1103,
+          "cache_write_1h": 73144,
+          "output": 21647,
           "reasoning": 0
         }
       },
       "first": "2026-11-26T00:39:10.077Z",
-      "last": "2026-11-26T00:40:01.300Z"
+      "last": "2026-11-26T01:01:38.438Z"
     },
     "codex:01a2138f-e25d-7ae1-8d7f-a3e447bec7f4": {
       "agent": "codex",
@@ -84,16 +84,16 @@
       "agent_ms": 3069584,
       "models": {
         "gpt-6.1-sol": {
-          "input": 380173,
-          "cache_read": 40367872,
+          "input": 563787,
+          "cache_read": 45315328,
           "cache_write_5m": 0,
           "cache_write_1h": 0,
-          "output": 142850,
-          "reasoning": 62201
+          "output": 163716,
+          "reasoning": 68493
         }
       },
       "first": "2026-11-25T17:16:01.639Z",
-      "last": "2026-11-25T18:21:47.612Z"
+      "last": "2026-11-26T01:08:16.879Z"
     },
     "codex:01a213f0-5092-7b62-bfdc-2a561a5e2b92": {
       "agent": "codex",
@@ -111,6 +111,23 @@
       },
       "first": "2026-11-25T18:20:49.717Z",
       "last": "2026-11-25T18:20:49.717Z"
+    },
+    "codex:01a2155e-f663-7ad3-8224-496c968058f4": {
+      "agent": "codex",
+      "client": "codex_exec",
+      "agent_ms": 0,
+      "models": {
+        "codex-auto-review": {
+          "input": 32229,
+          "cache_read": 0,
+          "cache_write_5m": 0,
+          "cache_write_1h": 0,
+          "output": 118,
+          "reasoning": 48
+        }
+      },
+      "first": "2026-11-26T01:08:15.709Z",
+      "last": "2026-11-26T01:08:15.709Z"
     }
   }
 }

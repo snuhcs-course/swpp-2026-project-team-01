@@ -42,6 +42,7 @@ export const accountMemoryProvider = defineMemoryProvider({
   },
   async tools(ctx) {
     const scope = ctx.memory.scope.key;
+    const turnId = ctx.turn.id;
     const { actor } = await contextAuthority(database(), call(ctx));
     if (ctx.memory.scope.value !== actor.id) return null;
     return {
@@ -63,19 +64,19 @@ export const accountMemoryProvider = defineMemoryProvider({
         if (!eligibleMemory(input.text, turn.message, excluded) || (input.expiresAt !== null && Date.parse(input.expiresAt) <= Date.now())) {
           return { saved: false, problem: "This is not eligible private memory. Use change_settings for a rule; never remember requester/calendar data or expired context." };
         }
-        const result = await writeContext(deps.db, target, scope, { kind: "memory", key: digest(`${turn.inputId}:${input.text}`), expectedRevision: 0, content: { memory: input, notice: memoryNotice(input.text, /[가-힣]/u.test(turn.message)) }, operationId: `${ctx.turn.id}:${digest(toolCtx.callId)}`, expiresAt: input.expiresAt });
+        const result = await writeContext(deps.db, target, scope, { kind: "memory", key: digest(`${turn.inputId}:${input.text}`), expectedRevision: 0, content: { memory: input, notice: memoryNotice(input.text, /[가-힣]/u.test(turn.message)) }, operationId: `${turnId}:${digest(toolCtx.callId)}`, expiresAt: input.expiresAt });
         return result.saved ? { ...result, staged: true, notice: memoryNotice(input.text, /[가-힣]/u.test(turn.message)) } : result;
       } }),
       forget: defineTool({ inputSchema: z.object({ key: z.string().min(1).max(200), revision: z.number().int().positive(), kind: z.enum(["memory", "question", "deferred"]).default("memory") }).strict(), description: "Forget one listed memory or resolve a ledger entry, using its key and revision. Clears stored context, not conversation transcripts.", execute: (input, toolCtx) => forgetContext(database(), { auth: toolCtx.session.auth.current, sessionId: toolCtx.session.id, callId: toolCtx.callId }, scope, input.key, input.revision, input.kind) }),
       question: defineTool({ inputSchema: z.object({ expectedRevision: z.number().int().nonnegative(), pending: questionSchema }).strict(), description: "Before asking a question, replace the latest pending question with its exact text, direction, ref, proposal version, expected request revision and decision (or null for a non-decision question). For setup use direction account. Read latest ledger revision first (0 if absent). Say this exact question in your final reply. Notices never set it. An unqualified yes can answer only this question and version.", execute: async (input, toolCtx) => {
-        const result = await writeContext(database(), { auth: toolCtx.session.auth.current, sessionId: toolCtx.session.id, callId: toolCtx.callId }, scope, { kind: "question", key: "latest", expectedRevision: input.expectedRevision, content: input.pending, operationId: `${ctx.turn.id}:${digest(toolCtx.callId)}` });
+        const result = await writeContext(database(), { auth: toolCtx.session.auth.current, sessionId: toolCtx.session.id, callId: toolCtx.callId }, scope, { kind: "question", key: "latest", expectedRevision: input.expectedRevision, content: input.pending, operationId: `${turnId}:${digest(toolCtx.callId)}` });
         return result;
       } }),
       defer: defineTool({ inputSchema: z.object({ text: z.string().trim().min(1).max(500) }).strict(), description: "Keep only a host-authored deferred item absent from domain state. Repeat the text in the final reply to acknowledge it; deferring never decides a request.", execute: async (input, toolCtx) => {
         const target = { auth: toolCtx.session.auth.current, sessionId: toolCtx.session.id, callId: toolCtx.callId };
         const { turn } = await contextAuthority(database(), target);
         if (!turn.message.includes(input.text)) return { saved: false, problem: "Only the host's own deferred words may be stored." };
-        return writeContext(database(), target, scope, { kind: "deferred", key: digest(`${turn.inputId}:${input.text}`), expectedRevision: 0, content: input, operationId: `${ctx.turn.id}:${digest(toolCtx.callId)}` });
+        return writeContext(database(), target, scope, { kind: "deferred", key: digest(`${turn.inputId}:${input.text}`), expectedRevision: 0, content: input, operationId: `${turnId}:${digest(toolCtx.callId)}` });
       } }),
     };
   },

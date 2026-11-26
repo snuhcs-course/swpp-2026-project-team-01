@@ -67,7 +67,7 @@ async function booked(language: Language, online: boolean) {
 }
 
 // A request from the guest to the host review, agreed at Tue 10:00 next week.
-async function agreedForHost(options: { requesterName?: string; purpose?: string; hostAccountId?: string; language?: Language; host?: SeededHost; windows?: unknown[] } = {}) {
+export async function agreedForHost(options: { requesterName?: string; purpose?: string; hostAccountId?: string; language?: Language; host?: SeededHost; windows?: unknown[] } = {}) {
   const host = options.host ?? (options.hostAccountId
     ? { calendarId: "", hostAccountId: options.hostAccountId, refreshToken: "" }
     : await seedHost({ settings: GUEST_OFFER }));

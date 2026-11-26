@@ -41,3 +41,13 @@ The implementation, unit regressions, database/integration tests and live-model 
 Final local validation used Node.js 24.22.3: `npm ci`, lint (six existing warnings), typecheck, unit tests (157 files / 1,413 tests), Eve + Next.js build, documentation link check and strict OpenSpec validation passed. No database was contacted. A1–A7 have implementation/unit evidence; database lifecycle and end-to-end model acceptance remain unverified, as reported in the PR.
 
 Draft implementation PR: [#499](https://github.com/snuhcs-course/swpp-2026-project-team-01/pull/499), Part of #491. All 17 implementation/review-preparation tasks are recorded; conditional database execution and archival remain explicitly outside this run. No merge or deployment.
+
+## 6. Live-eval repair and account UAT coverage
+
+- [x] 6.1 Replace function/schema-capturing account tool factories with inline replayable definitions; inspect setup/request tools and capture only JSON scope/turn values in memory tools. Document the live eval guard because Eve exposes no public unit resolution checker.
+- [x] 6.2 Replace integration-key request seeds with story runtime builders/key; add the requested H01, H03, H04 and A7 account-session UAT cases, with real tools, tool/database/rubric checks and three trials each. Do not execute evals or start/stop/reset a stack.
+- [ ] 6.3 Run lint, typecheck, unit tests, build and strict OpenSpec validation; record results and push the repair to PR #499 without merging or force-pushing.
+
+Repair verification is separate from the original implementation record above. The owner's isolated-stack run found the live resolution/key failures; no successful live eval result is claimed by this repair. The owner runs the new 27 trials separately.
+
+Repair local checks (Node.js 24.22.3): lint passed with six existing warnings; typecheck passed; 160 unit files / 1,432 tests passed; Eve + Next.js build passed with the existing optional `react-server-dom-webpack` warnings; strict OpenSpec validation and the documentation check (1,822 links / 448 Markdown files) passed. Live evals, integration/E2E and database application were NOT RUN.

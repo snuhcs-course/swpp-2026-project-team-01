@@ -20,6 +20,12 @@ References inspected: `vercel/eve` chat template `8c55ea7c132f`, `agent/memory/p
 
 The local macOS default sandbox prewarm required an uninstalled VM package. Because all authored tools and memory run on the server and no sandbox capabilities are exposed, the root now explicitly uses eve's pure-JavaScript `JustBashSandbox` with `just-bash` 3.6.1 pinned. No container, VM or database was started. `defaultTools: false` and all model limits remain enforced.
 
+### Live-eval repair (2026-11-26)
+
+The owner reported two isolated-stack account eval failures: Eve rejected the `read_request` executor's captured function/schema before any tools could run, and integration `agreedRequest` fixtures sealed Calendar grants with a different key from the eval runtime. Account tools now place each `defineTool` schema and executor inline, with shared behavior called through module-level imports. The memory provider captures only scope and turn-id strings rather than its runtime context. Setup and requester tool callbacks were also checked for the same pattern.
+
+The account eval set reuses story state builders and the runtime key, runs the canonical `host_setup` Telegram path with real tools, and adds the requested onboarding, tutorial, request-explanation, weekly-booking and ledger-target UAT cases. Each of nine cases runs three times. Its recording loopback messaging transport receives real outbox payloads and records delivery acceptance; it does not contact a real messenger. Eve 0.80.1 has no public dynamic callback transform/resolution checker; build and untransformed unit registry tests cannot establish serializability. The live account evals are the regression guard. They were NOT RUN during this repair, per the owner's instruction; see [eval instructions](../../../evals/account-assistant/README.md).
+
 ## Goals / Non-Goals
 
 **Goals:** keep one authority-bound account session and one tool set; use explicit refs and current versions instead of routing state; preserve isolation between owned host data and another host's requester projection. Keep persisted memory under application deletion and retention.
