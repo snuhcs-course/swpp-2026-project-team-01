@@ -14,7 +14,7 @@
 
 - [ ] 3.1 Open the shared link into a participant request, continue a returning person's request, and show a closed link. Verify integration tests for full, closed and repeated opens.
 - [ ] 3.2 Require Calendar on participant requests and refuse term changes in the guest tools. Verify integration tests for an unchecked Calendar scope and a length change.
-- [ ] 3.3 Add the one question, stored commitments and preferred hours, and the review of unavailable times. Verify unit tests that no event title or attendee is stored, and integration tests for a correction, a confirmation and a change after done.
+- [ ] 3.3 Add the one question, stored commitments (preferred hours only when volunteered), and the review of unavailable times. Verify unit tests that no event title or attendee is stored, and integration tests for a correction, a confirmation and a change after done.
 - [x] 3.4 Update `agent/instructions/requester.ts` for the participant step order.
 
 ## 4. Close and choice

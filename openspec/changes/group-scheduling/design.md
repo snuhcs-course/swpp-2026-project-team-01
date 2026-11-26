@@ -25,7 +25,7 @@ The number of people counts participants who reached **done**, not drafts, so so
 ## 3. The participant's steps
 
 1. **Google.** Identity and Calendar on one consent screen. A group request has no **Skip for now** and no manual availability; it waits on this step until a Calendar grant exists.
-2. **One question.** Thyme asks, in one message, about preferred hours, where they usually are, how they usually travel, and commitments the calendar does not show. Stated commitments are stored as unavailable intervals; preferred hours are stored as soft preferences that order times without excluding them; the usual place and travel mode are stored for the travel check.
+2. **One question.** Thyme asks, in one message, about fixed commitments the calendar does not show (classes, work shifts, regular appointments), where they usually are and how they usually travel. It does not ask which hours suit them: a time free on the calendar and outside every stated commitment is one they can meet. Stated commitments are stored as unavailable intervals; hours the participant names as suiting them without being asked are stored as soft preferences that order times without excluding them; the usual place and travel mode are stored for the travel check.
 3. **Review.** Thyme shows the times they cannot meet within the group's date range: their calendar busy times and what they said. The guest confirms or corrects them. Confirming is the participant's agreement.
 4. **Messenger.** The existing link card, with a skip.
 5. **Done.** The request records that it is done, and the guest is told they will get an invitation by email. A done participant cannot change their answers (D13).

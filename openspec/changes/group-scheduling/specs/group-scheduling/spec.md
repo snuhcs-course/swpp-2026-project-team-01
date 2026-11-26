@@ -42,7 +42,7 @@ A group's participant requests SHALL NOT appear as requests of their own in the 
 - **THEN** the host's request list and dashboard do not show their request, and the host gets no notice for it
 
 ### Requirement: Participant flow without picking a date
-A participant request SHALL proceed in this order: Google identity and Calendar; one question about preferred hours, where they usually are, how they usually travel and commitments missing from the calendar; a review of the times the participant cannot meet; an optional messenger link; and done. Calendar connection SHALL be required: a participant request SHALL offer no **Skip for now** and no manual availability, and SHALL NOT go past the first step without a Calendar grant. The participant SHALL NOT be offered times to pick, and the group's terms SHALL NOT be changeable by the participant.
+A participant request SHALL proceed in this order: Google identity and Calendar; one question about fixed commitments missing from the calendar, where they usually are and how they usually travel; a review of the times the participant cannot meet; an optional messenger link; and done. Calendar connection SHALL be required: a participant request SHALL offer no **Skip for now** and no manual availability, and SHALL NOT go past the first step without a Calendar grant. The participant SHALL NOT be offered times to pick, and the group's terms SHALL NOT be changeable by the participant.
 
 #### Scenario: Calendar unchecked
 - **WHEN** a participant unchecks the Calendar scopes on the consent screen
@@ -57,7 +57,7 @@ A participant request SHALL proceed in this order: Google identity and Calendar;
 - **THEN** 신촌 is stored as their usual place and public transit as their travel mode
 
 ### Requirement: Participant confirms the times they cannot meet
-The review SHALL list, within the group's date range, the participant's calendar busy times and the commitments they stated, and SHALL ask them to confirm or correct the list. A correction in words SHALL update the stated commitments and show the list again. Confirming SHALL store each listed interval with its start, end, all-day flag and, for a calendar event, its place, at neighborhood level or finer, together with the preferred hours, usual place and travel mode, and SHALL mark the participant done. A done participant SHALL NOT be able to change their answers. A participant's places and events SHALL NOT be shown to the host or other participants.
+The review SHALL list, within the group's date range, the participant's calendar busy times and the commitments they stated, and SHALL ask them to confirm or correct the list. A correction in words SHALL update the stated commitments and show the list again. Confirming SHALL store each listed interval with its start, end, all-day flag and, for a calendar event, its place, at neighborhood level or finer, together with the usual place, travel mode and any preferred hours the participant volunteered, and SHALL mark the participant done. A done participant SHALL NOT be able to change their answers. A participant's places and events SHALL NOT be shown to the host or other participants.
 
 #### Scenario: Participant adds a commitment
 - **WHEN** the review is shown and the participant writes "수요일 오후엔 수업 있어"

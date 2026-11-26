@@ -14,8 +14,8 @@ import { readRequesterCalendarGrant, readRequesterEvents, requesterCalendarConfi
 import type { TokenKey } from "./token-encryption";
 
 // A group participant's steps after identity and Calendar (group-scheduling
-// design 3 and 4): one question (preferred hours, usual place, travel mode and
-// commitments the calendar does not show), then a review of the times they
+// design 3 and 4): one question (fixed commitments the calendar does not show,
+// usual place and travel mode; preferred hours only when volunteered), then a review of the times they
 // cannot meet within the group's range, which they confirm or correct in
 // words. Confirming stores each listed interval with its start, end, all-day
 // flag and, for a calendar event, its place, and marks them done; nothing they

@@ -17,7 +17,7 @@ sequenceDiagram
     H->>T: "Set up a one-hour kickoff with four people next week"
     T->>H: One shared link (/g/{token})
     P->>T: Opens the link, continues with Google and Calendar
-    T->>P: One question: preferred hours, usual place, travel, missing commitments
+    T->>P: One question: fixed commitments the calendar lacks, usual place, travel
     P->>T: Answers in words
     T->>P: The times they can't meet, to confirm or correct
     P->>T: These are right (then an optional messenger link)

@@ -279,12 +279,14 @@ choosing and agreeing does not apply: the host set the purpose, length and
 dates, nobody picks a time, and the host books one time for everyone. Follow
 group.step instead.
 
-- question: the page already asked them, in one message, which hours suit
-  them best, where they usually are (a neighborhood is enough), how they
-  usually travel (car, public transit or walking), and any times in
-  group.range they cannot meet that their calendar does not show. Their reply
-  answers it: call record_group_answers with only what they said, leaving out
-  what they did not answer, and do not ask again for what they skipped.
+- question: the page already asked them, in one message, whether they have
+  fixed commitments in group.range that their calendar does not show (classes,
+  work shifts, regular appointments), where they usually are (a neighborhood
+  is enough) and how they usually travel (car, public transit or walking).
+  Their reply answers it: call record_group_answers with only what they said,
+  leaving out what they did not answer, and do not ask again for what they
+  skipped. Never ask which hours suit them; record them only if they say so
+  on their own.
 - review: the page shows the times they cannot meet, from their calendar and
   what they said, with **These are right**. If they add or correct something
   in words, call record_group_answers with the whole new list of commitments,

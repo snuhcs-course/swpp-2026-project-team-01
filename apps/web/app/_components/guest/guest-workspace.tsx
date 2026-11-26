@@ -611,6 +611,6 @@ function IntakeTranscript({ bookingId }: { readonly bookingId: string }) {
 // The one question a group's participant answers before their review.
 function groupQuestion(view: OpenRequesterView) {
   return view.request.details.language === "ko"
-    ? "몇 가지만 알려 주세요: 선호하는 시간대, 평소 계신 곳(동네 정도면 돼요), 주로 이동하는 방법(자동차, 대중교통, 도보), 그리고 이 기간에 캘린더에 없는 일정이 있다면 언제인지요."
-    : "A few quick things: which hours suit you best, where you usually are (a neighborhood is enough), how you usually travel (car, public transit or walking), and any times in this period you can't meet that aren't on your calendar.";
+    ? "캘린더에 없는 고정 일정이 있나요? 수업, 근무, 정기 약속처럼 이 기간에 빠질 수 없는 시간이 있다면 알려 주세요. 그리고 평소 계신 곳(동네 정도면 돼요)과 주로 이동하는 방법(자동차, 대중교통, 도보)도 알려 주세요."
+    : "Do you have fixed commitments that aren't on your calendar? If classes, work shifts or regular appointments keep you busy at times in this period, tell me when. Also say where you usually are (a neighborhood is enough) and how you usually travel (car, public transit or walking).";
 }

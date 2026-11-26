@@ -161,7 +161,7 @@ function requesterTools() {
     }),
     record_group_answers: defineTool({
       description:
-        "Only when read_request shows a group (a group meeting's participant): record what the guest answered to the one question, or a correction on their review. Give only what they said: preferredHours as HH:MM pairs in their timezone, usualPlace (where they usually are, a neighborhood is enough), travelMode (driving, transit or walking) and commitments, the whole list of times they cannot meet that their calendar does not show (timed with ISO date-times and offsets, or allDay with local dates, end exclusive). It replaces the earlier list of commitments. Nothing changes once they are done.",
+        "Only when read_request shows a group (a group meeting's participant): record what the guest answered to the one question, or a correction on their review. Give only what they said: commitments, the whole list of fixed commitments and other times they cannot meet that their calendar does not show (timed with ISO date-times and offsets, or allDay with local dates, end exclusive). usualPlace (where they usually are, a neighborhood is enough), travelMode (driving, transit or walking), and preferredHours as HH:MM pairs in their timezone only if they named hours that suit them without being asked. It replaces the earlier list of commitments. Nothing changes once they are done.",
       inputSchema: recordGroupAnswersToolInput,
       execute: (input, toolCtx) => recordGroupAnswersForTool(database(), call(toolCtx), input),
     }),
