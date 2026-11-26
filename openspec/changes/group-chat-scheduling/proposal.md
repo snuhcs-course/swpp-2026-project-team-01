@@ -1,6 +1,6 @@
 # Proposal
 
-Tracking issue: none yet. The user said yes to taking the idea forward on 2026-11-26 (Q1), so the next step is to open one (task 1.2).
+Tracking issue: [#502](https://github.com/snuhcs-course/swpp-2026-project-team-01/issues/502).
 
 **Status: draft, accepted in scope by the user on 2026-11-26, not yet reviewed by a teammate.** The [PRD](../../../documentations/02_product_requirements.md#outside-the-initial-release) still puts group scheduling, internal team coordination and group conversations outside the initial release, until task 1.1 updates it and the decision log.
 
@@ -110,6 +110,7 @@ These conflicts are open on purpose. None of them is resolved by this draft.
 | `host-kakaotalk-mac-relay` (unmerged) design 2 and 4 | The sender's user ID is sent but not stored, and membership events are off and stored nowhere | A hash of the user ID is the member identity (D11). Membership events are on, and an activated room's member IDs are kept as hashes for the headcount and private notes (D10, D12) |
 | [`requester-calendar-access`](../../specs/requester-calendar-access/spec.md) "Request-bound grant lifetime" | A requester's Google grant is used for its own request only and ends with it | A group member's grant is remembered across group requests until they press **Forget me** or 180 days after their last group request closes. It is still read-only and busy-only |
 | [`calendar-booking`](../../specs/calendar-booking/spec.md) "Host-owned event with stable identity" | The requester is the only attendee | A group booking has zero or more member attendees: those who left an email |
+| `group-scheduling` ([#486](https://github.com/snuhcs-course/swpp-2026-project-team-01/issues/486), branch `feat/group-scheduling`, not merged) | A host shares one group link; participants connect Google Calendar, and the host books one option that invites everyone | Overlaps with this change's poll page, busy-time collection and booking. The two changes need to agree on one poll page and one group request model before either is implemented |
 | [`meeting-requests`](../../specs/meeting-requests/spec.md) | A request has one requester, one guest conversation and one agreement | A group request has many answering members and no single agreement. This draft makes it a separate record type instead of stretching the request model |
 
 ## Rejected alternatives
