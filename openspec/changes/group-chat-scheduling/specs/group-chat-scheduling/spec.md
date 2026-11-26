@@ -1,7 +1,7 @@
 ## ADDED Requirements
 
 ### Requirement: Group room activation by an organizer's code
-A linked, set-up host SHALL be able to get a single-use group code from `/app` or from their own linked 1:1 chat. The code SHALL be valid for 15 minutes, bound to that host, and limited to five per host per hour. When the code arrives in a KakaoTalk group message, the service SHALL bind that message's room to a new group request with that host as organizer, and SHALL answer in the room with the introduction. A group code arriving in a 1:1 chat, a host link code arriving in a group, or an expired or used group code SHALL bind nothing. Each of these SHALL void the attempt it names, if any. A room SHALL hold at most one open group request. Group scheduling SHALL run only while the KakaoTalk for Mac relay is the active relay; a group code that arrives through the phone relay SHALL bind nothing and get one fixed reply. Text from a room that is not activated SHALL NOT leave the relay, except a message that carries a code or is exactly `/kickout`.
+A linked, set-up host SHALL be able to get a single-use group code from `/app` or from their own linked 1:1 chat. The code SHALL be valid for 15 minutes, bound to that host, and limited to five per host per hour. When the code arrives in a KakaoTalk group message, the service SHALL bind that message's room to a new group request with that host as organizer, and SHALL answer in the room with the introduction. A group code arriving in a 1:1 chat, a host link code arriving in a group, or an expired or used group code SHALL bind nothing. Each of these SHALL void the attempt it names, if any. A room SHALL hold at most one open group request. Group scheduling SHALL run only while the KakaoTalk for Mac relay is the active relay; a group code that arrives through the phone relay SHALL bind nothing and get one fixed reply. A code SHALL be handled before the message reaches eve's group conversation, and SHALL be removed from the text the model sees.
 
 #### Scenario: Organizer activates a group
 - **WHEN** a linked host posts their unexpired group code in a KakaoTalk group
@@ -16,8 +16,8 @@ A linked, set-up host SHALL be able to get a single-use group code from `/app` o
 - **THEN** no room is activated, and the group receives one fixed reply that names no one
 
 #### Scenario: Ordinary chat before activation
-- **WHEN** members of a room that is not activated write messages that are neither a code nor `/kickout`
-- **THEN** the relay forwards nothing from that room
+- **WHEN** members of a room with no open group request write messages
+- **THEN** the group conversation has no scheduling tools, and nothing is recorded for group scheduling
 
 #### Scenario: Code while the phone relay is active
 - **WHEN** a group code arrives while the Android phone is the active relay
@@ -77,11 +77,11 @@ The group request SHALL offer at most five numbered candidate times. They SHALL 
 - **THEN** time 3 is shown as unavailable with no reason and no name, and times 1, 2, 4 and 5 keep their numbers
 
 ### Requirement: Fallback answers without a calendar
-A member who does not connect a calendar SHALL be able to answer by ticking times on the poll page, or by a group message of candidate numbers only after the times are posted. A group answer SHALL be shown under the sender's profile name and keyed by the sender's KakaoTalk user ID, SHALL replace only that user's earlier group answer, and SHALL count the same as a page answer with no label. Group answers and poll page answers SHALL never be merged by name. A poll page answer SHALL be editable and deletable only from the device that made it.
+A member who does not connect a calendar SHALL be able to answer by ticking times on the poll page, or, after the times are posted, by telling the bot in the group which times work. A group answer SHALL be recorded only for the sender of that message, taken from the relay event, and the bot SHALL repeat the recorded times in the group. It SHALL be shown under the sender's profile name and keyed by the sender's KakaoTalk user ID, SHALL replace only that user's earlier group answer, and SHALL count the same as a page answer with no label. Group answers and poll page answers SHALL never be merged by name. A poll page answer SHALL be editable and deletable only from the device that made it.
 
 #### Scenario: Numbers in the group
 - **WHEN** a member writes "1 3" in an activated room after the times are posted
-- **THEN** times 1 and 3 are counted as working for that member, shown under their profile name
+- **THEN** times 1 and 3 are counted as working for that member, shown under their profile name, and the bot repeats them
 
 #### Scenario: Copied profile name
 - **WHEN** a second member renames themselves to another member's profile name and writes "2"
@@ -89,21 +89,25 @@ A member who does not connect a calendar SHALL be able to answer by ticking time
 
 #### Scenario: Other text in the group
 - **WHEN** a member writes "다음 주 바빠서 잘 모르겠어" in an activated room
-- **THEN** nothing is recorded, the text is not sent to the model and no copy of it is stored
+- **THEN** no answer is recorded for anyone
+
+#### Scenario: Answer for someone else
+- **WHEN** a member writes "민수는 2번 된대" in an activated room
+- **THEN** no answer is recorded for 민수, and at most the sender's own answer is recorded
 
 #### Scenario: Member deletes their answer
 - **WHEN** a member presses **Delete my answer** on the poll page from the device that answered
 - **THEN** their name, times, email and calendar connection are deleted and the counts change
 
 ### Requirement: Introduction and stop
-The first message to an activated room SHALL state that it comes from Find Me a Time, name the organizer by display name, give the poll link with the request to connect Google Calendar, say that only busy times are read, say that anyone can write to the account 1:1 for what they would rather not say in the group, and say that the bot reads only numbered answers and `stop` in the room. It SHALL also say that other conversation is not stored and that anyone can stop it, and it SHALL link to the privacy policy. A `stop` or `그만` from any member SHALL deactivate the room, close the group request as stopped, end forwarding from the room, and tell the organizer in their own chat.
+The first message to an activated room SHALL state that it comes from Find Me a Time, name the organizer by display name, give the poll link with the request to connect Google Calendar, say that only busy times are read, say that anyone can write to the account 1:1 for what they would rather not say in the group, and say that anyone can stop the scheduling. It SHALL link to the privacy policy, and SHALL NOT contradict the group conversation's own statement of what the account reads in groups. A `stop` or `그만` from any member SHALL close the group request as stopped, remove the scheduling tools from the room's conversation, and tell the organizer in their own chat.
 
 #### Scenario: Any member stops the bot
 - **WHEN** a member who is not the organizer sends `그만`
-- **THEN** the group request closes as stopped, the relay stops forwarding the room's messages, and the organizer is told in their 1:1 chat
+- **THEN** the group request closes as stopped, the room's conversation loses the scheduling tools, and the organizer is told in their 1:1 chat
 
 ### Requirement: What the group sees
-Messages to a group room SHALL contain only the organizer's display name, the meeting length and mode, candidate times and their places, per-time counts and the display names of members who said a time works, the poll link, and the booking confirmation. They SHALL NOT contain:
+The group projection, which is all that group scheduling gives to fixed group messages and to the group conversation, SHALL contain only the organizer's display name, the meeting length and mode, candidate times and their places, per-time counts and the display names of members who said a time works, the poll link, and the booking confirmation. No group message, fixed or from the model, SHALL contain:
 
 - Calendar event titles, places, attendees or busy reasons of the organizer or any member.
 - The organizer's rules, hours, notes, exceptions, weekly load or other requests.
@@ -115,16 +119,35 @@ Messages to a group room SHALL contain only the organizer's display name, the me
 - **WHEN** a member writes "왜 목요일은 없어?" in an activated room
 - **THEN** the bot says nothing about the organizer's calendar or rules, and no message reveals why Thursday is missing
 
+#### Scenario: Member presses for private details
+- **WHEN** a member asks the bot in the group to list the organizer's other meetings or who is busy on Thursday
+- **THEN** the reply contains none of them, because the group conversation's context holds only the group projection
+
 #### Scenario: Counts posted
 - **WHEN** the group is shown the current counts
 - **THEN** each time shows a number and the names who said it works, and no member's email, calendar connection or busy reason appears
 
+### Requirement: Scheduling tools in the group conversation
+Codes, `stop`, `그만` and `/kickout` SHALL be handled before a group message reaches eve's group conversation, whatever the model would do. While a room has an open group request, the group conversation SHALL get only these scheduling tools: the group projection, the poll link, and recording an answer for the sender of the current message, whose user ID SHALL come from the relay event and SHALL NOT be a tool argument. The group conversation SHALL have no tool that books, cancels, changes the request or reads any calendar, rule, private note or email. The introduction, the posted times, the confirmation, the reuse question and the goodbye SHALL be fixed templates.
+
+#### Scenario: Stop never reaches the model
+- **WHEN** a member sends `그만` in an activated room
+- **THEN** the group request closes before the group conversation sees the message
+
+#### Scenario: Model is asked to book
+- **WHEN** a member asks the bot in the group to book time 2
+- **THEN** nothing is booked, because the group conversation has no booking tool
+
+#### Scenario: Replayed event
+- **WHEN** the relay delivers the same answer message twice
+- **THEN** the answer is recorded once
+
 ### Requirement: Group booking
-The organizer SHALL book a group request by naming one candidate time from their own chat, `/app` or their agent. Booking SHALL recheck the organizer's conflict calendars for that time before dispatch. A time that no longer fits SHALL book nothing and leave the other times available. The event SHALL be created in the organizer's booking destination, with a fixed provider identity so it is created at most once. Its attendees SHALL be the members who left an email on the poll page. The group SHALL receive one confirmation with the time, the place or join link, and a calendar file link. After booking, the group request SHALL close, the room SHALL stop being forwarded apart from codes and `/kickout`, and the account SHALL stay in the room.
+The organizer SHALL book a group request by naming one candidate time from their own chat, `/app` or their agent. Booking SHALL recheck the organizer's conflict calendars for that time before dispatch. A time that no longer fits SHALL book nothing and leave the other times available. The event SHALL be created in the organizer's booking destination, with a fixed provider identity so it is created at most once. Its attendees SHALL be the members who left an email on the poll page. The group SHALL receive one confirmation with the time, the place or join link, and a calendar file link. After booking, the group request SHALL close, the scheduling tools SHALL leave the room's conversation, and the account SHALL stay in the room.
 
 #### Scenario: Booking a settled poll
 - **WHEN** the organizer books time 2 in their 1:1 chat and the time still fits
-- **THEN** one event is created in the organizer's booking destination, members with an email are invited, the group gets one confirmation and the room deactivates
+- **THEN** one event is created in the organizer's booking destination, members with an email are invited, the group gets one confirmation and the scheduling tools leave the room's conversation
 
 #### Scenario: Chosen time became busy
 - **WHEN** the organizer books a time that is now busy on their calendar
@@ -135,7 +158,7 @@ A group request SHALL close only when it is booked, when the organizer cancels, 
 
 #### Scenario: Unbooked poll stays open
 - **WHEN** a month passes after activation without a booking, a cancel or `stop`
-- **THEN** the group request is still open and the room is still forwarded for parsing
+- **THEN** the group request is still open and the room's conversation still has the scheduling tools
 
 #### Scenario: All candidates have passed
 - **WHEN** the last candidate time passes without a booking
@@ -188,7 +211,7 @@ A member of an activated group SHALL be able to tell the account, in that chat, 
 - **THEN** nothing is applied, and the reply names no group
 
 ### Requirement: Leaving the room
-A `/kickout` from any member of any group SHALL make the account post one fixed goodbye and leave that room. If the room has an open group request, it SHALL close as stopped and the organizer SHALL be told in their own chat. The account SHALL NOT leave a room on its own, booked or not. A leave that does not succeed SHALL leave the room deactivated and SHALL be reported to the organizer, if there is one. While the phone is the active relay, `/kickout` SHALL only deactivate the room.
+A `/kickout` from any member of any group SHALL make the account post one fixed goodbye and leave that room. If the room has an open group request, it SHALL close as stopped and the organizer SHALL be told in their own chat. The account SHALL NOT leave a room on its own, booked or not. A leave that does not succeed SHALL keep the group request closed and SHALL be reported to the organizer, if there is one. While the phone is the active relay, `/kickout` SHALL only close the group request.
 
 #### Scenario: Any member kicks the bot out
 - **WHEN** a member who is not the organizer types `/kickout` in an activated room
@@ -196,7 +219,7 @@ A `/kickout` from any member of any group SHALL make the account post one fixed 
 
 #### Scenario: Booked room stays
 - **WHEN** a group's meeting was booked and has ended, and nobody sends `/kickout`
-- **THEN** the account stays in the room and forwards only codes and `/kickout` from it
+- **THEN** the account stays in the room, and its conversation has no scheduling tools
 
 #### Scenario: Kickout from a room never activated
 - **WHEN** a member types `/kickout` in a group where no code was ever posted

@@ -1,20 +1,20 @@
 # Tasks
 
-This change is a draft. Only group 1 can start now. Groups 2 to 6 wait for a team yes on Q1 and Q2 in the [proposal](proposal.md#unresolved-decisions-for-the-team), and for `host-kakaotalk-channel` and `host-kakaotalk-mac-relay` to be merged.
+This change is a draft. Only group 1 can start now. Groups 2 to 6 wait for a team yes on Q1 and Q2 in the [proposal](proposal.md#unresolved-decisions-for-the-team), and for `host-kakaotalk-channel`, `host-kakaotalk-mac-relay` and the group conversation change in PR #501 to be merged.
 
 ## 1. Decision
 
 - [ ] 1.1 Team discussion of the open questions and D1 to D8. Record the outcome in the [PRD](../../../documentations/02_product_requirements.md#outside-the-initial-release) and the [decision log](../../../documentations/technical_specification/08_decision_log.md), and regenerate their Korean mirrors.
 - [ ] 1.2 If the team says yes, open a tracking issue that names this change, and add its number to the proposal.
 - [ ] 1.3 On the Mac mini, check that the helper can read the newest messages of an opened chat window and leave a group through the window menu (Q13), that an untitled group's chat-list label matches the label computed from its member names, and that membership events list a test group's members.
-- [ ] 1.4 Write the deltas for `calendar-booking` (attendees), `host-kakaotalk-channel` and `host-kakaotalk-mac-relay` (group text for activated rooms, `/kickout` from any group, member IDs and the room check) and the PRD functional requirements.
+- [ ] 1.4 Write the deltas for `calendar-booking` (attendees), `host-kakaotalk-channel`, `host-kakaotalk-mac-relay` (`/kickout` from any group, member IDs and the room check) and the group conversation change (commands before the model and the scheduling tools) and the PRD functional requirements.
 
 ## 2. Activation and parsing (service and relay)
 
 - [ ] 2.1 Add group codes, group requests, room bindings and members' answers to `supabase/schemas/`, with RLS that denies every client role. Generate the migration with pg-delta and verify `supabase db reset --local` and pgTAP tests for the RLS and the retention rule.
 - [ ] 2.2 Add code issuance in `/app` and the organizer's chat, and binding on arrival in a group. Unit tests cover each refused code: in a 1:1 chat, a host code in a group, expired, used, a second code for an open room, and the rate limit.
-- [ ] 2.3 Change the Mac relay to forward codes and an exact `/kickout` from any group, all messages with text only from active rooms, using the heartbeat's room list, and membership events for active rooms. Refuse group codes while the phone is the active relay. Test that an inactive room forwards nothing else.
-- [ ] 2.4 Add the fixed parser for numbers, `none`, `stop`, `/kickout` and codes, keyed by the sender's user ID. Tests show that unmatched text never reaches the model or storage, and that a replayed event is counted once.
+- [ ] 2.3 Handle codes, `stop`, `그만` and an exact `/kickout` before group messages reach the group conversation of the change in PR #501, and turn on the Mac relay's membership events for activated rooms. Refuse group codes while the phone is the active relay. Tests show that a code never reaches the model and that `stop` closes the request whatever the model would answer.
+- [ ] 2.4 Add the scheduling tools to the group conversation: `group_poll_status`, `group_poll_link` and `record_group_answer`, whose sender comes from the relay event. Tests show that an answer is recorded only for the sender, that the bot repeats it, that a replayed event is counted once, and that the conversation has no other tool from this change.
 
 ## 3. Poll page and answers
 
@@ -24,7 +24,7 @@ This change is a draft. Only group 1 can start now. Groups 2 to 6 wait for a tea
 
 ## 4. Group messages, ranking and booking
 
-- [ ] 4.1 Build the fixed templates for the introduction, the candidates, the counts and the confirmation. A test renders every template from a fixture that holds private event titles, notes, emails and busy reasons, and asserts that none appear.
+- [ ] 4.1 Build the fixed templates for the introduction, the candidates, the counts and the confirmation. A test renders every template from a fixture that holds private event titles, notes, emails and busy reasons, and asserts that none appear. An eval asks the group conversation for the organizer's other meetings, members' calendars, private notes and emails, and asserts that no reply contains them.
 - [ ] 4.2 Add the ranking, the settle rule and booking by number from the organizer's chat, `/app` and `host:decide`. Tests cover a group message that tries to book, a stale time, a repeated booking and attendees from emails.
 - [ ] 4.3 Add closing on booking, cancel and `stop` only, the one-time request for a new date range when every candidate has passed, and the 30-day deletion in the retention pass.
 
