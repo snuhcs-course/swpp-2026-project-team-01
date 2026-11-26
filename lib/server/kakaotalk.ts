@@ -169,6 +169,8 @@ export function relayHeaders(secret: string, method: string, path: string, body:
 export type KakaoTalkDetails = {
   // The sender's KakaoTalk profile name, from the notification's sender.
   readonly displayName: string | null;
+  // A group chat's title, from the Mac relay (kakaotalk-group-conversations design 1).
+  readonly roomName?: string | null;
 };
 
 export type KakaoTalkEvent =
@@ -235,6 +237,36 @@ export function parseKakaoTalkEvent(payload: unknown): KakaoTalkEvent | null {
       Number.isInteger(event.activeMembersCount);
     return valid ? { kind: "group" } : null;
   }
+  // A member's message in a group chat, from the Mac relay
+  // (kakaotalk-group-conversations design 1): the sender is the member's user ID,
+  // the space the room. Codes never arrive here; the relay sends them as void_code.
+  if (event.kind === "group_message") {
+    const id = relay === "mac" && typeof event.eventId === "string" ? MAC_EVENT_ID.exec(event.eventId) : null;
+    const groupRoom = typeof event.roomId === "string" && ROOM_ID.test(event.roomId) ? event.roomId : null;
+    const sender = typeof event.senderUserId === "string" && USER_ID.test(event.senderUserId) ? event.senderUserId : null;
+    const text = typeof event.text === "string" && event.text.trim() !== "" && event.text.length <= KAKAOTALK_TEXT_LIMIT ? event.text : null;
+    if (!id || !groupRoom || id[1] !== groupRoom || !sender || !text) return null;
+    const name = displayName(event.senderName);
+    const roomName = displayName(event.roomName);
+    const sentAt = postedAt(event.postedAt);
+    return {
+      kind: "message",
+      message: {
+        channel: "kakaotalk",
+        contentType: "text",
+        kakaotalk: { displayName: name, roomName },
+        messageId: `kakaotalk:${event.eventId as string}`,
+        sender,
+        sentAt,
+        spaceId: groupRoom,
+        spaceType: "group",
+        text,
+      },
+      payloadSha256: createHash("sha256")
+        .update(JSON.stringify(["group", event.eventId, groupRoom, sender, name, roomName, text, sentAt?.toISOString() ?? null]), "utf8")
+        .digest("hex"),
+    };
+  }
   if (event.kind !== undefined && event.kind !== "message") return null;
   if (event.isGroup === true || event.isOpenChat === true) return { kind: "group" };
   if (event.isGroup !== false) return null;
@@ -272,7 +304,7 @@ export function parseKakaoTalkEvent(payload: unknown): KakaoTalkEvent | null {
 
 // The text a KakaoTalk receipt seals: the message text with the sender's name.
 export function sealedKakaoTalkText(text: string | null, details: KakaoTalkDetails) {
-  return JSON.stringify({ displayName: details.displayName, text });
+  return JSON.stringify({ displayName: details.displayName, text, ...(details.roomName !== undefined ? { roomName: details.roomName } : {}) });
 }
 
 export function openKakaoTalkText(sealed: string): { readonly text: string | null; readonly details: KakaoTalkDetails } | null {
@@ -285,7 +317,10 @@ export function openKakaoTalkText(sealed: string): { readonly text: string | nul
   if (!value || typeof value !== "object") return null;
   const envelope = value as Record<string, unknown>;
   return {
-    details: { displayName: typeof envelope.displayName === "string" ? envelope.displayName : null },
+    details: {
+      displayName: typeof envelope.displayName === "string" ? envelope.displayName : null,
+      ...("roomName" in envelope ? { roomName: typeof envelope.roomName === "string" ? envelope.roomName : null } : {}),
+    },
     text: typeof envelope.text === "string" ? envelope.text : null,
   };
 }

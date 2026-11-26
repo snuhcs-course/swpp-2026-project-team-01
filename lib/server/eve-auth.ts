@@ -75,6 +75,8 @@ export const HOST_SETUP_AUDIENCE = "host_setup";
 export const HOST_REVIEW_AUDIENCE = "host_review";
 export const REQUESTER_AUDIENCE = "requester";
 export const PUBLIC_INTAKE_AUDIENCE = "public_intake";
+// A KakaoTalk group chat's conversation (kakaotalk-group-conversations design 2).
+export const GROUP_CHAT_AUDIENCE = "group_chat";
 
 // The eve principal of each discussion audience (agent configuration: audiences
 // and sessions). A host is its account ID; a requester is `request:{requestId}`
@@ -83,6 +85,7 @@ export const PUBLIC_INTAKE_AUDIENCE = "public_intake";
 export function sessionPrincipalId(principal: Principal) {
   if (principal.type === "requester_request") return `request:${principal.id}`;
   if (principal.type === "public_intake") return `intake:${principal.id}`;
+  if (principal.type === "kakaotalk_group") return `group:${principal.id}`;
   return principal.id;
 }
 
@@ -92,6 +95,7 @@ type HostDiscussion = { readonly audience: typeof HOST_SETUP_AUDIENCE | typeof H
 function audienceOf(principal: Principal, host: HostDiscussion | null) {
   if (principal.type === "requester_request") return REQUESTER_AUDIENCE;
   if (principal.type === "public_intake") return PUBLIC_INTAKE_AUDIENCE;
+  if (principal.type === "kakaotalk_group") return GROUP_CHAT_AUDIENCE;
   return host?.audience ?? HOST_SETUP_AUDIENCE;
 }
 
@@ -101,7 +105,9 @@ function sessionAuth(principal: Principal, discussionId: string, generation: num
       ? { requestId: principal.id }
       : principal.type === "public_intake"
         ? { intakeId: principal.id }
-        : host?.requestId
+        : principal.type === "kakaotalk_group"
+          ? { groupId: principal.id }
+          : host?.requestId
           ? { requestId: host.requestId }
           : {};
 
@@ -121,6 +127,17 @@ function sessionAuth(principal: Principal, discussionId: string, generation: num
 // its transcript, and only while that request is open and its link unexpired;
 // no intake session is created or sent to any more.
 async function guestMayUse(db: Database, principal: Principal, discussionId: string, kind: InternalGrant["kind"]) {
+  // A group chat reaches only its own group_chat discussion while the account
+  // is in the group; its history stays readable after it leaves.
+  if (principal.type === "kakaotalk_group") {
+    const [row] = await db<{ open: boolean }[]>`
+      select g.left_at is null as open
+      from app.discussions d join app.kakaotalk_groups g on g.id = d.principal_id
+      where d.id = ${discussionId} and d.principal_type = 'kakaotalk_group' and d.principal_id = ${principal.id}
+        and d.audience = ${GROUP_CHAT_AUDIENCE}
+    `;
+    return Boolean(row && (row.open || kind === "read"));
+  }
   if (principal.type === "requester_request") {
     // A request a guest account owns stays readable, never writable, after it
     // closes or its link expires, so the account's Requests list can show the

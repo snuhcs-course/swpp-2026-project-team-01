@@ -937,3 +937,16 @@ The [proposal](../../openspec/changes/host-kakaotalk-mac-relay/proposal.md#decis
 | D6 | No first 1:1 message: a room is sendable only after the other person wrote; no nudge from the Mac | Writing first to friends who added the account | Proposal; design 6 | Design 6 |
 | D7 | Outbox kind `leave_room`, claim mode `leave`, only for the Mac relay | Leaving by hand | Proposal; design 7 | Design 7 |
 | D8 | A LaunchAgent starts the `kakao-ax` helper, which holds Accessibility and runs the daemon as its child | Granting Accessibility to `node`; running over SSH | Proposal; design 9 | Design 9 |
+
+## `kakaotalk-group-conversations`
+
+The [proposal](../../openspec/changes/kakaotalk-group-conversations/proposal.md#decisions) records these choices, made from the user's answers on 2026-11-26 after the Mac relay's device check. They are **pending** with [`host-kakaotalk-channel`](#host-kakaotalk-channel) and [`host-kakaotalk-mac-relay`](#host-kakaotalk-mac-relay), in the same pull request, together with Q1 to Q3. They replace, for KakaoTalk groups on the Mac relay, the rule that group text never leaves the relay.
+
+| # | Choice | Alternatives | Recorded in | To change it |
+|---|---|---|---|---|
+| D1 | Every group the account is in, every member's text | Only code-bound groups; only linked hosts' messages | Proposal; design 1 | Design 1 |
+| D2 | A `kakaotalk_group` principal with a `group_chat` discussion and no tools | Running group messages in a member host's session | Proposal; design 2 | Design 2 and `lib/server/kakaotalk-groups.ts` |
+| D3 | Reply only to a message that starts with `@` or names the account or the assistant; the rest is context for 24 hours | Replying to every message | Proposal; design 3 | Design 3 |
+| D4 | Replies only through the Mac relay, to titled groups the name rule picks | Sending to untitled groups by member names | Proposal; design 4 | Design 4 |
+| D5 | 30 calls per group and 300 in total per 24 hours; anonymous model caps; a `group` admission scope | No limit beyond the model caps | Proposal; design 5 | Design 5 |
+| D6 | Plain, short answers with no tools and no claims of checking or booking | Giving groups the scheduling tools | Proposal; design 6 | Design 6 and `agent/instructions/group-chat.ts` |

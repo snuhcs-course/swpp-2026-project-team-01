@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { eventsFor } from "./events.ts";
 import { newRoomMessagesSql, parseMessages, parseRooms, roomKind, roomMessagesSql, type Room } from "./kakao-db.ts";
-import { chatListName, chatListPicks, memberRooms, nameIsUnique, sendableRooms, sortedIds } from "./rooms.ts";
+import { chatListName, chatListPicks, memberRooms, nameIsUnique, sendableGroupRooms, sendableRooms, sortedIds } from "./rooms.ts";
 import { codeHash } from "./signer.ts";
 import { RECORDED } from "./testing.ts";
 
@@ -128,6 +128,30 @@ describe("events", () => {
     expect(eventsFor(coded, room(RECORDED.group), options)).toEqual([
       { codeHash: codeHash("inbound", "FMAT-7K3Q9M2XWA"), eventId: `void:${RECORDED.group}:log:${coded.logId}:0`, kind: "void_code", relay: "mac" },
     ]);
+  });
+
+  it("sends a member's group text, with the room's title and the member's name, when group messages are on", () => {
+    const groupText = messages.find((message) => message.chatId === RECORDED.group && message.type === 1 && message.authorId === RECORDED.host)!;
+    const [event] = eventsFor(groupText, room(RECORDED.group), { ...options, groupMessages: true, namesOf: () => ["Test Host"] });
+    expect(event).toEqual({
+      eventId: `${RECORDED.group}:log:${groupText.logId}`,
+      kind: "group_message",
+      postedAt: new Date(groupText.sentAt * 1000).toISOString(),
+      relay: "mac",
+      roomId: RECORDED.group,
+      roomName: "테스트 그룹",
+      senderName: "Test Host",
+      senderUserId: RECORDED.host,
+      text: groupText.text,
+    });
+    // A code never leaves as text, only as its hash.
+    expect(eventsFor({ ...groupText, text: "FMAT-7K3Q9M2XWA" }, room(RECORDED.group), { ...options, groupMessages: true }).map((e) => e.kind)).toEqual(["void_code"]);
+  });
+
+  it("lists a titled group whose title no other room contains as sendable, and never an untitled one", () => {
+    expect(sendableGroupRooms(rooms).map((candidate) => candidate.chatId)).toEqual([RECORDED.group]);
+    expect(sendableGroupRooms([...rooms, { ...direct("9", "테스트 그룹 친구") }])).toEqual([]);
+    expect(sendableGroupRooms([{ ...direct("8", ""), kind: "group", memberNames: ["Kim"] }])).toEqual([]);
   });
 
   it("sends a group's member IDs for its invitation feed only when membership events are on", () => {

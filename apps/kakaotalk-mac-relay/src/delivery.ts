@@ -1,5 +1,5 @@
 import { type KakaoReader, logIdAfter, type Room } from "./kakao-db.ts";
-import { chatListName, chatListPicks, memberRooms, nameIsUnique, sendableRooms } from "./rooms.ts";
+import { chatListName, chatListPicks, memberRooms, nameIsUnique, sendableGroupRooms, sendableRooms } from "./rooms.ts";
 
 // Sending and leaving with the wrong-room checks (host-kakaotalk-mac-relay
 // designs 5 and 7). kakaocli opens a chat by name, never by room ID, so:
@@ -89,7 +89,7 @@ async function checkedName(deps: DeliveryDeps, room: Room, rooms: readonly Room[
 
 export async function sendToRoom(deps: DeliveryDeps, roomId: string, text: string): Promise<Outcome> {
   const rooms = await deps.db.rooms();
-  const room = sendableRooms(rooms).find((candidate) => candidate.chatId === roomId);
+  const room = [...sendableRooms(rooms), ...sendableGroupRooms(rooms)].find((candidate) => candidate.chatId === roomId);
   if (!room) return { detail: "room not sendable", outcome: "failed" };
   const checked = await checkedName(deps, room, rooms);
   if ("outcome" in checked) return checked;

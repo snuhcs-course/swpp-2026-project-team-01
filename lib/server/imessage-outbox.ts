@@ -294,7 +294,7 @@ export const TURN_FALLBACK = "I couldn't finish that. You can continue in Find M
 // A turn's text as iMessage sends it: redacted like any input, so no link or
 // code leaves, and capped with a pointer to the web: /app for a host, and for a
 // guest the booking page, whose link only their email carries.
-export function imessageTurnText(text: string | null, origin: string, audience: "host" | "requester" = "host") {
+export function imessageTurnText(text: string | null, origin: string, audience: "host" | "requester" | "group" = "host") {
   if (!text) return TURN_FALLBACK;
   // turnReplyText already dropped any leading channel marker; a reply frozen
   // before that guard (#410) loses it here too.
@@ -302,6 +302,8 @@ export function imessageTurnText(text: string | null, origin: string, audience: 
   if (!redacted) return TURN_FALLBACK;
   const chars = Array.from(redacted);
   if (chars.length <= MAX_TURN_REPLY_CHARS) return redacted;
+  // A KakaoTalk group has no page of its own: the reply ends where it is cut.
+  if (audience === "group") return `${chars.slice(0, MAX_TURN_REPLY_CHARS - 1).join("").trimEnd()}…`;
   const rest = audience === "requester" ? "The rest is on your booking page, linked in your email." : `The rest is in Find Me a Time: ${origin.replace(/\/+$/, "")}/app`;
   return `${chars.slice(0, MAX_TURN_REPLY_CHARS - 80).join("").trimEnd()}…\n\n${rest}`;
 }
@@ -601,7 +603,9 @@ export function createImessageSendHandler(load: () => ImessageSendDependencies =
 
       if (row.kind === "turn" && row.state === "waiting") {
         if (readText === undefined) throw new TurnNotEndedError();
-        text = imessageTurnText(readText, deps.origin, row.requester_binding_id ? "requester" : "host");
+        // A KakaoTalk group's reply has neither binding (kakaotalk-group-conversations design 4).
+        const audience = row.requester_binding_id ? "requester" : row.binding_id || row.host_account_id ? "host" : row.channel === "kakaotalk" ? "group" : "host";
+        text = imessageTurnText(readText, deps.origin, audience);
       } else if (row.kind !== "contact_card" && !(row.kind === "template" && row.text_ciphertext === null)) {
         // A template with no parameter (the weekly note notice) has no text.
         // Every other message, a turn reply already frozen by an attempt that

@@ -234,13 +234,20 @@ Every Mac body (webhook, claim, result and heartbeat) carries `"relay": "mac"`. 
 { "relay": "mac", "kind": "room_members", "eventId": "486083613488751:members:3982014812382740481", "roomId": "486083613488751", "memberUserIds": ["93652019"], "activeMembersCount": 5 }
 ```
 
+- `group_message` ([`kakaotalk-group-conversations`](../../openspec/changes/kakaotalk-group-conversations/design.md)) is one member's text in a group or open chat. It is never sent for the account's own messages, non-text messages, or a message with a link code (that one goes as `void_code` only):
+
+```json
+{ "relay": "mac", "kind": "group_message", "eventId": "486083613488751:log:3982014858587193345", "roomId": "486083613488751", "roomName": "카톡테스트용", "senderUserId": "93652019", "senderName": "Test Host", "text": "이브, 화요일 저녁 괜찮을까?", "postedAt": "2026-11-26T03:00:00.000Z" }
+```
+
 ### Claim from the Mac
 
 ```json
-{ "relay": "mac", "locked": false, "postedRooms": [], "replyableRooms": ["486083133936417"], "memberRooms": ["486083613488751"] }
+{ "relay": "mac", "locked": false, "postedRooms": [], "replyableRooms": ["486083133936417"], "groupRooms": ["486083613488751"], "memberRooms": ["486083613488751"] }
 ```
 
 - `replyableRooms`: the 1:1 rooms the relay may send to: the other person has written, and no other room's name contains the room's name.
+- `groupRooms`: the titled group rooms whose title no other room's name contains. A group's reply is handed out only for one of these.
 - `memberRooms`: the group rooms the account is in.
 - The service hands the Mac relay no nudge, and nothing while its last heartbeat says `locked`.
 

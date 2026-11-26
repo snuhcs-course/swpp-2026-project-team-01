@@ -12,7 +12,7 @@ import { fetchPost, MacRelay } from "./relay.ts";
 //   { "origin": "https://findmeatime.com", "inboundSecret": "...", "outboxSecret": "...",
 //     "keyFile": "~/.kc-key.txt", "kakaocli": "/opt/homebrew/bin/kakaocli",
 //     "kakaocliSend": "/path/to/patched/kakaocli", "helper": ".../kakao-ax",
-//     "db": null, "groupEvents": false }
+//     "db": null, "groupEvents": false, "groupMessages": true }
 // kakaocliSend is the build with the chat-list label patch (README); reads may
 // use the released kakaocli, which is faster at opening the database.
 // Nothing secret is printed.
@@ -29,6 +29,7 @@ type Config = {
   readonly helper: string;
   readonly db: string | null;
   readonly groupEvents: boolean;
+  readonly groupMessages: boolean;
   readonly state: string;
 };
 
@@ -51,6 +52,7 @@ export function loadConfig(path: string): Config {
   return {
     db: typeof raw.db === "string" && raw.db ? expand(raw.db) : null,
     groupEvents: raw.groupEvents === true,
+    groupMessages: raw.groupMessages !== false,
     helper: expand(string("helper", join(support, "kakao-ax"))),
     inboundSecret: string("inboundSecret"),
     kakaocli: expand(string("kakaocli", "/opt/homebrew/bin/kakaocli")),
@@ -67,7 +69,7 @@ async function main() {
   const key = privateFile(config.keyFile).trim();
   const log = (message: string, fields?: Record<string, unknown>) => console.log(JSON.stringify({ at: new Date().toISOString(), message, ...fields }));
   const relay = new MacRelay({
-    config: { groupEvents: config.groupEvents, inboundSecret: config.inboundSecret, outboxSecret: config.outboxSecret },
+    config: { groupEvents: config.groupEvents, groupMessages: config.groupMessages, inboundSecret: config.inboundSecret, outboxSecret: config.outboxSecret },
     db: new KakaoDatabase(kakaocliQuery(config.kakaocli, key, config.db)),
     log,
     messenger: kakaocliMessenger(config.kakaocliSend),

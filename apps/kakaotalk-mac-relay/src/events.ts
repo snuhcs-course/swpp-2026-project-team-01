@@ -16,6 +16,10 @@ export type EventOptions = {
   readonly myUserId: string;
   readonly inboundSecret: string;
   readonly groupEvents: boolean;
+  // Whether members' group text goes to the service (kakaotalk-group-conversations design 1).
+  readonly groupMessages?: boolean;
+  // A user's names from NTUser, for a group member's name.
+  readonly namesOf?: (userId: string) => readonly string[];
 };
 
 const TEXT_TYPE = 1;
@@ -46,9 +50,22 @@ export function eventsFor(message: DbMessage, room: Room | undefined, options: E
 
   if (room.kind === "group") {
     const events: WebhookEvent[] = [];
-    if (message.type === TEXT_TYPE) {
-      linkCodes(message.text).forEach((code, index) => {
-        events.push({ codeHash: codeHash(options.inboundSecret, code), eventId: `void:${room.chatId}:log:${message.logId}:${index}`, kind: "void_code", relay: "mac" });
+    const codes = message.type === TEXT_TYPE ? linkCodes(message.text) : [];
+    codes.forEach((code, index) => {
+      events.push({ codeHash: codeHash(options.inboundSecret, code), eventId: `void:${room.chatId}:log:${message.logId}:${index}`, kind: "void_code", relay: "mac" });
+    });
+    // A member's text goes on, unless it carries a code, which never leaves as text.
+    if (message.type === TEXT_TYPE && codes.length === 0 && options.groupMessages && message.text.trim() && message.authorId !== "0") {
+      events.push({
+        eventId: `${room.chatId}:log:${message.logId}`,
+        kind: "group_message",
+        postedAt: new Date(Math.round(message.sentAt * 1000)).toISOString(),
+        relay: "mac",
+        roomId: room.chatId,
+        roomName: room.chatName,
+        senderName: options.namesOf?.(message.authorId)[0] ?? "",
+        senderUserId: message.authorId,
+        text: message.text,
       });
     }
     if (message.type === FEED_TYPE && options.groupEvents) {

@@ -4,11 +4,14 @@
 -- host_review discussion per request it reviews (request_id names that
 -- request), an intake one public_intake discussion and a request one requester
 -- discussion.
+-- A kakaotalk_group principal is one KakaoTalk group chat
+-- (kakaotalk-group-conversations design 2): its one discussion has the
+-- group_chat audience, no host and no request.
 CREATE TABLE "app"."discussions" (
   "id" uuid PRIMARY KEY DEFAULT gen_random_uuid(),
-  "principal_type" text NOT NULL CHECK ("principal_type" IN ('host_account', 'requester_request', 'public_intake')),
+  "principal_type" text NOT NULL CHECK ("principal_type" IN ('host_account', 'requester_request', 'public_intake', 'kakaotalk_group')),
   "principal_id" uuid NOT NULL,
-  "audience" text NOT NULL CHECK ("audience" IN ('host_setup', 'host_review', 'public_intake', 'requester')),
+  "audience" text NOT NULL CHECK ("audience" IN ('host_setup', 'host_review', 'public_intake', 'requester', 'group_chat')),
   "request_id" uuid REFERENCES "app"."requests" ("id") ON DELETE CASCADE,
   "created_at" timestamptz NOT NULL DEFAULT now(),
   CONSTRAINT "discussions_principal_audience_key" UNIQUE NULLS NOT DISTINCT ("principal_type", "principal_id", "audience", "request_id"),

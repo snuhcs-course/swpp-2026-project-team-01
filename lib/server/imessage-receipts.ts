@@ -43,6 +43,7 @@ import { type CreationLimits } from "./request-start";
 import { isRevisable, readRevisedSummary, reviseClosedRequest } from "./revised-requests";
 import { type SetupDependencies, setupDependenciesFromEnvironment } from "./setup";
 import { type KakaoTalkDetails, openKakaoTalkText } from "./kakaotalk";
+import { GroupAdmissionDeferred, receiveGroupMessage } from "./kakaotalk-groups";
 import { openTelegramText, parseCallbackData, type TelegramDetails, THANKS_REACTION } from "./telegram";
 import { startTypingRepeats } from "./telegram-jobs";
 import { openToken, sealToken, type TokenKey, tokenKeyFromEnvironment } from "./token-encryption";
@@ -929,6 +930,29 @@ export async function processReceipt(
       spaceId: receipt.spaceId,
       spaceType: receipt.spaceType,
     });
+  }
+
+  // A KakaoTalk group chat from the Mac relay is its own conversation, owned by
+  // no host (kakaotalk-group-conversations): kept as context, or answered when called.
+  if (receipt.channel === "kakaotalk" && receipt.spaceType === "group") {
+    if (receipt.contentType !== "text" || !receipt.text) return "ignored";
+    try {
+      return await receiveGroupMessage(
+        tx,
+        { conversation: deps.conversation, tokenKey: deps.tokenKey, tokenKeys: deps.tokenKeys },
+        {
+          receiptId: receipt.id,
+          roomId: receipt.spaceId,
+          roomName: receipt.kakaotalk?.roomName ?? null,
+          senderName: receipt.kakaotalk?.displayName ?? null,
+          sentAt: null,
+          text: receipt.text,
+        },
+      );
+    } catch (error) {
+      if (error instanceof GroupAdmissionDeferred) throw new AdmissionDeferredError();
+      throw error;
+    }
   }
 
   if (receipt.spaceType !== "dm" || ["reaction", "read", "typing"].includes(receipt.contentType)) return "ignored";

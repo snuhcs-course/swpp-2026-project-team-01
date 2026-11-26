@@ -22,7 +22,7 @@ export const ADMISSION_LIMITS = {
 export type AdmissionLimits = { readonly [Key in keyof typeof ADMISSION_LIMITS]: number };
 
 export type AdmissionScope = {
-  readonly scope: "host" | "request";
+  readonly scope: "host" | "request" | "group";
   // The host account or request ID.
   readonly key: string;
 };

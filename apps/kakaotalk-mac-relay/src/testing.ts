@@ -26,7 +26,8 @@ export class FakeKakao implements KakaoReader {
   rooms_: Room[];
   messages_: DbMessage[];
   readonly account: string;
-  #nextLog = 3990000000000000000n;
+  // Log IDs grow with time, so two fakes in one run never reuse one.
+  #nextLog = 3990000000000000000n + BigInt(Date.now()) * 10_000n + BigInt(Math.floor(Math.random() * 1000)) * 1_000n;
 
   constructor(rooms: Room[] = parseRooms(RECORDED.rooms()), messages: DbMessage[] = parseMessages(RECORDED.messages()), account = RECORDED.account) {
     this.rooms_ = rooms;
@@ -69,6 +70,18 @@ export class FakeKakao implements KakaoReader {
 
   async rooms() {
     return this.rooms_.map((room) => ({ ...room }));
+  }
+
+  // Each user's names: the recorded 1:1 friend, the recorded group's members, and any set here.
+  users_ = new Map<string, string[]>([
+    [RECORDED.host, ["Test Host"]],
+    ["900000003", ["Member Three"]],
+    ["900000004", ["Member Four"]],
+    ["900000005", ["Member Five"]],
+  ]);
+
+  async users() {
+    return new Map(this.users_);
   }
 
   async myUserId() {

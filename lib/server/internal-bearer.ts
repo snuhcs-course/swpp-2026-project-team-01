@@ -144,7 +144,7 @@ export function verifyInternalBearer(
     claims.exp <= seconds ||
     typeof claims.iat !== "number" ||
     claims.exp - claims.iat > INTERNAL_BEARER_TTL_SECONDS ||
-    (claims.pt !== "host_account" && claims.pt !== "requester_request" && claims.pt !== "public_intake") ||
+    (claims.pt !== "host_account" && claims.pt !== "requester_request" && claims.pt !== "public_intake" && claims.pt !== "kakaotalk_group") ||
     typeof claims.pid !== "string" ||
     typeof claims.did !== "string" ||
     !Number.isInteger(claims.gen)

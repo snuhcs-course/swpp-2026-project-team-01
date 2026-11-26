@@ -17,7 +17,7 @@ The facts below were checked on the Mac mini on 2026-11-26: macOS 27.2.1, KakaoT
 
 **Non-Goals**
 
-- Group scheduling itself: group messages, `/kickout`, member identity. The group change owns them.
+- Group scheduling itself: group messages, `/kickout`, member identity. The group change owns them. Group conversations, where every member's text reaches the service and the assistant answers when called, are [`kakaotalk-group-conversations`](../kakaotalk-group-conversations/design.md).
 - Starting a 1:1 chat with someone who has never written.
 - Running the phone and the Mac relay at the same time.
 - Sending images or files.

@@ -11,12 +11,12 @@ begin;
 
 create extension if not exists pgtap with schema extensions;
 
-select plan(22);
+select plan(23);
 
 select is_empty(
   $$
     select r.rolname || ' on ' || t.name
-    from unnest(array['kakaotalk_relay_nonces', 'kakaotalk_relay_heartbeats']) as t(name)
+    from unnest(array['kakaotalk_relay_nonces', 'kakaotalk_relay_heartbeats', 'kakaotalk_groups', 'kakaotalk_group_messages']) as t(name)
     cross join pg_roles r
     where r.rolname in ('anon', 'authenticated')
       and has_table_privilege(r.oid, ('app.' || t.name)::regclass, 'select, insert, update, delete, truncate, references, trigger')
@@ -27,7 +27,7 @@ select is_empty(
 select is_empty(
   $$
     select t.name
-    from unnest(array['kakaotalk_relay_nonces', 'kakaotalk_relay_heartbeats']) as t(name)
+    from unnest(array['kakaotalk_relay_nonces', 'kakaotalk_relay_heartbeats', 'kakaotalk_groups', 'kakaotalk_group_messages']) as t(name)
     join pg_class c on c.oid = ('app.' || t.name)::regclass
     where not c.relrowsecurity
   $$,
@@ -141,6 +141,12 @@ select is(
   (select array[down_cause, down_alerts::text] from app.kakaotalk_relay_heartbeats),
   array['silent', '2'],
   'going down records one alert, and staying down an hour records another'
+);
+
+select lives_ok(
+  $$ insert into app.discussions (principal_type, principal_id, audience)
+     values ('kakaotalk_group', gen_random_uuid(), 'group_chat') $$,
+  'a KakaoTalk group chat has its own discussion, owned by no host'
 );
 
 select is((select relay_kind from app.kakaotalk_relay_heartbeats), 'android', 'a heartbeat row names the phone unless the Mac relay sent it');

@@ -241,3 +241,38 @@ describe("Mac relay events", () => {
     expect(parseKakaoTalkEvent({ ...members, roomId: "1" })).toBeNull();
   });
 });
+
+// A member's group message from the Mac relay (kakaotalk-group-conversations design 1).
+describe("Mac relay group messages", () => {
+  const event = {
+    eventId: "486083613488751:log:3982014858587193345",
+    kind: "group_message",
+    postedAt: "2026-11-26T03:00:00.000Z",
+    relay: "mac",
+    roomId: "486083613488751",
+    roomName: "카톡테스트용",
+    senderName: "Kim",
+    senderUserId: "260834615",
+    text: "이브 화요일 어때?",
+  };
+
+  it("stores it as a group receipt from the member, in the room", () => {
+    expect(parseKakaoTalkEvent(event)).toMatchObject({
+      kind: "message",
+      message: { kakaotalk: { displayName: "Kim", roomName: "카톡테스트용" }, sender: "260834615", spaceId: "486083613488751", spaceType: "group", text: "이브 화요일 어때?" },
+    });
+  });
+
+  it("refuses one from the phone, for another room, without a sender or without text", () => {
+    expect(parseKakaoTalkEvent({ ...event, relay: undefined })).toBeNull();
+    expect(parseKakaoTalkEvent({ ...event, roomId: "1" })).toBeNull();
+    expect(parseKakaoTalkEvent({ ...event, senderUserId: undefined })).toBeNull();
+    expect(parseKakaoTalkEvent({ ...event, text: "  " })).toBeNull();
+  });
+
+  it("seals the room's name with the sender's", () => {
+    const sealed = sealedKakaoTalkText("hi", { displayName: "Kim", roomName: "방" });
+    expect(openKakaoTalkText(sealed)).toEqual({ details: { displayName: "Kim", roomName: "방" }, text: "hi" });
+    expect(openKakaoTalkText(sealedKakaoTalkText("hi", { displayName: "Kim" }))).toEqual({ details: { displayName: "Kim" }, text: "hi" });
+  });
+});

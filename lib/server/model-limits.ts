@@ -110,7 +110,8 @@ export class ModelLimitError extends Error {
 }
 
 export type Principal = {
-  readonly type: "host_account" | "requester_request" | "public_intake";
+  // kakaotalk_group: one KakaoTalk group chat (kakaotalk-group-conversations design 2).
+  readonly type: "host_account" | "requester_request" | "public_intake" | "kakaotalk_group";
   readonly id: string;
 };
 
@@ -246,6 +247,14 @@ async function reserve(db: Database, attribution: Attribution, limits: ModelLimi
     if (principal.type === "public_intake") throw new ModelLimitError("authority_expired");
 
     let anonymous = false;
+
+    // A group chat runs model work only while the account is in it, and is
+    // charged as anonymous: no one in it has an account (kakaotalk-group-conversations design 5).
+    if (principal.type === "kakaotalk_group") {
+      const [group] = await tx<{ left: boolean }[]>`select left_at is not null as left from app.kakaotalk_groups where id = ${principal.id} for share`;
+      if (!group || group.left) throw new ModelLimitError("authority_expired");
+      anonymous = true;
+    }
 
     if (principal.type === "requester_request") {
       const [request] = await tx<{ confirmed: boolean; open: boolean }[]>`

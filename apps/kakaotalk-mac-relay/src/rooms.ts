@@ -37,6 +37,13 @@ export function sendableRooms(rooms: readonly Room[]) {
   return rooms.filter((room) => room.kind === "direct" && room.memberWrote && nameIsUnique(room, rooms));
 }
 
+// The group rooms a reply may go to (kakaotalk-group-conversations design 4): a
+// titled group whose title no other room's name contains. An untitled group's
+// label lists its members, so it cannot be addressed.
+export function sendableGroupRooms(rooms: readonly Room[]) {
+  return rooms.filter((room) => room.kind === "group" && room.chatName.trim() !== "" && nameIsUnique(room, rooms));
+}
+
 // The group rooms the account is in, for leave claims (design 7).
 export function memberRooms(rooms: readonly Room[]) {
   return rooms.filter((room) => room.kind === "group");

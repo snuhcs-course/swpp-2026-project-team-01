@@ -15,6 +15,7 @@ import {
   receiveKakaoTalkResult,
 } from "../../lib/server/kakaotalk-outbox";
 import { receiveKakaoTalkWebhook } from "../../lib/server/kakaotalk-receiver";
+import { channelHash } from "../../lib/server/photon-receiver";
 import { testDatabase } from "./support/database";
 import { type FakePhoton, startFakePhoton } from "./support/fake-photon";
 import { hostWithUser, imessageHarness } from "./support/imessage";
@@ -296,7 +297,7 @@ describe("one active relay", () => {
     const event = { activeMembersCount: 5, eventId: `${RECORDED.group}:members:3982014812382740481`, kind: "room_members", memberUserIds: ["900000003"], relay: "mac", roomId: RECORDED.group };
     const answer = await routes(mac.deps)("/kakaotalk/webhook", JSON.stringify(event), RELAY_INBOUND_SECRET);
     expect(answer.status).toBe(200);
-    const [receipt] = await db`select 1 from app.imessage_receipts where message_id like ${`kakaotalk:${RECORDED.group}%`}`;
+    const [receipt] = await db`select 1 from app.imessage_receipts where message_id = ${`kakaotalk:${event.eventId}`}`;
     expect(receipt).toBeUndefined();
   });
 });
@@ -320,5 +321,118 @@ describe("leaving a group", () => {
     await phone.heartbeat();
     expect(await phone.claim()).toBeNull();
     expect(await rowOf(id!)).toMatchObject({ failure_category: "unsupported", state: "suppressed" });
+  });
+});
+
+// KakaoTalk group chats (kakaotalk-group-conversations): every member's text
+// reaches the service; a message that does not call the assistant is kept as
+// context, one that calls it becomes a turn of the group's own conversation,
+// and the reply goes to the group through the Mac relay.
+describe("a group chat on the Mac relay", () => {
+  const groupHash = channelHash(testTokenKey, "kakaotalk", "space", RECORDED.group);
+
+  async function groupRows() {
+    return db<{ id: string; kind: string; state: string; failure_category: string | null }[]>`
+      select id, kind, state, failure_category from app.imessage_outbox where recipient_hash = ${groupHash} and kind = 'turn' order by created_at
+    `;
+  }
+
+  async function prepareGroup() {
+    const rows = await db<{ id: string }[]>`
+      select o.id from app.imessage_outbox o
+      join app.jobs j on j.kind = ${IMESSAGE_SEND_JOB} and j.dedupe_key = 'outbox:' || o.id::text and j.state = 'pending'
+      where o.recipient_hash = ${groupHash} and o.state in ('waiting', 'queued')
+    `;
+    for (const row of rows) await im.send(row.id);
+  }
+
+  async function groupInputs() {
+    return db<{ id: string; message: string }[]>`
+      select i.id, i.message from app.conversation_inputs i
+      join app.discussions d on d.id = i.discussion_id
+      join app.kakaotalk_groups g on g.id = d.principal_id
+      where d.principal_type = 'kakaotalk_group' and d.audience = 'group_chat' and g.room_hash = ${groupHash}
+      order by i.accepted_at
+    `;
+  }
+
+  beforeEach(async () => {
+    await db`delete from app.kakaotalk_groups where room_hash = ${groupHash}`;
+    await db`delete from app.imessage_receipts where message_id like ${`kakaotalk:${RECORDED.group}:log:%`}`;
+    // Each test starts the day's count of group replies again.
+    await db`delete from app.imessage_outbox where channel = 'kakaotalk' and kind = 'turn' and binding_id is null and host_account_id is null`;
+  });
+
+  it("keeps members' messages as context, answers a call in the group, and sends the reply there", async () => {
+    current.kakao.add(RECORDED.group, "900000003", "다음 주에 다같이 밥 먹을까?");
+    current.kakao.add(RECORDED.group, "900000004", "좋아 화요일 어때");
+    expect(await current.relay.watchOnce()).toBe(2);
+    expect(await receipts(RECORDED.group)).toEqual(["ignored", "ignored"]);
+    expect(await groupInputs()).toEqual([]);
+
+    current.kakao.add(RECORDED.group, RECORDED.host, "이브, 화요일 저녁 괜찮을까?");
+    expect(await current.relay.watchOnce()).toBe(1);
+    expect(await receipts(RECORDED.group)).toEqual(["forwarded"]);
+    const [input] = await groupInputs();
+    expect(input!.message).toBe(
+      "[KakaoTalk group] 테스트 그룹\nEarlier messages:\nMember Three: 다음 주에 다같이 밥 먹을까?\nMember Four: 좋아 화요일 어때\n\nMessage to you:\nTest Host: 이브, 화요일 저녁 괜찮을까?",
+    );
+    const [kept] = await db<{ count: number }[]>`
+      select count(*)::int as count from app.kakaotalk_group_messages m join app.kakaotalk_groups g on g.id = m.group_id where g.room_hash = ${groupHash}
+    `;
+    expect(kept!.count).toBe(0);
+
+    await im.endTurn(input!.id, "화요일 저녁 7시는 어떠세요?");
+    await prepareGroup();
+    expect(await current.relay.claimOnce()).toMatchObject({ outcome: { outcome: "accepted" }, status: "done" });
+    expect(current.messenger.sent.at(-1)).toEqual({ chatId: RECORDED.group, name: "테스트 그룹", text: "화요일 저녁 7시는 어떠세요?" });
+    expect((await groupRows()).map((row) => [row.kind, row.state])).toEqual([["turn", "accepted"]]);
+    // The relay's own reply in the group is not forwarded back.
+    expect(await current.relay.watchOnce()).toBe(0);
+  });
+
+  it("does not mistake a word that contains a name for a call", async () => {
+    current.kakao.add(RECORDED.group, "900000003", "every evening works for me");
+    await current.relay.watchOnce();
+    expect(await receipts(RECORDED.group)).toEqual(["ignored"]);
+    expect(await groupInputs()).toEqual([]);
+  });
+
+  it("answers at most the daily number of calls in a group, and keeps the rest as context", async () => {
+    process.env.KAKAOTALK_GROUP_DAILY_REPLIES = "1";
+    try {
+      current.kakao.add(RECORDED.group, "900000003", "@eve 안녕");
+      current.kakao.add(RECORDED.group, "900000004", "@eve 나도 안녕");
+      await current.relay.watchOnce();
+      expect(await receipts(RECORDED.group)).toEqual(["forwarded", "ignored"]);
+    } finally {
+      delete process.env.KAKAOTALK_GROUP_DAILY_REPLIES;
+    }
+  });
+
+  it("forwards a group code only as its hash, and stores no text for it", async () => {
+    const coded = current.kakao.add(RECORDED.group, "900000003", "FMAT-7K3Q9M2XWA");
+    await current.relay.watchOnce();
+    const [receipt] = await db`select 1 from app.imessage_receipts where message_id = ${`kakaotalk:${RECORDED.group}:log:${coded.logId}`}`;
+    expect(receipt).toBeUndefined();
+  });
+
+  it("never hands a group's reply to the phone, and records nothing more once the account left", async () => {
+    current.kakao.add(RECORDED.group, "900000003", "@eve 안녕");
+    await current.relay.watchOnce();
+    expect(await receipts(RECORDED.group)).toEqual(["forwarded"]);
+    const [input] = await groupInputs();
+    await im.endTurn(input!.id, "안녕하세요!");
+    await prepareGroup();
+    await phone.heartbeat();
+    expect(await phone.claim({ rooms: [RECORDED.group] })).toBeNull();
+    expect((await groupRows()).map((row) => [row.state, row.failure_category])).toEqual([["suppressed", "unsupported"]]);
+
+    await db`update app.kakaotalk_groups set left_at = now() where room_hash = ${groupHash}`;
+    await current.relay.beatOnce();
+    current.kakao.add(RECORDED.group, "900000004", "@eve 아직 있어?");
+    await current.relay.watchOnce();
+    expect((await receipts(RECORDED.group)).at(-1)).toBe("ignored");
+    expect(await groupInputs()).toHaveLength(1);
   });
 });

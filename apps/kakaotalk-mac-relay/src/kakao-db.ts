@@ -151,6 +151,8 @@ export function logIdAfter(a: string, b: string) {
 // FakeKakao (testing.ts) from recorded rows.
 export type KakaoReader = {
   rooms(): Promise<Room[]>;
+  // Each user's names (NTUser, linkId 0), for group members.
+  users(): Promise<ReadonlyMap<string, readonly string[]>>;
   myUserId(): Promise<string>;
   maxLogId(): Promise<string>;
   messagesAfter(chatId: string, afterLogId: string): Promise<DbMessage[]>;
@@ -165,8 +167,12 @@ export class KakaoDatabase implements KakaoReader {
     this.#runner = runner;
   }
 
+  async users() {
+    return parseUsers(await this.#runner.query(USERS_SQL));
+  }
+
   async rooms() {
-    return parseRooms(await this.#runner.query(ROOMS_SQL), parseUsers(await this.#runner.query(USERS_SQL)));
+    return parseRooms(await this.#runner.query(ROOMS_SQL), await this.users());
   }
 
   async myUserId() {

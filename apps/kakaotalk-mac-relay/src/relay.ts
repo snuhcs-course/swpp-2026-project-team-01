@@ -1,7 +1,7 @@
 import { type DeliveryDeps, leaveRoom, type Messenger, type Outcome, sendToRoom, type Ui } from "./delivery.ts";
 import { eventsFor } from "./events.ts";
 import { type DbMessage, type KakaoReader, logIdAfter, type Room } from "./kakao-db.ts";
-import { memberRooms, sendableRooms, sortedIds } from "./rooms.ts";
+import { memberRooms, sendableGroupRooms, sendableRooms, sortedIds } from "./rooms.ts";
 import { signedHeaders } from "./signer.ts";
 
 // The Mac relay's three loops (host-kakaotalk-mac-relay designs 3 to 8), on
@@ -36,6 +36,8 @@ export type RelayConfig = {
   readonly inboundSecret: string;
   readonly outboxSecret: string;
   readonly groupEvents: boolean;
+  // Members' group text (kakaotalk-group-conversations), on unless set false.
+  readonly groupMessages?: boolean;
 };
 
 export type RelayDeps = {
@@ -94,6 +96,7 @@ export class MacRelay {
   #state: RelayState | null = null;
   #myUserId = "";
   #lastReadAt = 0;
+  #users: ReadonlyMap<string, readonly string[]> = new Map();
 
   constructor(deps: RelayDeps) {
     this.#deps = deps;
@@ -130,6 +133,8 @@ export class MacRelay {
     const state = this.#state;
     if (!state) throw new Error("start() first");
     const rooms = await this.#deps.db.rooms();
+    const users = await this.#deps.db.users();
+    this.#users = users;
     this.#lastReadAt = this.#deps.now();
     let posted = 0;
 
@@ -152,7 +157,13 @@ export class MacRelay {
 
   // Posts a message's events; "retry" when the service should be asked again later.
   async #deliver(message: DbMessage, room: Room): Promise<number | "retry"> {
-    const events = eventsFor(message, room, { groupEvents: this.#deps.config.groupEvents, inboundSecret: this.#deps.config.inboundSecret, myUserId: this.#myUserId });
+    const events = eventsFor(message, room, {
+      groupEvents: this.#deps.config.groupEvents,
+      groupMessages: this.#deps.config.groupMessages !== false,
+      inboundSecret: this.#deps.config.inboundSecret,
+      myUserId: this.#myUserId,
+      namesOf: (userId) => this.#users.get(userId) ?? [],
+    });
     let taken = 0;
     for (const event of events) {
       const answer = await this.#deps.post("/kakaotalk/webhook", JSON.stringify(event), this.#deps.config.inboundSecret);
@@ -171,7 +182,7 @@ export class MacRelay {
   async #rooms() {
     const rooms = await this.#deps.db.rooms();
     this.#lastReadAt = this.#deps.now();
-    return { member: sortedIds(memberRooms(rooms)), replyable: sortedIds(sendableRooms(rooms)) };
+    return { group: sortedIds(sendableGroupRooms(rooms)), member: sortedIds(memberRooms(rooms)), replyable: sortedIds(sendableRooms(rooms)) };
   }
 
   #delivery(): DeliveryDeps {
@@ -191,7 +202,7 @@ export class MacRelay {
     const probe = await this.#deps.ui.probe();
     if (probe.locked) return { status: "locked" };
     const rooms = await this.#rooms();
-    const body = JSON.stringify({ locked: false, memberRooms: rooms.member, postedRooms: [], relay: "mac", replyableRooms: rooms.replyable });
+    const body = JSON.stringify({ groupRooms: rooms.group, locked: false, memberRooms: rooms.member, postedRooms: [], relay: "mac", replyableRooms: rooms.replyable });
     const answer = await this.#deps.post("/kakaotalk/outbox/claim", body, this.#deps.config.outboxSecret);
     if (answer.status === 204 || (answer.status === 200 && (answer.body === null || (typeof answer.body === "object" && Object.keys(answer.body).length === 0)))) {
       return { status: "idle" };

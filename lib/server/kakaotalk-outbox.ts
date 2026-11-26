@@ -103,6 +103,7 @@ const ROOMS = z.array(z.string().regex(/^\d{1,40}$/)).max(3000);
 const RELAY = z.enum(["android", "mac"]).default("android");
 const claimBody = z
   .object({
+    groupRooms: ROOMS.optional(),
     locked: z.boolean().optional(),
     memberRooms: ROOMS.optional(),
     postedRooms: ROOMS.optional(),
@@ -213,6 +214,9 @@ export type ClaimRooms = {
   // The relay that claims, and from the Mac relay the group rooms the account is in.
   readonly relay?: RelayKind;
   readonly member?: ReadonlySet<string>;
+  // From the Mac relay: the group rooms it may send to, whose title picks them
+  // and no other room (kakaotalk-group-conversations design 4).
+  readonly group?: ReadonlySet<string>;
 };
 
 // The open rows that head their chat, oldest first: one per chat, skipping a
@@ -306,7 +310,10 @@ export async function claimKakaoTalkMessage(
     const check = async (row: OpenRow): Promise<Checked> => {
       if (row.state === "waiting" || row.job_pending) return { status: "blocked" };
       // Only the Mac relay can leave a room (host-kakaotalk-mac-relay design 7).
-      if (UNSUPPORTED.has(row.kind) || (row.kind === "leave_room" && relay !== "mac")) {
+      // A group chat's reply has no binding; only the Mac relay reaches a group
+      // (kakaotalk-group-conversations design 4).
+      const groupReply = row.kind === "turn" && !row.binding_id && !row.host_account_id;
+      if (UNSUPPORTED.has(row.kind) || ((row.kind === "leave_room" || groupReply) && relay !== "mac")) {
         await suppress(tx, row.id, "unsupported");
         return { status: "suppressed" };
       }
@@ -386,7 +393,8 @@ export async function claimKakaoTalkMessage(
         }
       }
 
-      if (rooms.posted.has(roomId) || rooms.replyable.has(roomId)) {
+      const groupReply = row.kind === "turn" && !row.binding_id && !row.host_account_id;
+      if (groupReply ? rooms.group?.has(roomId) : rooms.posted.has(roomId) || rooms.replyable.has(roomId)) {
         // The host wrote again, so a nudge still waiting for this chat has no point.
         await tx`
           update app.imessage_outbox
@@ -546,6 +554,7 @@ export async function receiveKakaoTalkClaim(request: Request, load: () => KakaoT
 
   // A reply may go to a room with a posted notification or one whose reply action the relay still holds.
   const rooms = {
+    group: new Set(body.groupRooms ?? []),
     member: new Set(body.memberRooms ?? []),
     posted: new Set(body.postedRooms ?? []),
     relay: body.relay,
