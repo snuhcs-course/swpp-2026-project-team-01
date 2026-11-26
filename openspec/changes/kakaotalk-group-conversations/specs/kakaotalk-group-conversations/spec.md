@@ -26,11 +26,11 @@ Each KakaoTalk group SHALL have its own conversation, owned by no host and no re
 A group message SHALL call the assistant when it names the account or the assistant: a Latin name as a whole word, a Korean name not preceded by a Hangul syllable and followed by nothing or a particle. An `@` before another member's name SHALL NOT call it. A message that does not call SHALL run no model and SHALL be kept, sealed, as context for at most 24 hours and at most 30 messages per group. A call SHALL become one input that lists the kept context, oldest first, then the calling message, each with its sender's name, and SHALL consume the context it lists only when the input is recorded. A call that is deferred SHALL keep the context for its retry.
 
 #### Scenario: Conversation then a call
-- **WHEN** two members discuss a dinner and a third writes "이브, 화요일 저녁 괜찮을까?"
+- **WHEN** two members discuss a dinner and a third writes "타임래빗, 화요일 저녁 괜찮을까?"
 - **THEN** one input lists the two messages and then the call, and no model runs for the first two
 
 #### Scenario: Word that contains a name
-- **WHEN** a member writes "every evening works" or "드라이브 가자"
+- **WHEN** a member writes "TimeRabbits are cute" or "새타임래빗"
 - **THEN** it is kept as context and the assistant does not answer
 
 #### Scenario: Call deferred by admission

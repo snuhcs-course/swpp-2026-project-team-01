@@ -26,4 +26,4 @@ This change lands in pull request #501 with `host-kakaotalk-channel` and `host-k
 
 ## 5. Device (with the user's approval)
 
-- [ ] 5.1 On the Mac mini, against local eve: members' messages in 카톡테스트용 are kept, a call is answered in the group.
+- [x] 5.1 On the Mac mini, against local eve: a call in 카톡테스트용 is answered in the group. Done on 2026-11-26: the call was forwarded and the reply `accepted` after the landing check. Afterwards the default names became `TimeRabbit` and `타임래빗` only, at the user's request.

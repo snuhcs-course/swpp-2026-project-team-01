@@ -370,12 +370,12 @@ describe("a group chat on the Mac relay", () => {
     expect(await receipts(RECORDED.group)).toEqual(["ignored", "ignored"]);
     expect(await groupInputs()).toEqual([]);
 
-    current.kakao.add(RECORDED.group, RECORDED.host, "이브, 화요일 저녁 괜찮을까?");
+    current.kakao.add(RECORDED.group, RECORDED.host, "타임래빗, 화요일 저녁 괜찮을까?");
     expect(await current.relay.watchOnce()).toBe(1);
     expect(await receipts(RECORDED.group)).toEqual(["forwarded"]);
     const [input] = await groupInputs();
     expect(input!.message).toBe(
-      "[KakaoTalk group] 테스트 그룹\nEarlier messages:\nMember Three: 다음 주에 다같이 밥 먹을까?\nMember Four: 좋아 화요일 어때\n\nMessage to you:\nTest Host: 이브, 화요일 저녁 괜찮을까?",
+      "[KakaoTalk group] 테스트 그룹\nEarlier messages:\nMember Three: 다음 주에 다같이 밥 먹을까?\nMember Four: 좋아 화요일 어때\n\nMessage to you:\nTest Host: 타임래빗, 화요일 저녁 괜찮을까?",
     );
     const [kept] = await db<{ count: number }[]>`
       select count(*)::int as count from app.kakaotalk_group_messages m join app.kakaotalk_groups g on g.id = m.group_id where g.room_hash = ${groupHash}
@@ -401,8 +401,8 @@ describe("a group chat on the Mac relay", () => {
   it("answers at most the daily number of calls in a group, and keeps the rest as context", async () => {
     process.env.KAKAOTALK_GROUP_DAILY_REPLIES = "1";
     try {
-      current.kakao.add(RECORDED.group, "900000003", "@eve 안녕");
-      current.kakao.add(RECORDED.group, "900000004", "@eve 나도 안녕");
+      current.kakao.add(RECORDED.group, "900000003", "@TimeRabbit 안녕");
+      current.kakao.add(RECORDED.group, "900000004", "@TimeRabbit 나도 안녕");
       await current.relay.watchOnce();
       expect(await receipts(RECORDED.group)).toEqual(["forwarded", "ignored"]);
     } finally {
@@ -414,7 +414,7 @@ describe("a group chat on the Mac relay", () => {
     current.kakao.add(RECORDED.group, "900000003", "다음 주에 다같이 밥 먹을까?");
     await current.relay.watchOnce();
     await receipts(RECORDED.group);
-    current.kakao.add(RECORDED.group, "900000004", "이브야 화요일 어때?");
+    current.kakao.add(RECORDED.group, "900000004", "타임래빗아 화요일 어때?");
     await current.relay.watchOnce();
     const limited = im.receiptDeps();
     const deferred = { ...limited, conversation: { ...limited.conversation, admission: { ...limited.conversation.admission, limits: { scopeMinute: 0 } } } };
@@ -427,14 +427,14 @@ describe("a group chat on the Mac relay", () => {
   });
 
   it("starts the group's next session after a failed one, so the group is answered again", async () => {
-    current.kakao.add(RECORDED.group, "900000003", "@eve 안녕");
+    current.kakao.add(RECORDED.group, "900000003", "@TimeRabbit 안녕");
     await current.relay.watchOnce();
     await receipts(RECORDED.group);
     await db`
       update app.agent_sessions s set state = 'failed' from app.discussions d join app.kakaotalk_groups g on g.id = d.principal_id
       where s.discussion_id = d.id and d.principal_type = 'kakaotalk_group' and g.room_hash = ${groupHash}
     `;
-    current.kakao.add(RECORDED.group, "900000004", "이브 다시 안녕");
+    current.kakao.add(RECORDED.group, "900000004", "타임래빗 다시 안녕");
     await current.relay.watchOnce();
     expect(await receipts(RECORDED.group)).toEqual(["forwarded"]);
     const sessions = await db<{ generation: number; state: string }[]>`
@@ -453,7 +453,7 @@ describe("a group chat on the Mac relay", () => {
   it("keeps an untitled group's call as context, since its reply could not be sent", async () => {
     const untitled = newKakaoTalkRoom();
     current.kakao.addRoom({ chatId: untitled, kind: "group", memberUserIds: ["900000003"] });
-    current.kakao.add(untitled, "900000003", "@eve 안녕");
+    current.kakao.add(untitled, "900000003", "@TimeRabbit 안녕");
     await current.relay.watchOnce();
     expect(await receipts(untitled)).toEqual(["ignored"]);
   });
@@ -466,7 +466,7 @@ describe("a group chat on the Mac relay", () => {
   });
 
   it("never hands a group's reply to the phone, and records nothing more once the account left", async () => {
-    current.kakao.add(RECORDED.group, "900000003", "@eve 안녕");
+    current.kakao.add(RECORDED.group, "900000003", "@TimeRabbit 안녕");
     await current.relay.watchOnce();
     expect(await receipts(RECORDED.group)).toEqual(["forwarded"]);
     const [input] = await groupInputs();
@@ -478,7 +478,7 @@ describe("a group chat on the Mac relay", () => {
 
     await db`update app.kakaotalk_groups set left_at = now() where room_hash = ${groupHash}`;
     await current.relay.beatOnce();
-    current.kakao.add(RECORDED.group, "900000004", "@eve 아직 있어?");
+    current.kakao.add(RECORDED.group, "900000004", "@TimeRabbit 아직 있어?");
     await current.relay.watchOnce();
     expect((await receipts(RECORDED.group)).at(-1)).toBe("ignored");
     expect(await groupInputs()).toHaveLength(1);

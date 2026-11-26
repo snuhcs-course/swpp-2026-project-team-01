@@ -39,7 +39,7 @@ Every tool and every fragment but `base.md` is gated on a host or requester sess
 
 ### 3. Context and calls
 
-A message calls the assistant when it names one of `KAKAOTALK_GROUP_NAMES` (default `TimeRabbit`, `타임래빗`, `eve`, `이브`), with or without `@` in front. A Latin name counts only as a whole word, so "every" and "seven" do not call, and "Christmas Eve" does not either. A Korean name counts when no Hangul syllable comes right before it and nothing or a particle (야, 아, 님, 한테, 에게, …) comes right after it, so "이브야" calls and "드라이브" or "크리스마스 이브에" do not. An `@` before another member's name ("@김철수") calls no one.
+A message calls the assistant when it names one of `KAKAOTALK_GROUP_NAMES` (default `TimeRabbit` and `타임래빗`, the account's KakaoTalk name in English and Korean), with or without `@` in front. A Latin name counts only as a whole word, so "TimeRabbits" does not call. A Korean name counts when no Hangul syllable comes right before it and nothing or a particle (아, 야, 님, 한테, 에게, …) comes right after it, so "타임래빗아" calls and "새타임래빗" does not. An `@` before another member's name ("@김철수") calls no one. The assistant's other names are left out on purpose: "eve" is the framework the service runs on, not a name members see, and the Korean "타임" is an everyday word ("다음 타임").
 
 A message that does not call is sealed into `app.kakaotalk_group_messages` as one line, `name: text`, and runs no model. A group keeps at most 30 such lines, and an hourly sweep removes every line past 24 hours. A call reads the kept lines, oldest first, and records one input; the same transaction that records the input deletes exactly the lines it read. A call that admission defers, or that fails before its input is recorded, therefore loses no context, and a recorded call never sends the same lines twice:
 
@@ -50,7 +50,7 @@ Kim: 다음 주에 다같이 밥 먹을까?
 Lee: 좋아 화요일 어때
 
 Message to you:
-Park: 이브, 화요일 저녁 괜찮을까?
+Park: 타임래빗, 화요일 저녁 괜찮을까?
 ```
 
 If the input is too long, the oldest lines are left out, and deleted with the rest. The input is keyed by the receipt, so a retried job records nothing twice; it then records the reply whatever the limits say by then. An untitled group's call is kept as context, because its reply could not be sent (Q3).

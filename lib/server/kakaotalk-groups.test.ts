@@ -6,29 +6,33 @@ import { callsAssistant, contextLine, GROUP_NAMES, groupInput, groupSettings, is
 // daily limits, and which sessions get the group instructions.
 
 describe("calls", () => {
-  it("counts a message that names the account or the assistant, with or without @", () => {
-    for (const text of ["@이브 다음 주 언제 돼?", "이브야 화요일 어때", "이브, 화요일 저녁 괜찮을까?", "타임래빗한테 물어보자", "이브님 안녕", "Eve, are you there?", "hey TIMERABBIT", "@eve 안녕", "eve?"]) {
+  it("counts a message that names the account, with or without @", () => {
+    for (const text of ["@타임래빗 다음 주 언제 돼?", "타임래빗아 화요일 어때", "타임래빗, 화요일 저녁 괜찮을까?", "타임래빗한테 물어보자", "타임래빗님 안녕", "TimeRabbit, are you there?", "hey TIMERABBIT", "@TimeRabbit 안녕", "timerabbit?"]) {
       expect(callsAssistant(text), text).toBe(true);
     }
   });
 
-  it("does not count a name inside another word, Christmas Eve, or an @ before someone else", () => {
+  it("does not count the name inside another word, the assistant's old names, or an @ before someone else", () => {
     for (const text of [
-      "every evening works",
-      "seven people",
-      "never mind",
+      "TimeRabbits are cute",
+      "MyTimeRabbit",
       "다음 주에 다같이 밥 먹을까?",
       "email me@x.com",
-      "드라이브 가자",
-      "라이브 봤어?",
-      "아카이브 링크",
-      "크리스마스 이브에 뭐해",
-      "Christmas Eve plans",
+      "이브야 화요일 어때",
+      "eve, are you there?",
+      "새타임래빗",
+      "타임래빗츠",
       "@김철수 언제와",
       "@ 다음 주 언제 돼?",
     ]) {
       expect(callsAssistant(text), text).toBe(false);
     }
+  });
+
+  it("matches a configured Korean name only with a particle or nothing after it", () => {
+    expect(callsAssistant("이브야 안녕", ["이브"])).toBe(true);
+    expect(callsAssistant("드라이브 가자", ["이브"])).toBe(false);
+    expect(callsAssistant("크리스마스 이브에 뭐해", ["이브"])).toBe(false);
   });
 
   it("takes the names from the environment, and the defaults when it names none", () => {

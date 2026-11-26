@@ -36,7 +36,8 @@ import { openToken, sealToken, type TokenKey } from "./token-encryption";
 
 type Environment = Readonly<Record<string, string | undefined>>;
 
-export const GROUP_NAMES = ["TimeRabbit", "타임래빗", "eve", "이브"];
+// The product account's KakaoTalk name, in English and Korean.
+export const GROUP_NAMES = ["TimeRabbit", "타임래빗"];
 export const GROUP_DAILY_REPLIES = 30;
 export const GROUPS_DAILY_REPLIES = 300;
 export const GROUP_CONTEXT_HOURS = 24;
@@ -68,9 +69,9 @@ export function groupSettings(env: Environment = process.env): GroupSettings {
 
 const escape = (text: string) => text.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 
-// Particles that may follow a Korean name when it is called ("이브야",
+// Particles that may follow a Korean name when it is called ("타임래빗아",
 // "타임래빗한테"); a Korean name followed by anything else, or preceded by a
-// Hangul syllable ("드라이브", "크리스마스 이브에"), is part of another word.
+// Hangul syllable, is part of another word.
 const PARTICLES = ["", "야", "아", "님", "씨", "한테", "에게", "께", "랑", "이랑", "는", "은", "가", "이", "도", "요"];
 const HANGUL = /[\uac00-\ud7a3]/;
 
@@ -85,13 +86,12 @@ function namesKorean(text: string, name: string) {
 }
 
 function namesLatin(text: string, name: string) {
-  return new RegExp(`(?<![A-Za-z0-9])${escape(name)}(?![A-Za-z0-9])`, "i").test(text) && !/christmas\s+eve/i.test(text);
+  return new RegExp(`(?<![A-Za-z0-9])${escape(name)}(?![A-Za-z0-9])`, "i").test(text);
 }
 
 // Whether a message calls the assistant: it names the account or the assistant,
-// with or without "@" in front. A Latin name counts only as a whole word ("eve",
-// not "every" or "seven"), and an "@" before someone else's name ("@김철수")
-// calls no one.
+// with or without "@" in front. A Latin name counts only as a whole word, and
+// an "@" before someone else's name ("@김철수") calls no one.
 export function callsAssistant(text: string, names: readonly string[] = GROUP_NAMES) {
   const trimmed = text.trim();
   return names.some((name) => (/^[\x20-\x7e]+$/.test(name) ? namesLatin(trimmed, name) : namesKorean(trimmed, name)));
