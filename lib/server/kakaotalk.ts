@@ -53,6 +53,25 @@ export const KAKAOTALK_NUDGE_TEXT = "Find Me a Time에 새 소식이 있어요. 
 
 export type RelayRouteClass = "inbound" | "outbox";
 
+// The two relays behind the same routes (host-kakaotalk-mac-relay design 1):
+// the Android phone and KakaoTalk for Mac. Each Mac body says "relay": "mac"
+// inside the signed body; a body without it is the phone's. Only the relay that
+// KAKAOTALK_ACTIVE_RELAY names may post events, claim or beat; the other is
+// answered 409 standby. The default is the phone, so its app needs no release.
+export type RelayKind = "android" | "mac";
+
+export function activeRelayOf(env: Environment): RelayKind {
+  return env.KAKAOTALK_ACTIVE_RELAY?.trim().toLowerCase() === "mac" ? "mac" : "android";
+}
+
+// The relay a parsed body names, or null for a value that is not a relay.
+export function relayOfBody(payload: unknown): RelayKind | null {
+  if (!payload || typeof payload !== "object") return null;
+  const relay = (payload as Record<string, unknown>).relay;
+  if (relay === undefined) return "android";
+  return relay === "android" || relay === "mac" ? relay : null;
+}
+
 export type KakaoTalkConfig = {
   // The product's KakaoTalk ID the card shows (KAKAOTALK_ACCOUNT_ID); KakaoTalk is
   // not configured without one.
@@ -60,6 +79,8 @@ export type KakaoTalkConfig = {
   // The current secret first, then the previous one, for each route class.
   readonly inboundSecrets: readonly string[];
   readonly outboxSecrets: readonly string[];
+  // The relay the service acts on (KAKAOTALK_ACTIVE_RELAY, default android).
+  readonly activeRelay: RelayKind;
 };
 
 function secretsOf(env: Environment, name: string) {
@@ -71,6 +92,7 @@ export function kakaotalkConfig(env: Environment = process.env): KakaoTalkConfig
     accountId: env.KAKAOTALK_ACCOUNT_ID?.trim() ?? "",
     inboundSecrets: secretsOf(env, "KAKAOTALK_RELAY_INBOUND_SECRET"),
     outboxSecrets: secretsOf(env, "KAKAOTALK_RELAY_OUTBOX_SECRET"),
+    activeRelay: activeRelayOf(env),
   };
 }
 
@@ -159,8 +181,14 @@ export type KakaoTalkEvent =
 
 // A room ID as the notification tag carries it (<account>_<room ID>), and an
 // event ID: <room ID>:<post time in ms>:<index among messages of that time>.
+// The Mac relay reads the database instead and names a message by its log ID:
+// <chatId>:log:<logId> (host-kakaotalk-mac-relay design 3); chatId is the
+// same number as the phone's room ID.
 const ROOM_ID = /^\d{1,40}$/;
 const EVENT_ID = /^(\d{1,40}):(\d{1,15}):(\d{1,4})$/;
+const MAC_EVENT_ID = /^(\d{1,40}):log:(\d{1,20})$/;
+const MAC_MEMBERS_EVENT_ID = /^(\d{1,40}):members:(\d{1,20})$/;
+const USER_ID = /^\d{1,20}$/;
 
 function postedAt(value: unknown) {
   if (typeof value === "number" && Number.isFinite(value) && value > 0) return new Date(value);
@@ -180,20 +208,39 @@ function displayName(value: unknown) {
 
 // The relay event a webhook body carries, or null when it is not one:
 //   { eventId, roomId, isGroup, senderName, text, postedAt, nonText? } for a
-//   message, where eventId starts with the room ID;
-//   { kind: "void_code", eventId, codeHash } for a code seen in a group.
+//   message, where eventId starts with the room ID; from the Mac relay also
+//   senderUserId (validated, not stored) and the log-form event ID;
+//   { kind: "void_code", eventId, codeHash } for a code seen in a group;
+//   { relay: "mac", kind: "room_members", eventId, roomId, memberUserIds,
+//   activeMembersCount } for a group's member list, which stores nothing until
+//   the group change consumes it (host-kakaotalk-mac-relay design 4).
 export function parseKakaoTalkEvent(payload: unknown): KakaoTalkEvent | null {
   if (!payload || typeof payload !== "object") return null;
   const event = payload as Record<string, unknown>;
+  const relay = relayOfBody(event);
+  if (!relay) return null;
 
   if (event.kind === "void_code") {
     return typeof event.codeHash === "string" && SIGNATURE.test(event.codeHash) ? { codeHash: event.codeHash, kind: "void_code" } : null;
   }
+  if (event.kind === "room_members") {
+    const id = relay === "mac" && typeof event.eventId === "string" ? MAC_MEMBERS_EVENT_ID.exec(event.eventId) : null;
+    const members = event.memberUserIds;
+    const valid =
+      id &&
+      id[1] === event.roomId &&
+      Array.isArray(members) &&
+      members.length <= 1000 &&
+      members.every((member) => typeof member === "string" && USER_ID.test(member)) &&
+      Number.isInteger(event.activeMembersCount);
+    return valid ? { kind: "group" } : null;
+  }
   if (event.kind !== undefined && event.kind !== "message") return null;
   if (event.isGroup === true || event.isOpenChat === true) return { kind: "group" };
   if (event.isGroup !== false) return null;
+  if (event.senderUserId !== undefined && !(relay === "mac" && typeof event.senderUserId === "string" && USER_ID.test(event.senderUserId))) return null;
 
-  const eventId = typeof event.eventId === "string" ? EVENT_ID.exec(event.eventId) : null;
+  const eventId = typeof event.eventId === "string" ? (relay === "mac" ? MAC_EVENT_ID : EVENT_ID).exec(event.eventId) : null;
   const roomId = typeof event.roomId === "string" && ROOM_ID.test(event.roomId) ? event.roomId : null;
   if (!eventId || !roomId || eventId[1] !== roomId) return null;
 

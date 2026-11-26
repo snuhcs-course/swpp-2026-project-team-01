@@ -319,6 +319,9 @@ KakaoTalk is the transport of the proposed host KakaoTalk channel in the [`host-
 - **Rotation.** Move the current value to `…_PREVIOUS`, set the new value, deploy, and update the relay. Then remove `…_PREVIOUS` and deploy again.
 - **Lost phone.** Remove both secrets and deploy, so every relay route refuses. Sign the KakaoTalk account out from another device, then set new secrets on the replacement phone.
 - **Health.** The relay sends a heartbeat every minute. An operational alert is written when the relay is down for five minutes and again after an hour (D7).
+- **Mac relay.** The proposed [`host-kakaotalk-mac-relay` change](../../openspec/changes/host-kakaotalk-mac-relay/proposal.md#decisions) makes KakaoTalk for Mac on a Mac mini the main relay, behind the same routes and secrets, and keeps the phone as a standby. The daemon and its helper are in [`apps/kakaotalk-mac-relay/`](../../apps/kakaotalk-mac-relay/README.md), which lists the Mac's setup: the product's account signed in to KakaoTalk for Mac, a patched `kakaocli`, the derived database key in a file only its user can read, the screen never locked, and the Accessibility grant on the helper.
+  - `KAKAOTALK_ACTIVE_RELAY`: `mac` or `android` (the default). The service refuses the other relay's events, claims and heartbeats with `409`, so only one relay acts on the account. To switch, stop the old relay, set the variable and deploy, then start the new one; claims resume after its first heartbeat.
+  - A message the Mac relay finds in another room after sending is recorded as `relay_wrong_room` and listed as `kakaotalk_wrong_room` in the operator snapshot.
 - **Terms.** Kakao's terms prohibit programs that use the service in ways Kakao has not authorized, and the account may be suspended (Q1). Hosts keep `/app` and email.
 
 Never sign the product's KakaoTalk account in, set the relay secrets, or send a KakaoTalk message from an agent session without the user's approval.

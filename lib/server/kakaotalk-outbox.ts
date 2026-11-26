@@ -13,10 +13,12 @@ import {
   KAKAOTALK_NUDGE_TEXT,
   KAKAOTALK_REQUEUES,
   leaseTokenHash,
+  type RelayKind,
 } from "./kakaotalk";
 import { authenticateRelay, type RelayDependencies, relayAnswer, relayDependenciesFromEnvironment } from "./kakaotalk-receiver";
 import type { PhotonContent } from "./photon";
-import { openToken, sealToken } from "./token-encryption";
+import { channelHash } from "./photon-receiver";
+import { openToken, sealToken, type TokenKey } from "./token-encryption";
 
 // The KakaoTalk relay outbox (host-kakaotalk-channel design 5 and 7, D5 and
 // D7). The relay phone cannot be called, so it pulls: the imessage_send job
@@ -51,11 +53,22 @@ import { openToken, sealToken } from "./token-encryption";
 // POST /kakaotalk/heartbeat records the relay's latest state; a heartbeat with
 // both services enabled clears the down state, and one with a disabled service
 // records the alert at once.
+//
+// The Mac relay (host-kakaotalk-mac-relay) uses the same routes. Its bodies say
+// "relay": "mac", and only the relay KAKAOTALK_ACTIVE_RELAY names may claim or
+// beat; the other is answered 409 standby, and a claim hands out nothing until
+// the last heartbeat came from the active relay (design 1). The Mac relay lists
+// the 1:1 rooms it may send to as replyableRooms and the group rooms it is in
+// as memberRooms. It never gets a nudge, and nothing while its screen is locked
+// (designs 6 and 8). A leave_room row is handed to it in leave mode while the
+// room is in memberRooms, and is suppressed when the room is not, or while the
+// phone is active (design 7). A result may carry reason wrong_room: the message
+// landed in another room, which raises an alert (design 5).
 
 export type ClaimedMessage = {
   readonly id: string;
   readonly leaseToken: string;
-  readonly mode: "reply" | "nudge";
+  readonly mode: "reply" | "nudge" | "leave";
   readonly roomId: string;
   readonly displayName: string | null;
   readonly text: string;
@@ -86,9 +99,24 @@ function outboxDependenciesFromEnvironment(): KakaoTalkOutboxDependencies {
   };
 }
 
-const ROOMS = z.array(z.string().regex(/^\d{1,40}$/)).max(500);
-const claimBody = z.object({ locked: z.boolean().optional(), postedRooms: ROOMS.optional(), replyableRooms: ROOMS.optional() }).passthrough();
-const resultBody = z.object({ leaseToken: z.string().min(16).max(200), outcome: z.enum(["accepted", "failed", "uncertain", "not_started"]) }).passthrough();
+const ROOMS = z.array(z.string().regex(/^\d{1,40}$/)).max(3000);
+const RELAY = z.enum(["android", "mac"]).default("android");
+const claimBody = z
+  .object({
+    locked: z.boolean().optional(),
+    memberRooms: ROOMS.optional(),
+    postedRooms: ROOMS.optional(),
+    relay: RELAY,
+    replyableRooms: ROOMS.optional(),
+  })
+  .passthrough();
+const resultBody = z
+  .object({
+    leaseToken: z.string().min(16).max(200),
+    outcome: z.enum(["accepted", "failed", "uncertain", "not_started"]),
+    reason: z.enum(["wrong_room"]).optional(),
+  })
+  .passthrough();
 const heartbeatBody = z
   .object({
     accessibilityEnabled: z.boolean(),
@@ -96,6 +124,8 @@ const heartbeatBody = z
     listenerEnabled: z.boolean(),
     locked: z.boolean(),
     postedRooms: ROOMS.optional(),
+    relay: RELAY,
+    replyableRooms: ROOMS.optional(),
   })
   .passthrough();
 
@@ -177,7 +207,12 @@ export type ClaimRooms = {
   readonly posted: ReadonlySet<string>;
   // Rooms whose reply action the relay still holds after KakaoTalk removed the
   // notification. A reply through a kept action works while the phone is locked.
+  // From the Mac relay: the 1:1 rooms it may send to (host-kakaotalk-mac-relay
+  // designs 5 and 6).
   readonly replyable: ReadonlySet<string>;
+  // The relay that claims, and from the Mac relay the group rooms the account is in.
+  readonly relay?: RelayKind;
+  readonly member?: ReadonlySet<string>;
 };
 
 // The open rows that head their chat, oldest first: one per chat, skipping a
@@ -234,12 +269,19 @@ export async function claimKakaoTalkMessage(
   return deps.db.begin(async (tx) => {
     // One relay claims at a time, so a chat never holds two leases.
     await tx`select pg_advisory_xact_lock(hashtextextended('app.kakaotalk_claim', 0))`;
-    const [health] = await tx<{ cause: string | null; locked: boolean | null }[]>`
-      select app.check_kakaotalk_relay() as cause, (select locked from app.kakaotalk_relay_heartbeats where relay = 'relay') as locked
+    const [health] = await tx<{ cause: string | null; locked: boolean | null; relay_kind: string | null }[]>`
+      select app.check_kakaotalk_relay() as cause,
+             (select locked from app.kakaotalk_relay_heartbeats where relay = 'relay') as locked,
+             (select relay_kind from app.kakaotalk_relay_heartbeats where relay = 'relay') as relay_kind
     `;
     if (health?.cause) return null;
+    const relay = rooms.relay ?? "android";
+    // After a switch of relays, nothing goes out before the new relay's first heartbeat.
+    if (health?.relay_kind !== relay) return null;
     const locked = phoneLocked || health?.locked === true;
     await expireKakaoTalkLeases(tx);
+    // A locked Mac exposes no windows, so it can send nothing (host-kakaotalk-mac-relay design 8).
+    if (relay === "mac" && locked) return null;
 
     // A requeued nudge whose chat has nothing left to send would wait forever.
     await tx`
@@ -263,7 +305,8 @@ export async function claimKakaoTalkMessage(
     // decides), blocked (the chat waits), or ready to hand out.
     const check = async (row: OpenRow): Promise<Checked> => {
       if (row.state === "waiting" || row.job_pending) return { status: "blocked" };
-      if (UNSUPPORTED.has(row.kind)) {
+      // Only the Mac relay can leave a room (host-kakaotalk-mac-relay design 7).
+      if (UNSUPPORTED.has(row.kind) || (row.kind === "leave_room" && relay !== "mac")) {
         await suppress(tx, row.id, "unsupported");
         return { status: "suppressed" };
       }
@@ -325,6 +368,15 @@ export async function claimKakaoTalkMessage(
       if (!row || checked.status !== "ready") continue;
       const { binding, roomId, sealed } = checked;
 
+      if (row.kind === "leave_room") {
+        // The account already left a room the Mac relay no longer lists.
+        if (!rooms.member?.has(roomId)) {
+          await suppress(tx, row.id, "not_member");
+          continue;
+        }
+        return { displayName: null, id: row.id, leaseToken: await lease(tx, [row.id]), mode: "leave" as const, roomId, text: "" };
+      }
+
       let name: string | null = null;
       if (binding?.sender_name_ciphertext && binding.sealed_key_id) {
         try {
@@ -349,8 +401,9 @@ export async function claimKakaoTalkMessage(
 
       // No notification of this chat is posted: at most the fixed nudge, which
       // needs a bound chat's name, an unlocked phone and no nudge this hour; a
-      // locked phone still sends replies through posted or kept actions.
-      if (!row.binding_id || !name || locked) continue;
+      // locked phone still sends replies through posted or kept actions. The
+      // Mac relay never nudges: a room it does not list waits (host-kakaotalk-mac-relay design 6).
+      if (relay === "mac" || !row.binding_id || !name || locked) continue;
       // A nudge the relay could not start is claimed again, as content is (design 5).
       const [requeued] = await tx<{ id: string }[]>`
         select id from app.imessage_outbox
@@ -388,8 +441,11 @@ export async function claimKakaoTalkMessage(
 export type ReportOutcome = "accepted" | "failed" | "uncertain" | "not_started";
 
 // The relay's report on one claimed message; refused (with the row's state)
-// unless it carries the current token while the lease holds.
-export async function reportKakaoTalkResult(db: Database, id: string, token: string, outcome: ReportOutcome) {
+// unless it carries the current token while the lease holds. An uncertain
+// report with reason wrong_room means the message landed in another room
+// (host-kakaotalk-mac-relay design 5): it is recorded as relay_wrong_room, which
+// the operator snapshot lists, and logged as an error.
+export async function reportKakaoTalkResult(db: Database, id: string, token: string, outcome: ReportOutcome, reason?: "wrong_room") {
   return db.begin(async (tx) => {
     const [row] = await tx<{ state: string; kind: OutboxKind; lease_token_hash: string | null; live: boolean; claim_attempts: number }[]>`
       select state, kind, lease_token_hash, lease_expires_at > now() as live, claim_attempts
@@ -423,7 +479,17 @@ export async function reportKakaoTalkResult(db: Database, id: string, token: str
       return { accepted: true as const, state: "queued" };
     }
     const state = outcome === "accepted" ? "accepted" : outcome === "uncertain" ? "uncertain" : "failed";
-    const category = outcome === "accepted" ? null : outcome === "uncertain" ? "relay_uncertain" : outcome === "not_started" ? "not_started" : "relay_failed";
+    const category =
+      outcome === "accepted"
+        ? null
+        : outcome === "uncertain"
+          ? reason === "wrong_room"
+            ? "relay_wrong_room"
+            : "relay_uncertain"
+          : outcome === "not_started"
+            ? "not_started"
+            : "relay_failed";
+    if (category === "relay_wrong_room") console.error("kakaotalk relay sent to the wrong room", { id });
     await tx`
       update app.imessage_outbox
       set state = ${state}, failure_category = ${category}, lease_token_hash = null, lease_expires_at = null,
@@ -442,11 +508,11 @@ export async function recordKakaoTalkHeartbeat(db: Database, beat: RelayHeartbea
     const healthy = beat.listenerEnabled && beat.accessibilityEnabled;
     await tx`
       insert into app.kakaotalk_relay_heartbeats as h
-        (relay, received_at, listener_enabled, accessibility_enabled, locked, kakaotalk_version, posted_rooms)
+        (relay, received_at, listener_enabled, accessibility_enabled, locked, kakaotalk_version, posted_rooms, relay_kind)
       values ('relay', now(), ${beat.listenerEnabled}, ${beat.accessibilityEnabled}, ${beat.locked}, ${beat.kakaoVersion ?? null},
-              ${beat.postedRooms?.length ?? 0})
+              ${(beat.relay === "mac" ? beat.replyableRooms : beat.postedRooms)?.length ?? 0}, ${beat.relay})
       on conflict (relay) do update
-      set received_at = excluded.received_at, listener_enabled = excluded.listener_enabled,
+      set received_at = excluded.received_at, relay_kind = excluded.relay_kind, listener_enabled = excluded.listener_enabled,
           accessibility_enabled = excluded.accessibility_enabled, locked = excluded.locked,
           kakaotalk_version = excluded.kakaotalk_version, posted_rooms = excluded.posted_rooms,
           down_since = case when ${healthy} then null else h.down_since end,
@@ -476,9 +542,15 @@ export async function receiveKakaoTalkClaim(request: Request, load: () => KakaoT
   if ("refusal" in verified) return verified.refusal;
   const body = parse(claimBody, verified.body);
   if (!body) return relayAnswer(400);
+  if (body.relay !== deps.config.activeRelay) return relayAnswer(409, { status: "standby" });
 
   // A reply may go to a room with a posted notification or one whose reply action the relay still holds.
-  const rooms = { posted: new Set(body.postedRooms ?? []), replyable: new Set(body.replyableRooms ?? []) };
+  const rooms = {
+    member: new Set(body.memberRooms ?? []),
+    posted: new Set(body.postedRooms ?? []),
+    relay: body.relay,
+    replyable: new Set(body.replyableRooms ?? []),
+  };
   const deadline = Date.now() + (deps.claimWaitMs ?? KAKAOTALK_CLAIM_WAIT_MS);
   for (;;) {
     // An idle poll only looks for work; the claim's lock and checks run when there is some.
@@ -499,7 +571,7 @@ export async function receiveKakaoTalkResult(request: Request, id: string, load:
   const body = parse(resultBody, verified.body);
   if (!body) return relayAnswer(400);
 
-  const result = await reportKakaoTalkResult(deps.db, id.toLowerCase(), body.leaseToken, body.outcome);
+  const result = await reportKakaoTalkResult(deps.db, id.toLowerCase(), body.leaseToken, body.outcome, body.reason);
   if (result.state === "missing") return relayAnswer(404);
   return relayAnswer(result.accepted ? 200 : 409, { state: result.state });
 }
@@ -510,8 +582,32 @@ export async function receiveKakaoTalkHeartbeat(request: Request, load: () => Re
   if ("refusal" in verified) return verified.refusal;
   const body = parse(heartbeatBody, verified.body);
   if (!body) return relayAnswer(400);
+  if (body.relay !== deps.config.activeRelay) return relayAnswer(409, { status: "standby" });
 
   const { cause } = await recordKakaoTalkHeartbeat(deps.db, body);
   if (cause) console.warn("kakaotalk relay down", { cause });
   return relayAnswer(200, cause ? { cause, status: "down" } : { status: "up" });
+}
+
+// A leave row's sealed text: a marker, never sent (a sealed empty string does not open).
+const LEAVE_MARKER = "leave_room";
+
+// Queues a request for the Mac relay to leave a group room
+// (host-kakaotalk-mac-relay design 7). It carries no message text; the group change
+// creates it for /kickout. The row is queued at once, with no send job, and the
+// claim decides whether it goes out. A repeated dedupe key records nothing new.
+export async function queueKakaoTalkLeave(db: Database | Transaction, tokenKey: TokenKey, roomId: string, dedupeKey: string) {
+  if (!/^\d{1,40}$/.test(roomId)) throw new Error("A KakaoTalk room ID is a decimal number.");
+  const [created] = await db<{ id: string }[]>`select gen_random_uuid() as id`;
+  const id = created!.id;
+  const context = outboxSealContext(id);
+  const [row] = await db<{ id: string }[]>`
+    insert into app.imessage_outbox (id, channel, kind, dedupe_key, recipient_hash, recipient_ciphertext, text_ciphertext, sealed_key_id)
+    values (${id}, 'kakaotalk', 'leave_room', ${dedupeKey}, ${channelHash(tokenKey, "kakaotalk", "space", roomId)},
+            ${sealToken(tokenKey, JSON.stringify({ address: roomId, spaceId: roomId }), context).ciphertext},
+            ${sealToken(tokenKey, LEAVE_MARKER, context).ciphertext}, ${tokenKey.id})
+    on conflict (kind, dedupe_key) do nothing
+    returning id
+  `;
+  return row?.id ?? null;
 }

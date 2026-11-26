@@ -134,7 +134,9 @@ export type OutboxKind =
   | "edit_markup"
   | "callback_answer"
   // The fixed KakaoTalk nudge the relay's claim records (host-kakaotalk-channel design 1).
-  | "nudge";
+  | "nudge"
+  // A request for the Mac relay to leave a group room, with no text (host-kakaotalk-mac-relay design 7).
+  | "leave_room";
 
 export type OutboxState = "waiting" | "queued" | "dispatching" | "accepted" | "failed" | "uncertain" | "suppressed";
 

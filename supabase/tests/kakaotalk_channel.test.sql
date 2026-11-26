@@ -3,13 +3,15 @@
 -- one active binding across all four; a lease belongs to a dispatching KakaoTalk
 -- row only; a nudge row is KakaoTalk only; the relay's nonce and heartbeat
 -- tables are closed to the Data API roles; the relay check records one alert
--- when the relay goes down and another an hour later. Everything runs in a
--- rolled-back transaction.
+-- when the relay goes down and another an hour later. The Mac relay
+-- (host-kakaotalk-mac-relay designs 1 and 7): a leave_room row is KakaoTalk
+-- only, and the heartbeat row names the relay that sent it, the phone by
+-- default. Everything runs in a rolled-back transaction.
 begin;
 
 create extension if not exists pgtap with schema extensions;
 
-select plan(18);
+select plan(22);
 
 select is_empty(
   $$
@@ -96,6 +98,18 @@ select throws_ok(
   '23514', null, 'a nudge is KakaoTalk only'
 );
 
+select lives_ok(
+  $$ insert into app.imessage_outbox (channel, kind, dedupe_key, recipient_hash, text_ciphertext, sealed_key_id)
+     values ('kakaotalk', 'leave_room', 'kt7', repeat('f', 64), 't', 'k') $$,
+  'a KakaoTalk leave_room row is queued'
+);
+
+select throws_ok(
+  $$ insert into app.imessage_outbox (channel, kind, dedupe_key, recipient_hash, text_ciphertext, sealed_key_id)
+     values ('whatsapp', 'leave_room', 'kt8', repeat('f', 64), 't', 'k') $$,
+  '23514', null, 'leaving a room is KakaoTalk only'
+);
+
 select throws_ok(
   $$ insert into app.kakaotalk_relay_nonces (nonce, route_class) values ('not-hex', 'inbound') $$,
   '23514', null, 'a nonce is 16 random bytes in hex'
@@ -127,6 +141,13 @@ select is(
   (select array[down_cause, down_alerts::text] from app.kakaotalk_relay_heartbeats),
   array['silent', '2'],
   'going down records one alert, and staying down an hour records another'
+);
+
+select is((select relay_kind from app.kakaotalk_relay_heartbeats), 'android', 'a heartbeat row names the phone unless the Mac relay sent it');
+
+select throws_ok(
+  $$ update app.kakaotalk_relay_heartbeats set relay_kind = 'windows' $$,
+  '23514', null, 'the relay is the phone or the Mac'
 );
 
 insert into app.imessage_outbox (id, channel, kind, dedupe_key, recipient_hash, recipient_ciphertext, text_ciphertext, sealed_key_id,

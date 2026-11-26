@@ -35,6 +35,9 @@
 -- so a not_started report requeues a row at most three times. A nudge row is
 -- the fixed text with no private content that asks the host to write back, so
 -- queued content can follow through the reply action; it is KakaoTalk only.
+-- A leave_room row (host-kakaotalk-mac-relay design 7) asks the Mac relay to
+-- leave the group room it names; its sealed text is a fixed marker, never sent. It is KakaoTalk only
+-- and has no binding.
 CREATE TABLE "app"."imessage_outbox" (
   "id" uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   "channel" text NOT NULL DEFAULT 'imessage' CHECK ("channel" IN ('imessage', 'whatsapp', 'telegram', 'kakaotalk')),
@@ -42,7 +45,7 @@ CREATE TABLE "app"."imessage_outbox" (
     "kind" IN (
       'link_received', 'link_refused', 'linked', 'fallback_code', 'unlinked_sender', 'text_only',
       'command', 'turn', 'notice', 'image', 'schedule_image', 'contact_card', 'signal', 'template', 'edit_markup', 'callback_answer',
-      'nudge'
+      'nudge', 'leave_room'
     )
   ),
   "review_hash" text CHECK ("review_hash" ~ '^[0-9a-f]{64}$'),
@@ -89,7 +92,7 @@ CREATE TABLE "app"."imessage_outbox" (
     ("lease_token_hash" IS NULL) = ("lease_expires_at" IS NULL)
     AND ("lease_token_hash" IS NULL OR ("channel" = 'kakaotalk' AND "state" = 'dispatching'))
   ),
-  CONSTRAINT "imessage_outbox_kakaotalk_kinds" CHECK ("kind" <> 'nudge' OR "channel" = 'kakaotalk'),
+  CONSTRAINT "imessage_outbox_kakaotalk_kinds" CHECK ("kind" NOT IN ('nudge', 'leave_room') OR "channel" = 'kakaotalk'),
   CONSTRAINT "imessage_outbox_turn_input" CHECK ("kind" <> 'turn' OR "input_id" IS NOT NULL OR "completed_at" IS NOT NULL)
 );
 

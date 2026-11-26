@@ -77,7 +77,10 @@ BEGIN
         $s$SELECT id::text AS id, accepted_at AS at FROM app.conversation_inputs WHERE state <> 'completed' AND accepted_at < now() - interval '10 minutes'$s$, n),
       -- The KakaoTalk relay's down alert (host-kakaotalk-channel design 7): its cause since it went down.
       app.diagnostics_category('kakaotalk_relay_down',
-        $s$SELECT down_cause AS id, down_since AS at FROM app.kakaotalk_relay_heartbeats WHERE down_since IS NOT NULL$s$, n)
+        $s$SELECT down_cause AS id, down_since AS at FROM app.kakaotalk_relay_heartbeats WHERE down_since IS NOT NULL$s$, n),
+      -- A KakaoTalk message the Mac relay found in another room (host-kakaotalk-mac-relay design 5).
+      app.diagnostics_category('kakaotalk_wrong_room',
+        $s$SELECT id::text AS id, completed_at AS at FROM app.imessage_outbox WHERE failure_category = 'relay_wrong_room'$s$, n)
     ),
     'notMeasured', jsonb_build_array(
       'authorization_denials: see diagnostics rejections (best effort, application commands only)',

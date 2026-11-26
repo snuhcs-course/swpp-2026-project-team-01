@@ -7,6 +7,10 @@
 -- and its cause, and an alert (down_alerted_at, down_alerts) when the relay goes
 -- down and again each hour it stays down. A healthy heartbeat clears the down
 -- state. No row means the relay never reported, and nothing is down.
+-- relay_kind names the relay that sent the latest heartbeat, the Android phone
+-- or the Mac relay (host-kakaotalk-mac-relay design 1); a claim hands out
+-- nothing unless it is the active relay. For the Mac relay, posted_rooms counts
+-- its sendable rooms.
 CREATE TABLE "app"."kakaotalk_relay_heartbeats" (
   "relay" text PRIMARY KEY DEFAULT 'relay' CHECK ("relay" = 'relay'),
   "received_at" timestamptz NOT NULL DEFAULT now(),
@@ -15,6 +19,7 @@ CREATE TABLE "app"."kakaotalk_relay_heartbeats" (
   "locked" boolean NOT NULL,
   "kakaotalk_version" text CHECK (char_length("kakaotalk_version") BETWEEN 1 AND 40),
   "posted_rooms" integer NOT NULL DEFAULT 0 CHECK ("posted_rooms" >= 0),
+  "relay_kind" text NOT NULL DEFAULT 'android' CHECK ("relay_kind" IN ('android', 'mac')),
   "down_since" timestamptz,
   "down_cause" text CHECK ("down_cause" IN ('silent', 'listener_disabled', 'accessibility_disabled')),
   "down_alerted_at" timestamptz,

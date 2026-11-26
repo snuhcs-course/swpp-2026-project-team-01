@@ -8,6 +8,7 @@ import {
   MAX_RELAY_BODY_BYTES,
   parseKakaoTalkEvent,
   RELAY_NONCE_MINUTES,
+  relayOfBody,
   type RelayRouteClass,
   relaySecrets,
   verifyRelaySignature,
@@ -34,7 +35,9 @@ import { openToken, type TokenKey, tokenKeyFromEnvironment } from "./token-encry
 // group or open-chat event stores nothing. void_code voids the pending link
 // attempt whose code has that HMAC, with no receipt, link or reply. A failure
 // to store answers 500, so the relay retries. From the receipt on, KakaoTalk
-// shares the Photon receipt pipeline.
+// shares the Photon receipt pipeline. An event from the relay that
+// KAKAOTALK_ACTIVE_RELAY does not name is answered 409 standby and stores
+// nothing (host-kakaotalk-mac-relay design 1).
 
 type Environment = Readonly<Record<string, string | undefined>>;
 
@@ -154,6 +157,10 @@ export async function receiveKakaoTalkWebhook(request: Request, load: () => Rela
     return relayAnswer(400);
   }
 
+  // Only the active relay's events count (host-kakaotalk-mac-relay design 1):
+  // a standby relay's event is refused before anything is stored.
+  const relay = relayOfBody(payload);
+  if (relay && relay !== deps.config.activeRelay) return relayAnswer(409, { status: "standby" });
   const event = parseKakaoTalkEvent(payload);
   if (!event) return relayAnswer(400);
   if (event.kind === "group") return relayAnswer(200);

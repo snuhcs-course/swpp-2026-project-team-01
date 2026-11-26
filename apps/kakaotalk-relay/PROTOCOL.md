@@ -195,3 +195,67 @@ The relay retries the report on a network error, `429` or `5xx`, every 3 seconds
 - `postedRooms` and `replyableRooms`: as in the claim.
 
 The relay ignores the answer body and shows the status on its screen.
+
+## Mac relay
+
+The [`host-kakaotalk-mac-relay`](../../openspec/changes/host-kakaotalk-mac-relay/design.md) change adds a second relay behind these routes: KakaoTalk for Mac, read from its database ([`apps/kakaotalk-mac-relay/`](../kakaotalk-mac-relay/README.md)). Signing, secrets, answers and outcomes are as above. Everything below is optional for the phone, which needs no release.
+
+### The `relay` field and the active relay
+
+Every Mac body (webhook, claim, result and heartbeat) carries `"relay": "mac"`. A body without `relay` comes from the phone (`"android"`). The service acts only on the relay that `KAKAOTALK_ACTIVE_RELAY` names (`android` by default). A webhook event, claim or heartbeat from the other relay is answered `409` with `{ "status": "standby" }`. A result is decided by its lease token, whichever relay sends it. A claim gets `204` until the active relay has sent a heartbeat.
+
+### Message event from the Mac
+
+```json
+{
+  "relay": "mac",
+  "eventId": "486083133936417:log:3982372862361772034",
+  "roomId": "486083133936417",
+  "isGroup": false,
+  "senderName": "Test Host",
+  "senderUserId": "93652019",
+  "logId": "3982372862361772034",
+  "text": "hello",
+  "postedAt": "2026-11-26T03:00:00.000Z"
+}
+```
+
+- `roomId` is `NTChatRoom.chatId`, the same number as the phone's room ID for the same chat.
+- `eventId` is `<roomId>:log:<logId>`, accepted only with `"relay": "mac"`. `logId` has up to 20 digits and is a string.
+- `senderUserId` is `NTChatMessage.authorId`, the sender's Kakao user ID, as a decimal string. The service checks its form and stores nothing new for it.
+- `nonText: true` and `"text": ""` mark anything but plain text.
+
+### Group events from the Mac
+
+- `void_code` is as above, with `"relay": "mac"` and `eventId` `void:<roomId>:log:<logId>:<k>`.
+- `room_members`, sent only when the relay runs with membership events on, carries no names and no text. The service answers `200` and stores nothing:
+
+```json
+{ "relay": "mac", "kind": "room_members", "eventId": "486083613488751:members:3982014812382740481", "roomId": "486083613488751", "memberUserIds": ["93652019"], "activeMembersCount": 5 }
+```
+
+### Claim from the Mac
+
+```json
+{ "relay": "mac", "locked": false, "postedRooms": [], "replyableRooms": ["486083133936417"], "memberRooms": ["486083613488751"] }
+```
+
+- `replyableRooms`: the 1:1 rooms the relay may send to: the other person has written, and no other room's name contains the room's name.
+- `memberRooms`: the group rooms the account is in.
+- The service hands the Mac relay no nudge, and nothing while its last heartbeat says `locked`.
+
+A leave claim:
+
+```json
+{ "id": "m3", "leaseToken": "opaque", "mode": "leave", "roomId": "486083613488751", "text": "" }
+```
+
+It is handed out only for a room in `memberRooms`. The phone never receives one. The relay reports `accepted` once the room is gone from the database, and `not_started` when it could not press leave or the room is still there.
+
+### Result from the Mac
+
+`{ "relay": "mac", "leaseToken": "opaque", "outcome": "uncertain", "reason": "wrong_room" }` reports a message the relay found from the account in a room other than the claimed one. The service records `relay_wrong_room` and raises an alert. `reason` is only ever `wrong_room`.
+
+### Heartbeat from the Mac
+
+The fields are the phone's, with these meanings: `listenerEnabled` is a database read within two minutes, `accessibilityEnabled` is the helper's `AXIsProcessTrusted`, `locked` is the console session's screen lock, and `replyableRooms` is as in the claim. `postedRooms` is always empty.

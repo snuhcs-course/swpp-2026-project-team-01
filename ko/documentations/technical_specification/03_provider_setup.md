@@ -320,6 +320,9 @@ KakaoTalk은 팀원 승인을 기다리는 [`host-kakaotalk-channel` 변경](../
 - **교체.** 현재 값을 `…_PREVIOUS`로 옮기고 새 값을 설정한 뒤 배포하고 릴레이를 갱신합니다. 그다음 `…_PREVIOUS`를 제거하고 다시 배포합니다.
 - **폰 분실.** 두 시크릿을 모두 제거하고 배포해 모든 릴레이 경로가 요청을 거부하게 합니다. 다른 기기에서 KakaoTalk 계정을 로그아웃시킨 다음, 교체한 폰에 새 시크릿을 설정합니다.
 - **상태 확인.** 릴레이는 1분마다 하트비트를 보냅니다. 릴레이가 5분간 내려가 있으면 운영 알림을 남기고, 1시간이 지나면 다시 남깁니다(D7).
+- **Mac 릴레이.** 제안된 [`host-kakaotalk-mac-relay` 변경](../../openspec/changes/host-kakaotalk-mac-relay/proposal.md#decisions)은 Mac mini의 KakaoTalk for Mac을 같은 경로와 시크릿 뒤의 주 릴레이로 삼고, 폰은 대기 릴레이로 둡니다. 데몬과 헬퍼는 [`apps/kakaotalk-mac-relay/`](../../apps/kakaotalk-mac-relay/README.md)에 있으며, 여기에 Mac의 설정이 나와 있습니다. KakaoTalk for Mac에 로그인한 제품 계정, 패치된 `kakaocli`, 해당 사용자만 읽을 수 있는 파일에 둔 파생 데이터베이스 키, 잠기지 않는 화면, 헬퍼에 대한 접근성 권한입니다.
+  - `KAKAOTALK_ACTIVE_RELAY`: `mac` 또는 `android`(기본값)입니다. 서비스는 다른 릴레이의 이벤트, 클레임, 하트비트를 `409`로 거부하므로 계정에 대해 한 릴레이만 동작합니다. 전환하려면 이전 릴레이를 멈추고, 변수를 설정해 배포한 다음, 새 릴레이를 시작합니다. 클레임은 새 릴레이의 첫 하트비트 뒤에 재개됩니다.
+  - Mac 릴레이가 보낸 뒤 다른 대화방에서 찾은 메시지는 `relay_wrong_room`으로 기록되고 운영자 스냅샷에는 `kakaotalk_wrong_room`으로 표시됩니다.
 - **약관.** Kakao의 약관은 Kakao가 허용하지 않은 방식으로 서비스를 이용하는 프로그램을 금지하며, 계정이 정지될 수 있습니다(Q1). 호스트는 `/app`과 이메일을 계속 사용할 수 있습니다.
 
 에이전트 세션에서는 사용자의 승인 없이 제품의 KakaoTalk 계정에 로그인하거나, 릴레이 시크릿을 설정하거나, KakaoTalk 메시지를 보내지 마십시오.

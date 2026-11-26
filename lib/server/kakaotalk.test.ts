@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+  activeRelayOf,
   codeHashMatches,
   KAKAOTALK_NUDGE_TEXT,
   kakaotalkAccountIdIfConfigured,
@@ -11,6 +12,7 @@ import {
   RELAY_SIGNATURE_HEADER,
   RELAY_TIMESTAMP_HEADER,
   relayHeaders,
+  relayOfBody,
   relaySignature,
   sealedKakaoTalkText,
   verifyRelaySignature,
@@ -90,9 +92,9 @@ describe("relay signature", () => {
   });
 
   it("is not configured without an account ID, and keeps the two route classes apart", () => {
-    expect(kakaotalkConfig({})).toEqual({ accountId: "", inboundSecrets: [], outboxSecrets: [] });
+    expect(kakaotalkConfig({})).toEqual({ accountId: "", activeRelay: "android", inboundSecrets: [], outboxSecrets: [] });
     const config = kakaotalkConfig({ KAKAOTALK_ACCOUNT_ID: " findmeatime ", KAKAOTALK_RELAY_INBOUND_SECRET: "in", KAKAOTALK_RELAY_OUTBOX_SECRET: "out" });
-    expect(config).toEqual({ accountId: "findmeatime", inboundSecrets: ["in"], outboxSecrets: ["out"] });
+    expect(config).toEqual({ accountId: "findmeatime", activeRelay: "android", inboundSecrets: ["in"], outboxSecrets: ["out"] });
     expect(verifyRelaySignature(config.outboxSecrets, signed("in", "/kakaotalk/outbox/claim", "{}"), 1795662000)).toBeNull();
   });
 });
@@ -190,5 +192,52 @@ describe("KakaoTalk sender identity", () => {
 
   it("nudges with the fixed text that names no request, person, time or place", () => {
     expect(KAKAOTALK_NUDGE_TEXT).toBe("Find Me a Time에 새 소식이 있어요. 아무 말이나 답장해 주시면 바로 보내드릴게요.");
+  });
+});
+
+// The Mac relay's additions (host-kakaotalk-mac-relay designs 1 to 4).
+describe("Mac relay events", () => {
+  const macMessage = {
+    eventId: "486083133936417:log:3982372862361772034",
+    isGroup: false,
+    logId: "3982372862361772034",
+    postedAt: "2026-11-26T03:00:00.000Z",
+    relay: "mac",
+    roomId: "486083133936417",
+    senderName: "Test Host",
+    senderUserId: "93652019",
+    text: "hello",
+  };
+
+  it("picks the active relay, the phone by default, and reads the relay a body names", () => {
+    expect(activeRelayOf({})).toBe("android");
+    expect(activeRelayOf({ KAKAOTALK_ACTIVE_RELAY: " Mac " })).toBe("mac");
+    expect(activeRelayOf({ KAKAOTALK_ACTIVE_RELAY: "ios" })).toBe("android");
+    expect(kakaotalkConfig({ KAKAOTALK_ACTIVE_RELAY: "mac" }).activeRelay).toBe("mac");
+    expect(relayOfBody({})).toBe("android");
+    expect(relayOfBody({ relay: "mac" })).toBe("mac");
+    expect(relayOfBody({ relay: "pc" })).toBeNull();
+  });
+
+  it("stores a Mac message under its log-form ID, in the room's sender namespace", () => {
+    const event = parseKakaoTalkEvent(macMessage);
+    expect(event).toMatchObject({ kind: "message", message: { messageId: "kakaotalk:486083133936417:log:3982372862361772034", sender: "486083133936417", text: "hello" } });
+  });
+
+  it("refuses the log-form ID from the phone, a log ID for another room, and a malformed user ID", () => {
+    const { relay: _relay, senderUserId: _user, ...phoneShaped } = macMessage;
+    expect(parseKakaoTalkEvent(phoneShaped)).toBeNull();
+    expect(parseKakaoTalkEvent({ ...macMessage, eventId: "512000000000001:log:3982372862361772034" })).toBeNull();
+    expect(parseKakaoTalkEvent({ ...macMessage, senderUserId: "93652019x" })).toBeNull();
+    expect(parseKakaoTalkEvent({ ...macMessage, relay: "android", senderUserId: "93652019" })).toBeNull();
+    expect(parseKakaoTalkEvent({ ...macMessage, relay: "pc" })).toBeNull();
+  });
+
+  it("accepts a Mac membership event as a group event that stores nothing, and refuses a malformed one", () => {
+    const members = { activeMembersCount: 5, eventId: "486083613488751:members:3982014812382740481", kind: "room_members", memberUserIds: ["93652019"], relay: "mac", roomId: "486083613488751" };
+    expect(parseKakaoTalkEvent(members)).toEqual({ kind: "group" });
+    expect(parseKakaoTalkEvent({ ...members, relay: undefined })).toBeNull();
+    expect(parseKakaoTalkEvent({ ...members, memberUserIds: ["Kim"] })).toBeNull();
+    expect(parseKakaoTalkEvent({ ...members, roomId: "1" })).toBeNull();
   });
 });

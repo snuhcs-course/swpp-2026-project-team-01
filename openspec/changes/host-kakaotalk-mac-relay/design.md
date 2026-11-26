@@ -28,7 +28,7 @@ The facts below were checked on the Mac mini on 2026-11-26: macOS 27.2.1, KakaoT
 
 Both relays sign with the same two secrets and call the same four routes. Each Mac relay body carries `"relay": "mac"`, inside the signed body. A body without `relay` comes from the Android relay, so the phone app needs no release.
 
-The service reads `KAKAOTALK_ACTIVE_RELAY`, which is `mac` or `android`, with `android` as the default. A webhook event, claim or heartbeat from the other relay is answered `409` with `{ "status": "standby" }` and changes nothing. The Android relay treats `409` from the webhook as a final refusal and drops the event, and backs off on a claim error. A result report is accepted from either relay, because only the lease token decides it, so a lease that was open when the active relay changed can still be reported.
+The service reads `KAKAOTALK_ACTIVE_RELAY`, which is `mac` or `android`, with `android` as the default. A webhook event, claim or heartbeat from the other relay is answered `409` with `{ "status": "standby" }`. It changes no delivery state; only its nonce is recorded, as for every signed request. The Android relay treats `409` from the webhook as a final refusal and drops the event, and backs off on a claim error. A result report is accepted from either relay, because only the lease token decides it, so a lease that was open when the active relay changed can still be reported.
 
 The heartbeat row records which relay sent it (`relay_kind`). A claim hands out nothing unless the last heartbeat came from the active relay. After a switch, claims therefore wait until the new relay's first heartbeat.
 
@@ -75,11 +75,11 @@ The service accepts the log-form event ID only together with `relay: "mac"`.
 
 `kakaocli send <name> <text>` activates KakaoTalk, closes other chat windows, finds a chat-list row whose name label contains `<name>` case-insensitively, opens it with Enter and types the text. It never sees a room ID. Three checks keep private content in the right room.
 
-1. **Name rule, in the database.** The daemon computes the name the chat list shows for each room (the room's `chatName`, else the friend's `displayName`, `friendNickName` or `nickName`). A room is sendable only when its name is not empty and no other room's name contains it case-insensitively. Room A named "Kim" is not sendable while room B is named "Kim Jisoo". A sendable 1:1 room also has to pass design 6.
+1. **Name rule, in the database.** The daemon computes the name the chat list shows for each room: a group's title (`NTChatMeta` type 3), else the friend's `displayName`, `friendNickName` or `nickName`. An untitled group has no name of its own, because its label lists its members, so the daemon counts its members' names (from `displayMemberIds` and `NTUser`) among the names other rooms may contain, and never addresses the group itself. A room is sendable only when its name is not empty and no other room's name contains it case-insensitively. Room A named "Kim" is not sendable while room B is named "Kim Jisoo". A sendable 1:1 room also has to pass design 6.
 2. **Chat-list check, just before sending.** The helper reads the chat list's name labels (`AXTable > AXRow > AXCell > AXStaticText`, id `_NS:18` or `_NS:40`). Exactly one label must contain the name, and that label must equal it. Otherwise nothing is sent and the outcome is `failed`.
 3. **Landing check, after sending.** The daemon notes the highest `logId` before the send. For 10 seconds after `kakaocli` returns, it looks for a message above that mark, authored by the account, with exactly the sent text. Found in the expected room: `accepted`. Found in another room: `uncertain` with reason `wrong_room`, an error log line and an operational alert on the service. Not found: `uncertain`.
 
-`kakaocli`'s exit maps as follows. "Chat not found in the chat list" is `failed`, because nothing was typed. "No windows" and "input field not found" are `not_started`, because both fail before typing. Any other failure, a crash or a 30-second timeout runs the landing check and is `accepted` only when the message is in the right room, and `uncertain` otherwise.
+`kakaocli`'s exit maps as follows. "Chat not found in the chat list" is `failed`, because nothing was typed. "No windows", "input field not found" and its start-up errors (the login screen, a required update, a 2FA prompt) are `not_started`, because all fail before typing. Any other failure, a crash or a 30-second timeout runs the landing check and is `accepted` only when the message is in the right room, and `uncertain` otherwise. Once `kakaocli send` has run, any error of the daemon's own, such as a failed database read during the landing check, is `uncertain`, so a message that may have gone out is never requeued.
 
 **Checks before typing, investigated.** Two signals could confirm the opened window before any text is typed:
 
@@ -98,7 +98,7 @@ The daemon lists a 1:1 room as sendable only when it holds at least one message 
 
 A `leave_room` outbox row names a group room by its sealed room ID and carries no text. It is KakaoTalk only. A claim hands it out as `{ id, leaseToken, mode: "leave", roomId, text: "" }` when the room is in the claim's `memberRooms` list. When the Mac relay's claim omits the room, the row is suppressed (`not_member`), because the account has already left. While the Android relay is active, the row is suppressed as `unsupported`.
 
-The helper leaves through the chat window: it opens the room by the same name rule and chat-list check as a send, opens the window's menu, presses **나가기** (or **Leave**) and confirms it in the alert. The daemon then checks that the room's row is gone from `NTChatRoom`. Gone within 10 seconds: `accepted`, and a room already gone is `accepted` too. No single chat-list row: `failed`. Anything else (no menu, no item, no alert, or the room still there): `not_started`, which the service retries up to three times. Unlike a message, leaving twice does no harm, so nothing here is `uncertain`. A group with no title cannot be left this way, because its chat-list label is a list of member names.
+The helper leaves through the chat window: it opens the room by the same name rule and chat-list check as a send, after closing every other window and reading the row selection back, and goes on only when exactly one chat window opened and its title is the room's name. It then opens the window's menu, presses **나가기** (or **Leave**) and confirms it in the alert. The daemon then checks that the room's row is gone from `NTChatRoom`. Gone within 10 seconds: `accepted`, and a room already gone is `accepted` too. No single chat-list row: `failed`. If any other room disappeared from the database instead, the helper left the wrong room: `failed`, never retried. Anything else (no menu, no item, no alert, or the room still there): `not_started`, which the service retries up to three times. Leaving a room the account already left does no harm, so nothing here is `uncertain`. A group with no title cannot be left this way, because its chat-list label is a list of member names.
 
 `queueKakaoTalkLeave` in `lib/server/kakaotalk-outbox.ts` creates the row. Nothing calls it in this change; the group change will, for `/kickout`. The chat window's menu could not be read on 2026-11-26 because the screen was locked, so the helper looks it up by title and fails closed. Reading the menu and one real leave on a test group are device tasks (task 5.3).
 
@@ -112,19 +112,23 @@ The Mac relay sends the same heartbeat every minute with these meanings:
 - `kakaoVersion`: `CFBundleShortVersionString` of `/Applications/KakaoTalk.app`.
 - `replyableRooms`: the sendable 1:1 rooms (designs 5 and 6). `postedRooms` is always empty.
 
+Claims and heartbeats list at most 1,500 room IDs each, and the service takes up to 3,000 per list, so a claim stays under the 64 KB body limit. Past 1,500 hosts the list needs to name only rooms with queued work.
+
 On 2026-11-26 the mini's screen was locked, and KakaoTalk then exposed no windows to accessibility. A locked Mac cannot send, so the service hands the Mac relay no claim while its last heartbeat or claim reports `locked`, and the daemon does not claim while locked. Messages stay queued. The phone's rule (replies through kept actions while locked) does not apply to the Mac.
 
 ### 9. Process and grants
 
 A LaunchAgent (`~/Library/LaunchAgents/com.findmeatime.kakaotalk-mac-relay.plist`) runs in the logged-in user's GUI session, never over SSH. It starts `kakao-ax supervise`, the Swift helper, which starts the Node daemon as its child and restarts it after a crash. macOS attributes the child processes (`node`, `kakaocli`) to the helper, so the Accessibility grant, and any prompt to read another app's data, belong to the helper's binary and not to `node` in general. A rebuilt helper has a new code hash and needs the grant again.
 
-The daemon reads its settings from `~/Library/Application Support/FindMeATime/kakaotalk-mac-relay/config.json` (mode 600): the service origin, the two secrets, the key file path and the `kakaocli` path. The state file there holds only the high-water mark and the acknowledged event IDs. No message text is written to disk by the daemon; KakaoTalk's own database keeps the chat history, as the phone's app does.
+The daemon reads its settings from `~/Library/Application Support/FindMeATime/kakaotalk-mac-relay/config.json` (mode 600): the service origin, the two secrets, the key file path and the `kakaocli` path. The state file there holds only each room's mark and the first start time. No message text is written to disk by the daemon; KakaoTalk's own database keeps the chat history, as the phone's app does.
 
 Over SSH on 2026-11-26, sending needed Accessibility for `/usr/libexec/sshd-keygen-wrapper`. Once the helper holds its own grant, that grant should be turned off.
 
 ## Risks / Trade-offs
 
 - **Name-based sending.** `kakaocli` cannot open a chat by ID. The three checks in design 5 make a wrong send unlikely and visible, not impossible, until upstream options exist (Q3).
+- **Arguments are visible.** `kakaocli` takes the database key and the message text as command-line arguments, which any user of the Mac can read with `ps` while the command runs. The Mac mini therefore has one user account, the relay's. Passing them through standard input needs an upstream change (Q3).
+- **Rows that wait on the Mac.** A message for a room the Mac relay does not list (a name collision, a renamed host) waits with no nudge and no expiry. The claim reads the oldest 200 chats' heads, so 200 such chats would hide newer ones. The operator snapshot's queue counts show it; listing only serviceable heads is a follow-up.
 - **Patched `kakaocli`.** KakaoTalk updates can move the chat-list labels again, as `_NS:18` moved to `_NS:40`. Check 2 then fails closed: nothing is sent, and the outcome is `failed`.
 - **Screen must stay unlocked.** An unlocked Mac mini is a physical security exposure. Mitigation: the mini stays in a locked room, KakaoTalk's own lock mode stays off only on this machine, and FileVault stays on.
 - **Database format.** The SQL depends on KakaoTalk's private schema. The heartbeat reports the KakaoTalk version, and a failing read turns `listenerEnabled` false, which marks the relay down within five minutes.
@@ -134,4 +138,5 @@ Over SSH on 2026-11-26, sending needed Accessibility for `/usr/libexec/sshd-keyg
 
 - Q1 to Q3 in the [proposal](proposal.md#unresolved-decisions-for-the-team).
 - Which `NTChatMessage.status` values mean sent? The 2026-11-26 send showed `1` right after sending and earlier own messages `4`. The landing check therefore does not read `status`.
+- Can KakaoTalk for Mac store a room's newest message before older ones it backfills after sleep? The per-room mark would then skip the gap. If a device check shows it, the watcher should re-read a short window below each mark; the webhook's deduplication makes that safe.
 - Which feed types (`type` 0, `feedType` in the JSON) mark a member leaving, being removed and the account itself leaving? Only `feedType` 1 (invitation) was seen.

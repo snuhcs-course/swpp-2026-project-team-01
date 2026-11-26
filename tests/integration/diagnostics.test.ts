@@ -110,6 +110,7 @@ describe("diagnostics snapshot", () => {
       "sessions_failed",
       "inputs_unanswered",
       "kakaotalk_relay_down",
+      "kakaotalk_wrong_room",
     ]);
     expect(result.notMeasured.join(" ")).toMatch(/authorization_denials.*stale_actions.*provider_readiness.*recipient_delivery/);
   });

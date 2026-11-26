@@ -1,0 +1,37 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<!--
+  The Mac relay's LaunchAgent (host-kakaotalk-mac-relay design 9). Copy it to
+  ~/Library/LaunchAgents/, replace HOME_DIR with the relay user's home folder
+  and NODE with the absolute path of Node 24 or later, then load it in the GUI
+  session:  launchctl bootstrap gui/$(id -u) ~/Library/LaunchAgents/com.findmeatime.kakaotalk-mac-relay.plist
+  It starts the kakao-ax helper, which holds the Accessibility grant and runs
+  the daemon as its child. LimitLoadToSessionType keeps it out of SSH sessions.
+-->
+<plist version="1.0">
+<dict>
+  <key>Label</key>
+  <string>com.findmeatime.kakaotalk-mac-relay</string>
+  <key>ProgramArguments</key>
+  <array>
+    <string>HOME_DIR/Library/Application Support/FindMeATime/kakaotalk-mac-relay/kakao-ax</string>
+    <string>supervise</string>
+    <string>NODE</string>
+    <string>--disable-warning=ExperimentalWarning</string>
+    <string>HOME_DIR/Library/Application Support/FindMeATime/kakaotalk-mac-relay/app/src/main.ts</string>
+    <string>HOME_DIR/Library/Application Support/FindMeATime/kakaotalk-mac-relay/config.json</string>
+  </array>
+  <key>LimitLoadToSessionType</key>
+  <string>Aqua</string>
+  <key>RunAtLoad</key>
+  <true/>
+  <key>KeepAlive</key>
+  <true/>
+  <key>ProcessType</key>
+  <string>Interactive</string>
+  <key>StandardOutPath</key>
+  <string>HOME_DIR/Library/Logs/kakaotalk-mac-relay.log</string>
+  <key>StandardErrorPath</key>
+  <string>HOME_DIR/Library/Logs/kakaotalk-mac-relay.log</string>
+</dict>
+</plist>
