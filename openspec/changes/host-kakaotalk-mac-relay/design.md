@@ -114,7 +114,7 @@ The Mac relay sends the same heartbeat every minute with these meanings:
 
 Claims and heartbeats list at most 1,500 room IDs each, and the service takes up to 3,000 per list, so a claim stays under the 64 KB body limit. Past 1,500 hosts the list needs to name only rooms with queued work.
 
-On 2026-11-26 the mini's screen was locked, and KakaoTalk then exposed no windows to accessibility. A locked Mac cannot send, so the service hands the Mac relay no claim while its last heartbeat or claim reports `locked`, and the daemon does not claim while locked. Messages stay queued. The phone's rule (replies through kept actions while locked) does not apply to the Mac.
+On 2026-11-26 the mini's screen was locked, and KakaoTalk then exposed no windows to accessibility. Later that day, with the screen lock turned off, the session still reported itself locked after the display slept, and waking the display showed the lock screen. The Mac therefore also keeps its display awake while the relay runs (`caffeinate -d`, a process assertion rather than a setting). A locked Mac cannot send, so the service hands the Mac relay no claim while its last heartbeat or claim reports `locked`, and the daemon does not claim while locked. Messages stay queued. The phone's rule (replies through kept actions while locked) does not apply to the Mac.
 
 ### 9. Process and grants
 
