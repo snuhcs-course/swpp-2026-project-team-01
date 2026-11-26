@@ -3,6 +3,7 @@ import type { StoredChannel } from "../contracts/messaging-channel";
 import { database, type Database } from "./database";
 import { publishJob } from "./jobs";
 import { sealToken, type TokenKey, tokenKeyFromEnvironment } from "./token-encryption";
+import { type KakaoTalkDetails, sealedKakaoTalkText } from "./kakaotalk";
 import { sealedTelegramText, type TelegramDetails } from "./telegram";
 import { inboundWhatsAppMessage } from "./whatsapp";
 import { captureServerEvent } from "./product-analytics";
@@ -87,7 +88,8 @@ export function imessageHash(key: TokenKey, kind: "sender" | "space" | "phone" |
 
 // The keyed hash of a channel's sender or conversation. WhatsApp values are
 // hashed as "whatsapp:<digits>" (host-whatsapp-channel D3) and Telegram user IDs
-// as "telegram:<id>" (host-telegram-channel D3), so one person on two platforms
+// as "telegram:<id>" (host-telegram-channel D3), and KakaoTalk room IDs as
+// "kakaotalk:<room ID>" (host-kakaotalk-channel D3), so one person on two platforms
 // gives unrelated hashes and no iMessage hash changes.
 export function channelHash(key: TokenKey, channel: StoredChannel, kind: "sender" | "space", value: string) {
   return imessageHash(key, kind, channel === "imessage" ? value : `${channel}:${value}`);
@@ -110,6 +112,9 @@ export type InboundMessage = {
   // Telegram only: the sender's profile and a callback's locators, sealed with
   // the text (host-telegram-channel design 3).
   readonly telegram?: TelegramDetails;
+  // KakaoTalk only: the sender's profile name, sealed with the text
+  // (host-kakaotalk-channel design 3).
+  readonly kakaotalk?: KakaoTalkDetails;
 };
 
 function text(value: unknown, max: number) {
@@ -239,7 +244,9 @@ export async function storeReceipt(
       space: sealToken(tokenKey, message.spaceId, context),
       text: message.telegram
         ? sealToken(tokenKey, sealedTelegramText(message.text, message.telegram), context)
-        : message.text === null
+        : message.kakaotalk
+          ? sealToken(tokenKey, sealedKakaoTalkText(message.text, message.kakaotalk), context)
+          : message.text === null
           ? null
           : sealToken(tokenKey, message.text, context),
     };

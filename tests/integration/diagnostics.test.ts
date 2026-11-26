@@ -109,6 +109,8 @@ describe("diagnostics snapshot", () => {
       "imessage_uncertain",
       "sessions_failed",
       "inputs_unanswered",
+      "kakaotalk_relay_down",
+      "kakaotalk_wrong_room",
     ]);
     expect(result.notMeasured.join(" ")).toMatch(/authorization_denials.*stale_actions.*provider_readiness.*recipient_delivery/);
   });
@@ -343,7 +345,7 @@ describe("fmat-admin diagnostics usage", () => {
       channels: { name: string; periods: Record<string, unknown>[] }[];
     };
     expect(report).toMatchObject({ environment: "local", from: "1970-01-05", to: "1970-01-11" });
-    expect(report.channels.map((channel) => channel.name)).toEqual(["imessage", "whatsapp", "telegram"]);
+    expect(report.channels.map((channel) => channel.name)).toEqual(["imessage", "whatsapp", "telegram", "kakaotalk"]);
     expect(report.channels[0]!.periods).toEqual([
       { start: "1970-01-05", recordedDays: 2, activeHosts: 3, inboundMessages: 16, guestLinks: 3, guestBookings: 1 },
     ]);

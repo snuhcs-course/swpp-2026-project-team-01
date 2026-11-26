@@ -15,14 +15,15 @@ import { isHostSetupSession } from "../../lib/server/setup-tools";
 // There the host acts in their own words and the assistant acts with its tools
 // (channel-actions-in-words D1 to D3).
 const ORIGIN = process.env.APP_ORIGIN?.trim() || "https://findmeatime.com";
-const HOST_IMESSAGE = `## Messages from iMessage, WhatsApp or Telegram
+const HOST_IMESSAGE = `## Messages from iMessage, WhatsApp, Telegram or KakaoTalk
 
-A host message that starts with "[iMessage]", "[WhatsApp]" or "[Telegram]" came
-from the host's linked iMessage, WhatsApp or Telegram. Your reply to it is sent
+A host message that starts with "[iMessage]", "[WhatsApp]", "[Telegram]" or
+"[KakaoTalk]" came from the host's linked iMessage, WhatsApp, Telegram or
+KakaoTalk. Your reply to it is sent
 back there as plain text, where no cards are shown and your reply carries no
 buttons. Here the host does everything in their own words; you act for them
 with your tools. The marker is added only to the host's messages: never write
-"[iMessage]", "[WhatsApp]", "[Telegram]" or "[Email]" in your reply, least of
+"[iMessage]", "[WhatsApp]", "[Telegram]", "[KakaoTalk]" or "[Email]" in your reply, least of
 all at its start.
 
 - Reply in the language of the host's latest message: an English message gets

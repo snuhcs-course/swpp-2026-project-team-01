@@ -179,7 +179,12 @@ export function confirmSettingsCommand(
           await authorizeSetupTool(tx, channelReview.call.auth, channelReview.call.sessionId, { lock: true });
           if (!(await channelOfTurn(tx, channelReview.call.sessionId, hostAccountId))) throw new CommandError("forbidden");
         }
-        const [binding] = await tx`select id from app.imessage_bindings where id = ${channelReview.bindingId} and host_account_id = ${hostAccountId} and state = 'active'`;
+        // KakaoTalk shows no picture, so its review is confirmed only on /app
+        // (host-kakaotalk-channel, Q5).
+        const [binding] = await tx`
+          select id from app.imessage_bindings
+          where id = ${channelReview.bindingId} and host_account_id = ${hostAccountId} and state = 'active' and channel <> 'kakaotalk'
+        `;
         const [preview] = await tx<{ state: string; review_hash: string | null }[]>`
           select state, review_hash from app.imessage_outbox
           where host_account_id = ${hostAccountId} and binding_id = ${channelReview.bindingId} and kind = 'image'

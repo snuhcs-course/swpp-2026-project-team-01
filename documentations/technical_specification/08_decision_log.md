@@ -909,3 +909,45 @@ Dohyeon Park decided this on 2026-11-26 in [issue #489](https://github.com/snuhc
 |---|---|---|---|---|
 | — | SMS is back in scope as an opt-in messaging channel. It reverses the 2026-11-02 product decision ([Phase 9](#phase-9--host-whatsapp-channel)), which rejected "SMS or RCS through Photon", and the closing of issue #90 as not planned. Consent is an optional, unchecked SMS checkbox ([issue #488](https://github.com/snuhcs-course/swpp-2026-project-team-01/issues/488)) that gates the SMS link code, with no number entered for SMS ([`sms-channel`](../../openspec/changes/sms-channel/proposal.md) D6). Whom it serves, what it carries, non-US numbers, cost and limits are left to its OpenSpec change | Keep SMS out and rely on WhatsApp and Telegram for Android (the 2026-11-04 position); RCS | PRD sections 1 and 3; issues #488, #489 | The PRD first, then the SMS channel's OpenSpec change |
 | — | (User, 2026-11-26.) SMS goes through an Android phone with a Korean SIM running SMS Gate (capcom6/android-sms-gateway) in cloud mode, with end-to-end encryption. The service answers HELP, START and STOP itself. iPhone, iPad and Mac get iMessage, and every other device gets SMS. The channel serves hosts and guests with the same content as the other chats, for any country code ([`sms-channel`](../../openspec/changes/sms-channel/proposal.md) D1, D2, D7, D8, D11) | Photon SMS (US numbers only and blocked until a 10DLC campaign is approved; a `+82` send was refused in the [spike](03_provider_setup.md#photon-sms)); Korean SMS APIs (no inbound texts); TextBee; httpSMS | `sms-channel` proposal and design; PRD section 1 | The PRD first, then `sms-channel` |
+
+## `host-kakaotalk-channel`
+
+The [proposal](../../openspec/changes/host-kakaotalk-channel/proposal.md#decisions) records these choices. They were proposed on 2026-11-26 in the session that wrote the change, at the user's request for a KakaoTalk host channel connected to eve. They are **pending**: a teammate's approval of the pull request decides them, together with the open questions Q1 to Q5. Until then the [PRD](../02_product_requirements.md#outside-the-initial-release) keeps KakaoTalk out of scope.
+
+| # | Choice | Alternatives | Recorded in | To change it |
+|---|---|---|---|---|
+| D1 | A team-owned Android relay phone. Notifications come in through a listener. Private content goes out only through the reply action of the linked room's notification. A fixed nudge may go through accessibility. [`host-kakaotalk-mac-relay`](#host-kakaotalk-mac-relay) D1 proposes a Mac relay as the main one and this phone as its standby | A KakaoTalk Channel chatbot, which cannot write first; 알림톡 and 친구톡, which need a reseller and template review; `openkakao-cli` on a Mac, which timed out; private content by chat name | Proposal; design 1 | Design 1, then `apps/kakaotalk-relay/` |
+| D2 | HMAC-SHA256 over method, path, timestamp, nonce and body, with separate inbound and outbox secrets, each rotatable | One shared secret; a body-only signature | Proposal; design 2 | `lib/server/kakaotalk.ts` and the relay's signer |
+| D3 | The 1:1 room ID stands in for the sender. Group and open-chat text never leaves the phone, and a code seen there voids its attempt | Display names as identity | Proposal; design 3 | Design 3 |
+| D5 | A 120-second lease with a token. The outcomes map to `accepted`, `failed` and `uncertain`, plus `not_started`, which requeues | Push to the phone; resending uncertain messages | Proposal; design 5 | Design 5 and the outbox claim |
+| D7 | Relay health from a heartbeat every minute. No claims after five minutes of silence, and no nudges while the phone is locked | No heartbeat | Proposal; design 7 | Design 7 |
+
+
+
+## `host-kakaotalk-mac-relay`
+
+The [proposal](../../openspec/changes/host-kakaotalk-mac-relay/proposal.md#decisions) records these choices. They were proposed on 2026-11-26, after `kakaocli` read and sent on a Mac mini signed in to the product's KakaoTalk account. They are **pending** with [`host-kakaotalk-channel`](#host-kakaotalk-channel): the same pull request and the same teammate approval decide them, together with Q1 to Q3.
+
+| # | Choice | Alternatives | Recorded in | To change it |
+|---|---|---|---|---|
+| D1 | KakaoTalk for Mac on a Mac mini, driven by `kakaocli`, is the main relay. The Android phone is a standby | Running both at once | Proposal; design 1 | Design 1, then `apps/kakaotalk-mac-relay/` |
+| D2 | `KAKAOTALK_ACTIVE_RELAY` picks the relay, default `android`. Every Mac body says `"relay": "mac"` inside the signature; the other relay is answered `409` | Automatic failover by heartbeat; separate secrets per relay | Proposal; design 1 | Design 1 and `lib/server/kakaotalk.ts` |
+| D3 | The database `chatId` is the room ID, the same as the phone's. The sender's Kakao user ID is sent and not stored | A new identity for Mac senders | Proposal; design 2 | Design 2 |
+| D4 | `kakaocli query` every 2 seconds, IDs as text, a saved per-room log ID mark | `kakaocli sync`, whose JSON loses 19-digit IDs; SQLCipher in Node | Proposal; design 3 | Design 3 |
+| D5 | Private content only to a room whose name no other room contains, checked in the database and the chat list before sending, and in the database after. A message found elsewhere is `uncertain` with reason `wrong_room` and an alert | Trusting `kakaocli`'s name match | Proposal; design 5 | Design 5 |
+| D6 | No first 1:1 message: a room is sendable only after the other person wrote; no nudge from the Mac | Writing first to friends who added the account | Proposal; design 6 | Design 6 |
+| D7 | Outbox kind `leave_room`, claim mode `leave`, only for the Mac relay | Leaving by hand | Proposal; design 7 | Design 7 |
+| D8 | A LaunchAgent starts the `kakao-ax` helper, which holds Accessibility and runs the daemon as its child | Granting Accessibility to `node`; running over SSH | Proposal; design 9 | Design 9 |
+
+## `kakaotalk-group-conversations`
+
+The [proposal](../../openspec/changes/kakaotalk-group-conversations/proposal.md#decisions) records these choices, made from the user's answers on 2026-11-26 after the Mac relay's device check. They are **pending** with [`host-kakaotalk-channel`](#host-kakaotalk-channel) and [`host-kakaotalk-mac-relay`](#host-kakaotalk-mac-relay), in the same pull request, together with Q1 to Q3. They replace, for KakaoTalk groups on the Mac relay, the rule that group text never leaves the relay.
+
+| # | Choice | Alternatives | Recorded in | To change it |
+|---|---|---|---|---|
+| D1 | Every group the account is in, every member's text | Only code-bound groups; only linked hosts' messages | Proposal; design 1 | Design 1 |
+| D2 | A `kakaotalk_group` principal with a `group_chat` discussion and no tools | Running group messages in a member host's session | Proposal; design 2 | Design 2 and `lib/server/kakaotalk-groups.ts` |
+| D3 | Reply only to a message that names the account or the assistant; the rest is context for 24 hours | Replying to every message; any message starting with `@` | Proposal; design 3 | Design 3 |
+| D4 | Replies only through the Mac relay, to titled groups the name rule picks | Sending to untitled groups by member names | Proposal; design 4 | Design 4 |
+| D5 | 30 calls per group and 300 in total per 24 hours; groups' own model allowances; a `group` admission scope | The anonymous model pool | Proposal; design 5 | Design 5 |
+| D6 | Plain, short answers with no tools and no claims of checking or booking | Giving groups the scheduling tools | Proposal; design 6 | Design 6 and `agent/instructions/group-chat.ts` |

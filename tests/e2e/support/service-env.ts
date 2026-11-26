@@ -83,6 +83,10 @@ export function serviceEnv(stack: LocalStack, ports: StandInPorts): Record<strin
     WHATSAPP_OFFERED: process.env.WHATSAPP_OFFERED ?? "1",
     // The Telegram bot (host-telegram-channel D1), so the screens offer Telegram too; nothing reaches Telegram.
     TELEGRAM_BOT_USERNAME: "findmeatime_e2e_bot",
+    // The product's KakaoTalk ID (host-kakaotalk-channel D6), so the screens offer Use KakaoTalk instead; the
+    // relay stand-in (tests/integration/support/kakaotalk-relay.ts) plays the relay phone. The relay secrets
+    // stay unset: the browser tests drive the webhook in-process with the stand-in's own configuration.
+    KAKAOTALK_ACCOUNT_ID: "findmeatime_test",
     // The product inbox Continue by email names; nothing reaches AgentMail.
     AGENTMAIL_INBOX_ID: "findmeatime@agentmail.test",
     // One key per run, shared with the tests so they can seal a Calendar grant.

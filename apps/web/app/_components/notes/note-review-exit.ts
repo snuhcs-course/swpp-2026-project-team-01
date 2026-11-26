@@ -5,12 +5,13 @@ import { type MessagingChannel, telegramChatLinkFor, whatsAppLinkFor } from "@li
 // Where the note review sends the host when it is done: back to the chat they
 // set up in, opened in its app (the sms: link for iMessage, wa.me for WhatsApp,
 // telegram.me for Telegram), or, without a linked chat or an app to open it here, to
-// the workspace.
+// the workspace. A KakaoTalk chat has no link that opens it, so it returns to
+// the workspace too.
 
 export type NoteReviewExit = { readonly channel: MessagingChannel | null; readonly href: string };
 
 export function noteReviewExit(status: ImessageStatus | null, platform: MessagesPlatform): NoteReviewExit {
-  if (status?.state === "linked" && status.lineNumber) {
+  if (status?.state === "linked" && status.lineNumber && status.channel !== "kakaotalk") {
     const href =
       status.channel === "whatsapp"
         ? whatsAppLinkFor(status.lineNumber, "")?.replace(/\?text=$/, "")

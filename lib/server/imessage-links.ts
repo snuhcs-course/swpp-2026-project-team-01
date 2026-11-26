@@ -58,6 +58,11 @@ import { openToken, sealToken, type TokenKey } from "./token-encryption";
 // bot's first message is the linked welcome. The sender's first name and
 // @username are sealed beside the sender (sender_name_ciphertext) and shown on
 // the card instead of a user ID.
+// KakaoTalk links the same way (host-kakaotalk-channel design 6, D6): the host
+// adds the product's KakaoTalk account (KAKAOTALK_ACCOUNT_ID) as a friend and
+// sends the bare code in a 1:1 chat, which binds that chat's room on arrival.
+// The KakaoTalk profile name is sealed beside the room ID, as Telegram's name is,
+// and a group or open chat only ever voids the attempt (kakaotalk-receiver.ts).
 // What stands in for the confirmation step that link-on-code removed (D3): the
 // code is single-use (a used, voided or replaced code never links again), valid
 // 15 minutes, owned by the signed-in account, the booking page's request or the
@@ -94,6 +99,8 @@ export type LinkOptions = {
   readonly whatsappNumber?: string;
   // The Telegram bot's username without "@"; Telegram linking is unavailable without one.
   readonly telegramUsername?: string;
+  // The product's KakaoTalk ID (KAKAOTALK_ACCOUNT_ID); KakaoTalk linking is unavailable without one.
+  readonly kakaotalkAccountId?: string;
   // The canonical origin (APP_ORIGIN) that links in Thyme's messages point to.
   readonly origin: string;
   readonly fallbackLimits?: Partial<typeof IMESSAGE_FALLBACK_LIMITS>;
@@ -116,7 +123,7 @@ export const NUMBER_INPUT = z.string().trim().min(1).max(40);
 // The line_number an attempt on the channel keeps, after registering the number;
 // null for WhatsApp, and nothing registered for Telegram.
 export async function attemptLineNumber(registrar: PhotonRegistrar | undefined, channel: MessagingChannel, entered: string) {
-  if (channel === "telegram") return null;
+  if (channel === "telegram" || channel === "kakaotalk") return null;
   const assigned = await registeredLineNumber(registrar, entered);
   return channel === "imessage" ? assigned : null;
 }
@@ -156,6 +163,7 @@ export const LINK_TEXTS = {
   refused: "That link code is not valid any more. Start again from Connect iMessage in Find Me a Time.",
   refusedWhatsApp: "That link code is not valid any more. Start again from Connect WhatsApp in Find Me a Time.",
   refusedTelegram: "That link code is not valid any more. Start again from Connect Telegram in Find Me a Time.",
+  refusedKakaoTalk: "That link code is not valid any more. Start again from Use KakaoTalk instead in Find Me a Time.",
   // A ready host gets this; one still setting up gets a welcome into setup here (D19).
   linked: "Linked. Send help for what I can do here.",
   // With the reason Calendar is still not usable when the host has a Google
@@ -175,13 +183,19 @@ export const FOREIGN_BINDING = "foreign_binding";
 export const LINE_REFUSALS_PER_DAY = 200;
 
 // What a deployment can link to (the card's channels).
-export function linkChannels(options: Pick<LinkOptions, "lineNumber" | "whatsappNumber" | "telegramUsername">): LinkChannels {
-  return { imessage: options.lineNumber || null, telegram: options.telegramUsername || null, whatsapp: options.whatsappNumber || null };
+export function linkChannels(options: Pick<LinkOptions, "lineNumber" | "whatsappNumber" | "telegramUsername" | "kakaotalkAccountId">): LinkChannels {
+  return {
+    imessage: options.lineNumber || null,
+    ...(options.kakaotalkAccountId ? { kakaotalk: options.kakaotalkAccountId } : {}),
+    telegram: options.telegramUsername || null,
+    whatsapp: options.whatsappNumber || null,
+  };
 }
 
 function refusedText(channel: MessagingChannel) {
   if (channel === "whatsapp") return LINK_TEXTS.refusedWhatsApp;
   if (channel === "telegram") return LINK_TEXTS.refusedTelegram;
+  if (channel === "kakaotalk") return LINK_TEXTS.refusedKakaoTalk;
   return LINK_TEXTS.refused;
 }
 
@@ -192,6 +206,12 @@ export function telegramDisplayName(firstName: string | null, username: string |
   if (firstName) return firstName;
   if (username) return `@${username}`;
   return "your Telegram account";
+}
+
+// A KakaoTalk chat as the browser shows it (host-kakaotalk-channel design 3):
+// the sender's profile name from the notification, or a plain word without one.
+export function kakaotalkDisplayName(name: string | null) {
+  return name?.trim() ? name.trim().slice(0, 64) : "your KakaoTalk chat";
 }
 
 function numberOf(channels: LinkChannels, channel: MessagingChannel) {
@@ -448,7 +468,7 @@ export function createImessageLinkCommand(
     // guest-whatsapp-link D3), Telegram takes none.
     input: z.union([
       z.object({ channel: z.enum(["imessage", "whatsapp"]).optional(), number: NUMBER_INPUT }).strict(),
-      z.object({ channel: z.literal("telegram") }).strict(),
+      z.object({ channel: z.enum(["telegram", "kakaotalk"]) }).strict(),
     ]),
     operation: "imessage.link.create",
     async run(tx, context) {
@@ -523,7 +543,7 @@ export async function bindReceivedAttempt(tx: Transaction, options: BindOptions,
   );
 }
 
-async function voidAttempt(tx: Transaction, linkId: string) {
+export async function voidAttempt(tx: Transaction, linkId: string) {
   await tx`
     update app.imessage_links
     set state = 'voided', ended_at = now(), code_ciphertext = null, sender_ciphertext = null, space_ciphertext = null
@@ -763,10 +783,12 @@ export async function readImessageStatus(
   // An open attempt shows first, also while a sender is linked: its code arriving
   // moves the link to the new sender.
   const open = await openAttemptStatus(db, keys, hostAccountId, channels, limits);
-  if (open) return open;
+  // A pending KakaoTalk code ends the host's binding on another channel when it
+  // arrives, which the KakaoTalk card says; other channels' status is unchanged.
+  if (open) return open.state === "pending" && open.channel === "kakaotalk" && binding && binding.channel !== "kakaotalk" ? { ...open, replaces: binding.channel } : open;
 
   if (binding) {
-    let sender = binding.channel === "telegram" ? telegramDisplayName(null, null) : "••••";
+    let sender = binding.channel === "telegram" ? telegramDisplayName(null, null) : binding.channel === "kakaotalk" ? kakaotalkDisplayName(null) : "••••";
     try {
       // The last four digits, the Apple ID or the Telegram name (link-on-code D4).
       sender = shownSender(keys, binding, bindingContext(binding.id), bindingRecipient(keys, binding).address, maskedSender);
@@ -870,8 +892,9 @@ async function openAttemptStatus(
 
 // The message an attempt asks the host to send: the link message, or for
 // Telegram the bare code, which the telegram.me start link carries (design 6).
+// KakaoTalk's is the bare code too, which the host pastes into the 1:1 chat.
 export function attemptMessage(channel: MessagingChannel, code: string) {
-  return channel === "telegram" ? code : linkMessage(code);
+  return channel === "telegram" || channel === "kakaotalk" ? code : linkMessage(code);
 }
 
 // A sender as a screen shows it: a Telegram sender by their sealed name, any
@@ -883,9 +906,9 @@ export function shownSender(
   sender: string,
   display: (sender: string) => string = displaySender,
 ) {
-  if (row.channel !== "telegram") return display(sender);
+  if (row.channel !== "telegram" && row.channel !== "kakaotalk") return display(sender);
   const name = row.sender_name_ciphertext ? openToken(keys, { ciphertext: row.sender_name_ciphertext, keyId: row.sealed_key_id }, context) : null;
-  return name ?? telegramDisplayName(null, null);
+  return name ?? (row.channel === "kakaotalk" ? kakaotalkDisplayName(null) : telegramDisplayName(null, null));
 }
 
 // ---------------------------------------------------------------------------
@@ -984,6 +1007,7 @@ export async function receiveLinkCode(tx: Transaction, options: ArrivalOptions, 
       link?.state === "pending" &&
       link.live &&
       link.channel === arrival.channel &&
+      !(link.request_id && arrival.channel === "kakaotalk") &&
       arrival.spaceType === "dm" &&
       (!owner || owner.host_account_id === link.host_account_id);
 
@@ -1085,6 +1109,8 @@ async function lockArrivalOwner(
 // Binds an arriving sender to the guest's request (guest-flow-completion design
 // 2) and ends the attempt; bindRequester queues the welcome.
 async function bindGuest(tx: Transaction, tokenKey: TokenKey, requestId: string, linkId: string, arrival: LinkArrival) {
+  // receiveLinkCode never completes a guest's attempt from KakaoTalk, which has no guest conversations.
+  if (arrival.channel === "kakaotalk") throw new Error("A guest attempt cannot be completed from KakaoTalk.");
   const [host] = await tx<{ display_name: string | null }[]>`
     select s.settings ->> 'displayName' as display_name
     from app.requests r left join app.host_settings s on s.host_account_id = r.host_account_id

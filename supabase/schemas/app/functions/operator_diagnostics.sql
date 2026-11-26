@@ -32,7 +32,7 @@ END;
 $$;
 
 -- The operator's redacted, read-only snapshot (operational-diagnostics;
--- operations-and-release design 4, D5): ten fixed categories, each with a count,
+-- operations-and-release design 4, D5): eleven fixed categories, each with a count,
 -- the oldest timestamp and an oldest-first sample of opaque identifiers. Nothing
 -- else leaves the database: no payload, recipient, provider reference, text or
 -- failure detail. Nothing is changed, an expired lease included.
@@ -74,7 +74,13 @@ BEGIN
       app.diagnostics_category('sessions_failed',
         $s$SELECT session_id_hash AS id, updated_at AS at FROM app.agent_sessions WHERE state = 'failed'$s$, n),
       app.diagnostics_category('inputs_unanswered',
-        $s$SELECT id::text AS id, accepted_at AS at FROM app.conversation_inputs WHERE state <> 'completed' AND accepted_at < now() - interval '10 minutes'$s$, n)
+        $s$SELECT id::text AS id, accepted_at AS at FROM app.conversation_inputs WHERE state <> 'completed' AND accepted_at < now() - interval '10 minutes'$s$, n),
+      -- The KakaoTalk relay's down alert (host-kakaotalk-channel design 7): its cause since it went down.
+      app.diagnostics_category('kakaotalk_relay_down',
+        $s$SELECT down_cause AS id, down_since AS at FROM app.kakaotalk_relay_heartbeats WHERE down_since IS NOT NULL$s$, n),
+      -- A KakaoTalk message the Mac relay found in another room (host-kakaotalk-mac-relay design 5).
+      app.diagnostics_category('kakaotalk_wrong_room',
+        $s$SELECT id::text AS id, completed_at AS at FROM app.imessage_outbox WHERE failure_category = 'relay_wrong_room'$s$, n)
     ),
     'notMeasured', jsonb_build_array(
       'authorization_denials: see diagnostics rejections (best effort, application commands only)',

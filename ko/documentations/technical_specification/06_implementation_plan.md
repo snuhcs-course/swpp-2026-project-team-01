@@ -483,6 +483,14 @@ OpenSpec 변경은 필요하지 않습니다. 1단계를 막고 있는 유지보
 - [ ] 풀 리퀘스트 1: 게스트 채널과 요청 변경(작업 그룹 1–5a). `feat/guest-flow`에 구현됨; 아직 열지 않음.
 - [ ] 풀 리퀘스트 2: 호스트 프로필과 소프트 선호(작업 그룹 6–7).
 - [ ] 풀 리퀘스트 3: 게스트 화면 리디자인(작업 그룹 8), 팀원의 앱 전체 잉크 마이그레이션 이후.
+
+### 호스트 KakaoTalk 채널 — `host-kakaotalk-channel` (제안됨)
+
+목표: 호스트가 제품의 릴레이 폰을 통해 KakaoTalk을 연결하고, 버튼과 이미지를 제외하면 Telegram과 같은 방식으로 사용할 수 있습니다. 선행 조건: 10단계와 `link-on-code`. 팀원의 승인을 기다립니다(PRD [KakaoTalk 제안](../02_product_requirements.md#target-users)). 변경과 함께 풀 리퀘스트 하나로 전달됩니다.
+
+- [ ] 변경, 스키마, 릴레이 경로와 발신함, 채널 동작, `/app` 카드, Android 릴레이 앱([작업](../../openspec/changes/host-kakaotalk-channel/tasks.md) 그룹 1–5).
+- [ ] 승인 후 릴리스: 릴레이 폰, 제품의 KakaoTalk 계정, 프로덕션 시크릿(그룹 6).
+
 ### 의존성과 중복
 
 | 단계 | 의존 대상 | 겹칠 수 있는 대상 |

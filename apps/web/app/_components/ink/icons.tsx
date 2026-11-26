@@ -112,10 +112,22 @@ export function TelegramGlyph() {
   );
 }
 
+// A round speech bubble on KakaoTalk's yellow: the control is about KakaoTalk.
+export function KakaoTalkGlyph() {
+  return (
+    <span aria-hidden="true" className="im-glyph kt-glyph">
+      <svg height="14" viewBox="0 0 14 14" width="14">
+        <path d="M7 2C3.7 2 1.5 4 1.5 6.4c0 1.5.9 2.8 2.3 3.6l-.5 2.2 2.4-1.5c.4.1.9.1 1.3.1 3.3 0 5.5-2 5.5-4.4S10.3 2 7 2z" fill="currentColor" />
+      </svg>
+    </span>
+  );
+}
+
 // The glyph of the app a control opens.
 export function AppGlyph({ channel }: { readonly channel: MessagingChannel }) {
   if (channel === "whatsapp") return <WhatsAppGlyph />;
   if (channel === "telegram") return <TelegramGlyph />;
+  if (channel === "kakaotalk") return <KakaoTalkGlyph />;
   return <MessagesGlyph />;
 }
 

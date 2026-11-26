@@ -94,7 +94,7 @@ export async function buildEve(env: NodeJS.ProcessEnv) {
 
 export async function startEve(
   target: EveTarget,
-  options: { modelBaseURL: string; signingKey?: string; apiKey?: string },
+  options: { modelBaseURL: string; signingKey?: string; apiKey?: string; env?: NodeJS.ProcessEnv },
 ): Promise<EveServer> {
   const signingKey = options.signingKey ?? randomBytes(32).toString("base64url");
   const port = await freePort();
@@ -102,6 +102,7 @@ export async function startEve(
   const env = {
     ...eveEnvironment({ apiKey: options.apiKey, modelBaseURL: options.modelBaseURL, signingKey }),
     EVE_AGENT_URL: `http://127.0.0.1:${port}`,
+    ...options.env,
   };
   const args =
     target === "dev"

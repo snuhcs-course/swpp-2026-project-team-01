@@ -85,7 +85,7 @@ select app.record_channel_usage_day('2000-01-10');
 
 select is(
   (select count(*)::int from app.channel_usage_days where day = '2000-01-10'),
-  3,
+  4,
   'counting a day twice keeps one row per channel'
 );
 
@@ -141,8 +141,8 @@ select is(
 
 select is(
   (select array_agg(c ->> 'name') from jsonb_array_elements(app.operator_channel_usage_report('week', 1, '2000-01-14') -> 'channels') c),
-  array['imessage', 'whatsapp', 'telegram'],
-  'the report lists the three channels in a fixed order'
+  array['imessage', 'whatsapp', 'telegram', 'kakaotalk'],
+  'the report lists the four channels in a fixed order'
 );
 
 select is(

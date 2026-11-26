@@ -1,9 +1,10 @@
 // The host's messaging channels (host-whatsapp-channel D5 to D7,
-// host-telegram-channel D5 to D7): a host links one of them at a time.
+// host-telegram-channel D5 to D7, host-kakaotalk-channel D6): a host links one
+// of them at a time.
 // Browser-safe: the card and the link step pick the channel a device is offered
 // here, and build WhatsApp's and Telegram's one-tap links.
 
-export const MESSAGING_CHANNELS = ["imessage", "whatsapp", "telegram"] as const;
+export const MESSAGING_CHANNELS = ["imessage", "whatsapp", "telegram", "kakaotalk"] as const;
 
 export type MessagingChannel = (typeof MESSAGING_CHANNELS)[number];
 
@@ -84,9 +85,12 @@ export function telegramChatLinkFor(username: string) {
 }
 
 // What a deployment can link to, null where a channel is not configured: the
-// iMessage line's number, the WhatsApp number as digits and the Telegram bot's
-// username (TELEGRAM_BOT_USERNAME).
-export type ConfiguredChannels = { readonly [Channel in MessagingChannel]: string | null };
+// iMessage line's number, the WhatsApp number as digits, the Telegram bot's
+// username (TELEGRAM_BOT_USERNAME) and the product's KakaoTalk ID
+// (KAKAOTALK_ACCOUNT_ID).
+// KakaoTalk is left out, rather than null, where it is not configured, so a
+// deployment without it answers exactly as before (host-kakaotalk-channel).
+export type ConfiguredChannels = { readonly [Channel in Exclude<MessagingChannel, "kakaotalk">]: string | null } & { readonly kakaotalk?: string | null };
 
 // The configured channels in the order the screens list them.
 export function configuredChannels(channels: ConfiguredChannels): MessagingChannel[] {
@@ -96,6 +100,8 @@ export function configuredChannels(channels: ConfiguredChannels): MessagingChann
 // The channels each device kind is offered, first channel first (D7): Android
 // gets WhatsApp, else Telegram; an Apple device gets iMessage, then Telegram,
 // then WhatsApp; another computer gets them all, by its host's answer.
+// KakaoTalk is never a device's default (host-kakaotalk-channel D6, Q4): it is
+// offered as "Use KakaoTalk instead" beside the default on every device.
 const OFFERED: Readonly<Record<DeviceKind, readonly MessagingChannel[]>> = {
   android: ["whatsapp", "telegram"],
   apple: ["imessage", "telegram", "whatsapp"],
@@ -108,10 +114,17 @@ function offered(device: DeviceKind, channels: ConfiguredChannels) {
   return list.length > 0 ? list : configuredChannels(channels);
 }
 
+// The device's channels with KakaoTalk beside them, when it is configured.
+function offeredWithKakaoTalk(device: DeviceKind, channels: ConfiguredChannels) {
+  const list = offered(device, channels);
+  return channels.kakaotalk && !list.includes("kakaotalk") ? [...list, "kakaotalk" as const] : list;
+}
+
 // The channels "Which app do you use on your phone?" lists: every configured
-// one. With one or none there is no question.
+// one but KakaoTalk, which is only ever offered as "Use KakaoTalk instead"
+// (host-kakaotalk-channel D6). With one or none there is no question.
 export function askChannels(channels: ConfiguredChannels) {
-  return configuredChannels(channels);
+  return configuredChannels(channels).filter((channel) => channel !== "kakaotalk");
 }
 
 // The channel a card or link step shows before any attempt exists (D7): the
@@ -130,13 +143,14 @@ export function shownChannel(device: DeviceKind, channels: ConfiguredChannels, c
 // instead" (D7): on Android the other of WhatsApp and Telegram; on an Apple
 // device or another computer every other configured channel.
 export function switchChannels(device: DeviceKind, channels: ConfiguredChannels, current: MessagingChannel): MessagingChannel[] {
-  return offered(device, channels).filter((channel) => channel !== current);
+  return offeredWithKakaoTalk(device, channels).filter((channel) => channel !== current);
 }
 
 // The channel's name as the screens show it.
 export function channelName(channel: MessagingChannel) {
   if (channel === "whatsapp") return "WhatsApp";
   if (channel === "telegram") return "Telegram";
+  if (channel === "kakaotalk") return "KakaoTalk";
   return "iMessage";
 }
 
@@ -147,17 +161,19 @@ export const IMESSAGE_PREFIX = "[iMessage] ";
 export const WHATSAPP_PREFIX = "[WhatsApp] ";
 // A linked Telegram chat (host-telegram-channel D12).
 export const TELEGRAM_PREFIX = "[Telegram] ";
+// A linked KakaoTalk chat (host-kakaotalk-channel).
+export const KAKAOTALK_PREFIX = "[KakaoTalk] ";
 // A requester's email in their thread (requester-email-channel).
 export const EMAIL_PREFIX = "[Email] ";
 
 export function cameFromMessagingChannel(message: string) {
-  return message.startsWith(IMESSAGE_PREFIX) || message.startsWith(WHATSAPP_PREFIX) || message.startsWith(TELEGRAM_PREFIX);
+  return [IMESSAGE_PREFIX, WHATSAPP_PREFIX, TELEGRAM_PREFIX, KAKAOTALK_PREFIX].some((prefix) => message.startsWith(prefix));
 }
 
 // The markers belong to forwarded input only. The model sometimes copies one to
 // the start of its reply (#410), so every outgoing channel reply drops any
 // leading marker, repeated or bolded ones included, whatever the model wrote.
-const MARKER_NAMES = [IMESSAGE_PREFIX, WHATSAPP_PREFIX, TELEGRAM_PREFIX, EMAIL_PREFIX].map((prefix) => prefix.trim().slice(1, -1));
+const MARKER_NAMES = [IMESSAGE_PREFIX, WHATSAPP_PREFIX, TELEGRAM_PREFIX, KAKAOTALK_PREFIX, EMAIL_PREFIX].map((prefix) => prefix.trim().slice(1, -1));
 const LEADING_MARKER = new RegExp(`^\\s*(?:\\*\\*)?\\[(?:${MARKER_NAMES.join("|")})\\](?:\\*\\*)?[ \\t]*:?\\s*`, "i");
 
 export function stripChannelMarkers(text: string) {

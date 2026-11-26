@@ -11,7 +11,7 @@ import type { Queryable } from "./database";
 
 const HANGUL = /[가-힣]/;
 const LETTER = /\p{L}/u;
-const CHANNEL_PREFIX = /^\[(?:iMessage|WhatsApp|Telegram)\] /;
+const CHANNEL_PREFIX = /^\[(?:iMessage|WhatsApp|Telegram|KakaoTalk)\] /;
 
 export type ChannelLanguage = RequestLanguage;
 

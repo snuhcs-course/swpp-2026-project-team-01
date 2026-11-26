@@ -24,7 +24,7 @@
     "qa:stack": "tsx tests/qa/stack.ts",
     "jobs:dev": "tsx --env-file-if-exists=.env --env-file-if-exists=.env.local scripts/jobs-dev.ts",
     "admin": "tsx --env-file-if-exists=.env --env-file-if-exists=.env.local scripts/admin.ts",
-    "typecheck": "next typegen apps/web && tsgo --noEmit -p apps/web/tsconfig.json && tsgo --noEmit -p tsconfig.json && tsgo --noEmit -p cli/tsconfig.json",
+    "typecheck": "next typegen apps/web && tsgo --noEmit -p apps/web/tsconfig.json && tsgo --noEmit -p tsconfig.json && tsgo --noEmit -p cli/tsconfig.json && tsgo --noEmit -p apps/kakaotalk-mac-relay/tsconfig.json",
     "test": "vitest run --project unit",
     "test:integration": "vitest run --project integration",
     "test:e2e": "playwright test",

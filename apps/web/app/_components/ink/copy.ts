@@ -3,6 +3,8 @@
 // channelCopy lays them over the iMessage words for a WhatsApp code or binding. Telegram (host-telegram-channel
 // D6, D7, D13) does the same with `tg`: the host opens the bot and taps Start instead of sending a written note.
 // A WhatsApp start asks for the number as iMessage does (guest-whatsapp-link D3), under `wa.number`'s heading.
+// KakaoTalk (host-kakaotalk-channel design 6) lays `kt` over them: the host adds Thyme's KakaoTalk ID as a
+// friend and sends the bare code in a 1:1 chat. It is only offered as "Use KakaoTalk instead".
 
 import type { MessagingChannel } from "@lib/contracts/messaging-channel";
 
@@ -232,6 +234,41 @@ const en = {
     optIn: "Thyme will message you on WhatsApp about your requests. If you have not written for a day, it sends a short notice instead.",
     privacyTelegram: "Telegram keeps bot chats on its servers. Find Me a Time sends your request summaries here.",
   },
+  // The words that differ for KakaoTalk, laid over the iMessage ones by channelCopy, and the KakaoTalk code's own.
+  kt: {
+    landing: { noImessage: "No KakaoTalk?" },
+    send: {
+      open: "Open KakaoTalk",
+      fine: "By sending the code, you agree to get KakaoTalk messages from Thyme about your meetings. Send stop to stop anytime.",
+      waitingLede: "Send the code in your KakaoTalk chat with Thyme. This page moves on as soon as it arrives.",
+      unavailable: "KakaoTalk isn't available yet.",
+    },
+    link: {
+      heading: "Connect Thyme to your KakaoTalk",
+      lede: "Add Thyme as a KakaoTalk friend, then send it this code in a 1:1 chat. That links this account.",
+      ledePhone: "Add Thyme as a KakaoTalk friend, then send it this code in a 1:1 chat. That links this account.",
+      altDesktop: "Rather not now?",
+      altPhone: "Rather not now?",
+      connected: "Your KakaoTalk is linked.",
+      notMine: "Not my KakaoTalk — unlink",
+      connectedLede: "You can onboard with Thyme in KakaoTalk. Thyme just sent you a hello there.",
+      calendarConnectedLede: "Setup continues in KakaoTalk. Thyme just sent you the next step there.",
+    },
+    // The KakaoTalk code's screen (host-kakaotalk-channel "Linking KakaoTalk by a code"): the privacy sentence
+    // and, when the host is linked elsewhere, what linking ends come before the ID and the code.
+    code: {
+      privacy: "Your KakaoTalk chat with Thyme passes through Kakao and our relay phone, which keeps the chat history.",
+      replaces: (name: string) => `Linking KakaoTalk ends your ${name} link.`,
+      idLabel: "Thyme's KakaoTalk ID",
+      idHelp: "In KakaoTalk, add a friend by ID and search for this ID.",
+      copyId: "Copy ID",
+      copyIdLabel: "Copy the KakaoTalk ID",
+      codeLabel: "Code",
+      copyCode: "Copy code",
+      copyCodeLabel: "Copy the link code",
+      waiting: (time: string) => `Waiting for your code. It works until ${time}.`,
+    },
+  },
   // The words that differ for WhatsApp, laid over the ones above by channelCopy.
   wa: {
     landing: { noImessage: "No WhatsApp?" },
@@ -313,10 +350,10 @@ export type Copy = typeof en;
 
 export const COPY: Record<Locale, Copy> = { en, ko: en };
 
-// The words for a channel's screens: WhatsApp's or Telegram's laid over the iMessage ones.
+// The words for a channel's screens: WhatsApp's, Telegram's or KakaoTalk's laid over the iMessage ones.
 export function channelCopy(t: Copy, channel: MessagingChannel): Copy {
   if (channel === "imessage") return t;
-  const over = channel === "whatsapp" ? t.wa : t.tg;
+  const over = channel === "whatsapp" ? t.wa : channel === "kakaotalk" ? t.kt : t.tg;
   const number = channel === "whatsapp" ? { ...t.number, ...t.wa.number } : t.number;
   return { ...t, landing: { ...t.landing, ...over.landing }, link: { ...t.link, ...over.link }, number, send: { ...t.send, ...over.send } };
 }

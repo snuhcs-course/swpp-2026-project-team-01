@@ -907,3 +907,45 @@ Dohyeon Park이 2026-11-25에 Photon의 10DLC 캠페인 등록을 시작한 뒤,
 |---|---|---|---|---|
 | — | SMS가 옵트인 메시징 채널로 다시 범위에 들어옵니다. 이는 "Photon을 통한 SMS 또는 RCS"를 기각한 2026-11-02의 제품 결정([9단계](#9단계--host-whatsapp-channel))과, 이슈 #90을 계획 없음으로 닫은 것을 뒤집습니다. 동의는 SMS 연결 코드를 여는 선택 사항이며 기본값이 해제된 SMS 체크박스이고([이슈 #488](https://github.com/snuhcs-course/swpp-2026-project-team-01/issues/488)), SMS에는 번호를 입력하지 않습니다([`sms-channel`](../../openspec/changes/sms-channel/proposal.md) D6). 누구를 위한 것인지, 무엇을 담는지, 미국 외 번호, 비용과 한도는 OpenSpec 변경에 맡깁니다 | SMS를 계속 범위 밖에 두고 Android는 WhatsApp과 Telegram에 의존(2026-11-04의 입장); RCS | PRD 1, 3절; 이슈 #488, #489 | PRD를 먼저, 그다음 SMS 채널의 OpenSpec 변경 |
 | — | (사용자, 2026-11-26.) SMS는 한국 SIM이 든 Android 휴대폰에서 종단간 암호화를 켠 클라우드 모드의 SMS Gate(capcom6/android-sms-gateway)로 보냅니다. 서비스가 HELP, START, STOP에 직접 응답합니다. iPhone, iPad, Mac은 iMessage를 쓰고, 그 밖의 모든 기기는 SMS를 씁니다. 이 채널은 호스트와 게스트를 위해 다른 채팅과 같은 내용을 담아 모든 국가 코드로 동작합니다([`sms-channel`](../../openspec/changes/sms-channel/proposal.md) D1, D2, D7, D8, D11) | Photon SMS(미국 번호만 가능하고 10DLC 캠페인이 승인되기 전까지 막힘; `+82` 발송은 [스파이크](03_provider_setup.md#photon-sms)에서 거부됨); 한국 SMS API(수신 문자 없음); TextBee; httpSMS | `sms-channel` 제안서와 설계; PRD 1절 | PRD를 먼저, 그다음 `sms-channel` |
+
+## `host-kakaotalk-channel`
+
+[제안서](../../openspec/changes/host-kakaotalk-channel/proposal.md#decisions)는 이 선택들을 기록합니다. KakaoTalk 호스트 채널을 eve에 연결해 달라는 사용자의 요청에 따라, 변경을 작성한 세션에서 2026-11-26에 제안했습니다. 이 선택들은 **보류 중**입니다. 풀 리퀘스트에 대한 팀원의 승인이 열린 질문 Q1부터 Q5와 함께 이를 결정합니다. 그때까지 [PRD](../02_product_requirements.md#outside-the-initial-release)는 KakaoTalk을 범위 밖에 둡니다.
+
+| # | 선택 | 대안 | 기록 위치 | 바꾸려면 |
+|---|---|---|---|---|
+| D1 | 팀이 보유한 Android 릴레이 폰. 알림은 리스너로 들어옵니다. 비공개 내용은 연결된 대화방 알림의 답장 동작으로만 나갑니다. 고정 안내는 접근성을 통해 보낼 수 있습니다. [`host-kakaotalk-mac-relay`](#host-kakaotalk-mac-relay) D1은 Mac 릴레이를 주 릴레이로, 이 폰을 그 대기 릴레이로 제안합니다 | 먼저 쓸 수 없는 KakaoTalk 채널 챗봇, 리셀러와 템플릿 심사가 필요한 알림톡과 친구톡, 시간 초과가 났던 Mac의 `openkakao-cli`, 채팅 이름으로 보내는 비공개 내용 | 제안서, 설계 1 | 설계 1, 그다음 `apps/kakaotalk-relay/` |
+| D2 | 메서드, 경로, 타임스탬프, nonce, 본문에 대한 HMAC-SHA256. 수신용과 발신함용 시크릿을 따로 두며 각각 교체할 수 있습니다 | 공유 시크릿 하나, 본문만 서명하는 방식 | 제안서, 설계 2 | `lib/server/kakaotalk.ts`와 릴레이의 서명기 |
+| D3 | 1:1 대화방 ID가 발신자를 대신합니다. 그룹과 오픈채팅의 텍스트는 폰 밖으로 나가지 않으며, 거기서 본 코드는 그 시도를 무효로 합니다 | 표시 이름을 신원으로 쓰는 방식 | 제안서, 설계 3 | 설계 3 |
+| D5 | 토큰이 있는 120초 임대. 결과는 `accepted`, `failed`, `uncertain`으로 대응되고, 다시 대기열에 넣는 `not_started`가 더해집니다 | 폰으로 푸시, 불확실한 메시지 재전송 | 제안서, 설계 5 | 설계 5와 발신함 클레임 |
+| D7 | 1분마다 보내는 하트비트로 보는 릴레이 상태. 5분간 조용하면 클레임하지 않고, 폰이 잠긴 동안에는 안내를 보내지 않습니다 | 하트비트 없음 | 제안서, 설계 7 | 설계 7 |
+
+
+
+## `host-kakaotalk-mac-relay`
+
+[제안서](../../openspec/changes/host-kakaotalk-mac-relay/proposal.md#decisions)는 이 선택들을 기록합니다. 제품의 KakaoTalk 계정에 로그인한 Mac mini에서 `kakaocli`가 메시지를 읽고 보낸 뒤인 2026-11-26에 제안했습니다. 이 선택들은 **보류 중**이며, [`host-kakaotalk-channel`](#host-kakaotalk-channel)과 함께 같은 풀 리퀘스트와 같은 팀원 승인이 Q1부터 Q3와 함께 결정합니다.
+
+| # | 선택 | 대안 | 기록 위치 | 바꾸려면 |
+|---|---|---|---|---|
+| D1 | Mac mini의 KakaoTalk for Mac을 `kakaocli`로 구동하는 것이 주 릴레이입니다. Android 폰은 대기 릴레이입니다 | 두 릴레이를 동시에 실행 | 제안서, 설계 1 | 설계 1, 그다음 `apps/kakaotalk-mac-relay/` |
+| D2 | `KAKAOTALK_ACTIVE_RELAY`가 릴레이를 고르며 기본값은 `android`입니다. Mac의 모든 본문은 서명 안에 `"relay": "mac"`을 담고, 다른 릴레이에는 `409`로 응답합니다 | 하트비트에 따른 자동 장애 조치, 릴레이별 별도 시크릿 | 제안서, 설계 1 | 설계 1과 `lib/server/kakaotalk.ts` |
+| D3 | 데이터베이스의 `chatId`가 대화방 ID이며 폰과 같습니다. 발신자의 Kakao 사용자 ID는 보내지만 저장하지 않습니다 | Mac 발신자를 위한 새 신원 | 제안서, 설계 2 | 설계 2 |
+| D4 | 2초마다 `kakaocli query`, ID는 텍스트로, 대화방별 로그 ID 표시를 저장 | JSON에서 19자리 ID가 깨지는 `kakaocli sync`, Node의 SQLCipher | 제안서, 설계 3 | 설계 3 |
+| D5 | 다른 어떤 대화방의 이름에도 포함되지 않는 이름의 대화방에만 비공개 내용을 보내며, 보내기 전에는 데이터베이스와 채팅 목록에서, 보낸 뒤에는 데이터베이스에서 확인합니다. 다른 곳에서 발견된 메시지는 사유 `wrong_room`의 `uncertain`이 되고 알림이 남습니다 | `kakaocli`의 이름 일치를 그대로 신뢰 | 제안서, 설계 5 | 설계 5 |
+| D6 | 먼저 보내는 1:1 메시지는 없습니다. 상대가 먼저 쓴 뒤에만 대화방으로 보낼 수 있고, Mac에서는 안내를 보내지 않습니다 | 계정을 친구로 추가한 사람에게 먼저 쓰기 | 제안서, 설계 6 | 설계 6 |
+| D7 | 발신함 종류 `leave_room`, 클레임 모드 `leave`, Mac 릴레이 전용 | 직접 나가기 | 제안서, 설계 7 | 설계 7 |
+| D8 | LaunchAgent가 `kakao-ax` 헬퍼를 시작하며, 헬퍼가 접근성 권한을 갖고 데몬을 자식 프로세스로 실행합니다 | `node`에 접근성 권한 부여, SSH로 실행 | 제안서, 설계 9 | 설계 9 |
+
+## `kakaotalk-group-conversations`
+
+[제안서](../../openspec/changes/kakaotalk-group-conversations/proposal.md#decisions)는 Mac 릴레이의 기기 확인 뒤인 2026-11-26에 사용자의 답변을 바탕으로 한 이 선택들을 기록합니다. 이 선택들은 **보류 중**이며, [`host-kakaotalk-channel`](#host-kakaotalk-channel), [`host-kakaotalk-mac-relay`](#host-kakaotalk-mac-relay)와 함께 같은 풀 리퀘스트에서 Q1부터 Q3와 함께 결정합니다. Mac 릴레이의 KakaoTalk 그룹에 대해서는 그룹 텍스트가 릴레이 밖으로 나가지 않는다는 규칙을 대체합니다.
+
+| # | 선택 | 대안 | 기록 위치 | 바꾸려면 |
+|---|---|---|---|---|
+| D1 | 계정이 속한 모든 그룹, 모든 구성원의 텍스트 | 코드로 연결된 그룹만, 연결된 호스트의 메시지만 | 제안서, 설계 1 | 설계 1 |
+| D2 | `group_chat` 대화와 도구 없는 `kakaotalk_group` 주체 | 구성원 호스트의 세션에서 그룹 메시지 실행 | 제안서, 설계 2 | 설계 2와 `lib/server/kakaotalk-groups.ts` |
+| D3 | 계정 또는 어시스턴트의 이름을 부르는 메시지에만 답하고, 나머지는 24시간 동안 맥락으로만 씁니다 | 모든 메시지에 답하기; `@`로 시작하는 모든 메시지 | 제안서, 설계 3 | 설계 3 |
+| D4 | 이름 규칙으로 고른, 제목이 있는 그룹에만 Mac 릴레이를 통해 답합니다 | 구성원 이름으로 제목 없는 그룹에 보내기 | 제안서, 설계 4 | 설계 4 |
+| D5 | 24시간 동안 그룹당 30회, 전체 300회 호출. 그룹 자체의 모델 허용량과 `group` 허용 범위 | 익명 모델 풀 | 제안서, 설계 5 | 설계 5 |
+| D6 | 도구 없이 짧고 평이하게 답하며, 확인했다거나 예약했다는 주장은 하지 않습니다 | 그룹에 일정 도구 제공 | 제안서, 설계 6 | 설계 6과 `agent/instructions/group-chat.ts` |

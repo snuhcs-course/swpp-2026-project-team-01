@@ -35,6 +35,8 @@ Telegram 결정(2026-11-04): Meta가 WhatsApp Business 계정을 메시지를 �
 
 SMS 결정(2026-11-26, Dohyeon Park; 아직 팀원 검토 없음): SMS가 메시징 채널로 다시 범위에 들어오며, SMS를 범위 밖으로 둔 2026-11-02와 2026-11-04의 결정을 뒤집습니다([이슈 #489](https://github.com/snuhcs-course/swpp-2026-project-team-01/issues/489), 닫힌 이슈 #90을 다시 검토합니다). 옵트인 방식입니다. 사용자는 SMS를 연결하는 코드를 받기 전에 선택 사항이며 기본값이 해제된 SMS 동의 체크박스를 직접 체크하고([이슈 #488](https://github.com/snuhcs-course/swpp-2026-project-team-01/issues/488)), SMS에는 번호를 입력하지 않습니다. [`sms-channel` 변경](../openspec/changes/sms-channel/proposal.md)이 이 채널을 명세합니다. 게이트웨이 결정(2026-11-26, Dohyeon Park): 스파이크 결과 Photon의 SMS는 미국 번호에만 닿고, 그것도 10DLC 캠페인이 승인된 뒤에야 가능합니다. 그래서 SMS는 한국 SIM이 든 Android 휴대폰을 SMS Gate로 게이트웨이처럼 써서 보내고, 서비스가 HELP, START, STOP 키워드에 직접 응답합니다. iPhone, iPad, Mac은 iMessage를 쓰고, 그 밖의 모든 기기는 SMS를 씁니다. 이 채널은 호스트와 게스트를 모두 위한 것이고, 다른 채팅과 같은 내용을 담으며, 모든 국가 코드를 받습니다. 한도는 OpenSpec 변경이 정합니다.
 
+KakaoTalk 제안(2026-11-26, 팀원 승인 대기): 사용자가 모든 기기에서 기기의 기본 채널과 나란히 쓸 수 있는 호스트 채널로 KakaoTalk을 제안했습니다. KakaoTalk은 개인 계정용 API가 없으므로, 팀이 보유한 Android 릴레이 폰이 KakaoTalk 알림을 읽고 알림의 답장 동작으로 응답합니다. 비공개 내용은 연결된 대화방으로만 보내며, 그 밖의 곳에는 비공개 내용이 없는 고정 안내만 보냅니다. Kakao의 약관상 계정이 정지될 위험이 있습니다. [`host-kakaotalk-channel` 변경](../openspec/changes/host-kakaotalk-channel/proposal.md)이 이를 명세하고 열린 결정 사항을 나열합니다. 팀원이 해당 풀 리퀘스트를 승인하는 것이 팀의 결정입니다. 그때까지 KakaoTalk은 아래 목록에 그대로 남고 프로덕션에서는 설정되지 않은 상태로 둡니다.
+
 내부 팀 일정 조율과 그룹 미팅은 제품의 초기 범위에서 제외됩니다.
 
 ## 2. 목표와 성공 지표

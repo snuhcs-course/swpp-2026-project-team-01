@@ -6,7 +6,7 @@
 -- that. A missing row means the day was not recorded, not that nothing happened.
 CREATE TABLE "app"."channel_usage_days" (
   "day" date NOT NULL,
-  "channel" text NOT NULL CHECK ("channel" IN ('imessage', 'whatsapp', 'telegram')),
+  "channel" text NOT NULL CHECK ("channel" IN ('imessage', 'whatsapp', 'telegram', 'kakaotalk')),
   "active_hosts" integer NOT NULL CHECK ("active_hosts" >= 0),
   "inbound_messages" integer NOT NULL CHECK ("inbound_messages" >= 0),
   "guest_links" integer NOT NULL CHECK ("guest_links" >= 0),

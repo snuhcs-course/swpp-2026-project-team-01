@@ -304,6 +304,33 @@ Telegram은 2026-11-04에 [`host-telegram-channel` 변경](../../openspec/change
 
 사용자의 승인 없이는 에이전트 세션에서 봇의 토큰을 설정하거나, 웹훅을 등록하거나, Telegram 메시지를 보내서는 안 됩니다.
 
+## KakaoTalk 릴레이
+
+KakaoTalk은 팀원 승인을 기다리는 [`host-kakaotalk-channel` 변경](../../openspec/changes/host-kakaotalk-channel/proposal.md#decisions)에서 제안된 호스트 KakaoTalk 채널의 전송 수단입니다. KakaoTalk은 개인 계정용 API가 없으므로, 팀이 보유한 Android 폰이 [`apps/kakaotalk-relay/`](../../apps/kakaotalk-relay/README.md)의 릴레이 앱을 실행합니다. 릴레이는 KakaoTalk 알림을 읽어 각 1:1 메시지를 에이전트 서비스로 전달하고, 서비스에서 보낼 메시지를 가져옵니다(D1).
+
+- **계정과 폰.** 제품용 KakaoTalk 계정 하나를 Android 폰 한 대에 로그인해 둡니다(KakaoTalk은 계정당 폰 한 대만 허용합니다). 폰은 알림 접근과 릴레이의 접근성 서비스를 켜 두고, 릴레이와 KakaoTalk의 배터리 최적화를 끄며, 다른 계정을 두지 않고, 알림 기록을 끕니다. 폰의 소유자는 열린 질문 Q2입니다.
+- **변수.** Vercel Production에만, 메시징 게이트 아래에 둡니다.
+  - `KAKAOTALK_ACCOUNT_ID`: 계정의 KakaoTalk ID로, 카드에 표시됩니다.
+  - `KAKAOTALK_RELAY_INBOUND_SECRET`: 릴레이의 웹훅 이벤트에 서명합니다.
+  - `KAKAOTALK_RELAY_OUTBOX_SECRET`: 클레임, 결과, 하트비트에 서명합니다.
+  - 교체 중에는 이 두 값에 `_PREVIOUS` 접미사를 붙인 변수를 함께 둡니다.
+
+  각 시크릿은 32자 이상의 무작위 URL 안전 문자열입니다. 이 중 하나라도 설정되지 않으면 KakaoTalk은 제공되지 않으며 모든 릴레이 경로가 요청을 거부합니다. 테스트는 로컬 루프백 릴레이 대역을 사용합니다.
+- **경로.** `https://findmeatime.com`의 `POST /kakaotalk/webhook`, `POST /kakaotalk/outbox/claim`, `POST /kakaotalk/outbox/<id>/result`, `POST /kakaotalk/heartbeat`. 각 요청은 메서드, 경로, 타임스탬프, 일회용 nonce, 본문에 대해 서명됩니다(D2). 형식과 테스트 벡터는 [`PROTOCOL.md`](../../apps/kakaotalk-relay/PROTOCOL.md)에 있습니다.
+- **교체.** 현재 값을 `…_PREVIOUS`로 옮기고 새 값을 설정한 뒤 배포하고 릴레이를 갱신합니다. 그다음 `…_PREVIOUS`를 제거하고 다시 배포합니다.
+- **폰 분실.** 두 시크릿을 모두 제거하고 배포해 모든 릴레이 경로가 요청을 거부하게 합니다. 다른 기기에서 KakaoTalk 계정을 로그아웃시킨 다음, 교체한 폰에 새 시크릿을 설정합니다.
+- **상태 확인.** 릴레이는 1분마다 하트비트를 보냅니다. 릴레이가 5분간 내려가 있으면 운영 알림을 남기고, 1시간이 지나면 다시 남깁니다(D7).
+- **Mac 릴레이.** 제안된 [`host-kakaotalk-mac-relay` 변경](../../openspec/changes/host-kakaotalk-mac-relay/proposal.md#decisions)은 Mac mini의 KakaoTalk for Mac을 같은 경로와 시크릿 뒤의 주 릴레이로 삼고, 폰은 대기 릴레이로 둡니다. 데몬과 헬퍼는 [`apps/kakaotalk-mac-relay/`](../../apps/kakaotalk-mac-relay/README.md)에 있으며, 여기에 Mac의 설정이 나와 있습니다. KakaoTalk for Mac에 로그인한 제품 계정, 패치된 `kakaocli`, 해당 사용자만 읽을 수 있는 파일에 둔 파생 데이터베이스 키, 잠기지 않는 화면, 헬퍼에 대한 접근성 권한입니다.
+  - `KAKAOTALK_ACTIVE_RELAY`: `mac` 또는 `android`(기본값)입니다. 서비스는 다른 릴레이의 이벤트, 클레임, 하트비트를 `409`로 거부하므로 계정에 대해 한 릴레이만 동작합니다. 전환하려면 이전 릴레이를 멈추고, 변수를 설정해 배포한 다음, 새 릴레이를 시작합니다. 클레임은 새 릴레이의 첫 하트비트 뒤에 재개됩니다.
+  - Mac 릴레이가 보낸 뒤 다른 대화방에서 찾은 메시지는 `relay_wrong_room`으로 기록되고 운영자 스냅샷에는 `kakaotalk_wrong_room`으로 표시됩니다.
+- **그룹 채팅.** 제안된 [`kakaotalk-group-conversations` 변경](../../openspec/changes/kakaotalk-group-conversations/proposal.md#decisions)은 Mac 릴레이가 그룹의 모든 구성원의 텍스트를 보내게 합니다. 어시스턴트는 자신을 부르는 메시지에 그룹 안에서 답하며, 이때 어떤 호스트도 소유하지 않은 대화와 도구 없는 상태로 답합니다.
+  - `KAKAOTALK_GROUP_NAMES`: 앞에 `@`가 있든 없든 어시스턴트를 부르는 이름을 쉼표로 구분한 목록입니다. 기본값은 `TimeRabbit,타임래빗`입니다.
+  - `KAKAOTALK_GROUP_DAILY_REPLIES`와 `KAKAOTALK_GROUPS_DAILY_REPLIES`: 24시간 동안 그룹별, 그리고 전체 그룹에 걸쳐 답하는 호출 수이며 기본값은 30과 300입니다.
+  - 릴레이의 `config.json`에 `"groupMessages": false`를 넣으면 그룹 텍스트를 Mac 안에만 둡니다.
+- **약관.** Kakao의 약관은 Kakao가 허용하지 않은 방식으로 서비스를 이용하는 프로그램을 금지하며, 계정이 정지될 수 있습니다(Q1). 호스트는 `/app`과 이메일을 계속 사용할 수 있습니다.
+
+에이전트 세션에서는 사용자의 승인 없이 제품의 KakaoTalk 계정에 로그인하거나, 릴레이 시크릿을 설정하거나, KakaoTalk 메시지를 보내지 마십시오.
+
 ## PostHog
 
 웹 앱, 에이전트, 메시징 채널의 제품 분석으로, [`web-analytics` 변경](../../openspec/changes/web-analytics/proposal.md)(#469, #341의 Google Analytics 태그를 대체합니다)에서 다룹니다. 브라우저에서는 `posthog-js`, 서버에서는 `posthog-node`를 통해 PostHog Cloud를 사용합니다(D1, D7).

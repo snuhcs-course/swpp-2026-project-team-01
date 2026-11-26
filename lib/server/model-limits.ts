@@ -79,6 +79,11 @@ export const MODEL_LIMITS = {
   // window. Spend of intakes from before D13 still counts toward the latter.
   anonymousPrincipalWindowUsd: "3.00",
   anonymousWindowUsd: "50.00",
+  // A KakaoTalk group chat's own allowance, and every group's together
+  // (kakaotalk-group-conversations design 5): apart from the anonymous pool,
+  // so groups never use up what unconfirmed guests depend on.
+  groupPrincipalWindowUsd: "3.00",
+  groupsWindowUsd: "20.00",
   rankingOutputTokens: 2048,
   serviceWindowUsd: "300.00",
 } as const;
@@ -110,7 +115,8 @@ export class ModelLimitError extends Error {
 }
 
 export type Principal = {
-  readonly type: "host_account" | "requester_request" | "public_intake";
+  // kakaotalk_group: one KakaoTalk group chat (kakaotalk-group-conversations design 2).
+  readonly type: "host_account" | "requester_request" | "public_intake" | "kakaotalk_group";
   readonly id: string;
 };
 
@@ -247,6 +253,14 @@ async function reserve(db: Database, attribution: Attribution, limits: ModelLimi
 
     let anonymous = false;
 
+    // A group chat runs model work only while the account is in it, under the
+    // groups' own allowances (kakaotalk-group-conversations design 5).
+    const group = principal.type === "kakaotalk_group";
+    if (group) {
+      const [row] = await tx<{ left: boolean }[]>`select left_at is not null as left from app.kakaotalk_groups where id = ${principal.id} for share`;
+      if (!row || row.left) throw new ModelLimitError("authority_expired");
+    }
+
     if (principal.type === "requester_request") {
       const [request] = await tx<{ confirmed: boolean; open: boolean }[]>`
         select (r.closed_at is null and r.expires_at > now()) or r.state = 'booked' as open,
@@ -285,9 +299,9 @@ async function reserve(db: Database, attribution: Attribution, limits: ModelLimi
 
     const amount = attribution.reservationUsd ?? limits.attemptReservationUsd;
 
-    const principalCap = anonymous ? limits.anonymousPrincipalWindowUsd : limits.principalWindowUsd;
+    const principalCap = group ? limits.groupPrincipalWindowUsd : anonymous ? limits.anonymousPrincipalWindowUsd : limits.principalWindowUsd;
     const [usage] = await tx<
-      { anonymous_over: boolean; principal_over: boolean; service_over: boolean; window_start: Date }[]
+      { anonymous_over: boolean; groups_over: boolean; principal_over: boolean; service_over: boolean; window_start: Date }[]
     >`
       with w as (select date_bin('24 hours', statement_timestamp(), timestamptz '2026-01-01 00:00:00+00') as start)
       select
@@ -299,7 +313,10 @@ async function reserve(db: Database, attribution: Attribution, limits: ModelLimi
           where (anonymous or principal_type = 'public_intake') and window_start = w.start)
           + ${amount}::numeric > ${limits.anonymousWindowUsd}::numeric as anonymous_over,
         (select coalesce(sum(amount_usd), 0) from app.model_reservations where window_start = w.start)
-          + ${amount}::numeric > ${limits.serviceWindowUsd}::numeric as service_over
+          + ${amount}::numeric > ${limits.serviceWindowUsd}::numeric as service_over,
+        ${group}::boolean and (select coalesce(sum(amount_usd), 0) from app.model_reservations
+          where principal_type = 'kakaotalk_group' and window_start = w.start)
+          + ${amount}::numeric > ${limits.groupsWindowUsd}::numeric as groups_over
       from w
     `;
 
@@ -311,7 +328,8 @@ async function reserve(db: Database, attribution: Attribution, limits: ModelLimi
       throw new ModelLimitError("anonymous_allowance");
     }
 
-    if (usage!.service_over) {
+    // Every group's spend together counts as a service limit of its own.
+    if (usage!.service_over || usage!.groups_over) {
       throw new ModelLimitError("service_allowance");
     }
 

@@ -4,7 +4,7 @@
 -- the host account, request or intake ID, or 'service'. Rows are locked in a
 -- fixed order: the discussion's own scope first, then service.
 CREATE TABLE "app"."admission_windows" (
-  "scope" text NOT NULL CHECK ("scope" IN ('host', 'request', 'intake', 'service')),
+  "scope" text NOT NULL CHECK ("scope" IN ('host', 'request', 'intake', 'group', 'service')),
   "scope_key" text NOT NULL,
   "window_kind" text NOT NULL CHECK ("window_kind" IN ('minute', 'hour')),
   "window_start" timestamptz NOT NULL,
