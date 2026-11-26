@@ -40,10 +40,10 @@ Each step that changes the Mac, signs in an account or sets a secret needs the o
 6. **Files.** Under `~/Library/Application Support/FindMeATime/kakaotalk-mac-relay/`: copy this folder to `app/`, build the helper there (`xcrun swiftc -O -o kakao-ax app/helper/KakaoAX.swift`), and write `config.json` with mode 600:
 
    ```json
-   { "origin": "https://findmeatime.com", "inboundSecret": "…", "outboxSecret": "…", "keyFile": "~/.kc-key.txt", "kakaocli": "/opt/homebrew/bin/kakaocli" }
+   { "origin": "https://findmeatime.com", "inboundSecret": "…", "outboxSecret": "…", "keyFile": "~/.kc-key.txt", "kakaocli": "/opt/homebrew/bin/kakaocli", "kakaocliSend": "/path/to/patched/kakaocli" }
    ```
 
-   The secrets are the service's `KAKAOTALK_RELAY_INBOUND_SECRET` and `KAKAOTALK_RELAY_OUTBOX_SECRET`. Add `"groupEvents": true` only when the group change needs membership events.
+   `kakaocli` reads the database and `kakaocliSend` sends; on 2026-11-26 the patched build (a 0.4.1 checkout) took tens of seconds per query, so reads use the released 0.6.0. The secrets are the service's `KAKAOTALK_RELAY_INBOUND_SECRET` and `KAKAOTALK_RELAY_OUTBOX_SECRET`. Add `"groupEvents": true` only when the group change needs membership events.
 7. **LaunchAgent.** Fill in `launchd/com.findmeatime.kakaotalk-mac-relay.plist`, copy it to `~/Library/LaunchAgents/`, and load it from the logged-in session (not over SSH): `launchctl bootstrap gui/$(id -u) ~/Library/LaunchAgents/com.findmeatime.kakaotalk-mac-relay.plist`.
 8. **Grants.** Approve Accessibility for `kakao-ax` in System Settings > Privacy & Security, and the prompt to read KakaoTalk's data if macOS shows one. A rebuilt helper needs the grant again. Once the helper works, turn off any grant given to `sshd-keygen-wrapper` for testing over SSH.
 9. **Service.** Set `KAKAOTALK_ACTIVE_RELAY=mac` on the service and deploy, after stopping the phone relay. Claims start after the Mac's first heartbeat. The log is `~/Library/Logs/kakaotalk-mac-relay.log`.
@@ -61,4 +61,4 @@ The chats tab is also an `AXButton` now, not an `AXCheckBox`, so `kakaocli` no l
 ## Device checks still open
 
 - One real leave on a test group, and a recording of the chat window's menu as a fixture (task 5.3). Until then `kakao-ax leave` looks the menu up by title and does nothing unless it finds exactly one.
-- The chat-list fixture (`fixtures/ax/rows.json`) follows `kakaocli`'s structure. Replace it with a `kakao-ax rows` recording made with the screen unlocked.
+- `fixtures/ax/rows.json` is a `kakao-ax rows` recording from 2026-11-26 with names replaced. Pass the database path as `"db"` in `config.json`: without `--db`, `kakaocli query` spends about 12 seconds detecting the user ID on every call.

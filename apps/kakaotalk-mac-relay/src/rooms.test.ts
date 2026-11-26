@@ -65,6 +65,8 @@ describe("room rules", () => {
     expect(chatListName(group)).toBe("");
     // "Test Host" now also appears in the untitled group's label.
     expect(sendableRooms(withNames)).toEqual([]);
+    // With its recorded title the group is listed under the title alone, as on the Mac mini.
+    expect(sendableRooms(parseRooms(RECORDED.rooms(), users)).map((candidate) => candidate.chatId)).toEqual([RECORDED.hostRoom]);
   });
 
   it("caps and filters the listed room IDs", () => {

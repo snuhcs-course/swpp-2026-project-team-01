@@ -75,8 +75,9 @@ export function parseUsers(rows: readonly unknown[][]) {
   return new Map(rows.map(([userId, ...names]) => [text(userId), [...new Set(names.map(text).filter((name) => name !== ""))]]));
 }
 
-// A group's memberNames are its members' names, which an untitled group's
-// chat-list label is made of, so the name rule sees them too (design 5).
+// An untitled group's memberNames are its members' names, which its chat-list
+// label is made of, so the name rule sees them too (design 5). A titled group
+// is listed under its title alone.
 export function parseRooms(rows: readonly unknown[][], users: ReadonlyMap<string, readonly string[]> = new Map()): Room[] {
   return rows.map((row) => {
     const [chatId, linkId, type, chatName, displayName, friendNickName, nickName, directMember, membersHex, activeMembers, lastLogId, wrote] = row;
@@ -84,7 +85,10 @@ export function parseRooms(rows: readonly unknown[][], users: ReadonlyMap<string
     const memberUserIds = decodeIntegerArray(text(membersHex)) ?? [];
     const names =
       kind === "group"
-        ? memberUserIds.flatMap((userId) => users.get(userId) ?? [])
+        ? // A titled group is listed under its title; only an untitled one under its members' names.
+          text(chatName)
+          ? []
+          : memberUserIds.flatMap((userId) => users.get(userId) ?? [])
         : [text(displayName), text(friendNickName), text(nickName)].filter((name) => name !== "");
     return {
       activeMembersCount: number(activeMembers),

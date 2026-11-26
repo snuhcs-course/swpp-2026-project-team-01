@@ -30,6 +30,6 @@ This change lands in pull request #501 together with [`host-kakaotalk-channel`](
 ## 5. Device (with the user's approval)
 
 - [ ] 5.1 Install the daemon and helper on the Mac mini, grant Accessibility to the helper, and turn off the grant for `sshd-keygen-wrapper`.
-- [ ] 5.2 End to end on the mini against a local service: an incoming 1:1 message gets an eve reply in the same room.
+- [x] 5.2 End to end on the mini against a local service: an incoming 1:1 message gets an eve reply in the same room. Done on 2026-11-26: the code linked the chat, the welcome and eve's reply were both `accepted` after the landing check, and a message in the group stored nothing.
 - [ ] 5.3 With the screen unlocked, record `kakao-ax rows` and the chat window's menu as fixtures, and leave one test group.
 - [ ] 5.4 Offer the `kakaocli` fixes upstream (Q3).

@@ -11,7 +11,10 @@ import { fetchPost, MacRelay } from "./relay.ts";
 // The config file (mode 600) holds:
 //   { "origin": "https://findmeatime.com", "inboundSecret": "...", "outboxSecret": "...",
 //     "keyFile": "~/.kc-key.txt", "kakaocli": "/opt/homebrew/bin/kakaocli",
-//     "helper": ".../kakao-ax", "db": null, "groupEvents": false }
+//     "kakaocliSend": "/path/to/patched/kakaocli", "helper": ".../kakao-ax",
+//     "db": null, "groupEvents": false }
+// kakaocliSend is the build with the chat-list label patch (README); reads may
+// use the released kakaocli, which is faster at opening the database.
 // Nothing secret is printed.
 
 const support = join(homedir(), "Library", "Application Support", "FindMeATime", "kakaotalk-mac-relay");
@@ -22,6 +25,7 @@ type Config = {
   readonly outboxSecret: string;
   readonly keyFile: string;
   readonly kakaocli: string;
+  readonly kakaocliSend: string;
   readonly helper: string;
   readonly db: string | null;
   readonly groupEvents: boolean;
@@ -50,6 +54,7 @@ export function loadConfig(path: string): Config {
     helper: expand(string("helper", join(support, "kakao-ax"))),
     inboundSecret: string("inboundSecret"),
     kakaocli: expand(string("kakaocli", "/opt/homebrew/bin/kakaocli")),
+    kakaocliSend: expand(string("kakaocliSend", string("kakaocli", "/opt/homebrew/bin/kakaocli"))),
     keyFile: expand(string("keyFile", "~/.kc-key.txt")),
     origin: string("origin"),
     outboxSecret: string("outboxSecret"),
@@ -65,7 +70,7 @@ async function main() {
     config: { groupEvents: config.groupEvents, inboundSecret: config.inboundSecret, outboxSecret: config.outboxSecret },
     db: new KakaoDatabase(kakaocliQuery(config.kakaocli, key, config.db)),
     log,
-    messenger: kakaocliMessenger(config.kakaocli),
+    messenger: kakaocliMessenger(config.kakaocliSend),
     now: Date.now,
     post: fetchPost(config.origin),
     sleep: (ms) => new Promise((resolve) => setTimeout(resolve, ms)),
