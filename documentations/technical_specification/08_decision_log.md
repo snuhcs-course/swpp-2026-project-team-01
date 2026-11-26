@@ -915,9 +915,25 @@ The [proposal](../../openspec/changes/host-kakaotalk-channel/proposal.md#decisio
 
 | # | Choice | Alternatives | Recorded in | To change it |
 |---|---|---|---|---|
-| D1 | A team-owned Android relay phone. Notifications come in through a listener. Private content goes out only through the reply action of the linked room's notification. A fixed nudge may go through accessibility | A KakaoTalk Channel chatbot, which cannot write first; 알림톡 and 친구톡, which need a reseller and template review; `kakaocli` on a Mac; private content by chat name | Proposal; design 1 | Design 1, then `apps/kakaotalk-relay/` |
+| D1 | A team-owned Android relay phone. Notifications come in through a listener. Private content goes out only through the reply action of the linked room's notification. A fixed nudge may go through accessibility. [`host-kakaotalk-mac-relay`](#host-kakaotalk-mac-relay) D1 proposes a Mac relay as the main one and this phone as its standby | A KakaoTalk Channel chatbot, which cannot write first; 알림톡 and 친구톡, which need a reseller and template review; `openkakao-cli` on a Mac, which timed out; private content by chat name | Proposal; design 1 | Design 1, then `apps/kakaotalk-relay/` |
 | D2 | HMAC-SHA256 over method, path, timestamp, nonce and body, with separate inbound and outbox secrets, each rotatable | One shared secret; a body-only signature | Proposal; design 2 | `lib/server/kakaotalk.ts` and the relay's signer |
 | D3 | The 1:1 room ID stands in for the sender. Group and open-chat text never leaves the phone, and a code seen there voids its attempt | Display names as identity | Proposal; design 3 | Design 3 |
 | D5 | A 120-second lease with a token. The outcomes map to `accepted`, `failed` and `uncertain`, plus `not_started`, which requeues | Push to the phone; resending uncertain messages | Proposal; design 5 | Design 5 and the outbox claim |
 | D7 | Relay health from a heartbeat every minute. No claims after five minutes of silence, and no nudges while the phone is locked | No heartbeat | Proposal; design 7 | Design 7 |
 
+
+
+## `host-kakaotalk-mac-relay`
+
+The [proposal](../../openspec/changes/host-kakaotalk-mac-relay/proposal.md#decisions) records these choices. They were proposed on 2026-11-26, after `kakaocli` read and sent on a Mac mini signed in to the product's KakaoTalk account. They are **pending** with [`host-kakaotalk-channel`](#host-kakaotalk-channel): the same pull request and the same teammate approval decide them, together with Q1 to Q3.
+
+| # | Choice | Alternatives | Recorded in | To change it |
+|---|---|---|---|---|
+| D1 | KakaoTalk for Mac on a Mac mini, driven by `kakaocli`, is the main relay. The Android phone is a standby | Running both at once | Proposal; design 1 | Design 1, then `apps/kakaotalk-mac-relay/` |
+| D2 | `KAKAOTALK_ACTIVE_RELAY` picks the relay, default `android`. Every Mac body says `"relay": "mac"` inside the signature; the other relay is answered `409` | Automatic failover by heartbeat; separate secrets per relay | Proposal; design 1 | Design 1 and `lib/server/kakaotalk.ts` |
+| D3 | The database `chatId` is the room ID, the same as the phone's. The sender's Kakao user ID is sent and not stored | A new identity for Mac senders | Proposal; design 2 | Design 2 |
+| D4 | `kakaocli query` every 2 seconds, IDs as text, a saved per-room log ID mark | `kakaocli sync`, whose JSON loses 19-digit IDs; SQLCipher in Node | Proposal; design 3 | Design 3 |
+| D5 | Private content only to a room whose name no other room contains, checked in the database and the chat list before sending, and in the database after. A message found elsewhere is `uncertain` with reason `wrong_room` and an alert | Trusting `kakaocli`'s name match | Proposal; design 5 | Design 5 |
+| D6 | No first 1:1 message: a room is sendable only after the other person wrote; no nudge from the Mac | Writing first to friends who added the account | Proposal; design 6 | Design 6 |
+| D7 | Outbox kind `leave_room`, claim mode `leave`, only for the Mac relay | Leaving by hand | Proposal; design 7 | Design 7 |
+| D8 | A LaunchAgent starts the `kakao-ax` helper, which holds Accessibility and runs the daemon as its child | Granting Accessibility to `node`; running over SSH | Proposal; design 9 | Design 9 |

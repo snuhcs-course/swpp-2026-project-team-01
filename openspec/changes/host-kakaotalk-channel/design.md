@@ -38,8 +38,9 @@ Rejected:
 
 - **KakaoTalk Channel chatbot (Kakao i Open Builder).** It is the official route, but a skill can only answer the message the user just sent. Every notice the service starts would be lost.
 - **알림톡 and 친구톡.** They can write first, but they need a business registration, a reseller contract, a fee per message and a review of every template. Phase 9 showed how a provider review can disable a channel before its first message.
-- **KakaoTalk for Mac with `kakaocli`.** It reads the local database and drives the app through accessibility. On 2026-11-26 both `status` and `send` hung on this machine. It also needs a Mac that is always signed in and awake.
-- **A Mac relay: `kakaocli` to read and `openkakao-cli` to send.** Tried on 2026-11-26. `kakaocli` read the Mac database once the user ID was recovered from the preferences hash, and it gives exact room and member IDs. `openkakao-cli` 1.19.4 could not read or send: on an account with many chats its accessibility snapshot exceeds a fixed 30-second budget (about 7,900 nodes). It may work on a product account with few chats, and could become a second relay behind the same routes later.
+- **`openkakao-cli` on a Mac.** Tried on 2026-11-26. Version 1.19.4 could not read or send: on an account with many chats its accessibility snapshot exceeds a fixed 30-second budget (about 7,900 nodes).
+
+KakaoTalk for Mac with `kakaocli` was first rejected here too, because `status` and `send` hung on 2026-11-26. Later that day both worked on a Mac mini signed in to the product's sub-account: the user ID was recovered from the preferences hash, and `send` needed a one-line patch for KakaoTalk's new chat-list labels. The Mac also gives exact room and member IDs. The [`host-kakaotalk-mac-relay`](../host-kakaotalk-mac-relay/design.md) change therefore makes it the main relay behind these routes, and this phone relay becomes its standby. The two never run at the same time.
 - **adb from a server.** It needs a computer tethered to the phone, and `input text` cannot type Korean without an extra keyboard app.
 - **Private content through the accessibility path, checked by name.** A renamed host or a friend with the host's old name would receive another person's summary (reviewer finding, 2026-11-26).
 
@@ -129,7 +130,7 @@ The relay phone sees every notification for the account, including chats that ne
 - **Terms of service (Q1).** Kakao can suspend the account. Every linked host loses the channel at once, and the service cannot tell them through KakaoTalk. Mitigation: hosts keep `/app` and email, and the relay-down alert fires within five minutes.
 - **Nudge delay.** A notice the service starts reaches the host as a nudge first. The content follows only when the host writes back. This is the price of never sending private content to a chat chosen by name.
 - **App updates.** A KakaoTalk update can change the notification tag or the chat list layout. The reply path depends only on Android's notification API and is the less fragile of the two. The heartbeat reports the KakaoTalk version.
-- **Single phone.** The relay is a single point of failure. KakaoTalk allows one phone per account, so a second relay phone is not possible.
+- **Single phone.** The relay is a single point of failure. KakaoTalk allows one phone per account, so a second relay phone is not possible. KakaoTalk for Mac can be signed in beside the phone, which is how [`host-kakaotalk-mac-relay`](../host-kakaotalk-mac-relay/design.md) keeps this phone as a standby.
 
 ## Open Questions
 
