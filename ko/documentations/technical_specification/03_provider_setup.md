@@ -204,7 +204,7 @@ iMessage 채널에 관한 Photon과 eve 문서입니다. 6단계는 Spectrum SDK
 
 ## Photon SMS
 
-SMS는 [`sms-channel` 변경](../../openspec/changes/sms-channel/proposal.md)이 규정하며 아직 구현되지 않았습니다. iMessage와 WhatsApp이 쓰는 Spectrum 호스트 `spectrum.photon.codes`가 아니라 Photon의 Beta(2.0) API(`https://api.photon.codes/v1`)에서 동작합니다. Beta 프로젝트는 `FineMeatime`(`pho_prj_01m6h26pn8fap8znkf4rc98v53`)이며 Beta 대시보드 `app.beta.photon.codes`에 있습니다. API의 OpenAPI 문서는 `https://api.photon.codes/openapi.json`입니다.
+사용하지 않습니다. 2026-11-26에 [`sms-channel` 변경](../../openspec/changes/sms-channel/proposal.md)이, 아래 스파이크에서 Photon의 SMS가 미국 번호에만 닿고 그것도 10DLC 캠페인이 승인된 뒤에야 가능하다는 것이 확인된 후, SMS를 Android 게이트웨이 휴대폰(SMS Gate)으로 옮겼습니다. 캠페인 "Find Me a Time scheduling"은 2026-11-26에 제출되어 검토 중이며, 유지할지 철회할지는 사용자가 정합니다. 이어지는 내용은 Photon의 SMS를 확인한 그대로 기록한 것입니다. 이 SMS는 iMessage와 WhatsApp이 쓰는 Spectrum 호스트 `spectrum.photon.codes`가 아니라 Photon의 Beta(2.0) API(`https://api.photon.codes/v1`)에서 동작합니다. Beta 프로젝트는 `FineMeatime`(`pho_prj_01m6h26pn8fap8znkf4rc98v53`)이며 Beta 대시보드 `app.beta.photon.codes`에 있습니다. API의 OpenAPI 문서는 `https://api.photon.codes/openapi.json`입니다.
 
 ### 스파이크, 2026-11-26
 
