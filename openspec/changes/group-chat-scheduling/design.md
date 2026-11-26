@@ -12,6 +12,8 @@ Three facts from the 2026-11-26 device check limit what a group feature can do:
 2. Joining a group raises no actionable notification. The relay does not learn that it joined, or who added it.
 3. A sender is named by profile name only. Two members can show the same name, and a member can rename themselves to match someone else.
 
+The `host-kakaotalk-mac-relay` change (branch `feat/host-kakaotalk-mac-relay`, not merged) adds a second relay behind the same routes: KakaoTalk for Mac on a Mac mini, which reads the app's own database. It gives each message's room `chatId`, which equals the phone's room ID, the author's user ID and each group's member IDs. It sends through `kakaocli` by chat-list name, with checks before and after, and it can leave a group. Facts 1 and 3 do not hold for it. The user chose on 2026-11-26 to run group scheduling on it (§12).
+
 Requests today have one host and one requester (`meeting-requests`). Bookings make the requester the only attendee (`calendar-booking`). The host's private context stays host-only (`meeting-requests` "Audience-specific projections"). A requester's Google Calendar grant is read-only and bound to its request (`requester-calendar-access`).
 
 ## Goals / Non-Goals
@@ -36,13 +38,13 @@ Requests today have one host and one requester (`meeting-requests`). Bookings ma
 
 The host of a group request is the **organizer**: the linked, set-up host whose group code activated the room. The organizer's conflict calendars, working hours, buffers, places and booking destination are used, exactly as for a request where they are the host. There is one organizer per group request. A second linked host in the same room is a member like anyone else.
 
-The inviter cannot be the host, because the relay never sees the invitation. Taking "the first linked host who writes in the room" would rest on a profile name, which can be forged.
+The inviter cannot be the host, because the relay never sees the invitation. Taking "the first linked host who writes in the room" would pick whoever spoke first, not the person who wants to organize.
 
 ### 2. Activation
 
-The organizer asks for a group code in one of two ways: **Schedule a group** in `/app`, or by saying so in their own 1:1 KakaoTalk chat. The service issues `FMAT-G` and eight characters. The code is single-use, valid for 15 minutes, bound to the organizer, and limited to five per hour, like the host link codes of `link-on-code`. With the code, the organizer gives the meeting length, the date range, the mode (in person, online or either) and the expected number of members, or accepts their defaults for the first three. The expected number excludes the organizer.
+The organizer asks for a group code in one of two ways: **Schedule a group** in `/app`, or by saying so in their own 1:1 KakaoTalk chat. The service issues `FMAT-G` and eight characters. The code is single-use, valid for 15 minutes, bound to the organizer, and limited to five per hour, like the host link codes of `link-on-code`. With the code, the organizer gives the meeting length, the date range, the mode (in person, online or either) and the expected number of members, or accepts the defaults. The expected number excludes the organizer. When the organizer gives none, it is the room's member count from the Mac relay once the code binds the room, less the account and the organizer.
 
-The organizer posts the code in the group. The relay already sees every group notification, and it forwards a message that matches the `FMAT-G` pattern even from a room that is not activated. That is the only text it forwards from such a room. When the service accepts the code, it binds the room ID of that notification to the new group request. It then answers through that notification's **답장** action with the introduction (§6).
+The organizer posts the code in the group. The Mac relay reads every group's messages, and it forwards a message that matches a code pattern, or is exactly `/kickout`, even from a room that is not activated. Those are the only messages it forwards from such a room. When the service accepts the code, it binds that message's room ID to the new group request and posts the introduction in the room (§6, §12).
 
 The following codes bind nothing:
 
@@ -64,7 +66,7 @@ This is the same source rule as `calendar-booking` "Attributable approval of the
 
 ### 4. Gathering availability
 
-The user chose on 2026-11-26 that everyone connects Google Calendar from one link, with manual answers as the fallback. KakaoTalk raises no notification when the account joins a room, so the link goes out with the introduction, right after the organizer's code (§2).
+The user chose on 2026-11-26 that everyone connects Google Calendar from one link, with manual answers as the fallback. The relay does not learn that the account joined a room, so the link goes out with the introduction, right after the organizer's code (§2).
 
 **Collecting calendars.** The introduction asks every member to open the poll page `/g/<token>` and connect Google Calendar. No account is needed. On the page the member enters a display name, connects Google read-only, and may leave an email for the invitation. The grant follows `requester-calendar-access`. It reads calendar-list and busy times only, it is used for this group request only, and no event title, place or attendee is stored, logged, shown or given to the model. The Google-verified address is not used as the invitation email unless the member ticks **Send me the invitation**.
 
@@ -77,12 +79,12 @@ The page shows which calendars count, and offers **Don't use my calendar** for t
 
 **Finding candidates.** The service runs the organizer's feasibility over the date range. It treats every connected member's busy times as busy for the meeting. When every candidate would be removed, it keeps the times that the most connected members can attend instead. That way one very busy member does not empty the list. Up to five candidates are picked, spread across the range, as in "Offered times spread across the range". For an in-person meeting, each candidate is paired with one of the organizer's confirmed places, as in "Time and place pairs".
 
-**Posting the times (user, 2026-11-26).** The numbered times go to the group as soon as the expected number of members have connected a calendar or ticked times on the page, when the organizer asks, or 24 hours after activation, whichever comes first. Numbers in the chat cannot count toward this, because they are only possible after the times are posted. Because the bot can only answer a notification, they go out through the next group message after that moment. Until then the poll page shows the times as they stand, and they change as calendars connect.
+**Posting the times (user, 2026-11-26).** The numbered times go to the group as soon as the expected number of members have connected a calendar or ticked times on the page, when the organizer asks, or 24 hours after activation, whichever comes first. Numbers in the chat cannot count toward this, because they are only possible after the times are posted. They are posted at that moment (§12). Until then the poll page shows the times as they stand, and they change as calendars connect.
 
 **Fallback answers.** A member without Google, or one who does not want to connect, answers in one of two ways:
 
 - **Ticking** the times that work on the same page.
-- **Numbers in the group** ("1 3", "1,3", "1번 3번"), after the times are posted. The answer is attributed to the sender's profile name, and a later message from the same name replaces the earlier one. `없음` or `none` records "no time works".
+- **Numbers in the group** ("1 3", "1,3", "1번 3번"), after the times are posted. The answer is shown under the sender's profile name and keyed by their user ID, so a later message from the same user replaces the earlier one, and a copied name cannot replace someone else's answer. `없음` or `none` records "no time works".
 
 All answers count the same, with no "unverified" label (user, 2026-11-26). A forged answer can sway the count, but only the organizer can book (§3). A group answer and a page answer are not merged by name. The page sets a device-bound edit token, so a member can change or delete their answer later.
 
@@ -90,12 +92,12 @@ All answers count the same, with no "unverified" label (user, 2026-11-26). A for
 
 ### 5. Reading group text
 
-For an activated room, the relay forwards each group message as a `group_message` event with the room ID, the profile name, the text and the event ID. The service runs a fixed parser on it. The parser recognizes:
+For an activated room, the Mac relay forwards each group message as a `group_message` event with the room ID, the sender's profile name and user ID, the text and the event ID. The service runs a fixed parser on it. The parser recognizes:
 
 - A numbered answer, as in §4.
 - `stop` or `그만`, which deactivates the room (§6).
 - `/kickout`, which makes the account leave the room (§11).
-- A `FMAT-G` or `FMAT-` code, as in §2.
+- A `FMAT-G` or `FMAT-` code, as in §2, or an `FMAT-M` member code, as in §9.
 
 The parser does not send any group message to the model. A message that matches nothing is dropped after parsing, and no receipt keeps its text. A receipt keeps only the event ID and the parse result, so the same message is not counted twice.
 
@@ -109,7 +111,7 @@ The introduction is fixed text, with only the organizer's display name and the p
 
 These rules apply:
 
-- Nothing about a member is stored until they answer. An answer stores only the display name they chose or showed, the times, its source, whether a calendar is connected and, from the page, an optional email. A connected calendar's busy times are read when needed and not stored. No phone number, Kakao user ID or profile photo is read.
+- Nothing about a member is stored until they answer. An answer stores only the display name they chose or showed, the times, its source, whether a calendar is connected and, from the page, an optional email. A connected calendar's busy times are read when needed and not stored. No phone number or profile photo is read. A KakaoTalk user ID is kept only as a hash, as §9 says.
 - `stop` from anyone deactivates the room, closes the group request as stopped, and tells the organizer in their 1:1 chat. The organizer can start again with a new code. Anyone can then send `stop` again.
 - The poll page states the same facts and links to the privacy policy. It has **Delete my answer**.
 - Members' answers and emails are deleted 30 days after the group request closes. This is shorter than the 90 days for closed requests, because these members have no account and never asked to be recorded.
@@ -123,9 +125,9 @@ The organizer books by number: "2번으로 잡아줘" in their chat, or **Book t
 
 - The recheck before dispatch reads the organizer's calendars again for the chosen time. A failure books nothing and tells the organizer, who can pick another time.
 - The event goes into the organizer's booking destination. Its attendees are the members who left an email on the poll page (user, 2026-11-26), and Google sends the invitations. The description holds only the meeting details and any join link.
-- The group receives one confirmation through the **답장** action of the next group notification. The confirmation gives the time, the place or join link, and a link to add the event to a calendar (an `.ics` download on the poll page). If no one writes in the group within 24 hours, the organizer is asked in their 1:1 chat to post the poll link or say anything in the group.
+- The group receives one confirmation right after booking (§12). It gives the time, the place or join link, and a link to add the event to a calendar (an `.ics` download on the poll page).
 
-The group request then closes. The relay stops forwarding the room's text.
+The group request then closes. The relay stops forwarding the room's text, apart from codes and `/kickout`. The account stays in the room until a member sends `/kickout` (§11).
 
 An unbooked group request never closes on its own (user, 2026-11-26). It stays open until it is booked, the organizer cancels, or someone sends `stop`. When every candidate has passed, the organizer is asked once in their 1:1 chat for a new date range, and the group is told nothing until new times are found.
 
@@ -152,69 +154,90 @@ The ranked list in the organizer's 1:1 chat may name who answered what, because 
 
 ### 9. Member identity
 
-The user asked on 2026-11-26 that a member's KakaoTalk user ID be remembered, so that a member who connected Google before is not asked again. The relay's notifications give the room ID in their tag (`<relay account user ID>_<chat ID>`), and the chat ID is global. The sender of a message is a `Person` whose key may or may not be a stable user ID; this is unverified (Q9). The KakaoTalk for Mac database carries exact `authorId` user IDs per message, but reading it needs a Mac path the KakaoTalk change rejected (Q10).
+The user asked on 2026-11-26 that a member's KakaoTalk user ID be remembered, so that a member who connected Google before is not asked again, and chose the Mac relay to supply it (§12). Every group and 1:1 message from the Mac relay carries the author's user ID (`senderUserId`, from `NTChatMessage.authorId`). The service keys it under the existing hash key, in a `kakaotalk-member:` namespace, and keeps only the hash.
 
-**When `Person.key` is a stable user ID.** The relay forwards it with every group message and every member 1:1 message. The service keys it under the existing hash key, in a `kakaotalk-member:` namespace, and keeps only the hash. The same hash links a member's group answers, their 1:1 chat and their poll page identity once any of them is tied to it.
+**Membership.** For an activated room, the Mac relay's membership events give the members' user IDs. The service keeps them as hashes while the group request is open. They give the default headcount (§2), and they map a 1:1 sender to the activated groups they belong to (§10).
 
-**When it is not (the fallback).** A member who wants to be recognized ties their identity once:
+**Tying a member to the poll page.** Everyone opens the same poll link, so the page does not know which KakaoTalk member opened it. A member who wants to be recognized ties the two once:
 
-1. On the poll page, after Google sign-in, the page offers **Remember me in KakaoTalk** and shows a one-time `FMAT-M` code with a friend-add link to the account.
-2. The member sends the code in a 1:1 chat with the account. The code is single-use, valid for 15 minutes and bound to that poll page identity.
-3. The 1:1 room ID is tied to the member. From then on, that 1:1 chat is the member's chat.
+1. On the poll page, after Google sign-in, the page offers **Remember me in KakaoTalk** and shows a one-time `FMAT-M` code.
+2. The member sends the code in the group or in a 1:1 chat with the account. The code is single-use, valid for 15 minutes and bound to that poll page identity. The bot says nothing about it in the group; the page shows that the tie is made.
+3. The sender's user ID hash is tied to the member's poll page identity, and so to their Google connection.
 
-Without a stable user ID, a group message still cannot be mapped to a member. The group answer stays attributed to the profile name (§4).
-
-**The reuse question (user, 2026-11-26).** When a recognized member writes in a newly activated room, and they connected Google in an earlier group, the bot asks them in the group, through the reply action of that message:
+**The reuse question (user, 2026-11-26).** When a recognized member writes in a newly activated room, and they connected Google in an earlier group, the bot asks them in the group, by name:
 
 > {name}님, 예전에 연결한 구글 캘린더를 이 모임에도 쓸까요? (네 / 아니요 / 잊어주세요)
 
-The user chose the group over a 1:1 chat. The trade-off is accepted on purpose: the others in the room learn that this member has used the product before. Only a message from the same user ID counts as the answer. "네" reuses the connection for this group, "아니요" leaves the member to the poll page like anyone else, and "잊어주세요" works as **Forget me**. The question is asked once per member per group. Without a stable user ID, the bot cannot tell that the member is in the room, so the poll page asks instead, after the member signs in.
+The user chose the group over a 1:1 chat. The trade-off is accepted on purpose: the others in the room learn that this member has used the product before. Only a message from the same user ID counts as the answer. "네" reuses the connection for this group, "아니요" leaves the member to the poll page like anyone else, and "잊어주세요" works as **Forget me**. The question is asked once per member per group. A member who never tied their identity is not recognized in the group, so the poll page asks instead, after they sign in.
 
-**No first messages (user, 2026-11-26).** The account never starts a 1:1 chat with a member: no 선톡, and no nudge to a member's chat. The introduction tells the group that anyone can write to the account 1:1 for what they would rather not say there. Once a member writes, the relay can answer that 1:1 room as often as needed while its notification stays posted. A device check on 2026-11-26 sent three separate replies to one incoming message, and all were delivered. Starting a 1:1 chat from the group member list through the accessibility path is out of scope. It is unverified, and messages to people who never wrote to the account carry the highest risk of suspension.
+**No first messages (user, 2026-11-26).** The account never starts a 1:1 chat with a member: no 선톡, and no nudge to a member's chat. The introduction tells the group that anyone can write to the account 1:1 for what they would rather not say there. The Mac relay sends into a 1:1 room only after the other person has written in it (its design 6), and then as often as needed. On the phone, a device check on 2026-11-26 sent three separate replies to one incoming message, and all were delivered. Starting a 1:1 chat from the group member list through the accessibility path is out of scope. It is unverified, and messages to people who never wrote to the account carry the highest risk of suspension.
 
-A member's remembered user ID hash and 1:1 room tie are deleted with their remembered grant: on **Forget me**, or 180 days after their last group request closes.
+A member's remembered user ID hash and its tie are deleted with their remembered grant: on **Forget me**, or 180 days after their last group request closes.
 
 ### 10. Private notes
 
-The user asked on 2026-11-26 that a member be able to tell the account privately what they do not want to say in the group. A note arrives in the member's 1:1 chat (§9). This text, unlike group text, goes to the model, because the member wrote it to the bot. The model turns it into structured limits only: unavailable intervals and less-preferred intervals inside the group's date range.
+The user asked on 2026-11-26 that a member be able to tell the account privately what they do not want to say in the group. A note arrives in the member's 1:1 chat. The service matches the sender's user ID to the activated groups whose member list holds it (§9), so a note needs no tie. This text, unlike group text, goes to the model, because the member wrote it to the bot. The model turns it into structured limits only: unavailable intervals and less-preferred intervals inside the group's date range.
 
 The bot reads the limits back in the 1:1 chat ("목요일 저녁은 빼고, 오전은 가능하면 피할게요. 맞나요?") and applies them only after the member agrees. When the member is in more than one open group, the bot asks which one by organizer name and date range. The note's text is not stored after the limits are confirmed. The limits are kept with the member's answer and are deleted with it.
 
-The limits count as that member's busy times when candidates are found (§4). A less-preferred interval only moves a time down the order. The group sees only the candidate times that result. Neither the group nor the organizer sees the note, the limits, or that a note exists (Q11). A posted candidate that a new note removes is struck through like any other, with no reason and no name.
+The limits count as that member's busy times when candidates are found (§4). A less-preferred interval only moves a time down the order. The group sees only the candidate times that result. Neither the group nor the organizer sees the note, the limits, or that a note exists (user, 2026-11-26). A posted candidate that a new note removes is struck through like any other, with no reason and no name.
 
-A member who is not tied to an identity cannot leave a note. The bot answers that they should first open the poll link, and gives nothing about any group.
+A 1:1 sender who is in no activated group gets one fixed reply that names no group.
 
 ### 11. Leaving the room
 
-Any member may type `/kickout` in an activated room (user, 2026-11-26). The account then leaves the group:
+Any member may type `/kickout` in a group (user, 2026-11-26). The Mac relay forwards an exact `/kickout` from any group, activated or not. The account then leaves:
 
-1. The service closes the group request as stopped, as for `stop`, and tells the organizer in their 1:1 chat.
-2. The bot sends a fixed goodbye through the reply action of the `/kickout` notification: "Find Me a Time이 이 방에서 나갈게요. 다시 부르려면 주최자가 새 코드를 올려 주세요."
-3. The relay opens that room through the same notification's content intent, so it lands in exactly the room the command came from. The accessibility service then taps the room menu, **채팅방 나가기**, and the confirmation (Q13).
+1. If the room has an open group request, the service closes it as stopped, as for `stop`, and tells the organizer in their 1:1 chat.
+2. The bot posts a fixed goodbye in the room: "Find Me a Time이 이 방에서 나갈게요. 다시 부르려면 주최자가 새 코드를 올려 주세요."
+3. The service queues a `leave_room` row for the room, and the Mac relay carries it out (its design 7).
 
-A booked group is left on its own the day after the meeting ends. The relay keeps a local list of rooms to leave. It waits for the next notification from such a room, opens the room through that notification and leaves. It never searches the chat list by name. Until it can leave, the room stays deactivated, and nothing from it is forwarded.
+The goodbye and the leave both go through the room check of §12, which acts only in the window that shows this `/kickout`.
 
-When the leave cannot be confirmed on screen, the relay reports `uncertain`, and the room stays deactivated. A later `/kickout` in that room tries again.
+The account never leaves on its own, booked or not (user, 2026-11-26). A booked room stays bound with no open request. It forwards only codes and `/kickout`, so the organizer can start a new group request there with a new code.
+
+When the Mac relay reports the leave as `failed`, or its retries run out, the room stays deactivated and the organizer, if there is one, is told that the account could not leave. A later `/kickout` tries again. While the phone is the active relay, `/kickout` only deactivates the room.
+
+### 12. The Mac relay
+
+The user chose on 2026-11-26 to run group scheduling on the KakaoTalk for Mac relay of `host-kakaotalk-mac-relay`, because an always-on Mac is available. Group scheduling runs only while `KAKAOTALK_ACTIVE_RELAY` is `mac`. While the phone is active, a group code gets one fixed reply and binds nothing, and posts to bound rooms wait.
+
+This change asks three things of the Mac relay beyond that change:
+
+- Text from activated rooms, and an exact code or `/kickout` from any group (§2, §5).
+- Membership events, on for activated rooms (§9).
+- Posting in, and leaving, a group that the Mac change's name rule cannot address.
+
+**Confirming the room (user, 2026-11-26).** `kakaocli` opens a chat by the name the chat list shows. A titled group whose name no other room contains is addressed as the Mac change already does. Any other group has no name of its own, so its chat-list label lists its members, or it has a name another room contains. For such a group the helper:
+
+1. Reads the room's newest messages from the database and computes its chat-list label.
+2. Opens each chat-list row with that label, one at a time, after closing other chat windows.
+3. Reads the newest messages in the opened window. It goes on only in the window that shows the message being answered, such as the code, the `/kickout` or the member's message, with the same sender name and text. A post that answers no message, such as the times after 24 hours, needs the window to show the room's three newest messages from the database, in order.
+4. Types the post, or runs the leave, in that window only.
+
+When no window matches, or more than one does, nothing is sent or left, and the outcome is `failed`. The Mac change's landing check still runs after every send. Its leave check still requires that this room, and no other, disappears from the database. Reading a chat window's messages through accessibility is not checked on a device yet (Q13).
+
+The Mac relay can send at any time to a room it can address. The times and the confirmation are therefore posted when they are ready, not after the next group message.
 
 ## Risks / Trade-offs
 
 - **The reuse question in the group.** It tells the room that a member has used the product before. The user accepted this on 2026-11-26. Mitigation: it is asked once, names no calendar, and offers **잊어주세요**.
 - **Remembering KakaoTalk identities.** Keeping a member's user ID hash ties together their chats across groups. Mitigation: only the hash is kept, it is deleted with **Forget me** or after 180 days, and nothing in a group reveals it.
 - **Inference from struck-out times.** When one member leaves a private note and a time vanishes soon after, others may guess why. Mitigation: struck-out times carry no name or reason, and calendar changes strike times out the same way.
-- **Leaving through the screen.** The accessibility leave is the first destructive action the relay takes. Mitigation: it starts only from the room's own notification, and an unconfirmed leave stays deactivated.
-- **Rooms that stay active.** With no automatic close, a forgotten room keeps forwarding its messages to the parser for as long as the group exists. Mitigation: nothing is stored or sent to the model, anyone can send `stop`, and the organizer can cancel from `/app`.
+- **Posting and leaving through the screen.** Leaving is the first destructive action the relay takes, and a group with no name of its own is found by its members' names. Mitigation: the room check of §12 acts only in the window that shows the message being answered, and the Mac change checks the database after every send and leave.
+- **Rooms that stay active.** With no automatic close and no automatic leave (user, 2026-11-26), a forgotten room keeps forwarding its messages to the parser for as long as the group exists. Mitigation: nothing is stored or sent to the model, anyone can send `stop`, and the organizer can cancel from `/app`.
 
-- **Forged names in the group.** Anyone can post "1 3" under another person's name. The user chose to count them without a label. Mitigation: only the organizer books, and connected calendars remove times by real busy times, not by a claim.
-- **The bot speaks only after someone writes.** The confirmation can wait for a message in the group. Mitigation: the 24-hour fallback asks the organizer to prompt the group.
+- **Copied names in the group.** Anyone can take another member's profile name and post "1 3". The user chose to count answers without a label. Mitigation: answers are keyed by user ID, so a copy adds an answer but replaces none, only the organizer books, and connected calendars remove times by real busy times, not by a claim.
+- **One Mac for every group.** A Mac that is locked, asleep or signed out delays every post and leave, and the phone cannot take groups over. Mitigation: posts wait in the outbox, and the Mac change's heartbeat reports a locked Mac.
 - **Asking everyone for Google Calendar.** Members who do not know the service may hesitate to connect a calendar to it. Mitigation: busy times only, nothing stored, and ticking by hand on the same page.
 - **Reading a group is more intrusive than reading a 1:1 chat.** Every member's messages reach the service while the room is active, even when they are only parsed and then dropped. Mitigation: a fixed parser, no model, no stored text, and `stop` for anyone.
-- **Everything the KakaoTalk change risks.** The terms-of-service risk, the single relay phone and app updates all apply here as well, and a suspended account fails every active group at once.
+- **Everything the KakaoTalk change risks.** The terms-of-service risk, the single relay Mac and app updates all apply here as well, and a suspended account fails every active group at once.
 - **Scope pressure.** Group scheduling opens the door to pooled availability, recurring meetings and team coordination. This draft keeps them out.
 
 ## Open Questions
 
 - The open questions in the [proposal](proposal.md#unresolved-decisions-for-the-team).
-- Does KakaoTalk deliver a separate notification for each group message when many arrive at once, or only a summary? The event ID scheme of the KakaoTalk change assumes the former.
-- Does a group notification distinguish a 1:1 room from a two-person group? A room with only the organizer and the bot should probably be refused.
+- Should a group whose only members are the organizer and the account be refused?
+- Does the Mac database record who added the account to a group? This draft does not rely on it.
 - How does a member who left the group get their answer removed if they never used the poll page?
 - Can a member's 1:1 chat with the account start before they add it as a friend, or do they need the friend-add link first?

@@ -1,20 +1,20 @@
 # Tasks
 
-This change is a draft. Only group 1 can start now. Groups 2 to 6 wait for a team yes on Q1 and Q2 in the [proposal](proposal.md#unresolved-decisions-for-the-team), and for `host-kakaotalk-channel` to be merged.
+This change is a draft. Only group 1 can start now. Groups 2 to 6 wait for a team yes on Q1 and Q2 in the [proposal](proposal.md#unresolved-decisions-for-the-team), and for `host-kakaotalk-channel` and `host-kakaotalk-mac-relay` to be merged.
 
 ## 1. Decision
 
 - [ ] 1.1 Team discussion of the open questions and D1 to D8. Record the outcome in the [PRD](../../../documentations/02_product_requirements.md#outside-the-initial-release) and the [decision log](../../../documentations/technical_specification/08_decision_log.md), and regenerate their Korean mirrors.
 - [ ] 1.2 If the team says yes, open a tracking issue that names this change, and add its number to the proposal.
-- [ ] 1.3 On a real device, check that KakaoTalk posts one notification per group message when several arrive together, that a two-person group can be told apart from a 1:1 chat, whether a group notification's `Person.key` is a stable KakaoTalk user ID that matches the member's 1:1 chat (Q9), and whether the accessibility path can open a room from its notification and leave it (Q13).
-- [ ] 1.4 Write the deltas for `calendar-booking` (attendees), `host-kakaotalk-channel` (forwarding for activated rooms) and the PRD functional requirements.
+- [ ] 1.3 On the Mac mini, check that the helper can read the newest messages of an opened chat window and leave a group through the window menu (Q13), that an untitled group's chat-list label matches the label computed from its member names, and that membership events list a test group's members.
+- [ ] 1.4 Write the deltas for `calendar-booking` (attendees), `host-kakaotalk-channel` and `host-kakaotalk-mac-relay` (group text for activated rooms, `/kickout` from any group, member IDs and the room check) and the PRD functional requirements.
 
 ## 2. Activation and parsing (service and relay)
 
 - [ ] 2.1 Add group codes, group requests, room bindings and members' answers to `supabase/schemas/`, with RLS that denies every client role. Generate the migration with pg-delta and verify `supabase db reset --local` and pgTAP tests for the RLS and the retention rule.
 - [ ] 2.2 Add code issuance in `/app` and the organizer's chat, and binding on arrival in a group. Unit tests cover each refused code: in a 1:1 chat, a host code in a group, expired, used, a second code for an open room, and the rate limit.
-- [ ] 2.3 Change the relay app to forward group-code messages from any room, and all messages only from active rooms, using the heartbeat's room list. Test that an inactive room forwards nothing else.
-- [ ] 2.4 Add the fixed parser for numbers, `none`, `stop` and codes. Tests show that unmatched text never reaches the model or storage, and that a replayed event is counted once.
+- [ ] 2.3 Change the Mac relay to forward codes and an exact `/kickout` from any group, all messages with text only from active rooms, using the heartbeat's room list, and membership events for active rooms. Refuse group codes while the phone is the active relay. Test that an inactive room forwards nothing else.
+- [ ] 2.4 Add the fixed parser for numbers, `none`, `stop`, `/kickout` and codes, keyed by the sender's user ID. Tests show that unmatched text never reaches the model or storage, and that a replayed event is counted once.
 
 ## 3. Poll page and answers
 
@@ -30,10 +30,10 @@ This change is a draft. Only group 1 can start now. Groups 2 to 6 wait for a tea
 
 ## 5. Member identity, private notes and leaving
 
-- [ ] 5.1 Add the member identity hash, the `FMAT-M` member code and the 1:1 tie, using the stable user ID when Q9 allows and the code otherwise. Tests cover a code tie, a name-only sender who is refused, deletion on **Forget me** and after 180 days.
-- [ ] 5.2 Add the reuse question in the group through the reply action of the member's message, once per member per group, with yes, no and forget-me. Tests show that only the same user ID's answer counts, that only "yes" reuses a connection, and that the account never starts a 1:1 chat.
-- [ ] 5.3 Add private notes: model extraction into limits, the read-back, the choice of group, applying limits as busy or less-preferred times, and dropping the text. A test feeds a note and asserts that no group message or organizer view contains it or hints that it exists.
-- [ ] 5.4 Add `/kickout` and the leave after a booked meeting, through the relay's local leave list and the room's own notification. Tests with the relay stand-in cover a member's `/kickout`, an uncertain leave, and two rooms with the same name.
+- [ ] 5.1 Add the member identity hash from the Mac relay's user ID, the room member hashes, and the `FMAT-M` member code sent in the group or a 1:1 chat. Tests cover a code tie, a copied profile name, a 1:1 sender in no group, deletion on **Forget me** and after 180 days.
+- [ ] 5.2 Add the reuse question in the group, addressed to the member by name, once per member per group, with yes, no and forget-me. Tests show that only the same user ID's answer counts, that only "yes" reuses a connection, and that the account never starts a 1:1 chat.
+- [ ] 5.3 Add private notes, matched to groups by the sender's user ID: model extraction into limits, the read-back, the choice of group, applying limits as busy or less-preferred times, and dropping the text. A test feeds a note and asserts that no group message or organizer view contains it or hints that it exists.
+- [ ] 5.4 Add `/kickout` from any group through the Mac relay's `leave_room`, with no automatic leave, and the room check that opens each row with the room's label and acts only in the window that shows the message being answered. Tests with the relay stand-in cover a member's `/kickout`, a room never activated, a booked room that stays, an untitled group, two rooms with the same name, and no matching window.
 
 ## 6. Documents and release
 
