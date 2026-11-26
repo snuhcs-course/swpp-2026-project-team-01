@@ -15,6 +15,7 @@ import {
   type Exclusion,
   type FeasibilityInput,
   type FeasibilityResult,
+  type HostRules,
   type LegQuery,
   legQueryKey,
   localParts,
@@ -581,6 +582,26 @@ function preferredArea(settings: ConfirmedSettings, hash: (text: string) => stri
   return usualPlace(settings, hash);
 }
 
+// The host's rules for the engine, from their confirmed settings: an
+// evaluation and a group meeting's search (group-scheduling design 5) read
+// them alike.
+export function hostRulesOf(settings: ConfirmedSettings, hash: (text: string) => string): HostRules {
+  return {
+    bufferAfterMinutes: settings.bufferAfterMinutes,
+    bufferBeforeMinutes: settings.bufferBeforeMinutes,
+    meetingMode: settings.meetingMode,
+    preferredArea: preferredArea(settings, hash),
+    timezone: settings.timezone,
+    travelBufferMinutes: settings.travelBufferMinutes,
+    travelMode: settings.travelMode,
+    usualPlace: usualPlace(settings, hash),
+    weeklyLimit: settings.weeklyLimit,
+    weeklyLimitCounts: weeklyLimitCountsOf(settings),
+    weeklyWindows: settings.weeklyWindows,
+    scheduleOverrides: settings.scheduleOverrides,
+  };
+}
+
 // The host's usual place, which a host commitment with no location is taken to
 // happen at (#324): the first named area, else the venue.
 export function usualPlace(settings: Pick<ConfirmedSettings, "location">, hash: (text: string) => string) {
@@ -691,20 +712,7 @@ async function evaluate(
   const searchAround = audience === "requester" && !options.interval && !searchDefault;
   const baseInput: FeasibilityInput = {
     allowances: [],
-    host: {
-      bufferAfterMinutes: settings.bufferAfterMinutes,
-      bufferBeforeMinutes: settings.bufferBeforeMinutes,
-      meetingMode: settings.meetingMode,
-      preferredArea: preferredArea(settings, hash),
-      timezone: settings.timezone,
-      travelBufferMinutes: settings.travelBufferMinutes,
-      travelMode: settings.travelMode,
-      usualPlace: usualPlace(settings, hash),
-      weeklyLimit: settings.weeklyLimit,
-      weeklyLimitCounts: weeklyLimitCountsOf(settings),
-      weeklyWindows: settings.weeklyWindows,
-      scheduleOverrides: settings.scheduleOverrides,
-    },
+    host: hostRulesOf(settings, hash),
     hostBusy: [],
     now,
     request: {

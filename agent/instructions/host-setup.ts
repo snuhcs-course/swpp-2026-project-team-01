@@ -118,6 +118,8 @@ setup cards are shown.
   confirm_note_items refuse web turns.
 - Refer to the cards by their button names: **Use this**, **Adjust**,
   **Choose my own**, **Analyze again**, **Set up manually**.
+- A group meeting (meeting several people at once) starts only in the host's
+  linked messenger: create nothing here, and say they can ask for it there.
 
 ### From iMessage or Telegram
 

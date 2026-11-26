@@ -161,7 +161,7 @@ async function guestMayUse(db: Database, principal: Principal, discussionId: str
 async function hostDiscussion(db: Database, discussionId: string, hostAccountId: string): Promise<HostDiscussion | null> {
   const [row] = await db<{ audience: string; request_id: string | null; request_ok: boolean | null }[]>`
     select d.audience, d.request_id,
-           (select r.host_account_id = d.principal_id and r.state <> 'draft' from app.requests r where r.id = d.request_id) as request_ok
+           (select r.host_account_id = d.principal_id and r.state <> 'draft' and r.group_meeting_id is null from app.requests r where r.id = d.request_id) as request_ok
     from app.discussions d
     where d.id = ${discussionId} and d.principal_type = 'host_account' and d.principal_id = ${hostAccountId}
   `;

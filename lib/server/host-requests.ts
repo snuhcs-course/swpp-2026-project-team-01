@@ -43,7 +43,7 @@ export async function listHostRequests(db: Queryable, hostAccountId: string): Pr
            (select b.start_at from app.bookings b where b.request_id = r.id and b.state = 'confirmed' order by b.start_at desc limit 1) as booked_start,
            (not r.is_sample and (${db.unsafe(NEEDS_DECISION)})) as needs
     from app.requests r
-    where r.host_account_id = ${hostAccountId} and r.state <> 'draft'
+    where r.host_account_id = ${hostAccountId} and r.state <> 'draft' and r.group_meeting_id is null
       and (not r.is_sample or (r.closed_at is null and r.expires_at > now()))
     order by r.updated_at desc
     limit 100
@@ -155,7 +155,7 @@ export async function readHostRequest(db: Database | Transaction, hostAccountId:
            p.state as revised_from_state
     from app.requests r left join app.host_settings s on s.host_account_id = r.host_account_id
     left join app.requests p on p.id = r.revised_from_request_id
-    where r.id = ${requestId} and r.host_account_id = ${hostAccountId} and r.state <> 'draft'
+    where r.id = ${requestId} and r.host_account_id = ${hostAccountId} and r.state <> 'draft' and r.group_meeting_id is null
   `;
   if (!request) return null;
 

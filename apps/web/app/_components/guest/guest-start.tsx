@@ -50,16 +50,20 @@ const GOOGLE_NOTICES: Readonly<Record<string, string>> = {
   cancelled: "Google sign-in was cancelled. Nothing was changed; continue with or without Google.",
 };
 
-function nonceKey(handle: string) {
-  return `fmat.start-nonce:${handle}`;
+// Where a draft starts: a ready host's page, or a group meeting's shared link
+// (group-scheduling design 2).
+type StartTarget = { readonly kind: "host"; readonly handle: string } | { readonly kind: "group"; readonly token: string };
+
+function nonceKey(target: StartTarget) {
+  return target.kind === "host" ? `fmat.start-nonce:${target.handle}` : `fmat.start-nonce:g:${target.token}`;
 }
 
-function storedNonce(handle: string, fresh = false) {
+function storedNonce(target: StartTarget, fresh = false) {
   try {
-    const kept = fresh ? null : window.sessionStorage.getItem(nonceKey(handle));
+    const kept = fresh ? null : window.sessionStorage.getItem(nonceKey(target));
     if (kept) return kept;
     const nonce = crypto.randomUUID();
-    window.sessionStorage.setItem(nonceKey(handle), nonce);
+    window.sessionStorage.setItem(nonceKey(target), nonce);
     return nonce;
   } catch {
     return crypto.randomUUID();
@@ -70,22 +74,28 @@ type StartOutcome = { readonly ok: true; readonly bookingId: string } | { readon
 
 // request.start under the tab's nonce: the same draft on a second try. A nonce
 // whose draft is gone (deleted after a day) is replaced once.
-async function startDraft(handle: string, timezone: string): Promise<StartOutcome> {
+async function startDraft(target: StartTarget, timezone: string): Promise<StartOutcome> {
   for (const fresh of [false, true]) {
     try {
-      const response = await fetch("/api/requests/start", {
-        body: JSON.stringify({ handle, language: browserLanguage(), nonce: storedNonce(handle, fresh), timezone }),
+      const nonce = storedNonce(target, fresh);
+      const response = await fetch(target.kind === "host" ? "/api/requests/start" : "/api/requests/start-group", {
+        body: JSON.stringify(
+          target.kind === "host"
+            ? { handle: target.handle, language: browserLanguage(), nonce, timezone }
+            : { group: target.token, language: browserLanguage(), nonce, timezone },
+        ),
         headers: { "content-type": "application/json" },
         method: "POST",
       });
       const body = (await response.json().catch(() => ({}))) as { bookingId?: string; code?: string; error?: string };
       if (response.ok && body.bookingId) return { bookingId: body.bookingId, ok: true };
       if (body.code === "rate_limited") return { message: body.error ?? "Too many new requests right now. Try again later.", ok: false };
+      if (body.code === "group_closed") return { message: body.error ?? "This group meeting is no longer taking answers.", ok: false };
     } catch {
       return { message: "That did not go through. Try again.", ok: false };
     }
   }
-  return { message: "This page is not taking requests right now.", ok: false };
+  return { message: target.kind === "host" ? "This page is not taking requests right now." : "This group meeting is no longer taking answers.", ok: false };
 }
 
 export function GuestStart({
@@ -211,9 +221,35 @@ function WebStart({
   readonly host: { readonly displayName: string; readonly handle: string };
   readonly notice: string | null;
 }) {
-  const timezone = useGuestTimezone();
   const messages = useMemo(() => openingMessages(host.displayName), [host.displayName]);
-  const reveal = useAuthoredMessageReveal(messages, `fmat.guest-opening.${host.handle}`, false);
+  return (
+    <StartChat
+      card={(zone) => <IdentityCard account={account} target={{ handle: host.handle, kind: "host" }} zone={zone} />}
+      host={host}
+      messages={messages}
+      notice={notice}
+      revealKey={`fmat.guest-opening.${host.handle}`}
+    />
+  );
+}
+
+// The web start's chat: the fixed messages, then the identity card, with the
+// composer locked until the guest is identified.
+function StartChat({
+  card,
+  host,
+  messages,
+  notice,
+  revealKey,
+}: {
+  readonly card: (zone: string) => React.ReactNode;
+  readonly host: { readonly displayName: string; readonly handle: string | null };
+  readonly messages: ReturnType<typeof openingMessages>;
+  readonly notice: string | null;
+  readonly revealKey: string;
+}) {
+  const timezone = useGuestTimezone();
+  const reveal = useAuthoredMessageReveal(messages, revealKey, false);
   const panel = <RequestPanel host={host} />;
 
   return (
@@ -223,9 +259,7 @@ function WebStart({
           <ChatConversationContent aria-label="Messages">
             <AuthoredMessages messages={reveal.visible} onTyped={reveal.onTyped} thinking={reveal.thinking} typingId={reveal.typingId} />
             {reveal.done ? (
-              <ChatItem messageId="identity">
-                <IdentityCard account={account} handle={host.handle} zone={timezone.zone} />
-              </ChatItem>
+              <ChatItem messageId="identity">{card(timezone.zone)}</ChatItem>
             ) : null}
             {notice ? (
               <ChatItem messageId="notice">
@@ -265,13 +299,15 @@ function WebStart({
 // on one Google screen) or **Continue without Google** with a name and email.
 function IdentityCard({
   account,
-  handle,
+  target,
   zone,
 }: {
   readonly account: GuestVisitor | null;
-  readonly handle: string;
+  readonly target: StartTarget;
   readonly zone: string;
 }) {
+  // A group's participant connects Google and Calendar; there is no other way in.
+  const googleOnly = target.kind === "group";
   const id = useId();
   const google = useRef<HTMLFormElement>(null);
   const [bookingId, setBookingId] = useState("");
@@ -289,7 +325,7 @@ function IdentityCard({
   async function continueWithGoogle() {
     setBusy(true);
     setError(null);
-    const started = await startDraft(handle, zone);
+    const started = await startDraft(target, zone);
     if (started.ok) {
       setBookingId(started.bookingId);
       return;
@@ -303,7 +339,7 @@ function IdentityCard({
   async function continueAsAccount() {
     setBusy(true);
     setError(null);
-    const started = await startDraft(handle, zone);
+    const started = await startDraft(target, zone);
 
     if (!started.ok) {
       setBusy(false);
@@ -350,7 +386,7 @@ function IdentityCard({
 
     setBusy(true);
     setError(null);
-    const started = await startDraft(handle, zone);
+    const started = await startDraft(target, zone);
 
     if (!started.ok) {
       setBusy(false);
@@ -389,10 +425,14 @@ function IdentityCard({
 
   return (
     <GuestCard
-      description="Continue with Google to fill in your name and email, and optionally let the service check your calendar privately. Or enter them yourself."
+      description={
+        googleOnly
+          ? "Continue with Google to fill in your name and email and let the service check your calendar privately. Keep Calendar access on: the group needs your busy times."
+          : "Continue with Google to fill in your name and email, and optionally let the service check your calendar privately. Or enter them yourself."
+      }
       id="guest-identity"
       label="Your details"
-      title="How should the host reach you?"
+      title={googleOnly ? "Connect Google and Calendar" : "How should the host reach you?"}
     >
       <form action="/connections/google/start" method="post" ref={google}>
         <input name="purpose" type="hidden" value="request" />
@@ -400,14 +440,14 @@ function IdentityCard({
         <input name="timezone" type="hidden" value={zone} />
         <input name="language" type="hidden" value={browserLanguage()} />
       </form>
-      {account ? (
+      {account && !googleOnly ? (
         <p className="text-sm">
           You're signed in to Find Me a Time as {account.name}. Continue with that account's name and email; your own host
           settings and requests stay as they are.
         </p>
       ) : null}
       <GuestCardActions>
-        {account ? (
+        {account && !googleOnly ? (
           <Button className="min-h-11" disabled={busy} onClick={() => void continueAsAccount()} type="button">
             Continue as {account.name}
           </Button>
@@ -417,11 +457,11 @@ function IdentityCard({
           disabled={busy}
           onClick={() => void continueWithGoogle()}
           type="button"
-          variant={account ? "outline" : "default"}
+          variant={account && !googleOnly ? "outline" : "default"}
         >
           Continue with Google
         </Button>
-        {!manual ? (
+        {!manual && !googleOnly ? (
           <Button className="min-h-11" disabled={busy} onClick={() => setManual(true)} type="button" variant="outline">
             Continue without Google
           </Button>
@@ -482,5 +522,69 @@ function IdentityCard({
         ) : null}
       </div>
     </GuestCard>
+  );
+}
+
+// A group meeting's shared link, /g/{token} (group-scheduling design 2 and 3):
+// what the meeting is, then the same start as a host's page with Google only.
+// A full or closed group says so and starts nothing.
+export type GroupStartView = {
+  readonly token: string;
+  readonly hostName: string;
+  readonly purpose: string;
+  readonly durationMinutes: number;
+  readonly range: string;
+  readonly open: boolean;
+};
+
+export function groupOpeningMessages(group: Pick<GroupStartView, "hostName" | "purpose" | "durationMinutes" | "range">) {
+  return [
+    {
+      id: "greeting",
+      text: `Hi, I'm Thyme, ${group.hostName}'s scheduling assistant. ${group.hostName} is finding one time for "${group.purpose}" (${group.durationMinutes} minutes, ${group.range}) with several people.`,
+    },
+    {
+      id: "google",
+      text: "Connect your Google account and Calendar. I check your calendar privately, ask one short question, and show you the times you can't meet to confirm. You don't pick a time: the host books one for everyone, and the invitation comes by email.",
+    },
+  ];
+}
+
+export function GroupStart({ group }: { readonly group: GroupStartView }) {
+  const [notice, setNotice] = useState<string | null>(null);
+  const messages = useMemo(() => groupOpeningMessages(group), [group]);
+
+  useEffect(() => {
+    const google = new URLSearchParams(window.location.search).get("google");
+    if (!google) return;
+    setNotice(google === "cancelled" ? "Google sign-in was cancelled. Nothing was changed; continue with Google to take part." : null);
+    window.history.replaceState(null, "", window.location.pathname);
+  }, []);
+
+  if (!group.open) {
+    return (
+      <InkStage locale="en">
+        <div className="inner" data-screen="group-closed">
+          <header className="top">
+            <Brand />
+          </header>
+          <main className="handoff">
+            <p className="lede small">Group meeting</p>
+            <h1>{group.purpose}</h1>
+            <p className="lede">This group meeting is closed: it is full, or {group.hostName} is already choosing a time.</p>
+          </main>
+        </div>
+      </InkStage>
+    );
+  }
+
+  return (
+    <StartChat
+      card={(zone) => <IdentityCard account={null} target={{ kind: "group", token: group.token }} zone={zone} />}
+      host={{ displayName: group.hostName, handle: null }}
+      messages={messages}
+      notice={notice}
+      revealKey={`fmat.group-opening.${group.token}`}
+    />
   );
 }

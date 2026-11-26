@@ -158,8 +158,8 @@ function week(preview: SlotPreview) {
 function details(preview: SlotPreview) {
   const place = preview.meetingMode === "online" ? "" : coveredText(preview.place ?? "");
   const rows = [
-    place ? ["Where", place] : null,
-    ["How", MEETING_MODE_TEXTS.en[preview.meetingMode]],
+    place ? [preview.group ? "From" : "Where", place] : null,
+    preview.group ? null : ["How", MEETING_MODE_TEXTS.en[preview.meetingMode]],
     preview.travelMode ? ["Getting there", TRAVEL_MODE_TEXTS.en[preview.travelMode]] : null,
     ["Length", durationText(preview.durationMinutes, "en")],
   ].filter((row): row is string[] => row !== null);
@@ -189,7 +189,7 @@ export async function renderSlotPreviewPng(preview: SlotPreview): Promise<Buffer
     box(
       { flexDirection: "column", marginTop: 40 },
       box({ ...headline, color: INK.ink }, "Your open times,"),
-      box({ ...headline, color: INK.primary, fontStyle: "italic" }, preview.week === "this_week" ? "this week." : "next week."),
+      box({ ...headline, color: INK.primary, fontStyle: "italic" }, preview.group ? "for the group." : preview.week === "this_week" ? "this week." : "next week."),
     ),
     box(
       { backgroundColor: INK.softSurface, borderRadius: 24, marginTop: 36, padding: 22 },
@@ -198,7 +198,7 @@ export async function renderSlotPreviewPng(preview: SlotPreview): Promise<Buffer
     details(preview),
     box(
       { color: INK.mutedInk, fontFamily: SANS, fontSize: 20, justifyContent: "space-between", marginTop: "auto" },
-      box({}, "Say yes and Thyme opens these for booking."),
+      box({}, preview.group ? "Say yes and Thyme sends these to the group." : "Say yes and Thyme opens these for booking."),
       box({}, `Times in ${zone}`),
     ),
   );

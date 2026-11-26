@@ -460,7 +460,7 @@ async function hostConversationRoute(
     tx`update app.imessage_bindings set selected_request_id = ${binding.request_id} where id = ${host.id} and state = 'active'`;
   const ownRefs = async () =>
     new Set(
-      (await tx<{ id: string }[]>`select id from app.requests where host_account_id = ${host.host_account_id} and state <> 'draft'`).map((request) =>
+      (await tx<{ id: string }[]>`select id from app.requests where host_account_id = ${host.host_account_id} and state <> 'draft' and group_meeting_id is null`).map((request) =>
         requestRef(request.id),
       ),
     );
@@ -562,7 +562,7 @@ async function guestRoute(tx: Transaction, receipt: OpenedReceipt, origin: strin
   if (command?.name === "request") {
     const named = guests.filter((binding) => requestRef(binding.request_id) === command.ref);
     if (named.length && host) {
-      const requests = await tx<{ id: string }[]>`select id from app.requests where host_account_id = ${host.host_account_id} and state <> 'draft'`;
+      const requests = await tx<{ id: string }[]>`select id from app.requests where host_account_id = ${host.host_account_id} and state <> 'draft' and group_meeting_id is null`;
       if (requests.some((request) => requestRef(request.id) === command.ref)) return "ambiguous";
     }
     if (named.length === 1) return { binding: named[0]!, switched: true };

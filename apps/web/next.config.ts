@@ -109,6 +109,10 @@ const nextConfig: NextConfig = {
       { headers: credentialPath, source: "/connections/:path*" },
       { headers: credentialPath, source: "/imessage/continue" },
       { headers: [...credentialPath, { key: "Referrer-Policy", value: "same-origin" }], source: "/connect/link/:path*" },
+      // A group meeting's shared link is a credential too; its start posts the
+      // Google form, which needs same-origin as the booking page does.
+      { headers: [...credentialPath, { key: "Referrer-Policy", value: "same-origin" }], source: "/g/:path*" },
+      { headers: [{ key: "Content-Security-Policy", value: requesterContentSecurityPolicy }], source: "/g/:path*" },
       { headers: [{ key: "Cache-Control", value: "private, no-store" }], source: "/app" },
       { headers: [{ key: "Content-Security-Policy", value: consentContentSecurityPolicy }], source: "/connect/consent" },
       { headers: [{ key: "Cache-Control", value: "private, no-store" }], source: "/connect/consent" },

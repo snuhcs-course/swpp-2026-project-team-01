@@ -51,6 +51,7 @@ const REQUESTER_TOOLS = [
   "change_booking",
   "resend_booking_link",
   "use_host_calendars",
+  "record_group_answers",
 ];
 
 beforeAll(async () => {

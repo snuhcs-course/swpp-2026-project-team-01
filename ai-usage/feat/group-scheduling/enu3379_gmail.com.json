@@ -1,0 +1,23 @@
+{
+  "branch": "feat/group-scheduling",
+  "user": "enu3379@gmail.com",
+  "sessions": {
+    "claude:15d65d61-2019-4645-b8ed-6809e4bf0799": {
+      "agent": "claude-code",
+      "client": "cli",
+      "agent_ms": 1057728,
+      "models": {
+        "claude-opus-5-5": {
+          "input": 186,
+          "cache_read": 16370957,
+          "cache_write_5m": 0,
+          "cache_write_1h": 146500,
+          "output": 62038,
+          "reasoning": 0
+        }
+      },
+      "first": "2026-11-26T10:07:55.840Z",
+      "last": "2026-11-26T10:30:13.299Z"
+    }
+  }
+}

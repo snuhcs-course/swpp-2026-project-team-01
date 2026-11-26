@@ -24,6 +24,7 @@ import type { Database, Queryable, Transaction } from "./database";
 import { encodeDisplayName } from "./entry-documents";
 import { guestNotesView } from "./host-notes";
 import { awaitEvaluation } from "./evaluation";
+import { GROUP_TERMS_MESSAGE, groupAnswersInput, type GroupAnswersInput, readParticipant, readParticipantView, recordGroupAnswersCommand } from "./group-participants";
 import { REQUESTER_AUDIENCE } from "./eve-auth";
 import { detailsComplete, readyForTimes, standingBookingOf, withdrawRequestCommand } from "./request-lifecycle";
 import { cancelBookingCommand, changeBookingCommand } from "./booking-cancellation";
@@ -374,7 +375,57 @@ export async function readRequestForTool(db: Database, call: RequestToolCall) {
     booking,
     today: today(timezone),
     now: localNow(timezone, now),
+    // A group meeting's participant (group-scheduling design 3): follow its
+    // steps instead of finding or choosing times.
+    group: await groupForModel(db, id, timezone),
   };
+}
+
+async function groupForModel(db: Database, requestId: string, timezone: string) {
+  const view = await readParticipantView(db, requestId);
+  if (!view) return null;
+  const participant = await readParticipant(db, requestId);
+  return {
+    answers: participant
+      ? {
+          commitments: participant.commitments.map((entry) =>
+            entry.allDay ? `${entry.start} to ${entry.end} (all day)` : window({ end: entry.end, start: entry.start }, timezone),
+          ),
+          preferredHours: participant.preferred_hours,
+          travelMode: participant.travel_mode,
+          usualPlace: participant.usual_place,
+        }
+      : null,
+    durationMinutes: view.durationMinutes,
+    full: view.full,
+    purpose: view.purpose,
+    range: `${view.rangeStart} to ${view.rangeEnd}`,
+    step: view.step,
+  };
+}
+
+// For the tools a group's participant cannot use: they are refused with one
+// fixed message instead of the command's generic answer.
+async function groupRefusal(db: Database, requestId: string) {
+  const [row] = await db<{ grouped: boolean }[]>`select group_meeting_id is not null as grouped from app.requests where id = ${requestId}`;
+  return row?.grouped ? { message: GROUP_TERMS_MESSAGE, recorded: false as const } : null;
+}
+
+// record_group_answers: the participant's answer to the one question, or a
+// correction on their review, in words.
+export const recordGroupAnswersToolInput = groupAnswersInput;
+
+export async function recordGroupAnswersForTool(db: Database, call: RequestToolCall, input: GroupAnswersInput) {
+  const id = await authorizeRequestTool(db, call);
+  const outcome = await runCommand({ authenticate: async () => actorOf(id), db }, recordGroupAnswersCommand, {
+    input,
+    resourceId: id,
+    retryKey: `tool:${call.callId}`,
+  });
+  if (outcome.ok) return { message: "Saved. The review card now lists the times they can't meet; ask them to check it.", recorded: true };
+  if (outcome.error.reason === "group_participant_done") return { message: "Nothing changed: their answers were already sent to the host.", recorded: false };
+  if (outcome.error.reason === "calendar_required") return { message: "They need to connect Google Calendar first, on the card.", recorded: false };
+  return { message: REFUSALS[outcome.error.category] ?? "That did not go through.", recorded: false };
 }
 
 // Today in the requester's timezone, with its year and weekday, so the model
@@ -440,6 +491,7 @@ const PROBLEM_MESSAGES: Readonly<Record<PatchProblem, string>> = {
     "That time no longer works for the host. Say so without giving or guessing a reason, and ask for another time; any other times the guest named can be drafted without it.",
   invalid_contact: "That name or email address is not usable. Ask the requester to give it again.",
   invalid_date: "That date does not exist. Ask for the date again.",
+  group_terms_fixed: GROUP_TERMS_MESSAGE,
   missing_clarification: "A question or unknown draft names at least one clarification category.",
   past_window: "That window has already passed. Ask for a time in the future.",
   patch_on_question: "A question or unknown draft carries no details. Nothing was recorded.",
@@ -501,6 +553,7 @@ export async function draftRequestReviewForTool(
   const row = await requestRow(db, id);
   const timezone = zoneOf(row.details);
   const language = requestLanguage(row.details);
+  if (await groupRefusal(db, id)) return rejected("group_terms_fixed", language);
   let patch: ReviewPatch | null = null;
 
   if (input.details) {
@@ -614,6 +667,8 @@ export async function evaluateCandidatesForTool(
   options: { readonly waitMs?: number } = {},
 ) {
   const id = await authorizeRequestTool(db, call);
+  const grouped = await groupRefusal(db, id);
+  if (grouped) return grouped;
   const row = await requestRow(db, id);
   const timezone = zoneOf(row.details);
   const language = requestLanguage(row.details);
@@ -745,6 +800,8 @@ async function decide<Input, Result>(
 
 export async function applyRequestReviewForTool(db: Database, call: RequestToolCall, options: { readonly waitMs?: number } = {}) {
   const id = await authorizeRequestTool(db, call);
+  const grouped = await groupRefusal(db, id);
+  if (grouped) return grouped;
   const [review] = await db<{ id: string }[]>`
     select id from app.request_reviews where request_id = ${id} and state = 'pending'
   `;
@@ -790,6 +847,8 @@ export const chooseTimeToolInput = z.object({
 
 export async function chooseTimeForTool(db: Database, call: RequestToolCall, input: z.infer<typeof chooseTimeToolInput>): Promise<DecisionResult> {
   const id = await authorizeRequestTool(db, call);
+  const grouped = await groupRefusal(db, id);
+  if (grouped) return grouped;
   const evaluation = await readCurrentEvaluation(db, id);
   if (!evaluation) return { message: "There are no current times to choose from: find times first.", recorded: false };
 

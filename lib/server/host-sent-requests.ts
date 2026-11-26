@@ -8,6 +8,7 @@ import { linkedMessagingTurn } from "./channel-selection";
 import { CommandError } from "./commands";
 import type { Database, Queryable } from "./database";
 import { emailSourceHash } from "./email-receipts";
+import { groupTokenFromText } from "./group-account-join";
 import { encodeDisplayName } from "./entry-documents";
 import { HOST_REVIEW_AUDIENCE, HOST_SETUP_AUDIENCE } from "./eve-auth";
 import { bindHostConversation, handleFromText } from "./host-conversation-bindings";
@@ -148,6 +149,9 @@ export async function startRequestForTool(deps: StartRequestDependencies, call: 
     return { problem: "Starting a request in words works only from the host's linked iMessage, WhatsApp or Telegram. On the web, the host opens the other host's booking link.", started: false };
   }
 
+  if (groupTokenFromText(input.to)) {
+    return { problem: "That is a group meeting link, not a booking link: call join_group_meeting with it instead.", started: false };
+  }
   const handle = handleFromText(input.to, deps.appOrigin);
   if (!handle) return { problem: "That is not a booking link or @handle. Ask the host which host they want to meet.", started: false };
 

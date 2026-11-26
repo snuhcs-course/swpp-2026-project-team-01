@@ -74,7 +74,7 @@ async function Booking({ params }: { readonly params: Params }) {
     );
   }
   if (!view.open) {
-    return <Closed bookingId={bookingId.toLowerCase()} booking={view.booking} hostName={view.host.displayName} state={view.request.state} timezone={view.timezone} />;
+    return <Closed bookingId={bookingId.toLowerCase()} booking={view.booking} groupFull={view.groupFull === true} hostName={view.host.displayName} state={view.request.state} timezone={view.timezone} />;
   }
 
   // Opens the request session if a request from before D13 has none yet (and
@@ -106,12 +106,15 @@ function Unavailable() {
 function Closed({
   bookingId,
   booking,
+  groupFull,
   hostName,
   state,
   timezone,
 }: {
   readonly bookingId: string;
   readonly booking: BookingStatusView | null;
+  // A group meeting's participant whose group closed before they were done.
+  readonly groupFull: boolean;
   readonly hostName: string;
   readonly state: RequestState;
   readonly timezone: string;
@@ -124,7 +127,11 @@ function Closed({
         <p className="font-medium text-muted-foreground text-sm">Meeting request with {hostName}</p>
         <h1 className="font-display text-[clamp(36px,5vw,52px)] leading-[1.05]">{receipt ? "Your meeting is booked" : "This request is closed"}</h1>
         <p role="status">
-          {receipt ? "It is in the calendar. Google Calendar sends the invitation." : (CLOSED_TEXT[state] ?? "This request is no longer active.")}
+          {receipt
+            ? "It is in the calendar. Google Calendar sends the invitation."
+            : groupFull
+              ? "This group meeting filled up, or the host closed it, before your answers were in."
+              : (CLOSED_TEXT[state] ?? "This request is no longer active.")}
         </p>
       </div>
       {receipt ? (

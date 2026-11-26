@@ -19,7 +19,12 @@
 -- thread offers the next step instead of the Calendar card; a new Calendar grant
 -- or **Change** clears it. revised_from_request_id names the declined or expired
 -- request this one continues (guest-flow-completion design 5); it is unique, so
--- a closed request has at most one direct successor.
+-- a closed request has at most one direct successor. group_meeting_id names
+-- the group meeting a participant request belongs to (group-scheduling design
+-- 1): it is invisible to every host projection, list and count, like a draft,
+-- and while the group is collecting its expires_at, and its booking link's, is
+-- the far-future 9999-12-31 (lib/server/group-meetings.ts, GROUP_OPEN_EXPIRY)
+-- so it does not expire; the close sets both again.
 CREATE TABLE "app"."requests" (
   "id" uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   "host_account_id" uuid NOT NULL REFERENCES "app"."host_accounts" ("id") ON DELETE CASCADE,
@@ -43,6 +48,7 @@ CREATE TABLE "app"."requests" (
   "identified_at" timestamptz,
   "calendar_settled_at" timestamptz,
   "revised_from_request_id" uuid UNIQUE REFERENCES "app"."requests" ("id") ON DELETE SET NULL,
+  "group_meeting_id" uuid REFERENCES "app"."group_meetings" ("id") ON DELETE CASCADE,
   CONSTRAINT "requests_closed" CHECK (
     ("state" IN ('booked', 'declined', 'withdrawn', 'expired', 'cancelled')) = ("closed_at" IS NOT NULL)
   ),
@@ -56,6 +62,8 @@ CREATE TABLE "app"."requests" (
 );
 
 CREATE INDEX "requests_host_idx" ON "app"."requests" ("host_account_id", "created_at" DESC);
+
+CREATE INDEX "requests_group_meeting_idx" ON "app"."requests" ("group_meeting_id") WHERE "group_meeting_id" IS NOT NULL;
 
 CREATE UNIQUE INDEX "requests_one_sample_per_host_idx" ON "app"."requests" ("host_account_id") WHERE "is_sample";
 

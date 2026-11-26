@@ -10,6 +10,8 @@ import {
   AwaitingCard,
   CalendarSelectionCard,
   ConnectCalendarCard,
+  GroupDoneCard,
+  GroupReviewCard,
   HostProfileCard,
   ImessageUpdates,
   EmailLinkLine,
@@ -475,7 +477,7 @@ export function threadEntries(
           if (view.connection.calendar) open("calendar-selection", placed, <>{line}<CalendarSelectionCard context={context} /></>);
           else open("calendar-connect", placed, <>{line}<ConnectCalendarCard context={context} /></>);
         } else if (state === "answered") {
-          const action = choosing
+          const action = choosing && !view.group
             ? change("Change your calendar", () => void context.run("request.set_manual_availability", { manual: false }))
             : undefined;
           if (card.receipt?.text === "Connected") {
@@ -512,6 +514,18 @@ export function threadEntries(
             node: <SummaryRow label={RECEIPT_LABELS.times} value={timeText(card.receipt.start, card.receipt.end, zone)} />,
           });
         }
+        break;
+      case "group_question":
+        // Thyme's one question (group-scheduling design 3), once Calendar is
+        // connected; the guest answers it in the composer.
+        if (state !== "waiting") entries.push({ at: card.at, id: "group-question", node: <FixedMessage text={groupQuestion(view)} /> });
+        break;
+      case "group_review":
+        if (state === "open") open("group-review", card, <GroupReviewCard context={context} />);
+        else if (state === "answered") receipt(card, "Times you can't meet", "Confirmed");
+        break;
+      case "group_done":
+        open("group-done", card, <GroupDoneCard context={context} />);
         break;
       case "proposal":
         if (state === "open" && view.proposal && card.id === `proposal:${view.proposal.version}`) {
@@ -592,4 +606,11 @@ function IntakeTranscript({ bookingId }: { readonly bookingId: string }) {
       </div>
     </details>
   );
+}
+
+// The one question a group's participant answers before their review.
+function groupQuestion(view: OpenRequesterView) {
+  return view.request.details.language === "ko"
+    ? "캘린더에 없는 고정 일정이 있나요? 수업, 근무, 정기 약속처럼 이 기간에 빠질 수 없는 시간이 있다면 알려 주세요. 그리고 평소 계신 곳(동네 정도면 돼요)과 주로 이동하는 방법(자동차, 대중교통, 도보)도 알려 주세요."
+    : "Do you have fixed commitments that aren't on your calendar? If classes, work shifts or regular appointments keep you busy at times in this period, tell me when. Also say where you usually are (a neighborhood is enough) and how you usually travel (car, public transit or walking).";
 }

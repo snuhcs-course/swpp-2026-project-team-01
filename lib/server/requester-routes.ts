@@ -42,6 +42,14 @@ import {
   recoverGuestDiscussion,
 } from "./guest-conversations";
 import { readGuestThread } from "./guest-thread";
+import { findGroupByToken, startGroupParticipantCommand } from "./group-meetings";
+import {
+  confirmGroupReviewCommand,
+  groupReviewDependenciesFromEnvironment,
+  readGroupReview,
+  readParticipantView,
+  recordGroupAnswersCommand,
+} from "./group-participants";
 import { agentMailConfigFromEnvironment } from "./agentmail";
 import { createEmailLinkCommand, readEmailLinkStatus, unlinkEmailCommand } from "./email-links";
 import { internalSigningKey } from "./internal-bearer";
@@ -253,7 +261,7 @@ export async function readRequesterView(
            jsonb_build_object('durationMinutes', s.settings -> 'durationMinutes', 'meetingMode', s.settings -> 'meetingMode',
                               'location', s.settings -> 'location') as meeting,
            exists (select 1 from app.intakes i where i.request_id = r.id) as has_intake,
-           (r.calendar_settled_at is not null or r.details ->> 'purpose' is not null
+           (r.calendar_settled_at is not null or (r.group_meeting_id is null and r.details ->> 'purpose' is not null)
             or exists (select 1 from app.discussions d join app.conversation_inputs ci on ci.discussion_id = d.id
                        where d.principal_type = 'requester_request' and d.principal_id = r.id and d.audience = 'requester')) as handed_over
     from app.requests r
@@ -278,6 +286,7 @@ export async function readRequesterView(
       request: { ...(row.state === "booked" ? { revision: row.revision } : {}), state: isActionableRequestState(row.state) ? "expired" : row.state },
       // A booked meeting keeps its conversation (conversingRequester).
       ...(row.state === "booked" ? { conversation: await guestConversationStatus(db, { id: requestId, type: "requester_request" }) } : {}),
+      ...((await readParticipantView(db, requestId))?.full ? { groupFull: true } : {}),
       timezone: row.details.timezone && isValidTimeZone(row.details.timezone) ? row.details.timezone : "UTC",
     };
   }
@@ -324,6 +333,7 @@ export async function readRequesterView(
     pendingReview: review ? storedReview(review, requestLanguage(row.details)) : null,
     proposal: proposal?.proposal ?? null,
     request: { details: row.details, expiresAt: row.expires_at.toISOString(), revision: row.revision, state: row.state },
+    group: await readParticipantView(db, requestId),
     thread: await readGuestThread(db, requestId, {
       agreedVersion: proposal?.agreement?.proposalVersion ?? null,
       evaluationId: evaluation?.id ?? null,
@@ -416,6 +426,8 @@ const startBody = z.object({
   language: z.enum(REQUEST_LANGUAGES),
 });
 
+const groupStartBody = startBody.omit({ handle: true }).extend({ group: z.string().min(1).max(64) });
+
 function hostUnavailable() {
   return requesterJson({ code: "unavailable", error: "This page is not taking requests." }, 404);
 }
@@ -476,6 +488,70 @@ export function createRequestStartHandler(load: () => RequesterRouteDependencies
     const bookingId = await openRequestBookingId(deps.db, [tokenKey], outcome.result.requestId);
 
     return bookingId ? requesterJson({ bookingId }, 201) : hostUnavailable();
+  };
+}
+
+// POST /api/requests/start-group: **Continue with Google** on a group
+// meeting's shared link (group-scheduling design 2). It runs request.start in
+// the group, as the anonymous starter under the tab's nonce, and answers the
+// draft's booking identifier; the Google consent that follows identifies it.
+// A full or closed group, or a host no longer taking requests, starts nothing.
+export function createGroupStartHandler(load: () => RequesterRouteDependencies = requesterRouteDependenciesFromEnvironment) {
+  return async (request: Request) => {
+    const deps = load();
+    const refused = crossSiteRefusal(request, deps, { json: true });
+
+    if (refused) return refused;
+
+    const body = groupStartBody.safeParse(await request.json().catch(() => null));
+
+    if (!body.success || !isStarterNonce(body.data.nonce)) {
+      return requesterJson({ code: "invalid_request", error: "Send the tab's nonce, time zone and language." }, 400);
+    }
+
+    const group = await findGroupByToken(deps.db, body.data.group);
+    if (!group) return groupClosed();
+
+    const tokenKey = deps.tokenKey();
+    const outcome = await runCommand(
+      { authenticate: async () => ({ id: starterId(body.data.nonce), kind: "guest_starter" }), db: deps.db },
+      startGroupParticipantCommand({ sourceHash: sourceHash(tokenKey, request), tokenKey }),
+      { input: { language: body.data.language, timezone: body.data.timezone }, resourceId: group.id, retryKey: body.data.nonce },
+    );
+
+    if (!outcome.ok) {
+      if (outcome.error.category === "rate_limited") {
+        return requesterJson({ code: "rate_limited", error: "Too many new requests from your network right now. Try again later." }, 429);
+      }
+      if (outcome.error.category === "invalid_input") return requesterJson({ code: "invalid_request", error: "Send a valid time zone." }, 400);
+      return outcome.error.category === "retry_conflict" ? requesterJson(outcome, 409) : groupClosed();
+    }
+
+    const bookingId = await openRequestBookingId(deps.db, [tokenKey], outcome.result.requestId);
+    return bookingId ? requesterJson({ bookingId }, 201) : groupClosed();
+  };
+}
+
+function groupClosed() {
+  return requesterJson({ code: "group_closed", error: "This group meeting is no longer taking answers." }, 404);
+}
+
+// GET /api/requests/{bookingId}/group-review: the unavailable times a group
+// participant is asked to confirm (group-scheduling design 4), read live with
+// this request's own calendars, with the fingerprint confirming names.
+export function createGroupReviewHandler(load: () => RequesterRouteDependencies = requesterRouteDependenciesFromEnvironment) {
+  return async (_request: Request, context: Context) => {
+    const deps = load();
+    const principal = await openRequester(deps.db, (await context.params).bookingId);
+
+    if (!principal) return requestUnavailable();
+
+    try {
+      const review = await readGroupReview(deps.db, groupReviewDependenciesFromEnvironment([deps.tokenKey()]), principal.id);
+      return review ? requesterJson(review) : requesterJson({ code: "not_reviewing", error: "There is nothing to confirm now." }, 409);
+    } catch {
+      return requesterJson({ code: "calendar_unavailable", error: "Your calendar could not be read right now." }, 503);
+    }
   };
 }
 
@@ -620,6 +696,8 @@ export function requesterCommands(
     registered(emailOnlyRequesterCommand),
     registered(shareRequesterContactCardCommand(imessage)),
     registered(revokeGrantCommand),
+    registered(recordGroupAnswersCommand),
+    registered(confirmGroupReviewCommand(groupReviewDependenciesFromEnvironment([contact.tokenKey]))),
   ]);
 }
 

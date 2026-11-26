@@ -166,7 +166,7 @@ export class HostRequestNotFoundError extends Error {
 async function assertHostRequest(tx: Transaction | Database, hostAccountId: string, requestId: string) {
   const [row] = await tx<{ found: boolean }[]>`
     select true as found from app.requests
-    where id = ${requestId} and host_account_id = ${hostAccountId} and state <> 'draft'
+    where id = ${requestId} and host_account_id = ${hostAccountId} and state <> 'draft' and group_meeting_id is null
   `;
   if (!row) throw new HostRequestNotFoundError();
 }

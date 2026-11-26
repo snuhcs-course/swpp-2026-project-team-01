@@ -1,7 +1,7 @@
 import type { LinkPlan } from "../contracts/request";
 
 // The Google Calendar event a booking creates (host-review-and-booking design 5,
-// D1, D4, D5). The event ID is the booking ID's 32 hexadecimal digits, which are
+// D1, D4, D5), and a group meeting's (group-scheduling design 6). The event ID is the booking ID's 32 hexadecimal digits, which are
 // valid base32hex, so it is fixed before dispatch: a repeated insert answers 409
 // instead of making a second event, and reconciliation reads the event by it.
 // The description carries the meeting details and the join line, never the
@@ -22,7 +22,9 @@ export type EventSource = {
   readonly mode: "online" | "in_person";
   readonly location: string | null;
   readonly linkPlan: LinkPlan | null;
-  readonly requester: { readonly name: string; readonly email: string };
+  // The requester, or every done participant of a group meeting
+  // (group-scheduling design 6); the first names an untitled event.
+  readonly attendees: readonly [{ readonly name: string; readonly email: string }, ...{ readonly name: string; readonly email: string }[]];
 };
 
 export function eventTitle(purpose: string | null, requesterName: string) {
@@ -31,7 +33,7 @@ export function eventTitle(purpose: string | null, requesterName: string) {
 }
 
 function descriptionOf(source: EventSource) {
-  const lines = [eventTitle(source.purpose, source.requester.name)];
+  const lines = [eventTitle(source.purpose, source.attendees[0].name)];
 
   if (source.mode === "in_person" && source.location) lines.push(`Where: ${source.location}`);
   if (source.linkPlan?.kind === "requester_link") lines.push(`Join: ${source.linkPlan.url}`);
@@ -47,7 +49,7 @@ export function buildEventPayload(source: EventSource): Record<string, unknown> 
     source.mode === "in_person" ? source.location : source.linkPlan?.kind === "requester_link" ? source.linkPlan.url : null;
 
   return {
-    attendees: [{ displayName: source.requester.name, email: source.requester.email }],
+    attendees: source.attendees.map((attendee) => ({ displayName: attendee.name, email: attendee.email })),
     ...(source.linkPlan?.kind === "google_meet" && source.mode === "online"
       ? { conferenceData: { createRequest: { conferenceSolutionKey: { type: "hangoutsMeet" }, requestId: source.bookingId } } }
       : {}),
@@ -60,6 +62,6 @@ export function buildEventPayload(source: EventSource): Record<string, unknown> 
     ...(location ? { location } : {}),
     reminders: { useDefault: true },
     start: { dateTime: source.start, timeZone: source.hostTimezone },
-    summary: eventTitle(source.purpose, source.requester.name),
+    summary: eventTitle(source.purpose, source.attendees[0].name),
   };
 }

@@ -280,10 +280,13 @@ export const setManualAvailabilityCommand: CommandDefinition<z.infer<typeof manu
     const request = await lockOpenRequest(tx, requestId);
     assertIdentified(request);
 
-    await tx`
+    // A group's participant connects Calendar and has no skip (group-scheduling
+    // design 3); a done participant's answers no longer change (D13).
+    const updated = await tx`
       update app.requests set calendar_settled_at = case when ${context.input.manual} then now() end
-      where id = ${requestId}
+      where id = ${requestId} and group_meeting_id is null
     `;
+    if (updated.count === 0) throw new CommandError("forbidden");
     return { manual: context.input.manual };
   },
 };

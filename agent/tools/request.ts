@@ -16,6 +16,8 @@ import {
   isRequesterSession,
   readBookingStatusForTool,
   readRequestForTool,
+  recordGroupAnswersForTool,
+  recordGroupAnswersToolInput,
   withdrawRequestForTool,
   cancelBookingForTool,
   changeBookingForTool,
@@ -156,6 +158,12 @@ function requesterTools() {
         "Choose whether the guest's own host calendars count as their busy time for this request only, when the guest is also a host (read_request shows yourHostCalendars) and says so in words (\"don't use my calendars for this one\", \"check my calendars too\"). It never changes their host settings or which calendars their own hosting checks. It uses all of the calendars in yourHostCalendars or none: when they name only some (\"skip my work calendar\"), say it can use all of them or none for one request, and ask which. Only while times are being chosen; then find times again.",
       inputSchema: useHostCalendarsToolInput,
       execute: (input, toolCtx) => useHostCalendarsForTool(database(), call(toolCtx), input),
+    }),
+    record_group_answers: defineTool({
+      description:
+        "Only when read_request shows a group (a group meeting's participant): record what the guest answered to the one question, or a correction on their review. Give only what they said: commitments, the whole list of fixed commitments and other times they cannot meet that their calendar does not show (timed with ISO date-times and offsets, or allDay with local dates, end exclusive). usualPlace (where they usually are, a neighborhood is enough), travelMode (driving, transit or walking), and preferredHours as HH:MM pairs in their timezone only if they named hours that suit them without being asked. It replaces the earlier list of commitments. Nothing changes once they are done.",
+      inputSchema: recordGroupAnswersToolInput,
+      execute: (input, toolCtx) => recordGroupAnswersForTool(database(), call(toolCtx), input),
     }),
     resend_booking_link: defineTool({
       description:

@@ -99,6 +99,26 @@ As a host who also needs meetings with other hosts, I want to book with another 
 - Decided to build as written (#334): starting a request from the messenger with a link or `@handle`; identity and host calendars from the account; free text routed by context; guest notices in the same conversation; received and sent requests listed apart; the account MCP `create_request` using the account's name, email and calendars.
 - Baseline: [R01](../technical_specification/12_testing_baseline.md#r01-one-account-as-host-and-guest). Most of its messenger and MCP rows **differ from code** or are **not supported** until built.
 
+## Group meetings
+
+Added on 2026-11-26 with [`group-scheduling`](../../openspec/changes/group-scheduling/proposal.md) (#486). These stories are not in the testing baseline yet; the [group meeting flow](07_group_meeting_flow.md) walks through them.
+
+### GM01 — Find one time with several people
+
+As a host, I want to send one link to several people and get back times that work for all of us, so that I book a group meeting without collecting everyone's free times by hand.
+
+- The host asks in the linked messenger with the purpose, length, dates and number of people; online or in person and the place are decided later, from everyone's times.
+- Participants never show up as separate requests. The host hears once the link is full or when they close it early, and can ask in the meantime who has answered.
+- The host gets up to three options and can ask for more. A place comes from the host's places, then the participants' usual places, then a station between them; online when no place works. Without a time for everyone, the host sees who cannot make each option and may still book it.
+
+### GM02 — Answer a group meeting quickly
+
+As a participant, I want to connect my calendar, answer one question and confirm the times I can't meet, so that I take part without picking a time and get the invitation by email.
+
+- Calendar is required; there is no skip.
+- The participant confirms only the times they cannot meet, from their calendar and what they said, and can correct them in words before confirming. After that the answers are final.
+- The host never sees the participant's events or places; only which times do not work.
+
 ## Where the earlier stories went
 
 The 2026-10-19 list (US-01 to US-32) is superseded. Its needs are covered as follows, so links from older records still lead somewhere:

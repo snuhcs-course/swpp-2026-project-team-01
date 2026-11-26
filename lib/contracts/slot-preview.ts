@@ -39,4 +39,8 @@ export type SlotPreview = {
   // True when these are the host's saved settings (guests already book these
   // times), so the caption shows them instead of asking whether to open them.
   readonly saved?: boolean;
+  // A host's open times for another host's group meeting (group-scheduling):
+  // days outside the group's range show nothing, and the caption asks whether
+  // to send them to the group's host.
+  readonly group?: true;
 };

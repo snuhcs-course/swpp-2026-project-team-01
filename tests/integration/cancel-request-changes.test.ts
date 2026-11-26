@@ -33,7 +33,7 @@ beforeAll(async () => {
   url.pathname = `/${databaseName}`;
   db = createDatabase(url.toString());
   await db`create schema app`;
-  for (const table of ["host_accounts", "host_settings", "jobs", "requests", "booking_links", "evaluations", "proposals", "agreements", "command_outcomes", "shared_change_drafts", "approvals", "bookings", "request_reviews", "requester_host_profiles", "requester_grants", "email_deliveries", "contact_confirmations"]) {
+  for (const table of ["host_accounts", "host_settings", "jobs", "group_meetings", "requests", "booking_links", "evaluations", "proposals", "agreements", "command_outcomes", "shared_change_drafts", "approvals", "bookings", "request_reviews", "requester_host_profiles", "requester_grants", "email_deliveries", "contact_confirmations"]) {
     await db.unsafe(await readFile(new URL(`../../supabase/schemas/app/tables/${table}.sql`, import.meta.url), "utf8"));
   }
 });

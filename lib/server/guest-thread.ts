@@ -35,6 +35,8 @@ import type { Queryable } from "./database";
 //   times      each evaluation, when it was requested; and Find times while
 //              there is no current one and finding times is the next step
 //   proposal   each proposal version, when Choose this time made it
+//   group_question, group_review, group_done   a group participant's steps
+//              after Calendar, instead of meeting, times and proposal
 
 const ORDER = new Map(THREAD_CARD_KINDS.map((kind, index) => [kind, index]));
 
@@ -78,6 +80,11 @@ type RequestRow = {
   profile_items: string[] | null;
   // The request is bound to the guest-host's own host conversation (#61).
   profile_messenger: boolean;
+  // A group meeting's participant, with when they answered the one question
+  // and when they confirmed their review (group-scheduling design 3).
+  grouped: boolean;
+  group_answered_at: Date | null;
+  group_done_at: Date | null;
   purpose: string | null;
   requester_name: string | null;
   state: RequestState;
@@ -91,14 +98,24 @@ export type ThreadCurrent = {
   readonly pendingReviewId: string | null;
 };
 
-// The current next step, whose card is the only open one.
+// The current next step, whose card is the only open one. A group's
+// participant (group-scheduling design 3) goes from Calendar, which has no
+// skip, to the one question, the review of their unavailable times and done.
 export function currentStep(
-  request: Pick<RequestRow, "state" | "identity_requested_at" | "calendar_settled_at" | "purpose" | "profile_at" | "profile_decided_at">,
+  request: Pick<RequestRow, "state" | "identity_requested_at" | "calendar_settled_at" | "purpose" | "profile_at" | "profile_decided_at"> &
+    Partial<Pick<RequestRow, "group_answered_at" | "group_done_at" | "grouped">>,
   current: ThreadCurrent,
 ): ThreadCardKind | null {
   if (request.state === "draft") {
     if (request.identity_requested_at) return "identity";
     return current.pendingReviewId ? "review" : null;
+  }
+
+  if (request.grouped) {
+    if (request.state !== "gathering") return null;
+    if (request.group_done_at) return "group_done";
+    if (!request.calendar_settled_at) return "calendar";
+    return request.group_answered_at ? "group_review" : "group_question";
   }
 
   if (request.state !== "gathering" && request.state !== "negotiating") return null;
@@ -126,8 +143,10 @@ export async function readGuestThread(db: Queryable, requestId: string, current:
            exists (select 1 from app.requester_grants g
                    where g.request_id = r.id and g.kind = 'calendar' and g.revoked_at is null) as calendar_grant,
            exists (select 1 from app.requester_grants g
-                   where g.request_id = r.id and g.kind = 'identity' and g.created_at = r.identified_at) as identity_google
+                   where g.request_id = r.id and g.kind = 'identity' and g.created_at = r.identified_at) as identity_google,
+           r.group_meeting_id is not null as grouped, gp.answered_at as group_answered_at, gp.done_at as group_done_at
     from app.requests r left join app.requester_host_profiles p on p.request_id = r.id
+    left join app.group_participants gp on gp.request_id = r.id
     where r.id = ${requestId}
   `;
 
@@ -203,6 +222,22 @@ export async function readGuestThread(db: Queryable, requestId: string, current:
           ? { receipt: { text: request.calendar_grant ? "Connected" : "Skipped" }, status: "answered" }
           : { status: "waiting" }),
     });
+
+    if (request.grouped) {
+      // The group's thread: no meeting, times or proposal cards, since the
+      // terms are the host's and nobody picks a time.
+      const answered = request.group_answered_at;
+      const done = request.group_done_at;
+      cards.push({ at: iso(identifiedAt), id: "group_question", kind: "group_question", status: step === "group_question" ? "open" : answered ? "answered" : "waiting" });
+      cards.push({
+        at: iso(answered ?? identifiedAt),
+        id: "group_review",
+        kind: "group_review",
+        ...(step === "group_review" ? { status: "open" } : done ? { receipt: { text: "Confirmed" }, status: "answered" } : { status: "waiting" }),
+      });
+      if (done) cards.push({ at: iso(done), id: "group_done", kind: "group_done", status: "open" });
+      return cards.sort((a, b) => a.at.localeCompare(b.at) || ORDER.get(a.kind)! - ORDER.get(b.kind)!);
+    }
 
     cards.push({
       at: iso(identifiedAt),

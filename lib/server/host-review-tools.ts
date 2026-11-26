@@ -83,7 +83,7 @@ export async function authorizeHostReviewTool(q: Queryable, call: Pick<HostRevie
       where s.session_id = ${call.sessionId}
         and s.principal_type = 'host_account' and s.principal_id = a.id and s.state = 'active'
         and d.principal_type = 'host_account' and d.principal_id = a.id and d.audience = ${HOST_REVIEW_AUDIENCE}
-        and d.request_id = ${requestId.data} and r.host_account_id = a.id and r.state <> 'draft'
+        and d.request_id = ${requestId.data} and r.host_account_id = a.id and r.state <> 'draft' and r.group_meeting_id is null
         and s.generation = (select max(generation) from app.agent_sessions where discussion_id = s.discussion_id)
     ) as allowed
     from app.host_accounts a

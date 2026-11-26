@@ -1,3 +1,4 @@
+import type { GroupParticipantView } from "./group-meeting";
 import type { BookingStatusView } from "./booking";
 import type { RequesterEvaluationView } from "./feasibility";
 import type { MeetingMode } from "./setup";
@@ -61,7 +62,23 @@ export type RequesterConversationView = {
 // receipt: answered (what was offered and chosen), waiting (called for, not
 // yet the current step) or superseded by a newer card of its kind (marked out
 // of date). A status card is a line, never an open card.
-export const THREAD_CARD_KINDS = ["identity", "review", "host_profile", "status", "calendar", "meeting", "times", "proposal"] as const;
+// A group participant's request (group-scheduling design 3) has no meeting,
+// times or proposal cards: after Calendar come group_question (Thyme's one
+// question, answered in conversation), group_review (the unavailable times to
+// confirm) and group_done (with the optional messenger link).
+export const THREAD_CARD_KINDS = [
+  "identity",
+  "review",
+  "host_profile",
+  "status",
+  "calendar",
+  "meeting",
+  "times",
+  "proposal",
+  "group_question",
+  "group_review",
+  "group_done",
+] as const;
 export type ThreadCardKind = (typeof THREAD_CARD_KINDS)[number];
 
 export type ThreadCard = {
@@ -125,6 +142,8 @@ export type OpenRequesterView = {
   // The booking once the host approved: in progress, failed, or confirmed with
   // its receipt (host-review-and-booking design 10).
   readonly booking: BookingStatusView | null;
+  // A group meeting's participant (group-scheduling); null for any other request.
+  readonly group: GroupParticipantView | null;
 };
 
 // A closed request with an unexpired link: only its final status and, once
@@ -139,6 +158,8 @@ export type ClosedRequesterView = {
   // A booked meeting's conversation, which stays open to the guest on the web
   // so they can ask about, cancel or change it (post-booking-changes, #329).
   readonly conversation?: RequesterConversationView;
+  // A group's participant whose group closed before they were done.
+  readonly groupFull?: boolean;
 };
 
 export type RequesterView = OpenRequesterView | ClosedRequesterView;
@@ -183,5 +204,7 @@ export const REQUESTER_OPERATIONS = [
   "booking.check",
   "booking.cancel",
   "booking.change",
+  "request.group.answer",
+  "request.group.confirm",
 ] as const;
 export type RequesterOperation = (typeof REQUESTER_OPERATIONS)[number];

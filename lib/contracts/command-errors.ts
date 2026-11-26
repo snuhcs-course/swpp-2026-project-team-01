@@ -32,8 +32,23 @@ export type CommandErrorCategory = keyof typeof COMMAND_ERROR_MESSAGES;
 // named; a proposed or reviewed time has already started; a cancellation named
 // a request with no booked meeting; an approval of a proposal of several times
 // named none of them, or the one it named is no longer free on the host's
-// calendar (multiple-candidate-times).
-export const COMMAND_ERROR_REASONS = ["destination_not_writable", "proposal_superseded", "start_passed", "not_booked", "time_choice_required", "time_unavailable"] as const;
+// calendar (multiple-candidate-times). A group participant who is done can no
+// longer change their answers; the unavailable times they were shown changed
+// before they confirmed them; a participant connects Calendar before anything
+// else; a group's terms are the host's and nobody picks a time in it
+// (group-scheduling).
+export const COMMAND_ERROR_REASONS = [
+  "destination_not_writable",
+  "proposal_superseded",
+  "start_passed",
+  "not_booked",
+  "time_choice_required",
+  "time_unavailable",
+  "group_participant_done",
+  "group_review_changed",
+  "calendar_required",
+  "group_terms_fixed",
+] as const;
 export type CommandErrorReason = (typeof COMMAND_ERROR_REASONS)[number];
 
 export type CommandFailure = {

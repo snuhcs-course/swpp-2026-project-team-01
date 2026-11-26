@@ -47,7 +47,7 @@ describe("the change patch body", () => {
     end: "2099-01-05T06:00:00Z",
     hostTimezone: "Asia/Seoul",
     purpose: "Coffee",
-    requester: { email: "guest@example.com", name: "Guest" },
+    attendees: [{ email: "guest@example.com", name: "Guest" }],
     start: "2099-01-05T05:00:00Z",
   };
   const meet = buildEventPayload({ ...source, linkPlan: { kind: "google_meet" }, location: null, mode: "online" } as never);

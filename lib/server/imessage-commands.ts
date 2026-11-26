@@ -323,7 +323,7 @@ function reply(
 // The host's request a reference names, or why there is none.
 async function requestByRef(deps: CommandDependencies, hostAccountId: string, ref: string) {
   const rows = await deps.db<{ id: string }[]>`
-    select id from app.requests where host_account_id = ${hostAccountId} and state <> 'draft'
+    select id from app.requests where host_account_id = ${hostAccountId} and state <> 'draft' and group_meeting_id is null
   `;
   const matches = rows.filter((row) => requestRef(row.id) === ref);
   if (matches.length !== 1) return { error: matches.length === 0 ? "unknown" : "ambiguous" } as const;
