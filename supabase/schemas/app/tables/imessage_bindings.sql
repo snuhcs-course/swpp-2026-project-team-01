@@ -2,8 +2,8 @@
 -- kept as a keyed hash for lookup and sealed with the conversation ID (context
 -- imessage_binding:{id}) for replies; the conversation is null for a fallback
 -- binding until the host writes from it. A host has at most one active binding
--- and a sender belongs to at most one host. selected_request_id is the request
--- whose private discussion receives free text; null means setup. Unlinking ends
+-- and a sender belongs to at most one host. All free text uses the account
+-- assistant discussion; request refs are data, not routing state. Unlinking ends
 -- the binding at once. channel is the platform the sender writes from
 -- (host-whatsapp-channel design 4 and 5): a host has one active binding across
 -- iMessage and WhatsApp, and WhatsApp senders are hashed in their own namespace,
@@ -22,7 +22,6 @@ CREATE TABLE "app"."imessage_bindings" (
   "sender_name_ciphertext" text,
   "space_ciphertext" text,
   "sealed_key_id" text,
-  "selected_request_id" uuid REFERENCES "app"."requests" ("id") ON DELETE SET NULL,
   "state" text NOT NULL DEFAULT 'active' CHECK ("state" IN ('active', 'unlinked')),
   "hours_question_sent_at" timestamptz,
   "linked_at" timestamptz NOT NULL DEFAULT now(),

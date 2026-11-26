@@ -51,20 +51,12 @@ export async function guestSession(t: EvalContext, requestId: string, channel: G
 }
 
 // The host's linked conversation on a channel, selecting a request.
-export async function linkHost(hostAccountId: string, channel: HostChannel, selectedRequestId: string | null) {
+export async function linkHost(hostAccountId: string, channel: HostChannel, _selectedRequestId: string | null) {
   const { db } = storyRuntime();
   await db`
-    insert into app.imessage_bindings (host_account_id, channel, sender_hash, sender_ciphertext, sealed_key_id, selected_request_id)
-    values (${hostAccountId}, ${channel}, ${hex(`eval-sender-${randomUUID()}`)}, 'eval-sealed', 'eval', ${selectedRequestId})
+    insert into app.imessage_bindings (host_account_id, channel, sender_hash, sender_ciphertext, sealed_key_id)
+    values (${hostAccountId}, ${channel}, ${hex(`eval-sender-${randomUUID()}`)}, 'eval-sealed', 'eval')
   `;
-}
-
-export async function selectedRequestOf(hostAccountId: string) {
-  const { db } = storyRuntime();
-  const [row] = await db<{ selected_request_id: string | null }[]>`
-    select selected_request_id from app.imessage_bindings where host_account_id = ${hostAccountId} and state = 'active'
-  `;
-  return row?.selected_request_id ?? null;
 }
 
 async function hostReviewDiscussion(hostAccountId: string, requestId: string) {
@@ -97,7 +89,7 @@ export async function hostReviewSession(t: EvalContext, hostAccountId: string, r
         await db`
           insert into app.imessage_receipts
             (id, channel, message_id, webhook_id, sender_hash, space_hash, space_type, content_type, payload_sha256, outcome, processed_at)
-          values (${clientInputId}, ${channel}, ${`eval-${clientInputId}`}, 'eval', ${hex(`s-${clientInputId}`)}, ${hex(`p-${clientInputId}`)},
+          values (${clientInputId}, ${channel}, ${`eval-${clientInputId}`}, 'eval', ${(await db<{ sender_hash: string }[]>`select sender_hash from app.imessage_bindings where host_account_id = ${hostAccountId} and state = 'active'`)[0]?.sender_hash ?? hex(`s-${clientInputId}`)}, ${hex(`p-${clientInputId}`)},
                   'dm', 'text', ${hex(message)}, 'forwarded', now())
         `;
       }

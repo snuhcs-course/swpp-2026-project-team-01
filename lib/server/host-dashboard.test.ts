@@ -3,6 +3,7 @@ import { type BookingRow, bookedEvent, receivedEvent } from "./host-dashboard";
 
 function row(overrides: Partial<BookingRow> = {}): BookingRow {
   return {
+    state: "confirmed",
     calendar_id: "primary",
     contact_confirmed_email: "grace@example.com",
     contact_email: "grace@example.com",
@@ -21,6 +22,13 @@ function row(overrides: Partial<BookingRow> = {}): BookingRow {
 }
 
 describe("host dashboard booked meetings", () => {
+  it.each(["reserved", "dispatching"] as const)("marks a %s booking as approved and still being added", (state) => {
+    const event = bookedEvent(row({ state, payload: null, evidence: null }));
+    expect(event).toMatchObject({ source: "thyme", state: "booking", title: "Approved meeting · Adding to Google Calendar" });
+    expect(event.meeting?.requestId).toBe("request-1");
+    expect(bookedEvent(row())).not.toHaveProperty("state");
+  });
+
   it("carries an online meeting's length, mode, Meet link, guest and request", () => {
     const event = bookedEvent(row());
     expect(event).toMatchObject({ id: "thyme:booking-1", location: null, source: "thyme", title: "Project kickoff" });

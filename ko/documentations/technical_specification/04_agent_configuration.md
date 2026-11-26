@@ -2,8 +2,8 @@
 
 # 에이전트 구성
 
-상태: 기본 지침, 웹 채널, 호스트 설정 및 요청자 대상 구현 완료(Phase 1부터 3까지); 호스트 검토 대상은 [`host-review-and-booking` 변경](../../openspec/changes/archive/2026-11-24-host-review-and-booking/design.md#12-host-review-tools-and-fragment)에서 제안됨(Phase 4); 다른 채널은 제안 상태\
-날짜: 2026-10-19\
+상태: 계정 어시스턴트 세션 구현 완료; 데이터베이스 마이그레이션과 통합 인수 검증 대기\
+날짜: 2026-11-26\
 근거: [기술 개요](../04_technical_specification.md), [백엔드 아키텍처](01_backend_architecture.md), [프런트엔드 아키텍처](02_frontend_architecture.md), [대화 접근 계약](../../openspec/specs/conversation-access/spec.md), [모델 실행 계약](../../openspec/specs/model-execution/spec.md), [채팅 워크스페이스 계약](../../openspec/specs/chat-workspaces/spec.md)\
 관련 문서: [호스트 온보딩 흐름](../user_experience/05_host_onboarding_flow.md), [게스트 예약 흐름](../user_experience/06_guest_booking_flow.md)
 
@@ -13,13 +13,13 @@
 
 1. **애플리케이션이 권한을 소유합니다.** 세션, 도구 호출, 승인 프롬프트, OAuth 허가는 호스트 자격, 요청자 동의, 호스트 승인, 예약을 성립시키지 않습니다. 이들은 리비전과 재시도 식별자를 갖춘 도메인 명령입니다([애플리케이션 명령](../../openspec/specs/application-commands/spec.md) 참고).
 2. **모델은 대상(audience) 프로젝션을 봅니다.** 서버 측 필터링은 직렬화와 모델 컨텍스트보다 먼저 수행됩니다. 구조화된 연락처 필드는 존재 여부 표시로만 모델에 전달되며, 인식된 자격 증명은 저장 전에 제거됩니다.
-3. **하나의 에이전트, 세 가지 대상.** 호스트 설정, 호스트 비공개 요청 논의, 공유 요청자 논의는 같은 루트 에이전트의 별개 세션이며, 공유 요청자 논의는 공개 페이지에서 게스트가 보낸 첫 메시지와 함께 초안 요청으로 시작됩니다. 대상은 메시지가 아니라 세션 principal(주체)에서 도출됩니다.
+3. **하나의 계정 어시스턴트와 분리된 요청자 대상.** 현재 연결된 메신저는 설정, 받은 요청, 보낸 요청, 일정, 설정 변경을 하나의 정규 대화(내부 이름 `host_setup`)에서 처리합니다. 요청은 세션을 선택하지 않고 ref로 지정합니다. 계정이 없는 게스트는 기존 요청별 대화와 요청자 프로젝션을 유지합니다. 호스트당 활성 바인딩 하나라는 제약도 유지합니다.
 4. **사람의 결정은 모델 도구가 아니지만, 사람이 있는 곳에서 말로 내리는 결정은 예외입니다.** 설정 확인, 동의, 승인, 거절, 철회, 예약은 카드 또는 정확히 작성된 채널 명령으로 호출되는 애플리케이션 명령입니다. 요청자가 말로 내리는 결정과, 호스트가 연동된 iMessage, WhatsApp, Telegram에서 말로 내리는 결정([`channel-actions-in-words`](../../openspec/changes/channel-actions-in-words/proposal.md#decisions))은 사람이 본 것에 대해서만 같은 명령을 실행하는 도구이며, 웹에서 호스트는 카드로만 결정합니다. 모델은 예약을 하지 않습니다.
 5. **내구성 있는 대기는 도메인 상태에 있습니다.** 일시 중지된 eve 세션은 합의나 보류 중인 제공자 효과의 기록이 아닙니다.
 
 ## eve의 위치
 
-eve는 우리 자체 대화를 실행합니다. `/app`의 호스트 워크스페이스 채팅, `/booking/[bookingId]`의 요청자 대화, 호스트의 연동된 iMessage, 요청자의 이메일 스레드가 그것입니다. 개인 에이전트(Dots, Muse, Instinct, ChatGPT, Codex, Claude, Claude Code)는 이 세션을 구동하지 않으며, 자체 인가 아래에서 MCP 또는 CLI를 통해 공유 스케줄링 API를 호출합니다([에이전트 클라이언트 인가](../../openspec/specs/agent-client-authorization/spec.md)). 두 경로 모두 `lib/server/` 아래의 같은 도메인 연산으로 이어집니다.
+eve는 현재 연결된 iMessage·WhatsApp·Telegram의 계정 어시스턴트와 웹·이메일·메신저의 요청별 게스트 대화를 실행합니다. 호스트 웹사이트에는 결정·상세 카드만 있고 채팅은 없습니다. 개인 에이전트(Dots, Muse, Instinct, ChatGPT, Codex, Claude, Claude Code)는 별도 권한으로 MCP나 CLI의 공유 일정 API를 호출합니다([에이전트 클라이언트 권한](../../openspec/specs/agent-client-authorization/spec.md)). 두 경로 모두 `lib/server/`의 같은 도메인 연산에 도달합니다.
 
 ## 디렉터리 구성
 
@@ -28,8 +28,8 @@ agent/
   agent.ts                  defineAgent: 모델, 컨텍스트 윈도우, 제공자 옵션
   instructions/             항상 적용되는 기본 규칙과 대상별 조각 하나씩
     base.md
-    host-setup.ts           호스트 설정 세션에서만 host-setup 조각을 해석
-    host-review.ts          호스트 검토 세션에서만 host-review 조각을 해석
+    host-setup.ts           setup guidance within the account assistant
+    host-review.ts          legacy local-evaluation fragment; production sessions are retired
     requester.ts            요청자 세션에서만 requester 조각을 해석
   channels/
     eve.ts                  웹 채팅: 호스트와 예약 링크를 위한 애플리케이션 세션 인증
@@ -39,7 +39,7 @@ agent/
     setup.ts                read_setup_state, draft_settings와 연동된 대화의 설정 도구
                             (set_calendar_roles, preview_next_week, confirm_settings,
                             choose_note_items, confirm_note_items),
-                            호스트 설정에서만 해석
+                            plus ../lib/account-tools.ts ref-addressed received and sent operations
     request.ts              요청 논의 도구, 대상별로 해석: 요청자에게는 read_request,
                             draft_request_review, evaluate_candidates, read_booking_status와
                             말로 내리는 결정(apply_request_review, choose_time,
@@ -53,7 +53,9 @@ agent/
   hooks/                    입력 마스킹, 사용량 집계, 대상 검사
   instrumentation/          비공개 텍스트 없이 추적 및 한도 보고
   connections/              의도적으로 비어 있음 (연결 참고)
-  memory/                   첫 릴리스에서는 의도적으로 비어 있음 (메모리 참고)
+  lib/account-tools.ts      setup.ts가 가져오는 인라인 도구 정의; 도구 resolver가 아님
+  memory/account.ts         one Postgres-backed private account context provider
+  sandbox.ts                inert JavaScript environment; no container or VM
   subagents/                첫 릴리스에서는 없음
   schedules/                없음; 내구성 있는 작업은 애플리케이션 작업에 있음
 evals/
@@ -67,8 +69,7 @@ eve는 경로에서 이름을 도출합니다(`tools/<name>.ts`는 `<name>` 도�
 
 | 논의 | Principal(주체) | 시작 계기 | 지침 | 도구 |
 |---|---|---|---|---|
-| 호스트 설정 | `host:{hostId}` | 활성 호스트의 첫 `/app` 방문; 호스트당 하나 | base + host-setup (+ host-imessage) | `read_setup_state`, `draft_settings`, `save_assistant_notes`, `list_host_requests`, `read_schedule`, `send_schedule_image`, `set_calendar_roles`, `preview_next_week`, `confirm_settings`, `choose_note_items`, `confirm_note_items`, `start_request`, `switch_conversation` |
-| 호스트 비공개 요청 논의 | `requestId` 속성과 `host_review` 대상이 있는 `host:{hostId}`; 호스트와 요청마다 논의 하나 | 호스트가 연결한 메신저: 요청 요약, 정확한 `request <reference>` 명령 또는 `switch_conversation`. 웹은 논의를 열지 않고 `/api/chat` 라우트도 마운트하지 않으며, 마운트되지 않은 호스트 채팅 어댑터가 요청을 거절함([`remove-host-web-chat`](../../openspec/changes/archive/2026-11-23-remove-host-web-chat/proposal.md)) | base + host-review | `read_request`(호스트 프로젝션), `list_host_requests`, `evaluate_candidates`, `propose_shared_changes`, `approve_proposal`, `decline_request`, `share_changes`, `dismiss_changes`, `read_settings`, `change_settings`, `start_request`, `switch_conversation`, `read_booking_status` |
+| 계정 어시스턴트 | `host:{hostId}`, 정규 `host_setup` 대화 | 현재 연결된 호스트 메신저; 채널이 바뀌어도 계정당 하나의 대화 유지 | base + host-setup + host-imessage | 설정, 요청 목록, `read_request({ref})`, 일정·이미지, `decide_requests`, ref별 변경·질문·예외, 보낸 요청 도구와 `account__*` 컨텍스트 도구 |
 | 공유 요청자 논의 | `request:{requestId}` | 고정 단계(신원 확인, 캘린더 단계, 만남에 관한 페이지의 질문; [`guest-flow-completion` U8, U13](../../openspec/changes/guest-flow-completion/proposal.md#decisions)) 뒤에 예약 페이지에서 게스트가 보낸 첫 메시지, 또는 이메일로 시작된 요청의 첫 이메일; 같은 세션이 이후의 웹, 이메일, iMessage 메시지로 이어짐 | base + requester | `read_request`(요청자 프로젝션), `draft_request_review`, `evaluate_candidates`, `read_booking_status`, 그리고 말로 내리는 결정 `apply_request_review`, `choose_time`, `agree_to_proposal`, `change_agreement`, `withdraw_request`; `resend_booking_link`; `use_host_calendars` |
 
 초안 요청은 웹 시작에서 게스트가 **Continue with Google** 또는 **Continue without Google**을 누른 때부터 신원을 밝히기까지([U10](../../openspec/changes/guest-flow-completion/proposal.md#decisions))만 존재합니다. 호스트에게 보이지 않고, 메시지를 받지 않으며, 신원을 밝히지 않으면 24시간 뒤 삭제됩니다. 어시스턴트는 신원을 밝히지 않은 게스트와 절대 대화하지 않으므로 `ask_for_identity`는 제거되었고, 초안에서 `evaluate_candidates`, **Find times**, **Choose this time**, **Agree to this proposal**은 여전히 신원이 필요하다고 답합니다. D13 이전의 익명 공개 접수(`intake:{intakeId}`, `read_intake`, `draft_intake`)는 더 이상 만들어지거나 등록되지 않으며, 그 이전의 접수 대화 기록은 그것이 된 요청의 예약 링크에서 계속 읽을 수 있습니다.
@@ -93,21 +94,23 @@ eve principal은 사람의 신원이 아니라 대상입니다. 요청자에게�
 
 | 도구 | 대상 | 효과 | eve 승인 정책 |
 |---|---|---|---|
-| `read_setup_state` | 호스트 설정 | 현재 초안, 저장된 역할, 분석 근거, 다음 행동; 캘린더 이름과 그 인덱스, 그리고 `placeCandidates`(자주 나온 이벤트 장소 최대 다섯 개와 그 횟수, [`host-onboarding-in-chat` 설계 4](../../openspec/changes/host-onboarding-in-chat/design.md#4-the-place-question))는 인용된 데이터로만. 연동된 채팅이 있는 호스트에게는 `chatOnboarding`이 온보딩 메모 단계(`noteReview`: `waiting`, `done` 또는 없음)와 그 채팅에 마지막으로 보낸 슬롯 이미지(`slotPreview`: 그 `reviewRef`, 현재 검토의 것인지 여부, `sending`, `delivered` 또는 `not_delivered`)를 알려 줌. 작업이 어시스턴트의 마지막 도구 결과 뒤에 그 이미지를 보낼 수 있기 때문임([`calendar-note-review` 설계 8](../../openspec/changes/calendar-note-review/design.md#8-the-note-step-in-chat-onboarding)) | never |
-| `draft_settings` | 호스트 설정 | 리비전과 함께 초안 값을 기록하고 각 값을 명시됨 또는 추론됨으로 표시함(시작 기본값은 서비스 자체의 것); 정책은 절대 아니며, 방식, 장소, 이동 수단은 호스트가 카드에서 수락하거나 그것을 보여 주는 슬롯 이미지에 동의한 뒤에만 인정됨 | never |
+| `read_setup_state` | 계정 어시스턴트 | 현재 초안, 저장된 역할, 분석 근거, 다음 행동; 캘린더 이름과 그 인덱스, 그리고 `placeCandidates`(자주 나온 이벤트 장소 최대 다섯 개와 그 횟수, [`host-onboarding-in-chat` 설계 4](../../openspec/changes/host-onboarding-in-chat/design.md#4-the-place-question))는 인용된 데이터로만. 연동된 채팅이 있는 호스트에게는 `chatOnboarding`이 온보딩 메모 단계(`noteReview`: `waiting`, `done` 또는 없음)와 그 채팅에 마지막으로 보낸 슬롯 이미지(`slotPreview`: 그 `reviewRef`, 현재 검토의 것인지 여부, `sending`, `delivered` 또는 `not_delivered`)를 알려 줌. 작업이 어시스턴트의 마지막 도구 결과 뒤에 그 이미지를 보낼 수 있기 때문임([`calendar-note-review` 설계 8](../../openspec/changes/calendar-note-review/design.md#8-the-note-step-in-chat-onboarding)) | never |
+| `draft_settings` | 계정 어시스턴트 | 리비전과 함께 초안 값을 기록하고 각 값을 명시됨 또는 추론됨으로 표시함(시작 기본값은 서비스 자체의 것); 정책은 절대 아니며, 방식, 장소, 이동 수단은 호스트가 카드에서 수락하거나 그것을 보여 주는 슬롯 이미지에 동의한 뒤에만 인정됨 | never |
 | `read_request` | 호스트 또는 요청자 | 현재 요청, 제안 버전, 결정, 허용된 대화를 대상별로 프로젝션하여 제공하며, 읽는 사람의 시간대로 오늘 날짜를 함께 줌(호스트에게는 시각과 이번 주, 다음 주도 함께, #273); 초안의 경우 `identified: false`와 연락처 존재 여부 `absent`. 요청자 프로젝션에만 `host.notes`가 추가되며, 이는 Thyme에게 남기는 호스트의 메모를 용도와 함께 인용된 데이터로 담고 있고, 브라우저의 이벤트 스트림에서는 가려짐(`audienceSafe`의 `redactHostNotes`) | never |
-| `list_host_requests` | 호스트 설정 또는 호스트 검토 | 참조, 상태, 결정이 필요한지 여부, 예약되었거나 제안된 시간과 그 시간이 속한 주와 함께 호스트의 요청, 그리고 호스트 시간대의 현재 날짜와 시각, 이번 주와 다음 주(월요일부터 일요일까지)(#300); 프로젝션을 넘어서는 요청자의 비공개 데이터는 없음. 설정에서는 #138부터부터. 그와 별개로 `sent`: 호스트가 다른 호스트에게 보낸 요청을 호스트, 목적, 상태, 참조별로 나열(R01 M-8) | never |
-| `read_schedule` | 호스트 설정 | Dashboard 프로젝션을 통해 호스트의 일정을 최대 31일(기본: 오늘부터 7일) 읽음: Find Me a Time 예약(`booked_meeting`), 호스트가 고른 Google Calendar의 다른 일정(`calendar_event`), 제안된 시간에 결정을 기다리는 받은 요청(`request_to_decide`), 호스트가 보낸 요청(`sent_request`)을 현지 시각, 각 일정이 속한 주, 현재 날짜와 함께 반환; 제목, 장소, 이름은 인용된 데이터이며 연락처와 참여 링크는 제외. 아무것도 쓰지 않음([`host-schedule-views`](../../openspec/changes/archive/2026-11-23-host-schedule-views/design.md)); MCP의 `get_schedule`도 같은 결과를 반환 | never |
-| `send_schedule_image` | 호스트 설정 | 연결된 iMessage, WhatsApp, Telegram 대화에서 온 메시지에만 해당: `read_schedule`이 읽는 것과 같은 프로젝션의 현지 날짜 최대 7일치를 종류별로 그린 그림 한 장을 자체 outbox 종류(`schedule_image`, 설정 검토 해시 없음이라 슬롯 미리보기로 세어지지 않음)로 큐에 넣고, 답장을 글로 쓸 수 있도록 그 항목들을 반환. 그릴 수 없는 그림은 아무것도 보내지 않음([`messenger-schedule-image`](../../openspec/changes/archive/2026-11-24-messenger-schedule-image/design.md)) | never |
-| `save_assistant_notes` | 호스트 설정 | 호스트의 말을 바탕으로, 웹이나 연동된 대화에서, Thyme에게 남기는 호스트의 메모 전체를 초안과 별개로 즉시 저장함; `read_setup_state`가 현재 `assistantNotes`를 제공함([`host-preference-notes`](../../openspec/changes/archive/2026-11-23-host-preference-notes/design.md)) | never |
+| `list_host_requests` | 계정 어시스턴트 | 참조, 상태, 결정이 필요한지 여부, 예약되었거나 제안된 시간과 그 시간이 속한 주와 함께 호스트의 요청, 그리고 호스트 시간대의 현재 날짜와 시각, 이번 주와 다음 주(월요일부터 일요일까지)(#300); 프로젝션을 넘어서는 요청자의 비공개 데이터는 없음. 설정에서는 #138부터부터. 그와 별개로 `sent`: 호스트가 다른 호스트에게 보낸 요청을 호스트, 목적, 상태, 참조별로 나열(R01 M-8) | never |
+| `read_schedule` | 계정 어시스턴트 | Dashboard 프로젝션을 통해 호스트의 일정을 최대 31일(기본: 오늘부터 7일) 읽음: Find Me a Time 예약(`booked_meeting`), 호스트가 고른 Google Calendar의 다른 일정(`calendar_event`), 제안된 시간에 결정을 기다리는 받은 요청(`request_to_decide`), 호스트가 보낸 요청(`sent_request`)을 현지 시각, 각 일정이 속한 주, 현재 날짜와 함께 반환; 제목, 장소, 이름은 인용된 데이터이며 연락처와 참여 링크는 제외. 아무것도 쓰지 않음([`host-schedule-views`](../../openspec/changes/archive/2026-11-23-host-schedule-views/design.md)); MCP의 `get_schedule`도 같은 결과를 반환 | never |
+| `send_schedule_image` | 계정 어시스턴트 | 연결된 iMessage, WhatsApp, Telegram 대화에서 온 메시지에만 해당: `read_schedule`이 읽는 것과 같은 프로젝션의 현지 날짜 최대 7일치를 종류별로 그린 그림 한 장을 자체 outbox 종류(`schedule_image`, 설정 검토 해시 없음이라 슬롯 미리보기로 세어지지 않음)로 큐에 넣고, 답장을 글로 쓸 수 있도록 그 항목들을 반환. 그릴 수 없는 그림은 아무것도 보내지 않음([`messenger-schedule-image`](../../openspec/changes/archive/2026-11-24-messenger-schedule-image/design.md)) | never |
+| `save_assistant_notes` | 계정 어시스턴트 | 명시적으로 요청한 게스트 모델용 지침만 초안 밖에서 즉시 저장하며 비공개 기억은 저장하지 않습니다. `read_setup_state`가 현재 `assistantNotes`를 반환합니다([`host-preference-notes`](../../openspec/changes/archive/2026-11-23-host-preference-notes/design.md)) | never |
 | `approve_proposal`, `decline_request`, `share_changes`, `dismiss_changes` | 호스트 검토 | 연동된 대화에서 호스트가 말로 내리는 결정([`host-imessage-channel` D23](../../openspec/changes/archive/2026-11-24-host-imessage-channel/proposal.md#decisions), [`channel-actions-in-words`](../../openspec/changes/channel-actions-in-words/proposal.md#decisions) D1): 각각 채널 접두사가 붙은 메시지에 답하는 턴이 아니거나, 현재 제안 버전 또는 대기 중인 제안을 명시하지 않으면 거부하며, 웹 버튼의 명령을 재시도 키 `tool:{callId}`로 한 번 실행. `approve_proposal`과 `decline_request`는 선택 항목 `request`도 받습니다. 참조 번호나 요청자의 정확한 이름을 호스트 자신의 요청 가운데서 찾으므로, 한 메시지로 대화를 옮기지 않고 여러 요청을 정할 수 있습니다([`host-decisions-in-one-message`](../../openspec/changes/host-decisions-in-one-message/proposal.md#decisions), #382) | never |
 | `read_settings`, `change_settings` | 호스트 검토 | 요청의 대화에서 `read_setup_state`와 `draft_settings`를 쓰는 도구로, 연동된 대화에서 온 턴에서만 동작함: 대화가 요청에 관한 것인 호스트가 선호 장소 같은 저장된 설정을 말로 바꾸면 설정에서처럼 바로 저장됨([`channel-actions-in-words` 설계 1](../../openspec/changes/channel-actions-in-words/design.md#1-tools-for-the-remaining-actions), 이슈 #367); 웹에서는 **Settings**를 가리키는 문제를 반환함 | never |
-| `set_calendar_roles` | 호스트 설정 | 호스트가 말로 지정한 충돌 확인 캘린더와 예약 대상 캘린더를 인덱스와 인용된 이름으로 받아 캘린더 카드와 같은 확인(실시간 목록에 있을 것, 쓰기 가능한 대상)을 거쳐 저장하고 새 분석을 게시함; 연동된 대화에서 온 턴에서만 동작함([`host-onboarding-in-chat` 설계 2](../../openspec/changes/host-onboarding-in-chat/design.md#2-default-calendar-roles)) | never |
-| `preview_next_week` | 호스트 설정 | 현재 검토로부터 가용성 규칙에 따라 다음 주의 빈 슬롯을 계산하고, 장소와 함께 한 장의 이미지로 연동된 대화에 보내도록 대기열에 넣음; 빈 시간 범위와 검토 참조를 돌려줌. 온보딩 중 스캔에 답하지 않은 메모 후보가 있으면 대신 메모 검토 링크를 연동된 채팅마다 한 번 보내고, 호스트가 그 페이지에서 확인을 누르면 작업이 이미지를 이어서 보냄; `skipNoteReview`는 검토 없이 이미지를 보냄([`calendar-note-review` 설계 8](../../openspec/changes/calendar-note-review/design.md#8-the-note-step-in-chat-onboarding)). 첫 저장 전에 채팅에 마지막으로 보낸 이미지가 현재 검토의 것이고 보내는 중이거나 전달되었다면, 누가 보냈든 사본을 보내지 않고 검토 참조와 빈 시간 범위와 함께 `alreadySent`를 알림; 설정이 바뀌었거나 이미지가 전달되지 않았다면 새 이미지를 보냄. 연동된 대화에서 온 턴에서만 동작함([설계 5](../../openspec/changes/host-onboarding-in-chat/design.md#5-the-slot-image-and-saving)) | never |
-| `confirm_settings` | 호스트 설정 | `confirm <ref>`처럼, 연동된 대화에서 온 호스트의 말에 대해서만 `read_setup_state`의 `reviewRef`가 가리키는 현재 설정 검토를 저장. 그 대화에 마지막으로 보낸 슬롯 이미지가 그 검토의 것이어야 하며, 이미지가 보여 주는 명시된 방식, 장소, 이동 수단을 수락된 것으로 함([설계 5](../../openspec/changes/host-onboarding-in-chat/design.md#5-the-slot-image-and-saving)) | never |
-| `choose_note_items`, `confirm_note_items` | 호스트 설정 | 주간 메모 목록에 번호로 답함([`calendar-note-review` 설계 11](../../openspec/changes/calendar-note-review/design.md#11-answering-by-number)), 목록은 `read_setup_state`의 `weeklyNoteList.reviewRef`로 지정함. `choose_note_items`는 이전 목록, 목록에 없는 번호, 그 뒤 바뀐 항목(Google에서 다시 읽음)을 고정된 답으로 거절함; 항목을 바쁨으로 유지하는 것은 즉시 기록되지만, 비우는 것은 대기 중인 선택만 저장하고 제목을 인용된 데이터로 담은 확인 문구를 돌려줌. `confirm_note_items`는 그 확인 문구보다 나중 턴에서만, 한 번, 재시도 키 `tool:{callId}`로 메모 결정의 쓰기 반영을 통해 그 선택을 비움. 연동된 대화에서 온 턴에서만 동작함 | never |
-| `start_request` | 호스트 설정 또는 호스트 검토 | 호스트가 보낸 예약 링크나 @handle의 호스트에게 가는 요청을 호스트의 계정 명의(이름, Google 주소, 시간대, 호스트 캘린더)로 시작하거나 이어가고, 그 요청의 게스트 대화를 연동된 호스트 대화에 연결해 그곳에서 선택된 상태로 둠. 연동된 대화에서 온 메시지에 대해서만 동작하며, 호스트 본인의 링크는 아무것도 시작하지 않음([host-as-guest-messenger](../../openspec/changes/archive/2026-11-23-host-as-guest-messenger/proposal.md)) | never |
-| `switch_conversation` | 호스트 설정 또는 호스트 검토 | 연동된 대화에서 온 메시지에 대해서만 연동된 대화를 지정한 요청으로, 또는 설정으로 되돌림([`host-imessage-channel` D26](../../openspec/changes/archive/2026-11-24-host-imessage-channel/proposal.md#decisions)) | never |
+| `set_calendar_roles` | 계정 어시스턴트 | 호스트가 말로 지정한 충돌 확인 캘린더와 예약 대상 캘린더를 인덱스와 인용된 이름으로 받아 캘린더 카드와 같은 확인(실시간 목록에 있을 것, 쓰기 가능한 대상)을 거쳐 저장하고 새 분석을 게시함; 연동된 대화에서 온 턴에서만 동작함([`host-onboarding-in-chat` 설계 2](../../openspec/changes/host-onboarding-in-chat/design.md#2-default-calendar-roles)) | never |
+| `preview_next_week` | 계정 어시스턴트 | 현재 검토로부터 가용성 규칙에 따라 다음 주의 빈 슬롯을 계산하고, 장소와 함께 한 장의 이미지로 연동된 대화에 보내도록 대기열에 넣음; 빈 시간 범위와 검토 참조를 돌려줌. 온보딩 중 스캔에 답하지 않은 메모 후보가 있으면 대신 메모 검토 링크를 연동된 채팅마다 한 번 보내고, 호스트가 그 페이지에서 확인을 누르면 작업이 이미지를 이어서 보냄; `skipNoteReview`는 검토 없이 이미지를 보냄([`calendar-note-review` 설계 8](../../openspec/changes/calendar-note-review/design.md#8-the-note-step-in-chat-onboarding)). 첫 저장 전에 채팅에 마지막으로 보낸 이미지가 현재 검토의 것이고 보내는 중이거나 전달되었다면, 누가 보냈든 사본을 보내지 않고 검토 참조와 빈 시간 범위와 함께 `alreadySent`를 알림; 설정이 바뀌었거나 이미지가 전달되지 않았다면 새 이미지를 보냄. 연동된 대화에서 온 턴에서만 동작함([설계 5](../../openspec/changes/host-onboarding-in-chat/design.md#5-the-slot-image-and-saving)) | never |
+| `confirm_settings` | 계정 어시스턴트 | `confirm <ref>`처럼, 연동된 대화에서 온 호스트의 말에 대해서만 `read_setup_state`의 `reviewRef`가 가리키는 현재 설정 검토를 저장. 그 대화에 마지막으로 보낸 슬롯 이미지가 그 검토의 것이어야 하며, 이미지가 보여 주는 명시된 방식, 장소, 이동 수단을 수락된 것으로 함([설계 5](../../openspec/changes/host-onboarding-in-chat/design.md#5-the-slot-image-and-saving)) | never |
+| `choose_note_items`, `confirm_note_items` | 계정 어시스턴트 | 주간 메모 목록에 번호로 답함([`calendar-note-review` 설계 11](../../openspec/changes/calendar-note-review/design.md#11-answering-by-number)), 목록은 `read_setup_state`의 `weeklyNoteList.reviewRef`로 지정함. `choose_note_items`는 이전 목록, 목록에 없는 번호, 그 뒤 바뀐 항목(Google에서 다시 읽음)을 고정된 답으로 거절함; 항목을 바쁨으로 유지하는 것은 즉시 기록되지만, 비우는 것은 대기 중인 선택만 저장하고 제목을 인용된 데이터로 담은 확인 문구를 돌려줌. `confirm_note_items`는 그 확인 문구보다 나중 턴에서만, 한 번, 재시도 키 `tool:{callId}`로 메모 결정의 쓰기 반영을 통해 그 선택을 비움. 연동된 대화에서 온 턴에서만 동작함 | never |
+| `start_request` | 계정 어시스턴트 | 검증된 계정 신원과 기존 도메인 명령으로 보낸 요청을 시작·계속하고 `get_sent_request`에 사용할 ref를 반환합니다. 알림은 같은 메신저에 도착하되 대화를 선택하지 않습니다 | never |
+| `decide_requests` | 계정 어시스턴트 | 한 호출에서 승인·거절·취소 항목을 처리합니다. 각 항목은 ref, 제안 버전, 예상 리비전, 안정된 재시도 키와 독립 결과를 가지며 웹·MCP 도메인 명령에 위임합니다. 오래되거나 모호한 항목이 명확한 다른 항목을 막지 않습니다 | never |
+| `get_sent_request`와 보낸 요청 동작 도구 | 계정 어시스턴트 | 명시한 보낸 요청 ref를 기존 요청자 프로젝션으로 처리하고 상대 호스트의 비공개 상태는 숨깁니다. 같은 세션에서 일반 설정과 본인 일정도 조회할 수 있습니다 | never |
+| `account__*` | 계정 어시스턴트 전용 | 비공개 컨텍스트 조회, 알림을 동반한 기억 저장, 잊기, 최신 미해결 질문과 보류 항목; 메모리 절 참고 | never |
 | `draft_request_review` | 요청자 | 세부 정보, 가용 시간, 질문 또는 알 수 없는 의도를 작성된 확인 질문과 함께 선언하며, 요청자가 밝힌 것은 바로 적용하고 요청이 준비되면 시간을 찾음. 추정한 값(`inferredTime`, `inferredMode`), 충돌하는 값, 연락처 값에 대해서만 대기 중 검토를 생성하고, 요청자는 이를 카드에서 또는 말로 `apply_request_review`를 통해 적용([`apply-stated-details`](../../openspec/changes/archive/2026-11-23-apply-stated-details/proposal.md)). 요청자 지침은 호스트의 제안이 열어 둔 것이 하나도 빠지지 않았을 때에만 검토 하나를 작성하며(U13), 이름과 이메일은 신원 카드에서만 받음 | never |
 | `evaluate_candidates` | 호스트 또는 요청자 | 결정론적 실현 가능성 평가를 내구성 있는 애플리케이션 작업으로 시작하고, 최대 20초 동안 기다려 대상 프로젝션을 반환하며, 아직 실행 중이면 평가의 식별자를 반환; 요청자 프로젝션은 제안된 시간을 시간 카드가 처음 보여 주는 세 개와 **Find other times**가 다음에 보여 주는 나머지로 나눔([U11](../../openspec/changes/guest-flow-completion/proposal.md#decisions)); 같은 리비전에서 실행 중인 평가가 있으면 새로 만들지 않고 그것을 반환하며, 요청 하나는 시간당 최대 10회 시작; 결과는 버전이 있는 카드로도 도착([3단계 설계](../../openspec/changes/archive/2026-11-02-requester-intake-and-feasibility/design.md#8-evaluation-runs-as-an-application-job)). 초안에서는 아무것도 찾지 않고 `identityRequired`로 답함 | never |
 | `propose_shared_changes` | 호스트 | **제안된 공유 변경 검토(Review proposed shared changes)** 카드를 위해 호스트가 요청한 변경된 공유 세부 정보(시간, 소요 시간, 방식, 장소 또는 링크)만 정확히 초안으로 작성하며, 요청자의 가능 시간대 밖의 시간도 그대로 작성함. 대기 중인 제안을 대체하면서 그 제안의 다른 변경 사항은 유지함([`host-assistant-story-fixes`](../../openspec/changes/archive/2026-11-23-host-assistant-story-fixes/proposal.md), #275); 공유는 시간을 확인 요청으로 제출하고 통과할 때에만 다음 제안 버전을 만드는 별도의 명령 | never |
@@ -141,20 +144,15 @@ eve의 승인 정책(`once`, `always`, 사용자 정의)은 도구 실행을 제
 
 1~4계층이 권한 경계이며, 프롬프트 인젝션 상황에서 도메인 테스트와 통합 테스트로 증명합니다. 5계층은 어조와 유용성을 정하며 evals로 검사합니다. 어떤 지침도 1~4계층이 막은 기능을 부여하지 않고, 사용자가 무엇을 입력하든 그 기능을 되살릴 수 없습니다.
 
-| 도구 | 호스트 설정 | 호스트 검토 | 요청자(초안 포함) |
-|---|---|---|---|
-| `read_setup_state` | 있음 | 없음 | 없음 |
-| `draft_settings`, `save_assistant_notes` | 있음 | 없음 | 없음 |
-| `draft_settings` | 있음 | 없음 | 없음 |
-| `read_settings`, `change_settings` | 없음 | 있음, 연동된 대화의 턴에서만 | 없음 |
-| `set_calendar_roles`, `preview_next_week`, `confirm_settings`, `choose_note_items`, `confirm_note_items` | 있음, 연동된 대화의 턴에서만 | 없음 | 없음 |
-| `read_request` | 없음 | 있음, 호스트 프로젝션 | 있음, 요청자 프로젝션 |
-| `list_host_requests` | 없음 | 있음 | 없음 |
-| `draft_request_review` | 없음 | 없음 | 있음 |
-| `evaluate_candidates` | 없음 | 있음 | 있음, 초안에서는 `identityRequired` |
-| `propose_shared_changes` | 없음 | 있음 | 없음 |
-| `read_booking_status` | 없음 | 있음 | 있음 |
-| `apply_request_review`, `choose_time`, `agree_to_proposal`, `change_agreement`, `withdraw_request` | 없음 | 없음 | 있음 |
+| 도구 | 계정 어시스턴트 | 계정이 없는 요청자 |
+|---|---|---|
+| 초기 설정·일정·이미지·설정 변경 도구 | 있음; 설정 상태에 따라 동작 제한 | 없음 |
+| `read_request`, `evaluate_candidates`, `read_booking_status` | 받은 요청 ref와 호스트 프로젝션 | 본인 요청과 요청자 프로젝션 |
+| `list_host_requests`, `decide_requests` | 있음; 결정마다 버전·리비전과 결과 독립 | 없음 |
+| 받은 요청 제안·공유·폐기, 게스트 질문과 예외 | ref별 제공, 기존 명령 검사 유지 | 없음 |
+| `get_sent_request`, 보낸 요청 상세·시간·동의·예약 도구 | 검증된 계정 연결과 요청자 프로젝션으로 제공 | 없음; 기존 요청자 도구 유지 |
+| `account__list`, `account__remember`, `account__forget`, `account__question`, `account__defer` | 비공개 범위에 고정된 컨텍스트 | 없음 |
+| `switch_conversation` | 제거됨 | 없음 |
 
 "없음"은 그 principal에 등록되지 않았다는 뜻이지, "호출하면 거부된다"는 뜻이 아닙니다.
 
@@ -170,7 +168,24 @@ eve의 승인 정책(`once`, `always`, 사용자 정의)은 도구 실행을 제
 
 ## 메모리
 
-첫 릴리스에는 메모리 슬롯이 없습니다. 스케줄링 정책은 확인된 설정 명령으로만 기록되며, 요청 레코드가 이미 요청자 대화에 필요한 모든 것을 담고 있습니다. 나중에 슬롯을 추가한다면 principal을 범위로 하는 `defineMemory`(`byPrincipal`)이며, 가시성은 그 범위로 제한되고, 권한 없는 맥락만 담으며, 요청자 principal에 대해서는 생성되지 않고, 테넌트를 확정할 수 없는 곳에서는 `null` 범위로 비활성화됩니다. 파일 제공자는 로컬 개발 전용입니다.
+`agent/memory/account.ts`는 검증된 계정 범위의 `app.host_assistant_context`를 사용하는 단일 custom provider입니다. 요청자에게는 활성화되지 않습니다. 매 턴 시작과 compaction 뒤 안정된 ID의 세 레코드를 교체해 회상합니다: 최신 DB 상태(결정 대기 ref·버전·시간, 앞으로 7일 예약, 보낸 요청 요약, 설정 단계, 현재 시각·시간대), 미해결 질문·보류 항목 ledger, 적격 비공개 호스트 기억입니다. 빈 값으로 교체하면 과거 회상 값도 비웁니다. 스냅샷은 compaction 요약에서 제외하고 기억으로 저장하지 않습니다. 최근 턴은 eve의 기본 compaction 임계값 0.6에 도달할 때까지 원문으로 유지합니다. `account` 슬롯은 파생 `tools/account.ts` 경로를 예약합니다. 작성한 헬퍼는 `agent/lib/`에 두어 `account__*` 도구를 가리지 않습니다.
+
+메모리는 호스트의 현재 입력에서 적격 문구를 그대로 저장하며 요청자 이름·목적, 캘린더 제목, 도구에서 얻은 사실은 저장하지 않습니다. 실행 가능성 정책이 아닌 대화 맥락입니다. 규칙은 계정 세션의 유일한 설정 쓰기 도구인 `draft_settings`로 처리합니다(첫 확인 전에는 초안, 준비 완료 뒤에는 변경 즉시 저장). 저장은 먼저 준비 상태가 되며 완료된 응답에 한 줄 알림이 있을 때만 회상 대상이 됩니다. 말로 조회·잊기를 요청할 수 있고 기한이 있는 생활 맥락에는 만료 시각이 필요합니다. 잊거나 만료된 내용은 지우고 재실행 방지 표식만 남깁니다. 기존 운영자·예약 계정 삭제 경로는 계정 FK를 통해 이 컨텍스트도 지웁니다. 기억을 잊어도 대화 기록은 지워지지 않습니다. `assistant_notes`는 게스트 모델용 지침이며 비공개 기억을 저장하지 않습니다.
+
+ledger는 대상 방향·ref·버전·리비전·결정과 함께 최신 질문의 정확한 문구, 도메인 상태에 없는 보류 항목을 저장합니다. 한정 없는 “네”는 현재 대상과 대조하며 알림은 대상을 바꾸지 않습니다. 쓰기는 관찰한 리비전, 계정 범위 잠금, 원본 입력 식별자와 중복 방지를 사용합니다. 도구와 회상은 활성 계정·세션 세대·연결된 입력을 다시 검사합니다. 호스트당 활성 바인딩 하나인 인덱스는 유지합니다.
+
+서비스가 보낸 온보딩 질문은 Eve 기록이 아니라 outbox에 있습니다. `read_setup_state.chatOnboarding.hoursQuestion`은 전달한 질문의 원래 분석 기반 시간·시간대·전달 상태·현재 유효 여부·응답 대기 여부를 노출합니다. 확인된 ledger 질문이 우선하며, 전달 완료·현재 유효·응답 대기인 서비스 시간 질문만 설정의 동의 답변에 구체적인 시간을 제공할 수 있습니다. 받은 요청이나 보낸 요청의 결정을 허가하지 않으며, 이후 분석이 원래 제안을 조용히 대체하지 않습니다.
+
+진행 중인 턴에서 제공자의 ledger 회상·조회는 같은 턴의 `inFlight` 준비 쓰기도 노출하므로 compaction 뒤 준비 호출을 반복하지 않습니다. 최종 응답의 정확한 알림이 필요한 미확인 상태이며 결정을 허가하지 않습니다. 컨텍스트 쓰기·capture는 드라이버 JSON 인코더로 JSONB 객체를 한 번만 인코딩하며 DB의 객체·크기 제약은 유지합니다.
+
+계정의 `read_request`는 현재 요청·제안, 정확히 일치하는 실행 가능성 근거와 간결한 평가 개수를 반환합니다. 전체 대안 후보·제외 목록은 `evaluate_candidates`가 제공합니다. 단순 설명 중 긴 대안 목록으로 compaction이 발생하는 것을 줄입니다. 일정 결과에는 주차 안내를 공유하는 하나의 응답 규칙이 있으며 주변 확정 예약을 주차별로 구분합니다. 샘플 승인·거절은 결정 배치를 한 번 사용하고 실제 일정·게스트 알림이 없는 튜토리얼 완료 메시지를 반환합니다. 계정 도구의 `finish_sample_tutorial`은 샘플 변경·종료에만 사용합니다.
+
+
+루트에는 샌드박스를 쓰는 도구가 없습니다(`defaultTools: false`). `just-bash` 버전을 고정하고 `JustBashSandbox` 환경을 명시하여 eve가 컨테이너나 VM 없이 필수 환경을 준비하게 합니다. 모든 비공개 컨텍스트는 해당 파일 시스템이나 Blob이 아닌 Postgres에 저장합니다.
+
+계정 도구는 전체 응답 문장과 포함 항목을 구조화한 `reply`를 반환합니다. 조회 기간의 일정과 다른 주의 확정 예약, 또는 예약 링크·튜토리얼 제안을 포함한 설정 완료를 함께 전달합니다. 보류 응답은 서비스의 말투로 확인하며, 호스트의 1인칭 인용은 저장된 맥락일 뿐 응답 문구로 쓰지 않습니다. 완료한 샘플 결정은 명시적인 완료 응답을 반환하고, 후속 목록·조회는 소유권을 확인한 DB 상태에서 튜토리얼 완료를 복구하므로 빈 진행 목록을 작업 실패로 해석하지 않습니다. 설정 결과의 `nextQuestion`은 시간 답변 뒤 지역·온라인 가능 여부·이동 수단을 한 질문에 유지합니다.
+
+Eve 작업 상태는 현재 턴에서 조회에 성공한 요청 ID를 최대 20개만 추적합니다. 요청 스냅샷이나 비공개 기억을 복사해 저장하지 않으며 새 턴에 ID를 지웁니다. compaction 때 기존 계정 제공자가 Postgres에서 해당 요청의 권한을 다시 확인하고 최신 상태를 읽어 회상에 포함하므로 동일한 도구 호출을 반복하지 않고 현재 근거를 사용할 수 있습니다. 다른 계정·폐기된 세션 차단은 유지하며 두 번째 비공개 기억 제공자나 DB 스키마를 추가하지 않습니다.
 
 ## 연결
 
@@ -181,7 +196,7 @@ eve의 승인 정책(`once`, `always`, 사용자 정의)은 도구 실행을 제
 | 채널 | 파일 | 신원 매핑 | 턴 정책 | 비고 |
 |---|---|---|---|---|
 | 웹 | `channels/eve.ts` | 위에서 설명한 애플리케이션 라우트 인증 | steer | 같은 오리진의 `/eve/v1/*`와 함께 `eve/react`의 `useEveAgent`, 애플리케이션 인덱스의 `initialSession`, `resume: true` |
-| 호스트 iMessage | `channels/photon.ts` | `onMessage`가 발신자의 검증된 바인딩을 조회; 연동된 호스트는 현재 선택된 요청과 함께 `host:{hostId}`로 매핑; 연동되지 않았거나 그룹인 발신자는 `null`을 반환하며 비공개 상태를 받지 않음 | queue | 정확한 명령(`request <reference>`, `review`, `changes`, 검토 참조와 함께하는 승인 또는 거절, `setup`)은 모델 턴 이전에 애플리케이션 명령으로 파싱되어 실행되며, 대기 중인 일회용 연결 코드를 담은 수신 메시지도 연동 증명으로서 같은 방식으로 소비되어 모델에 도달하지 않음; 읽음 확인과 입력 중 신호는 무시함. 랜딩의 iMessage 시작에서 온 코드에는 로그인 링크(`/imessage/continue`)로 답하고, 코드가 도착하면 발신자를 바인딩하고 호스트의 현재 상태에 따라 환영 메시지를 대기열에 넣음(시작의 코드는 대신 Google 로그인이 바인딩함, [`link-on-code`](../../openspec/changes/link-on-code/proposal.md#decisions) D1, D5): 준비된 호스트는 Thyme이 할 수 있는 일을 듣고, 사용 가능한 캘린더가 없는 호스트는 캘린더 링크(`/auth/sign-in?consent=calendar&return=imessage`)를, 그 밖의 호스트는 첫 설정 질문을 받음; 그 링크로 로그인하면 "Google에서 돌아왔다"는 메시지 하나가 대기열에 들어감([`host-imessage-channel`](../../openspec/changes/archive/2026-11-24-host-imessage-channel/proposal.md#decisions), D19). 온보딩은 `/app`과 같은 설정 세션에서 실행되며 채팅 안에서 끝남([`host-onboarding-in-chat`](../../openspec/changes/host-onboarding-in-chat/proposal.md#decisions)): 사용할 수 있는 권한이 있고 역할이 없으면 서비스가 기본 캘린더를 기본 역할로 저장하고 웹에서 캘린더를 읽을 때 그 사실을 알리고, 호스트의 코드가 도착하면 영수증 작업이 실시간 캘린더 목록을 읽어 환영 메시지에도 같은 일을 하고, 분석이 끝나면 시간 질문을 보내고, Thyme이 장소 질문을 한 뒤 슬롯 이미지를 보내고 그 이미지에 대한 호스트의 동의에 저장함(`confirm_settings`); 정확한 명령도 계속 동작함. 어떤 답장도 명령을 입력하라고 요구하지 않으며, 고정 답장은 대화의 언어(영어 또는 한국어)를 따름([`channel-actions-in-words`](../../openspec/changes/channel-actions-in-words/proposal.md#decisions) D3, D4). 스파이크는 애플리케이션이 소유하는 어댑터를 선택함([`host-imessage-channel`](../../openspec/changes/archive/2026-11-24-host-imessage-channel/proposal.md#decisions), D1): 채널의 유일한 경로인 `POST /photon/webhook`은 확인 응답 전에 서명된 영수증을 저장하고, `imessage_receipt` 작업이 매핑, 명령, 전달을 수행하며, 답장은 발신함을 통해 나감; WhatsApp Business 이벤트도 같은 경로에 도달하여 채널 `whatsapp`으로 저장됨([`host-whatsapp-channel`](../../openspec/changes/archive/2026-11-24-host-whatsapp-channel/proposal.md#decisions), D2); 같은 작업이 이를 처리하고, 대화 기록에는 `[WhatsApp]`으로 표시되며, `stop`은 어느 채널에서든 연결을 해제함 |
+| 호스트 iMessage | `channels/photon.ts` | `onMessage`가 검증된 발신자 바인딩을 조회합니다. 연결된 호스트는 정규 계정 대화의 `host:{hostId}`로 대응하며 미연결·그룹 발신자는 `null`로 비공개 상태를 받지 않습니다 | queue | 정확한 명령(`request <reference>`, `review`, `changes`, 검토 참조와 함께하는 승인 또는 거절, `setup`)은 모델 턴 이전에 애플리케이션 명령으로 파싱되어 실행되며, 대기 중인 일회용 연결 코드를 담은 수신 메시지도 연동 증명으로서 같은 방식으로 소비되어 모델에 도달하지 않음; 읽음 확인과 입력 중 신호는 무시함. 랜딩의 iMessage 시작에서 온 코드에는 로그인 링크(`/imessage/continue`)로 답하고, 코드가 도착하면 발신자를 바인딩하고 호스트의 현재 상태에 따라 환영 메시지를 대기열에 넣음(시작의 코드는 대신 Google 로그인이 바인딩함, [`link-on-code`](../../openspec/changes/link-on-code/proposal.md#decisions) D1, D5): 준비된 호스트는 Thyme이 할 수 있는 일을 듣고, 사용 가능한 캘린더가 없는 호스트는 캘린더 링크(`/auth/sign-in?consent=calendar&return=imessage`)를, 그 밖의 호스트는 첫 설정 질문을 받음; 그 링크로 로그인하면 "Google에서 돌아왔다"는 메시지 하나가 대기열에 들어감([`host-imessage-channel`](../../openspec/changes/archive/2026-11-24-host-imessage-channel/proposal.md#decisions), D19). 온보딩은 계정 세션(호스트 웹 채팅 없음)에서 실행되며 채팅 안에서 끝남([`host-onboarding-in-chat`](../../openspec/changes/host-onboarding-in-chat/proposal.md#decisions)): 사용할 수 있는 권한이 있고 역할이 없으면 서비스가 기본 캘린더를 기본 역할로 저장하고 웹에서 캘린더를 읽을 때 그 사실을 알리고, 호스트의 코드가 도착하면 영수증 작업이 실시간 캘린더 목록을 읽어 환영 메시지에도 같은 일을 하고, 분석이 끝나면 시간 질문을 보내고, Thyme이 장소 질문을 한 뒤 슬롯 이미지를 보내고 그 이미지에 대한 호스트의 동의에 저장함(`confirm_settings`); 정확한 명령도 계속 동작함. 어떤 답장도 명령을 입력하라고 요구하지 않으며, 고정 답장은 대화의 언어(영어 또는 한국어)를 따름([`channel-actions-in-words`](../../openspec/changes/channel-actions-in-words/proposal.md#decisions) D3, D4). 스파이크는 애플리케이션이 소유하는 어댑터를 선택함([`host-imessage-channel`](../../openspec/changes/archive/2026-11-24-host-imessage-channel/proposal.md#decisions), D1): 채널의 유일한 경로인 `POST /photon/webhook`은 확인 응답 전에 서명된 영수증을 저장하고, `imessage_receipt` 작업이 매핑, 명령, 전달을 수행하며, 답장은 발신함을 통해 나감; WhatsApp Business 이벤트도 같은 경로에 도달하여 채널 `whatsapp`으로 저장됨([`host-whatsapp-channel`](../../openspec/changes/archive/2026-11-24-host-whatsapp-channel/proposal.md#decisions), D2); 같은 작업이 이를 처리하고, 대화 기록에는 `[WhatsApp]`으로 표시되며, `stop`은 어느 채널에서든 연결을 해제함 |
 | 호스트 Telegram | `channels/telegram.ts` | 유일한 경로인 `POST /telegram/webhook`을 가진 사용자 정의 채널로, 봇의 비밀 헤더가 있는 업데이트만 받아 응답하기 전에 채널 `telegram`의 수신 기록으로 저장함([`host-telegram-channel`](../../openspec/changes/archive/2026-11-24-host-telegram-channel/proposal.md#decisions), D2); 발신자의 숫자 Telegram ID를 검증된 바인딩에 매핑하는 일은 iMessage와 같은 `imessage_receipt` 작업이 맡음 | queue | 호스트 iMessage와 같되 다음이 다름: 명령은 `/`로 시작하고 `@findmeatime_bot`으로 끝날 수 있음; 버튼 탭(`callback_query`)은 버튼 데이터가 가리키는 명령을 그대로 실행하되 연결된 계정에 대해서만 실행하고 `answerCallbackQuery`로 응답함; 대화 기록에는 메시지를 `[Telegram]`으로 표시함; 턴이 실행되는 동안 입력 중 표시를 보여 줌; 차단 업데이트는 `stop`처럼 바인딩을 끝냄. 응답은 Bot API 전송을 쓰는 같은 아웃박스로 평문으로 나가고, 결정을 요청하는 요약에는 인라인 버튼이 붙으며 제안이 더 이상 현재가 아니면 이후 수정으로 버튼을 제거함(D8~D11). 호스트 조각(`instructions/host-imessage.ts`)은 세 채널을 모두 언급하고, 버튼은 서비스의 요약에만 붙는다고 알림 |
 | 요청자 이메일 | `channels/agentmail.ts` | 유일한 경로인 `POST /agentmail/webhooks/:receiverId`가 인증된 AgentMail 이벤트를 먼저 내구성 있게 기록하는 사용자 정의 채널입니다([요청자 이메일 수신](../../openspec/specs/requester-email-ingress/spec.md)). 이후 `email_receipt` 작업이 인증된 발신자의 스레드를 `request:{requestId}`로 확인하고, 텍스트를 해당 요청의 단일 요청자 논의에 수락된 입력으로 전달하므로 웹과 이메일이 하나의 세션을 공유합니다([`requester-email-channel`](../../openspec/changes/archive/2026-11-24-requester-email-channel/proposal.md#decisions), D1) | queue, 애플리케이션의 한 번에 하나씩 입력 전달 방식을 통해 | 턴이 끝나면 최종 텍스트가 같은 AgentMail 스레드로 답장되며, 발신자의 주장, 전달된 링크 코드, 복사된 수신자는 아무 권한도 부여하지 않음 |
 
@@ -224,10 +239,10 @@ eve 훅은 이벤트가 내구성 있게 기록된 뒤에 실행되며, 예외�
 | 에이전트 형태 | principal별 지침과 도구 결정을 갖춘 하나의 루트 에이전트 | 대상별 에이전트 세 개: 하나의 권한 경계를 위해 세 개의 배포와 세 개의 세션 모델이 필요함 |
 | 사람의 결정 | 카드, 정확한 채널 명령, 그리고 채널에서 사람의 말에 따라 그가 본 것에 대해서만 동작하는 도구에서 나오는 애플리케이션 명령 | eve 승인 정책을 쓰는 모델 도구: 승인 프롬프트는 제품상의 동의가 아니며 제안이나 검토 참조를 담을 수 없음 |
 | 캘린더 접근 | 저장된 허가를 사용하는 도메인 코드 | eve 연결 또는 Calendar 도구: 원본 이벤트와 토큰이 세션에 들어오게 됨 |
-| 메모리 | 첫 릴리스에서는 없음 | 호스트별 프로필 슬롯: 현재 흐름에는 필요한 것이 없음 |
+| 메모리 | 스냅샷 회상·ledger·비권위적 비공개 기억을 위한 단일 계정 범위 Postgres provider | 비공개 기억에 Blob/fileMemory 또는 게스트용 assistant_notes 사용 |
 | eve 버전 | `eve` 0.80.1을 정확히 고정하고, 그 peer 범위를 위해 `ai` 7.0.143을 사용; 설치된 문서와 대조하여 확인([기반 설계](../../openspec/changes/archive/2026-11-24-application-foundation/design.md#2-runtime-version)) | 템플릿 락파일에서 가져온 유동적 범위; 템플릿의 0.73에 머무르기 |
 | 모델 | 팀의 키를 사용하는 직접 OpenAI, `gpt-5.6-terra`, eve의 `openai()` 헬퍼 경유. `FMAT_ASSISTANT_MODEL`과 `FMAT_RANKING_MODEL`로 환경별로 다른 직접 OpenAI 또는 Anthropic 모델을 고를 수 있음(#375) | 프로젝트 OIDC를 사용하는 AI Gateway: 팀이 직접 OpenAI 결제를 선택함 |
 
 ## 미결 결정
 
-Photon Spectrum과 네이티브 Photon 채널의 호환성 및 발신자 식별자 형식(애플리케이션 자체 어댑터와 Photon의 `sender.id`로 결정됨, [6단계 제안서](../../openspec/changes/archive/2026-11-24-host-imessage-channel/proposal.md#decisions), D1 및 D2, WhatsApp은 [9단계 제안서](../../openspec/changes/archive/2026-11-24-host-whatsapp-channel/proposal.md#decisions), D1부터 D3까지), `evaluate_candidates`를 eve 워크플로 도구로 실행할지 순수 애플리케이션 작업으로 실행할지(애플리케이션 작업으로 결정됨, [3단계 제안서](../../openspec/changes/archive/2026-11-02-requester-intake-and-feasibility/proposal.md#decisions), D5), AgentMail 채널을 사용자 정의 채널로 할지 Chat SDK Gmail 어댑터로 할지(사용자 정의 채널로 결정됨, [7단계 제안서](../../openspec/changes/archive/2026-11-24-requester-email-channel/proposal.md#decisions), D1), 세션 보존 및 압축 임계값, 메모리 슬롯이 유용해지는 시점(있다면).
+과거 제공자 결정은 연결된 보관 변경에 남아 있습니다. 계정 라우팅, 컨텍스트 저장과 초기 compaction 임계값 0.6은 [account-assistant-session](../../openspec/changes/account-assistant-session/design.md)에 기록되어 있으며 데이터베이스 기반 인수 검증은 대기 중입니다.

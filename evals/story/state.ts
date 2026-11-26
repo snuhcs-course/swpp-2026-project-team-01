@@ -26,7 +26,7 @@ export async function snapshot(requestId: string, hostAccountId: string): Promis
     [requestId],
   );
   rows.command_outcomes = await db.unsafe("select operation from app.command_outcomes where resource_id = $1 order by 1", [requestId]);
-  rows.imessage_bindings = await db.unsafe("select channel, state, selected_request_id from app.imessage_bindings where host_account_id = $1", [hostAccountId]);
+  rows.imessage_bindings = await db.unsafe("select channel, state from app.imessage_bindings where host_account_id = $1", [hostAccountId]);
   rows.host_settings = await db.unsafe("select settings, draft_revision from app.host_settings where host_account_id = $1", [hostAccountId]);
   // The host's other requests and their approvals, for a message that decides
   // several requests at once (issue #382).
@@ -64,7 +64,7 @@ export function view(rows: Snapshot) {
     // Every request of the host by id with its state, and every approval's request.
     hostRequests: (rows.host_requests ?? []) as { id: string; state: string }[],
     hostApprovals: ((rows.host_approvals ?? []) as { request_id: string }[]).map((row) => row.request_id),
-    selected: ((rows.imessage_bindings ?? [])[0]?.selected_request_id as string | null | undefined) ?? null,
+    selected: null,
     settings: ((rows.host_settings ?? [])[0]?.settings ?? null) as Record<string, unknown> | null,
     state: request.state ?? null,
     suggestions: (rows.shared_change_drafts ?? []) as { id: string; state: string; changes: Record<string, unknown> }[],

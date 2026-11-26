@@ -2,6 +2,7 @@ import type { DashboardEvent } from "@lib/server/host-dashboard";
 
 /** The full source name, used in accessible event labels. */
 export function sourceLabel(event: DashboardEvent) {
+  if (event.source === "thyme" && event.state === "booking") return "Approved meeting · Adding to Google Calendar";
   if (event.source === "sent") return "Sent request";
   if (event.source === "received") return "Request awaiting your decision";
   return event.source === "thyme" ? "Find Me a Time meeting" : "Google Calendar event";
@@ -18,6 +19,7 @@ export function sentState(event: DashboardEvent) {
 
 /** The short source name shown in the detail panel's agenda and badge. */
 export function detailSource(event: DashboardEvent) {
+  if (event.source === "thyme" && event.state === "booking") return "Approved · Adding to Google Calendar";
   if (event.source === "sent") return `Sent request · ${sentState(event)}`;
   if (event.source === "received") return "Received request · Needs your decision";
   return event.source === "thyme" ? "Thyme meeting" : "Google Calendar";
@@ -25,6 +27,7 @@ export function detailSource(event: DashboardEvent) {
 
 /** The note under an event's details, explaining where it comes from. */
 export function detailNote(event: DashboardEvent) {
+  if (event.source === "thyme" && event.state === "booking") return "You approved this meeting. It is being added to Google Calendar and is not yet confirmed.";
   if (event.source === "received") {
     return "A request someone sent you, shown at its proposed time. It is not booked until you approve it.";
   }
@@ -87,5 +90,5 @@ export function receivedFacts(event: DashboardEvent, when: string): MeetingFact[
 /** Who or what a calendar block is about, shown next to its time. */
 export function blockLabel(event: DashboardEvent) {
   if (event.source === "received" && event.received) return `From ${event.received.requesterName}`;
-  return event.source === "thyme" && event.meeting ? `With ${event.meeting.guest.name}` : event.title;
+  return event.source === "thyme" && event.state === "booking" ? `Approved · Adding to Google Calendar · ${event.meeting?.guest.name ?? event.title}` : event.source === "thyme" && event.meeting ? `With ${event.meeting.guest.name}` : event.title;
 }

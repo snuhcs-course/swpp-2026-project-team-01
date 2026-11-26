@@ -1,7 +1,7 @@
 import { z } from "zod";
 import { normalizeHandle, isUsableHandle } from "../contracts/handles";
 import { currentGrantAccess } from "./agent-grants";
-import { createAccountRequest, readAccountRequester } from "./account-requests";
+import { createAccountRequest, readAccountRequester, readAccountSentAccess } from "./account-requests";
 import { createRequestInput } from "./agent-requests";
 import { HOST_CALENDARS_TOOL, REQUESTER_TOOLS } from "./agent-requester-tools";
 import { type AgentTool, type AgentToolContext, commandError, retryKeySchema, runAsGrant, unavailable } from "./agent-tools";
@@ -39,16 +39,7 @@ export function sentText(text: string) {
 // An account association is established by verified identity/session, never by
 // matching the request's contact email. Keep the anonymous live-link boundary.
 async function requestContext(context: AgentToolContext, requestId: string): Promise<AgentToolContext | null> {
-  const [row] = await context.deps.db<{ host_account_id: string; closed: boolean; booked: boolean }[]>`
-    select r.host_account_id,
-           (r.closed_at is not null or r.expires_at <= now()) as closed,
-           r.state = 'booked' as booked
-    from app.requester_host_profiles p
-    join app.requests r on r.id = p.request_id
-    join app.booking_links l on l.request_id = r.id and l.expires_at > now()
-    where p.host_account_id = ${context.access.hostAccountId}
-      and r.id = ${requestId} and r.state <> 'draft'
-  `;
+  const row = await readAccountSentAccess(context.deps.db, context.access.hostAccountId, requestId);
   return row ? {
     deps: context.deps,
     access: { ...context.access, role: "requester", hostAccountId: row.host_account_id, requestId, closed: row.closed, booked: row.booked, bootstrap: false },

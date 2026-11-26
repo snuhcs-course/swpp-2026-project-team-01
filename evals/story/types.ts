@@ -58,7 +58,7 @@ export type DatabaseExpectation = {
 
 export type StoryCase = {
   readonly id: string;
-  readonly conversation: "requester" | "host_review";
+  readonly conversation: "requester" | "host_review" | "host_setup";
   readonly category: "normal" | "abnormal" | "attack";
   readonly shape: "single" | "multi" | "reorder" | "out_of_order";
   // Reordered variants of one goal share a group; each must end in the same state.

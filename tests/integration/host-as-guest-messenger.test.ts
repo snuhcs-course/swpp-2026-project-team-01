@@ -8,7 +8,6 @@ import { listSentRequests } from "../../lib/server/host-sent-requests";
 import { requestRef } from "../../lib/server/imessage-commands";
 import { createImessageNoticeHandler } from "../../lib/server/imessage-notice-job";
 import { guestNoticeKey, IMESSAGE_NOTICE_JOB } from "../../lib/server/imessage-notices";
-import { GUEST_TEXTS } from "../../lib/server/imessage-receipts";
 import { imessageHash } from "../../lib/server/photon-receiver";
 import { decideHostProfileCommand, readHostProfileView, recordHostSessionMatch } from "../../lib/server/requester-host-profiles";
 import { testDatabase } from "./support/database";
@@ -117,12 +116,12 @@ describe("a request started from the host conversation", () => {
     `;
     expect(request).toMatchObject({ items: ["calendars"], requester_name: "Grace Hopper" });
     expect(request!.contact_confirmed_email).toMatch(/@example\.test$/);
-    expect((await im.bindingOf(host.hostAccountId))?.selected_request_id).toBe(requestId);
+    expect(await im.bindingOf(host.hostAccountId)).not.toHaveProperty("selected_request_id");
 
     const before = await outboxOf(host.sender);
     expect((await im.deliver({ sender: host.sender, text: "Investment advice, Thursday afternoon" })).outcome).toBe("forwarded");
-    expect(await guestInputs(requestId)).toEqual(["[iMessage] Investment advice, Thursday afternoon"]);
-    expect(await hostInputs(host.hostAccountId)).toEqual([]);
+    expect(await guestInputs(requestId)).toEqual([]);
+    expect(await hostInputs(host.hostAccountId)).toContain("[iMessage] Investment advice, Thursday afternoon");
     expect((await sentTo(host.sender, before)).join("\n")).not.toContain("Choose a conversation");
 
     // Nothing reaches the other host.
@@ -143,15 +142,15 @@ describe("a request started from the host conversation", () => {
     expect(await hostInputs(host.hostAccountId)).toContain("[iMessage] Make my meetings 45 minutes");
     expect(await guestInputs(requestId)).toEqual([]);
 
-    const before = await outboxOf(host.sender);
-    expect((await im.deliver({ sender: host.sender, text: `request ${requestRef(requestId)}` })).outcome).toBe("command");
-    expect(await sentTo(host.sender, before)).toContain(GUEST_TEXTS.switched("박도현"));
+    expect((await im.deliver({ sender: host.sender, text: `request ${requestRef(requestId)}` })).outcome).toBe("forwarded");
+    expect((await im.inputsOf(host.hostAccountId)).at(-1)).toMatchObject({ request_id: null });
     await im.deliver({ sender: host.sender, text: "Is Friday possible?" });
-    expect(await guestInputs(requestId)).toEqual(["[iMessage] Is Friday possible?"]);
+    expect(await guestInputs(requestId)).toEqual([]);
+    expect(await hostInputs(host.hostAccountId)).toContain("[iMessage] Is Friday possible?");
 
     expect((await im.deliver({ sender: host.sender, text: "I'm the host, show my settings" })).outcome).toBe("forwarded");
     expect(await hostInputs(host.hostAccountId)).toContain("[iMessage] I'm the host, show my settings");
-    expect((await im.bindingOf(host.hostAccountId))?.selected_request_id).toBeNull();
+    expect(await im.bindingOf(host.hostAccountId)).not.toHaveProperty("selected_request_id");
   });
 
   it("a guest notice selects the sent request again after the host moved to setup", async () => {
@@ -159,14 +158,14 @@ describe("a request started from the host conversation", () => {
     const target = await otherHost();
     const requestId = await startFromConversation(host.hostAccountId, target);
     await im.deliver({ sender: host.sender, text: "setup" });
-    expect((await im.bindingOf(host.hostAccountId))?.selected_request_id).toBeNull();
+    expect(await im.bindingOf(host.hostAccountId)).not.toHaveProperty("selected_request_id");
 
     // The sent request's guest notice arrives in the same conversation and selects it.
     await db.begin((tx) => enqueueStatusNotice(tx, testNotices, requestId, { kind: "status_declined" }).then(() => undefined));
     const before = await outboxOf(host.sender);
     await runJob(db, (await jobFor(db, IMESSAGE_NOTICE_JOB, guestNoticeKey(requestId, { kind: "status_declined" }))).id, noticeHandler);
     expect((await sentTo(host.sender, before)).join("\n")).toContain("박도현");
-    expect((await im.bindingOf(host.hostAccountId))?.selected_request_id).toBe(requestId);
+    expect(await im.bindingOf(host.hostAccountId)).not.toHaveProperty("selected_request_id");
   });
 
   it("keeps the host's words on a received request and sends another host's link to the host role", async () => {
@@ -178,18 +177,18 @@ describe("a request started from the host conversation", () => {
     const received = await createTestRequest(db, { hostAccountId: host.hostAccountId });
     await db`update app.requests set state = 'gathering', identified_at = now() where id = ${received.requestId}`;
     await im.deliver({ sender: host.sender, text: `request ${requestRef(received.requestId)}` });
-    expect((await im.bindingOf(host.hostAccountId))?.selected_request_id).toBe(received.requestId);
+    expect(await im.bindingOf(host.hostAccountId)).not.toHaveProperty("selected_request_id");
     await im.deliver({ sender: host.sender, text: "I will approve it" });
     expect(await hostInputs(host.hostAccountId)).toContain("[iMessage] I will approve it");
     expect(await guestInputs(requestId)).toEqual([]);
 
     // On the sent request, another host's link goes to setup, where start_request reads it.
     await im.deliver({ sender: host.sender, text: `request ${requestRef(requestId)}` });
-    expect((await im.bindingOf(host.hostAccountId))?.selected_request_id).toBe(requestId);
+    expect(await im.bindingOf(host.hostAccountId)).not.toHaveProperty("selected_request_id");
     await im.deliver({ sender: host.sender, text: "Also book me with findmeatime.com/someone-else" });
     expect(await hostInputs(host.hostAccountId)).toContain("[iMessage] Also book me with findmeatime.com/someone-else");
     expect(await guestInputs(requestId)).toEqual([]);
-    expect((await im.bindingOf(host.hostAccountId))?.selected_request_id).toBeNull();
+    expect(await im.bindingOf(host.hostAccountId)).not.toHaveProperty("selected_request_id");
   });
 
   it("lists sent requests apart from received ones", async () => {
@@ -233,11 +232,12 @@ describe("updates in the host conversation", () => {
     // Another host's request, with no binding here, does not resolve.
     const stranger = await createTestRequest(db, { hostAccountId: target.hostAccountId });
     await im.deliver({ sender: host.sender, text: `request ${requestRef(stranger.requestId)}` });
-    expect((await im.bindingOf(host.hostAccountId))?.selected_request_id).not.toBe(stranger.requestId);
+    expect(await im.bindingOf(host.hostAccountId)).not.toHaveProperty("selected_request_id");
 
-    expect((await im.deliver({ sender: host.sender, text: `request ${requestRef(request.requestId)}` })).outcome).toBe("command");
+    expect((await im.deliver({ sender: host.sender, text: `request ${requestRef(request.requestId)}` })).outcome).toBe("forwarded");
     await im.deliver({ sender: host.sender, text: "Mornings work for me" });
-    expect(await guestInputs(request.requestId)).toEqual(["[iMessage] Mornings work for me"]);
+    expect(await guestInputs(request.requestId)).toEqual([]);
+    expect(await hostInputs(host.hostAccountId)).toContain("[iMessage] Mornings work for me");
     expect(await guestInputs(stranger.requestId)).toEqual([]);
     // Nothing reaches the request's host.
     expect(await hostInputs(target.hostAccountId)).toEqual([]);

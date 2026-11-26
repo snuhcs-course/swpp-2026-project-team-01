@@ -1,43 +1,8 @@
-import { z } from "zod";
 import type { HostRequestItem } from "../contracts/host-request";
 import { IMESSAGE_PREFIX, type MessagingChannel, TELEGRAM_PREFIX, WHATSAPP_PREFIX } from "../contracts/messaging-channel";
-import type { Database, Queryable } from "./database";
-import { HOST_REVIEW_AUDIENCE, HOST_SETUP_AUDIENCE } from "./eve-auth";
-import { listHostRequests } from "./host-requests";
+import type { Queryable } from "./database";
 import { requestRef } from "./request-ref";
-import type { SessionPrincipal } from "./setup-tools";
 
-// Switching the linked conversation in words (host-imessage-channel D26,
-// issue #125). The binding's selected request decides where the host's free
-// text goes: a request's private review, or setup when none is selected. The
-// exact commands `request <ref>` and `setup` change it; this tool lets the
-// assistant do the same when the host names a request ("박도현's request",
-// "6ADSRV") or setup in words. It works only while the turn answers a message
-// from the linked iMessage, WhatsApp or Telegram, the session's current input
-// with its channel prefix; on the web the host opens a request from the inbox.
-
-export const switchConversationToolInput = z
-  .object({
-    to: z
-      .string()
-      .trim()
-      .min(1)
-      .max(120)
-      .describe('"setup", a request reference such as 6ADSRV, or the requester\'s name as the host wrote it.'),
-  })
-  .strict();
-
-export type SwitchConversationCall = {
-  readonly auth: SessionPrincipal;
-  readonly sessionId: string;
-};
-
-type Switched =
-  | { readonly switched: true; readonly to: "setup"; readonly message: string }
-  | { readonly switched: true; readonly to: "request"; readonly ref: string; readonly requesterName: string; readonly message: string }
-  | { readonly switched: false; readonly problem: string; readonly matches?: readonly { readonly ref: string; readonly requesterName: string; readonly purpose: string | null }[] };
-
-const uuid = z.uuid();
 const OPEN_STATES = new Set(["gathering", "negotiating", "awaiting_host_approval", "booking"]);
 
 export function channelOf(message: string): MessagingChannel | null {
@@ -62,6 +27,8 @@ export async function linkedMessagingTurn(db: Queryable, sessionId: string, host
     select i.id as "inputId", i.message, r.channel from app.agent_sessions s
     join app.conversation_inputs i on i.id = s.current_input_id
     join app.imessage_receipts r on r.id = i.client_input_id
+    join app.imessage_bindings b on b.host_account_id = s.principal_id
+      and b.sender_hash = r.sender_hash and b.channel = r.channel and b.state = 'active'
     where s.session_id = ${sessionId} and s.principal_type = 'host_account'
       and s.principal_id = ${hostAccountId} and s.state = 'active'
   `;
@@ -99,67 +66,4 @@ export function matchHostRequests(requests: readonly HostRequestItem[], referenc
       );
   const open = byName.filter((item) => OPEN_STATES.has(item.state));
   return open.length ? open : byName;
-}
-
-export async function switchConversationForTool(db: Database, call: SwitchConversationCall, input: z.infer<typeof switchConversationToolInput>): Promise<Switched> {
-  const hostAccountId = uuid.safeParse(call.auth?.principalId);
-  const audience = call.auth?.attributes?.audience;
-  if (call.auth?.principalType !== "user" || !hostAccountId.success || (audience !== HOST_SETUP_AUDIENCE && audience !== HOST_REVIEW_AUDIENCE)) {
-    return { problem: "This conversation cannot switch requests.", switched: false };
-  }
-
-  // The session must be the host's own, live one; its current input is the
-  // message this turn answers.
-  const [turn] = await db<{ message: string | null }[]>`
-    select i.message from app.agent_sessions s
-    left join app.conversation_inputs i on i.id = s.current_input_id
-    where s.session_id = ${call.sessionId} and s.principal_type = 'host_account'
-      and s.principal_id = ${hostAccountId.data} and s.state = 'active'
-  `;
-  if (!turn) return { problem: "This conversation cannot switch requests.", switched: false };
-
-  const channel = await channelOfTurn(db, call.sessionId, hostAccountId.data);
-  if (!channel) {
-    return { problem: "Switching applies to the host's linked iMessage, WhatsApp or Telegram. On the web, the host opens the request from the inbox.", switched: false };
-  }
-
-  const [binding] = await db<{ id: string }[]>`
-    select id from app.imessage_bindings
-    where host_account_id = ${hostAccountId.data} and state = 'active' and channel = ${channel}
-  `;
-  if (!binding) return { problem: "The conversation is no longer linked.", switched: false };
-
-  const target = normalize(input.to);
-  if (target === "setup" || target === "settings" || target === "설정") {
-    await db`update app.imessage_bindings set selected_request_id = null where id = ${binding.id} and state = 'active'`;
-    return { message: "From the host's next message, this conversation is about setup. Tell them so.", switched: true, to: "setup" };
-  }
-
-  const matches = matchHostRequests(await listHostRequests(db, hostAccountId.data), input.to);
-
-  if (matches.length === 0) {
-    return { problem: `No request matches "${input.to}". Call list_host_requests or ask the host which request they mean.`, switched: false };
-  }
-  if (matches.length > 1) {
-    return {
-      matches: matches.slice(0, 5).map((item) => ({ purpose: item.purpose, ref: requestRef(item.requestId), requesterName: item.requesterName })),
-      problem: "More than one request matches. Ask the host which one, naming each by requester, purpose and reference.",
-      switched: false,
-    };
-  }
-
-  const [chosen] = matches;
-  await db.begin(async (tx) => {
-    const selected = await tx`update app.imessage_bindings set selected_request_id = ${chosen!.requestId} where id = ${binding.id} and state = 'active'`;
-    if (selected.count && !chosen!.sample) {
-      await tx`update app.host_settings set tutorial_binding_id = null where host_account_id = ${hostAccountId.data} and tutorial_binding_id = ${binding.id}`;
-    }
-  });
-  return {
-    message: `From the host's next message, this conversation is about request ${requestRef(chosen!.requestId)} with ${chosen!.requesterName}. Tell them so; the current reply still comes from this discussion.`,
-    ref: requestRef(chosen!.requestId),
-    requesterName: chosen!.requesterName,
-    switched: true,
-    to: "request",
-  };
 }

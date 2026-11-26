@@ -1,3 +1,5 @@
+import { placeQuestion } from "./account-replies";
+import { hostConversationLanguage } from "./channel-language";
 import { z } from "zod";
 import { readHostIntake } from "./host-intake";
 import type { AnalysisForModel } from "../contracts/analysis";
@@ -23,7 +25,7 @@ import { checkHandle } from "./handles";
 import { weeklyNoteListForModel } from "./note-weekly-store";
 import { chatOnboardingForModel } from "./onboarding-note-step";
 import { settingsRef } from "./request-ref";
-import { draftedEntry, readSetupState, type SetupDependencies, type SetupLinks, type SetupStateView } from "./setup";
+import { draftedEntry, missingFields, withStatedAnswers, readSetupState, type ProposedFields, type SetupDependencies, type SetupLinks, type SetupStateView } from "./setup";
 import { saveReadyHostChange, type SavedChangeOutcome } from "./setup-saved-change";
 
 // The setup assistant's two tools (design decision 10), behind the agent's
@@ -195,7 +197,13 @@ export type SetupModelProjection = {
   readonly reviewRef: string;
 };
 
-export function modelProjection(state: SetupStateView): SetupModelProjection {
+export function modelProjection(state: SetupStateView, linked = false): SetupModelProjection {
+  const proposed: ProposedFields = {};
+  for (const field of SETUP_FIELD_NAMES) Object.assign(proposed, { [field]: state.fields[field].proposed });
+  const missing = linked ? missingFields(withStatedAnswers(proposed), state.handleAvailability === "available") : state.missingFields;
+  const nextAction = linked && (state.nextAction === "review_suggestions" || state.nextAction === "confirm_settings")
+    ? missing.length ? "review_suggestions" : "confirm_settings"
+    : state.nextAction;
   const recommendations = state.calendar.recommendations;
   const fields = Object.fromEntries(
     SETUP_FIELD_NAMES.map((field) => {
@@ -244,8 +252,8 @@ export function modelProjection(state: SetupStateView): SetupModelProjection {
     fields,
     handleAvailability: state.handleAvailability,
     links: state.readiness.ready ? state.links : null,
-    missingFields: state.missingFields,
-    nextAction: state.nextAction,
+    missingFields: missing,
+    nextAction,
     pendingChanges: state.pendingChanges,
     tutorialOffered: state.tutorialOffered,
     placeHint: state.placeHint ? { sampleSize: state.placeHint.sampleSize } : null,
@@ -426,10 +434,16 @@ export async function readSetupStateForTool(deps: SetupDependencies, call: Setup
   // reference and size; its titles come only from choose_note_items. The chat
   // onboarding's note step and latest slot image (issue #216), which jobs may
   // have moved on since the assistant's last tool result.
+  const linked = Boolean(await channelOfTurn(deps.db, call.sessionId, actor.id));
+  const projection = modelProjection(state, linked);
+  const chatOnboarding = await chatOnboardingForModel(deps.db, actor.id, state.proposalHash);
+  const nextQuestion = linked && projection.nextAction === "review_suggestions" &&
+    !(chatOnboarding?.hoursQuestion?.waitingForAnswer) && !state.fields.meetingMode.draft
+    ? { kind: "place", covers: ["area", "online", "travel"], text: placeQuestion(await hostConversationLanguage(deps.db, actor.id)) } : null;
   return {
-    ...modelProjection(state),
+    nextQuestion, ...projection,
     intake: await readHostIntake(deps.db, actor.id),
-    chatOnboarding: await chatOnboardingForModel(deps.db, actor.id, state.proposalHash),
+    chatOnboarding,
     weeklyNoteList: await weeklyNoteListForModel(deps.db, actor.id),
   };
 }
@@ -442,13 +456,16 @@ export type DraftSettingsToolResult =
       // For a host whose settings are already confirmed, whether the change is
       // now what guests book against ("saved") or why not.
       readonly savedChange: SavedChangeOutcome;
-      readonly state: SetupModelProjection;
+      readonly state: Awaited<ReturnType<typeof readSetupStateForTool>>;
+      readonly message: string;
+      readonly reply: { kind: string; text: string } | null;
     }
   | {
       readonly saved: false;
       readonly error: "invalid_input" | "stale_revision";
       readonly problems?: Partial<Record<SetupFieldName, string>>;
       readonly message: string;
+      readonly reply: { kind: string; text: string } | null;
     };
 
 export async function draftSettingsForTool(
@@ -467,7 +484,7 @@ export async function draftSettingsForTool(
 
   if (!outcome.ok) {
     if (outcome.error.category === "stale_revision" || outcome.error.category === "invalid_input") {
-      return { error: outcome.error.category, message: `${outcome.error.message} Call ${call.fromRequest ? "read_settings" : "read_setup_state"} first.`, saved: false };
+      return { reply: null, error: outcome.error.category, message: `${outcome.error.message} Call ${call.fromRequest ? "read_settings" : "read_setup_state"} first.`, saved: false };
     }
 
     throw new SetupToolDeniedError();
@@ -475,7 +492,7 @@ export async function draftSettingsForTool(
 
   if (outcome.result.problems) {
     return {
-      error: "invalid_input",
+      reply: null, error: "invalid_input",
       message: "Nothing was saved. Fix the listed fields.",
       problems: outcome.result.problems,
       saved: false,
@@ -485,11 +502,10 @@ export async function draftSettingsForTool(
   // A host whose settings are already confirmed changes them at once; there is
   // no second approval (first-time setup still ends with the host's own save).
   const savedChange = await saveReadyHostChange(deps, actor, { call, retryKey: `tool:${call.callId}:save` });
-  const state = await readSetupState(deps, actor.id, { includeCalendars: true });
-
-  if (!state) throw new SetupToolDeniedError();
-
-  return { changed: outcome.result.changed, revision: outcome.result.revision, saved: true, savedChange, state: modelProjection(state) };
+  const state = await readSetupStateForTool(deps, call);
+  return { reply: state.nextQuestion ? { kind: "next_setup_question", text: state.nextQuestion.text } : null, changed: outcome.result.changed, revision: outcome.result.revision, saved: true, savedChange, state,
+    message: outcome.result.changed ? "Draft updated. Continue from state.nextAction; first setup is saved only by confirm_settings after a delivered preview and agreement."
+      : "The draft already contains these exact values. No further write is needed. Continue from state.nextAction and chatOnboarding, without repeating this write or claiming a new change." };
 }
 
 // ---------------------------------------------------------------------------

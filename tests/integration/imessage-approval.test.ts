@@ -57,7 +57,7 @@ async function hostWroteAbout(request: AgreedRequest, text: string) {
 
   const [discussion] = await db<{ id: string }[]>`
     select id from app.discussions
-    where principal_type = 'host_account' and principal_id = ${request.hostAccountId} and audience = 'host_review' and request_id = ${request.requestId}
+    where principal_type = 'host_account' and principal_id = ${request.hostAccountId} and audience = 'host_setup' and request_id is null
   `;
   const [input] = await db<{ id: string }[]>`
     select id from app.conversation_inputs where discussion_id = ${discussion!.id} order by accepted_at desc limit 1
@@ -78,11 +78,12 @@ async function hostWroteAbout(request: AgreedRequest, text: string) {
 
   const call = {
     auth: {
-      attributes: { audience: "host_review", discussionId: discussion!.id, generation: "1", requestId: request.requestId },
+      attributes: { audience: "host_setup", discussionId: discussion!.id, generation: "1", requestId: request.requestId },
       principalId: request.hostAccountId,
       principalType: "user" as const,
     },
     callId: randomUUID(),
+    requestId: request.requestId,
     sessionId,
   };
   return { call, inputId: input!.id, request };
@@ -178,7 +179,7 @@ describe("several decisions in one message (#382)", () => {
     expect(await approvalsOf(b.requestId)).toBe(0);
     // A is still approved and booking; the conversation stays on B.
     expect(await stateOf(a.requestId)).toBe("booking");
-    expect(await im.bindingOf(b.hostAccountId)).toMatchObject({ selected_request_id: b.requestId });
+    expect(await im.bindingOf(b.hostAccountId)).not.toHaveProperty("selected_request_id");
   });
 
   it("declines a request named by its reference", async () => {

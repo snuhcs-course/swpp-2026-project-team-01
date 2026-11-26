@@ -167,9 +167,6 @@ async function hostDiscussion(db: Database, discussionId: string, hostAccountId:
   `;
 
   if (row?.audience === HOST_SETUP_AUDIENCE) return { audience: HOST_SETUP_AUDIENCE, requestId: null };
-  if (row?.audience === HOST_REVIEW_AUDIENCE && row.request_id && row.request_ok) {
-    return { audience: HOST_REVIEW_AUDIENCE, requestId: row.request_id };
-  }
   return null;
 }
 

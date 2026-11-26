@@ -7,7 +7,7 @@ import type { Weekday } from "./setup";
 
 export const SCHEDULE_IMAGE_MAX_DAYS = 7;
 
-export type ScheduleImageKind = "booked_meeting" | "calendar_event" | "request_to_decide" | "sent_request";
+export type ScheduleImageKind = "approved_meeting" | "booked_meeting" | "calendar_event" | "request_to_decide" | "sent_request";
 
 // A timed entry's part on one day, HH:MM in the host's timezone; end "24:00" runs to midnight.
 export type ScheduleImageEntry = LocalRange & { readonly kind: ScheduleImageKind; readonly title: string };

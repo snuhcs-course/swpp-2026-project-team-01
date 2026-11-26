@@ -40,6 +40,7 @@ const EN: LegalDocument = {
         "Access to the Google calendars you select, to suggest your scheduling rules, find free times and create the booked event in your calendar. We read event times, busy status and locations of the calendars you choose; the analysis behind suggestions is deleted after 24 hours.",
         "If you upload a weekly schedule image, it is sent to OpenAI to suggest visible free hours. We do not keep the image or extracted private text. Suggested hours are held in your setup draft; only hours you review and confirm become booking settings. Google Calendar remains connected so confirmed bookings can be added to your chosen calendar.",
         "The settings you confirm, your public handle, the requests made to you and your conversations with the assistant.",
+        "Private assistant memory from your own words, such as conversational preferences and dated life context, and unresolved questions. Every memory save is acknowledged; you can ask what is remembered or ask to forget it. Memory never changes booking rules and is never shared with requesters.",
         "If you link them: the iMessage address you link, or for Telegram your Telegram user ID with the first name and username Telegram shows (never your phone number), and the personal agents you connect.",
       ],
       paragraphs: ["When you become a host we collect:"],
@@ -121,6 +122,7 @@ const EN: LegalDocument = {
         "Email threads, and iMessage and Telegram records: deleted after 30 days.",
         "Records that prevent duplicate actions and enforce limits: deleted after 30 days; spending records of the assistant after 90 days.",
         "An account and its settings: kept until you delete the account, 7 days after you ask for it in Settings.",
+        "Private assistant memories last until you ask to forget them, their dated context expires or the account is deleted. Resolved questions are cleared. Content-free replay keys can remain until account deletion; forgetting memory does not erase conversation history or provider-side copies.",
       ],
       paragraphs: [
         "Copies outside our database are not removed by these rules: the event in a host's calendar, emails in your own mailbox, threads in AgentMail, messages on your phone, the chat Telegram keeps (a bot cannot delete its messages after 48 hours), OpenAI's abuse-monitoring logs, and the conversation runtime's own session record at our host.",
@@ -164,6 +166,7 @@ const KO: LegalDocument = {
         "주간 시간표 이미지를 올리면 OpenAI로 전송하여 화면에 보이는 빈 시간을 제안합니다. 이미지와 추출된 비공개 내용은 저장하지 않습니다. 제안된 시간은 설정 초안에 보관되며, 직접 검토·확인한 시간만 예약 설정이 됩니다. Google 캘린더 연결은 유지하며, 확정된 예약은 선택한 캘린더에 추가됩니다.",
         "확인한 설정, 공개 핸들, 받은 요청, 어시스턴트와의 대화.",
         "연결한 경우: 연결한 iMessage 주소, Telegram이라면 Telegram 사용자 ID와 Telegram에 표시되는 이름과 사용자 이름(전화번호는 받지 않습니다), 그리고 연결한 개인 에이전트.",
+        "본인의 말에서 저장한 대화 선호·기한이 있는 생활 맥락 등의 비공개 기억과 미해결 질문. 기억을 저장할 때마다 알리며, 무엇을 기억하는지 묻거나 잊어 달라고 할 수 있습니다. 기억은 예약 규칙을 바꾸지 않고 요청자에게 공유되지 않습니다.",
       ],
       paragraphs: ["호스트가 되면 다음을 수집합니다."],
       title: "호스트",
@@ -242,6 +245,7 @@ const KO: LegalDocument = {
         "이메일 스레드, iMessage와 Telegram 기록: 30일 뒤 삭제합니다.",
         "중복 동작을 막고 한도를 지키기 위한 기록: 30일 뒤, 어시스턴트 비용 기록은 90일 뒤 삭제합니다.",
         "계정과 설정: 설정에서 삭제를 요청하면 7일 뒤 삭제합니다.",
+        "비공개 기억은 잊어 달라고 하거나 기한이 지나거나 계정이 삭제될 때까지 보관합니다. 해결된 질문의 내용은 지웁니다. 재처리 방지용 내용 없는 키는 계정 삭제까지 남을 수 있으며, 기억을 잊는 것은 대화 기록이나 제공자 측 사본을 지우는 뜻은 아닙니다.",
       ],
       paragraphs: [
         "저희 데이터베이스 밖의 사본은 이 규칙으로 지워지지 않습니다: 호스트 캘린더의 일정, 본인 메일함의 이메일, AgentMail의 스레드, 휴대폰의 메시지, Telegram이 보관하는 대화(봇은 48시간이 지난 메시지를 지울 수 없습니다), OpenAI의 남용 감시 기록, 호스팅 업체에 있는 대화 런타임의 세션 기록.",

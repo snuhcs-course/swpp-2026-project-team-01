@@ -11,7 +11,6 @@ import { awaitingAgreementVersion, type GuestNotice, guestNoticeKey, type HostNo
 import { agreementNoticeText, readAgreementSummary } from "./agreement-notice";
 import { recordOutbound } from "./imessage-outbox";
 import type { WhatsAppButtons } from "./photon";
-import { selectSentRequest } from "./host-conversation-bindings";
 import { activeRequesterBinding, requesterBindingRecipient } from "./requester-imessage-bindings";
 import type { JobHandler } from "./jobs";
 import type { HostRequestView } from "../contracts/host-request";
@@ -184,7 +183,6 @@ async function recordGuestNotice(tx: Transaction, deps: NoticeJobDependencies, r
   });
   // In the guest-host's own host conversation the notice selects its request,
   // so the next plain reply goes to it (host-as-guest-messenger, R01 M-6).
-  await selectSentRequest(tx, binding);
   return { queued: true };
 }
 
@@ -308,30 +306,6 @@ export function createImessageNoticeHandler(load: () => NoticeJobDependencies = 
       text: summary.text,
       tokenKey: deps.tokenKey,
     });
-    // The host's next plain reply goes to this request, so a decision on the
-    // approval or weekly-limit question reaches the discussion that can act.
-    if (hostNotice.kind === "sample_request") {
-      await tx`update app.imessage_bindings set selected_request_id = ${requestId} where id = ${binding.id} and state = 'active'`;
-    } else if (hostNotice.kind === "awaiting_approval" || hostNotice.kind === "weekly_limit_hold") {
-      // Keep a tutorial's unqualified replies away from a real request even
-      // when a new guest proposal arrives while the host is practising.
-      await tx`select id from app.imessage_bindings where id = ${binding.id} for no key update`;
-      await tx`
-        update app.imessage_bindings b set selected_request_id = ${requestId}
-        where b.id = ${binding.id} and b.state = 'active'
-          and not exists (
-            select 1 from app.host_settings s where s.host_account_id = b.host_account_id
-              and s.tutorial_offered and s.tutorial_binding_id = b.id
-          )
-          and not exists (
-            select 1 from app.requests r where r.host_account_id = b.host_account_id and r.is_sample
-              and r.closed_at is null and r.expires_at > now()
-              and (r.id = b.selected_request_id or exists (
-                select 1 from app.host_settings s where s.host_account_id = r.host_account_id and s.tutorial_binding_id = b.id
-              ))
-          )
-      `;
-    }
     return { queued: true };
   };
 }

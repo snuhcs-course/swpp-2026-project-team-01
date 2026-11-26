@@ -42,6 +42,7 @@ export type DashboardData = {
 };
 
 export type BookingRow = {
+  state: "reserved" | "dispatching" | "confirmed";
   id: string;
   request_id: string;
   calendar_id: string;
@@ -94,7 +95,7 @@ type SentRow = {
   evidence: { iCalUID?: unknown } | null;
 };
 
-// A confirmed booking as a Find Me a Time meeting: its frozen title and place,
+// An approved or confirmed booking as a Find Me a Time meeting: its frozen title and place,
 // and the details the host approved (length, mode, join link, guest, purpose).
 export function bookedEvent(booking: BookingRow): DashboardEvent {
   const mode = booking.details?.mode;
@@ -103,7 +104,8 @@ export function bookedEvent(booking: BookingRow): DashboardEvent {
   return {
     id: `thyme:${booking.id}`,
     source: "thyme",
-    title: typeof booking.payload?.summary === "string" && booking.payload.summary ? booking.payload.summary : "Meeting booked by Thyme",
+    ...(booking.state !== "confirmed" ? { state: "booking" as const } : {}),
+    title: typeof booking.payload?.summary === "string" && booking.payload.summary ? booking.payload.summary : booking.state !== "confirmed" ? "Approved meeting · Adding to Google Calendar" : "Meeting booked by Thyme",
     start: booking.start_at.toISOString(),
     end: booking.end_at.toISOString(),
     allDay: false,
@@ -121,7 +123,7 @@ export function bookedEvent(booking: BookingRow): DashboardEvent {
   };
 }
 
-// Only the signed-in host's confirmed bookings and selected conflict calendars
+// Only the signed-in host's approved bookings and selected conflict calendars
 // reach this projection. Booking events are shown once, even when Google returns
 // the same event from the destination or an attendee copy.
 export async function readHostDashboard(
@@ -135,12 +137,13 @@ export async function readHostDashboard(
     from app.host_settings where host_account_id = ${hostAccountId}
   `;
   const bookings = await db<BookingRow[]>`
-    select b.id, b.request_id, b.calendar_id, b.event_id, b.start_at, b.end_at, b.payload, b.evidence,
+    select b.id, b.state, b.request_id, b.calendar_id, b.event_id, b.start_at, b.end_at, b.payload, b.evidence,
            p.details, r.requester_name, r.contact_email, r.contact_confirmed_email, r.details ->> 'purpose' as purpose
     from app.bookings b
     join app.proposals p on p.id = b.proposal_id
     join app.requests r on r.id = b.request_id
-    where b.host_account_id = ${hostAccountId} and b.state = 'confirmed'
+    where b.host_account_id = ${hostAccountId}
+      and (b.state = 'confirmed' or (b.state in ('reserved', 'dispatching') and r.state = 'booking' and not r.is_sample))
       and b.start_at < ${range.end} and b.end_at > ${range.start}
     order by b.start_at
   `;

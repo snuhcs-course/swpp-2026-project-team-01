@@ -65,14 +65,14 @@ describe("forwarding free text", () => {
     expect(textOf((await im.send(turn.id)).sent)).toEqual(["Got it: mornings. Shall I set 9 am to noon on weekdays?"]);
   });
 
-  it("forwards to the selected request's private discussion", async () => {
+  it("keeps a named request question in the single account discussion", async () => {
     const request = await agreedRequest(db, google);
     const { sender } = await im.link(request.hostAccountId);
     await im.deliver({ sender, text: `request ${requestRef(request.requestId)}` });
 
     expect((await im.deliver({ sender, text: "Is the requester flexible on Tuesday?" })).outcome).toBe("forwarded");
     const inputs = await im.inputsOf(request.hostAccountId);
-    expect(inputs.at(-1)).toMatchObject({ message: "[iMessage] Is the requester flexible on Tuesday?", request_id: request.requestId });
+    expect(inputs.at(-1)).toMatchObject({ message: "[iMessage] Is the requester flexible on Tuesday?", request_id: null });
   });
 
   it("sends the fallback when the turn gives no text, and finds the same input on a retry", async () => {

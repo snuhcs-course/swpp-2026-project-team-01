@@ -75,7 +75,7 @@ describe("host summaries", () => {
     expect(text).toContain('To approve, tell me so, such as "book it".');
     expect(text).not.toContain(`approve ${reviewRef(request.requestId, 1)}`);
     expect(text).not.toContain(`decline ${reviewRef(request.requestId, 1)}`);
-    expect(await im.bindingOf(request.hostAccountId)).toMatchObject({ selected_request_id: request.requestId });
+    expect(await im.bindingOf(request.hostAccountId)).not.toHaveProperty("selected_request_id");
 
     await db.begin((tx) => enqueueHostNotice(tx, request.requestId, { kind: "awaiting_approval", version: 1 }));
     expect(await noticesSent(request.hostAccountId, request.requestId)).toEqual([]);

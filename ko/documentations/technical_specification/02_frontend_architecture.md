@@ -18,6 +18,7 @@ Next.js App Router, React, TypeScript, npm을 사용하며, 대화 런타임으�
 |---|---|
 | 런타임과 프레임워크 | `eve` 0.80.1, `ai` 7.0.143, `next` 16.3.8, `react`와 `react-dom` 19.2.8, `zod` 4.4.3 |
 | 데이터와 신원 | `@supabase/supabase-js` 2.118.0, `@supabase/ssr` 0.12.7, `postgres` 3.4.9 |
+| 샌드박스 환경(도메인 도구는 사용하지 않음) | `just-bash` 3.6.1; 순수 JavaScript, 컨테이너·VM 없음 |
 | UI | `tailwindcss`와 `@tailwindcss/postcss` 4.3.3, `radix-ui` 1.6.7, `class-variance-authority` 0.7.1, `clsx` 2.1.1, `tailwind-merge` 3.6.0, `cmdk` 1.1.1, `lucide-react` 1.33.0, `use-stick-to-bottom` 1.1.6 |
 | 메시지 렌더링 | `streamdown` 2.7.0, `@streamdown/cjk` 1.0.3, `@streamdown/code` 1.1.1, `@streamdown/math` 1.0.2, `@streamdown/mermaid` 1.0.2, `shiki`와 `@shikijs/{core,engine-javascript,engine-oniguruma}` 4.3.1 |
 | 개발 | `typescript` 7.0.2, `@typescript/native-preview` 7.0.0-dev.20260707.2, `@types/node` 24.19.2, `@types/react` 19.2.18, `@types/react-dom` 19.2.4, `vitest` 5.0.5, `@playwright/test` 1.64.1, `oxlint` 1.88.0, `tsx` 4.23.15 |
@@ -92,7 +93,7 @@ supabase/tests/             grants, invariants and concurrency tests
 
 하나의 호스트 워크스페이스 `/app`이 접근, 요청 선택, 검토, 설정 관리를 담당하며, 웹에는 호스트 대화가 없습니다([`remove-host-web-chat`](../../openspec/changes/archive/2026-11-23-remove-host-web-chat/proposal.md)). 설정과 호스트 비공개 요청 논의는 연동된 메신저에서만 이루어지며, 공유/요청자 논의와 구분해서 유지합니다. 요청 ID를 선택하면 소유권을 확인한 뒤에야 컨텍스트가 바뀝니다. 알림 링크, 새로고침, 브라우저 동의는 URL을 증명으로 취급하지 않고 승인된 범위를 복원합니다.
 
-게스트의 대화는 `/{handle}`에서 시작해 예약 전후로 `/booking/[bookingId]`에서 같은 스레드로 이어집니다. 첫 메시지가 초안 요청을 만들고 그 식별자는 탭의 세션 스토리지에 보관되며, 신원 확인이 끝나면 새로고침 없이 `history.replaceState`로 주소가 예약 링크로 바뀝니다([D13](../../openspec/changes/requester-intake-and-feasibility/proposal.md#decisions)). 사용자에게 보이는 예약 ID는 공급자의 이벤트 ID가 아니라 요청으로 해석됩니다. URL의 무작위 예약 식별자가 요청자의 자격 증명이므로, 페이지는 `Referrer-Policy: no-referrer`를 보내고, 색인에서 제외되며, 식별자를 공유 캘린더 설명이나 전체 요청 로그에 절대 기록하지 않습니다. 핸들을 해석하기 전에 프로토콜/애플리케이션 라우트 이름을 예약해 둡니다.
+게스트의 대화는 `/{handle}`에서 시작해 예약 전후로 `/booking/[bookingId]`에서 같은 스레드로 이어집니다. 첫 메시지가 초안 요청을 만들고 그 식별자는 탭의 세션 스토리지에 보관되며, 신원 확인이 끝나면 새로고침 없이 `history.replaceState`로 주소가 예약 링크로 바뀝니다([D13](../../openspec/changes/guest-flow-completion/proposal.md#decisions)). 사용자에게 보이는 예약 ID는 공급자의 이벤트 ID가 아니라 요청으로 해석됩니다. URL의 무작위 예약 식별자가 요청자의 자격 증명이므로, 페이지는 `Referrer-Policy: no-referrer`를 보내고, 색인에서 제외되며, 식별자를 공유 캘린더 설명이나 전체 요청 로그에 절대 기록하지 않습니다. 핸들을 해석하기 전에 프로토콜/애플리케이션 라우트 이름을 예약해 둡니다.
 
 ## 안내형 게스트 접수
 

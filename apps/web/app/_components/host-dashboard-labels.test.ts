@@ -7,6 +7,14 @@ function event(overrides: Partial<DashboardEvent>): DashboardEvent {
 }
 
 describe("host dashboard detail labels", () => {
+  it("labels approved meetings as being added to Google Calendar", () => {
+    const pending = event({ source: "thyme", state: "booking" });
+    expect(sourceLabel(pending)).toBe("Approved meeting · Adding to Google Calendar");
+    expect(detailSource(pending)).toBe("Approved · Adding to Google Calendar");
+    expect(detailNote(pending)).toBe("You approved this meeting. It is being added to Google Calendar and is not yet confirmed.");
+    expect(blockLabel(pending)).toContain("Approved · Adding to Google Calendar");
+  });
+
   it("labels Google Calendar events as Google", () => {
     const google = event({ source: "google" });
     expect(detailSource(google)).toBe("Google Calendar");

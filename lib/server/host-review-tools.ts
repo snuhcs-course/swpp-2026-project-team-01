@@ -1,3 +1,5 @@
+import { hostConversationLanguage } from "./channel-language";
+import { BOOKING_WEEK_REPLY_NOTE } from "../contracts/timezone";
 import { cancelBookingCommand, changeBookingCommand } from "./booking-cancellation";
 import { createHash } from "node:crypto";
 import { z } from "zod";
@@ -24,7 +26,7 @@ import { internalSigningKey } from "./internal-bearer";
 import { allowHostTripCommand, allowHostTripInput, hostEvaluateCommand, waiveWeeklyLimitCommand } from "./request-exceptions";
 import { listSentRequests, type SentRequestItem } from "./host-sent-requests";
 import { requestRef } from "./request-ref";
-import type { SessionPrincipal } from "./setup-tools";
+import { authorizeSetupTool, isHostSetupSession, type SessionPrincipal } from "./setup-tools";
 import { dismissChangesCommand, shareChangesCommand, sharedChangesSchema, suggestChangesCommand } from "./shared-changes";
 
 // The host-review tools (host-review-and-booking design 12; conversation-access:
@@ -61,6 +63,8 @@ export class HostReviewToolDeniedError extends Error {
 }
 
 export type HostReviewToolCall = {
+  readonly requestId?: string;
+  readonly expectedRevision?: number;
   readonly auth: SessionPrincipal;
   readonly sessionId: string;
   readonly callId: string;
@@ -69,7 +73,17 @@ export type HostReviewToolCall = {
 const uuid = z.uuid();
 
 // The fence. Returns the host and the request the session principal names.
-export async function authorizeHostReviewTool(q: Queryable, call: Pick<HostReviewToolCall, "auth" | "sessionId">) {
+export async function authorizeHostReviewTool(q: Queryable, call: Pick<HostReviewToolCall, "auth" | "sessionId" | "requestId">) {
+  if (isHostSetupSession(call.auth)) {
+    const actor = await authorizeSetupTool(q, call.auth, call.sessionId);
+    const target = uuid.safeParse(call.requestId);
+    if (!target.success) throw new HostReviewToolDeniedError();
+    const [request] = await q<{ id: string }[]>`
+      select id from app.requests where id = ${target.data} and host_account_id = ${actor.id} and state <> 'draft'
+    `;
+    if (!request) throw new HostReviewToolDeniedError();
+    return { hostAccountId: actor.id, requestId: request.id };
+  }
   const hostAccountId = uuid.safeParse(call.auth?.principalId);
   const requestId = uuid.safeParse(call.auth?.attributes.requestId);
 
@@ -113,6 +127,19 @@ function when(start: string, end: string, timezone: string) {
   return `${displayTime(new Date(start), timezone)} to ${displayTime(new Date(end), timezone)}`;
 }
 
+export function proposalFeasibility(view: Pick<HostRequestView, "proposal" | "evaluation">) {
+  const proposal = view.proposal;
+  const candidate = proposal && view.evaluation?.state === "completed"
+    ? view.evaluation.candidates.find(item => Date.parse(item.start) === Date.parse(proposal.start) && Date.parse(item.end) === Date.parse(proposal.end))
+    : undefined;
+  return candidate ? { basis: candidate.basis, hostTrips: candidate.hostLegs, status: candidate.status,
+    travel: proposal?.mode === "online" ? "Online: no travel is required." : "Use the evaluated hostTrips; unresolved trips are not cleared." } : null;
+}
+
+const ACCOUNT_SAMPLE_NEXT_STEPS = "This is a fictional tutorial. Approve/decline it once with decide_requests; a change/end uses finish_sample_tutorial once. A successful sample result finishes the tutorial: repeat its completion message. Do not finish it twice or read real booking status.";
+
+const ACCOUNT_NEXT_STEPS = "Use decide_requests with this ref, revision and proposal version only for an explicit host decision. Questions and hesitation decide nothing. The current proposalFeasibility already explains hours, busy checks and travel when present; answer from it without another evaluation/read. Evaluate only when that basis is absent or the host asks for new times; a mutation or stale-version error requires a fresh read.";
+
 // The model's host projection of one request, with the current date and time
 // in the host's timezone so a date the host gives without a year, or "next
 // week", can be worked out.
@@ -121,6 +148,9 @@ export function hostModelProjection(view: HostRequestView, now: Date = new Date(
 
   return {
     current: currentTime(zone, now),
+    revision: view.revision,
+    proposalFeasibility: proposalFeasibility(view),
+    ref: requestRef(view.requestId),
     booking: view.booking
       ? { failure: view.booking.failure, state: view.booking.state, text: BOOKING_STATUS_TEXT[view.booking.state].en }
       : null,
@@ -195,7 +225,27 @@ export async function readRequestForHostTool(db: Database, call: HostReviewToolC
   const { hostAccountId, requestId } = await authorizeHostReviewTool(db, call);
   const view = await readHostRequest(db, hostAccountId, requestId);
   if (!view) throw new HostReviewToolDeniedError();
-  return hostModelProjection(view);
+  const projected = hostModelProjection(view);
+  return isHostSetupSession(call.auth) ? { ...projected, next: view.sample ? ACCOUNT_SAMPLE_NEXT_STEPS : ACCOUNT_NEXT_STEPS } : projected;
+}
+
+// Account details focus on the current request/proposal. Alternative candidate
+// discovery stays in evaluate_candidates; repeated full lists forced mid-turn
+// compaction and lost the useful current read behind a long summary.
+export async function readAccountRequestForTool(db: Database, call: HostReviewToolCall) {
+  const result = await readRequestForHostTool(db, call);
+  const actor = await authorizeSetupTool(db, call.auth, call.sessionId);
+  const reply = result.sample && result.state === "withdrawn"
+    ? { kind: "completed_tutorial", text: tutorialCompletionText(await hostConversationLanguage(db, actor.id), null) } : null;
+  return { reply, ...result, evaluation: accountEvaluationSummary(result.evaluation) };
+}
+
+export function accountEvaluationSummary(evaluation: ReturnType<typeof hostModelProjection>["evaluation"]) {
+  return evaluation ? {
+    id: evaluation.id, state: evaluation.state, weeklyLimitHold: evaluation.weeklyLimitHold,
+    candidateCount: evaluation.candidates.length, excludedCount: evaluation.excluded.length,
+    note: "Current proposal basis is in proposalFeasibility. Alternative times/exclusions are available from evaluate_candidates only when requested or the basis is absent.",
+  } : null;
 }
 
 export const finishSampleToolInput = z.object({ action: tutorialAction });
@@ -214,8 +264,7 @@ export async function finishSampleForTool(db: Database, call: HostReviewToolCall
 
 const ACTIVE_STATES = new Set(["gathering", "negotiating", "awaiting_host_approval", "booking"]);
 
-export const WEEK_NOTE =
-  "booked is a confirmed meeting, which stands while a change is negotiated; proposed is a time not yet booked. Each week is Monday to Sunday in the host's timezone, as current gives this and next week. Asked about a week's meetings, name only those whose week matches, each with the requester and the time; when there are none, say so and name any booked this week or next week instead, such as \"No meetings are booked next week. This week you meet {requester} on {date} at {time}.\"";
+export const WEEK_NOTE = BOOKING_WEEK_REPLY_NOTE;
 
 // The host's requests as the model sees them, newest first: the reference
 // switch_conversation takes, the requester and purpose as quoted data, the
@@ -266,10 +315,10 @@ export const SENT_NOTE =
   "sent lists the requests this host asked of other hosts, as a guest: report them apart from the received requests (\"To you: … / You asked: …\"). The other host decides them; this host cannot approve or decline them.";
 
 export const SELECT_NOTE =
-  "On the web the host opens another request from the inbox. From the linked iMessage, WhatsApp or Telegram, switch_conversation moves the conversation to the request the host names.";
+  "Use refs for received requests and get_sent_request for sent requests in the same account conversation. On the web the host opens a request in the inbox.";
 
 // The latest proposal version of each of the host's open requests.
-async function openProposalVersions(db: Queryable, hostAccountId: string) {
+export async function openProposalVersions(db: Queryable, hostAccountId: string) {
   const rows = await db<{ requestId: string; version: number }[]>`
     select r.id as "requestId", max(p.version)::int as version
     from app.requests r join app.proposals p on p.request_id = r.id
@@ -382,7 +431,7 @@ export async function evaluateCandidatesForHostTool(
   await awaitHostEvaluation(db, outcome.result.evaluationId, options.waitMs ?? HOST_REVIEW_EVALUATION_WAIT_MS);
   const view = await readHostRequest(db, hostAccountId, requestId);
   if (!view) throw new HostReviewToolDeniedError();
-  return { evaluated: true as const, evaluation: hostModelProjection(view).evaluation, next: NEXT_STEPS };
+  return { evaluated: true as const, evaluation: hostModelProjection(view).evaluation, proposalFeasibility: proposalFeasibility(view), next: isHostSetupSession(call.auth) ? ACCOUNT_NEXT_STEPS : NEXT_STEPS };
 }
 
 async function hostExceptionForTool(
@@ -403,7 +452,7 @@ async function hostExceptionForTool(
   }
 
   const pipeline = { authenticate: async () => hostActor(hostAccountId), db };
-  const request = { expectedRevision: view.revision, resourceId: requestId, retryKey: `tool:${call.callId}` };
+  const request = { expectedRevision: call.expectedRevision ?? view.revision, resourceId: requestId, retryKey: `tool:${call.callId}` };
   const outcome = kind === "weekly_limit"
     ? await runCommand(pipeline, waiveWeeklyLimitCommand(), { ...request, input: {} })
     : await runCommand(pipeline, allowHostTripCommand(), { ...request, input: input as z.infer<typeof allowHostTripInput> });
@@ -591,7 +640,7 @@ export async function approveProposalForTool(db: Database, call: HostReviewToolC
   }
 
   const outcome = await runCommand({ authenticate: async () => hostActor(hostAccountId), db }, approveCommand, {
-    expectedRevision: view.revision,
+    expectedRevision: call.expectedRevision ?? view.revision,
     input: input.option === undefined ? { version: input.version } : { option: input.option, version: input.version },
     resourceId: requestId,
     retryKey: `tool:${call.callId}`,
@@ -604,7 +653,7 @@ export async function approveProposalForTool(db: Database, call: HostReviewToolC
       message: outcome.result.repeated
         ? "That proposal was already approved; the booking is under way."
         : target.named
-          ? `Approved ${target.named.requester}'s request (${target.named.ref}). The booking is being added to Google Calendar; tell the host it is approved and the booking is under way, and never call it booked or confirmed. This conversation stays on its own request.`
+          ? `Approved ${target.named.requester}'s request (${target.named.ref}). The booking is being added to Google Calendar; tell the host it is approved and the booking is under way, and never call it booked or confirmed. The account conversation has not moved.`
           : "Approved. The booking is being added to Google Calendar; tell the host it is approved, and do not call it booked until read_booking_status says it is confirmed.",
     };
   }
@@ -679,7 +728,7 @@ export async function declineRequestForTool(
 
   const dates = [...new Set(input.excludedDates ?? [])];
   const outcome = await runCommand({ authenticate: async () => hostActor(hostAccountId), db }, declineCommand(loadNotices), {
-    expectedRevision: view.revision,
+    expectedRevision: call.expectedRevision ?? view.revision,
     input: dates.length > 0 ? { excludedDates: dates } : {},
     resourceId: requestId,
     retryKey: `tool:${call.callId}`,
@@ -721,7 +770,7 @@ export async function cancelBookingForHostTool(db: Database, call: HostReviewToo
   if (view.state === "cancelled") return { cancelled: true as const, message: "The meeting was already cancelled; nothing else changed." };
 
   const outcome = await runCommand({ authenticate: async () => hostActor(hostAccountId), db }, cancelBookingCommand(loadNotices), {
-    expectedRevision: view.revision,
+    expectedRevision: call.expectedRevision ?? view.revision,
     input: {},
     resourceId: requestId,
     retryKey: `tool:${call.callId}`,
@@ -746,7 +795,7 @@ export async function changeBookingForHostTool(db: Database, call: HostReviewToo
   if (!view) throw new HostReviewToolDeniedError();
 
   const outcome = await runCommand({ authenticate: async () => hostActor(hostAccountId), db }, changeBookingCommand, {
-    expectedRevision: view.revision,
+    expectedRevision: call.expectedRevision ?? view.revision,
     input: {},
     resourceId: requestId,
     retryKey: `tool:${call.callId}`,
@@ -812,7 +861,7 @@ export async function resolveChangesForTool(db: Database, call: HostReviewToolCa
   if (CLOSED_STATES.has(view.state)) return { done: false as const, problem: "The request is closed; nothing changed." };
 
   const pipeline = { authenticate: async () => hostActor(hostAccountId), db };
-  const request = { expectedRevision: view.revision, input: { suggestionId: suggestion.id }, resourceId: requestId, retryKey: `tool:${call.callId}` };
+  const request = { expectedRevision: call.expectedRevision ?? view.revision, input: { suggestionId: suggestion.id }, resourceId: requestId, retryKey: `tool:${call.callId}` };
   const outcome = kind === "share" ? await runCommand(pipeline, shareChangesCommand, request) : await runCommand(pipeline, dismissChangesCommand, request);
 
   if (outcome.ok) {
