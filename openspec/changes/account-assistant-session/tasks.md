@@ -72,3 +72,12 @@ RV-10/RV-X09 are executed from account-assistant/review-routing.eval.ts with hos
 - [x] 8.5 Run required local checks, record results, commit and push the repair; no evals, stack lifecycle, shared Supabase, migration application, deployment or merge.
 
 Third repair local evidence (Node.js 24.22.3): lint passed with six existing warnings; typecheck passed; 162 unit files / 1,444 tests passed; Eve + Next.js build passed; strict OpenSpec validation passed; documentation check passed (1,822 links / 448 files); git diff --check passed. Unit serialization checks use postgres.js's actual JSONB serializer without a database connection. All live eval assertions and trial counts are unchanged. Live evals, database execution, integration/e2e and deployment are NOT RUN.
+
+## 9. Targeted reply-completeness findings
+
+- [x] 9.1 Read the supplied targeted transcripts; replace host-quote deferral reply copy with a service acknowledgement and record the explicit BASIS list/read required-call alternative without relaxing duplicate checks.
+- [x] 9.2 Return complete structured schedule/setup replies and the combined place question; reconstruct completed sample receipts for the active owned input and allow targeted reads of finished own samples.
+- [x] 9.3 Retain only per-turn authorized read IDs in Eve working navigation, clear them across turns, and freshly re-authorize/reload their DB state after compaction; add reply/capture/receipt/navigation regressions and owning docs/mirrors.
+- [ ] 9.4 Run all required checks, record results, commit and push to PR #499; no evals, stack operations, shared Supabase, database application, deployment or merge.
+
+Fourth repair local evidence (Node.js 24.22.3): lint passed with six existing warnings; typecheck passed; 164 unit files / 1,452 tests passed; Eve + Next.js build passed with existing optional-import and Next.js configuration warnings; strict OpenSpec validation passed; documentation check passed (1,822 links / 448 files); git diff --check passed. Existing Korean mirrors 04/12 were regenerated with matching structure; document 13 has no existing mirror. Only the explicitly authorized BASIS first-turn list/read alternative changed; duplicate bounds, other assertions and all trial counts remain unchanged. Live evals, integration/e2e, stack operations, database/migration application, shared Supabase access and deployment are NOT RUN. No new migration was authored.

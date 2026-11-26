@@ -1,3 +1,4 @@
+import { hostConversationLanguage } from "./channel-language";
 import { BOOKING_WEEK_REPLY_NOTE } from "../contracts/timezone";
 import { cancelBookingCommand, changeBookingCommand } from "./booking-cancellation";
 import { createHash } from "node:crypto";
@@ -233,7 +234,10 @@ export async function readRequestForHostTool(db: Database, call: HostReviewToolC
 // compaction and lost the useful current read behind a long summary.
 export async function readAccountRequestForTool(db: Database, call: HostReviewToolCall) {
   const result = await readRequestForHostTool(db, call);
-  return { ...result, evaluation: accountEvaluationSummary(result.evaluation) };
+  const actor = await authorizeSetupTool(db, call.auth, call.sessionId);
+  const reply = result.sample && result.state === "withdrawn"
+    ? { kind: "completed_tutorial", text: tutorialCompletionText(await hostConversationLanguage(db, actor.id), null) } : null;
+  return { reply, ...result, evaluation: accountEvaluationSummary(result.evaluation) };
 }
 
 export function accountEvaluationSummary(evaluation: ReturnType<typeof hostModelProjection>["evaluation"]) {

@@ -1,3 +1,5 @@
+import { placeQuestion } from "./account-replies";
+import { hostConversationLanguage } from "./channel-language";
 import { z } from "zod";
 import { readHostIntake } from "./host-intake";
 import type { AnalysisForModel } from "../contracts/analysis";
@@ -432,10 +434,16 @@ export async function readSetupStateForTool(deps: SetupDependencies, call: Setup
   // reference and size; its titles come only from choose_note_items. The chat
   // onboarding's note step and latest slot image (issue #216), which jobs may
   // have moved on since the assistant's last tool result.
+  const linked = Boolean(await channelOfTurn(deps.db, call.sessionId, actor.id));
+  const projection = modelProjection(state, linked);
+  const chatOnboarding = await chatOnboardingForModel(deps.db, actor.id, state.proposalHash);
+  const nextQuestion = linked && projection.nextAction === "review_suggestions" &&
+    !(chatOnboarding?.hoursQuestion?.waitingForAnswer) && !state.fields.meetingMode.draft
+    ? { kind: "place", covers: ["area", "online", "travel"], text: placeQuestion(await hostConversationLanguage(deps.db, actor.id)) } : null;
   return {
-    ...modelProjection(state, Boolean(await channelOfTurn(deps.db, call.sessionId, actor.id))),
+    nextQuestion, ...projection,
     intake: await readHostIntake(deps.db, actor.id),
-    chatOnboarding: await chatOnboardingForModel(deps.db, actor.id, state.proposalHash),
+    chatOnboarding,
     weeklyNoteList: await weeklyNoteListForModel(deps.db, actor.id),
   };
 }
@@ -450,12 +458,14 @@ export type DraftSettingsToolResult =
       readonly savedChange: SavedChangeOutcome;
       readonly state: Awaited<ReturnType<typeof readSetupStateForTool>>;
       readonly message: string;
+      readonly reply: { kind: string; text: string } | null;
     }
   | {
       readonly saved: false;
       readonly error: "invalid_input" | "stale_revision";
       readonly problems?: Partial<Record<SetupFieldName, string>>;
       readonly message: string;
+      readonly reply: { kind: string; text: string } | null;
     };
 
 export async function draftSettingsForTool(
@@ -474,7 +484,7 @@ export async function draftSettingsForTool(
 
   if (!outcome.ok) {
     if (outcome.error.category === "stale_revision" || outcome.error.category === "invalid_input") {
-      return { error: outcome.error.category, message: `${outcome.error.message} Call ${call.fromRequest ? "read_settings" : "read_setup_state"} first.`, saved: false };
+      return { reply: null, error: outcome.error.category, message: `${outcome.error.message} Call ${call.fromRequest ? "read_settings" : "read_setup_state"} first.`, saved: false };
     }
 
     throw new SetupToolDeniedError();
@@ -482,7 +492,7 @@ export async function draftSettingsForTool(
 
   if (outcome.result.problems) {
     return {
-      error: "invalid_input",
+      reply: null, error: "invalid_input",
       message: "Nothing was saved. Fix the listed fields.",
       problems: outcome.result.problems,
       saved: false,
@@ -493,7 +503,7 @@ export async function draftSettingsForTool(
   // no second approval (first-time setup still ends with the host's own save).
   const savedChange = await saveReadyHostChange(deps, actor, { call, retryKey: `tool:${call.callId}:save` });
   const state = await readSetupStateForTool(deps, call);
-  return { changed: outcome.result.changed, revision: outcome.result.revision, saved: true, savedChange, state,
+  return { reply: state.nextQuestion ? { kind: "next_setup_question", text: state.nextQuestion.text } : null, changed: outcome.result.changed, revision: outcome.result.revision, saved: true, savedChange, state,
     message: outcome.result.changed ? "Draft updated. Continue from state.nextAction; first setup is saved only by confirm_settings after a delivered preview and agreement."
       : "The draft already contains these exact values. No further write is needed. Continue from state.nextAction and chatOnboarding, without repeating this write or claiming a new change." };
 }

@@ -16,8 +16,9 @@ import { accountSession, prepareSavedHost, setupHost } from "./support";
 function check(t: EveEvalContext, value: boolean, label: string) {
   t.check(value, satisfies((ok: boolean) => ok, label)).label(label);
 }
-function called(t: EveEvalContext, turn: EveEvalTurn, name: string) {
-  check(t, turn.toolCalls.some(call => call.name === name), `calls ${name}`);
+function called(t: EveEvalContext, turn: EveEvalTurn, name: string | readonly string[]) {
+  const names = typeof name === "string" ? [name] : name;
+  check(t, turn.toolCalls.some(call => names.includes(call.name)), `calls ${names.join(" or ")}`);
 }
 function forbid(t: EveEvalContext, turn: EveEvalTurn, names: readonly string[]) {
   check(t, turn.toolCalls.every(call => !names.includes(call.name)), `does not call ${names.join(", ")}`);
@@ -295,7 +296,7 @@ const cases: readonly Case[] = [
       await rubric(t, [...transcript, `Host: ${message}`, `Tool evidence: ${JSON.stringify(turn.toolCalls.map(call => ({ name: call.name, output: call.output })))}`].join("\n"), turn.message, criterion);
       transcript.push(`Host: ${message}\nAssistant: ${turn.message}`);
       check(t, JSON.stringify(await requestState(request.requestId)) === JSON.stringify(before), "waiting request decision state unchanged");
-      if (message === turns[0]![0]) called(t, turn, "read_request");
+      if (message === turns[0]![0]) called(t, turn, ["list_host_requests", "read_request"]);
       if (message === turns[1]![0]) called(t, turn, "read_request");
     }
   } },

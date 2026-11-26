@@ -2,6 +2,8 @@ import { z } from "zod";
 import { TUTORIAL_FEEDBACK, TUTORIAL_TEXT, tutorialAction, tutorialFinishResult } from "../contracts/host-tutorial";
 import { DEFAULT_MEETING_MINUTES } from "../contracts/setup";
 import { isValidTimeZone } from "../contracts/timezone";
+import { hostConversationLanguage } from "./channel-language";
+import { requestRef } from "./request-ref";
 import type { ChannelLanguage } from "./channel-language";
 import { lockActiveHost } from "./analysis";
 import { assertRevision, type CommandDefinition, CommandError } from "./commands";
@@ -14,6 +16,24 @@ export function tutorialCompletionText(language: ChannelLanguage, result: unknow
   const feedback = TUTORIAL_FEEDBACK[language];
   const parsed = tutorialFinishResult.safeParse(result);
   return `${parsed.data?.action ? feedback[parsed.data.action] + " " : ""}${feedback.complete} ${feedback.practice}`;
+}
+
+// A completed sample remains a completed action even when it disappears from
+// the open-request list. Reconstruct its receipt from DB state for this input.
+export async function completedTutorialForTurn(db: Queryable, hostAccountId: string, sessionId: string) {
+  const [row] = await db<{ id: string }[]>`
+    select r.id from app.agent_sessions s
+    join app.conversation_inputs i on i.id = s.current_input_id
+    join app.requests r on r.host_account_id = s.principal_id and r.is_sample
+      and r.state = 'withdrawn' and r.closed_at >= i.accepted_at
+    where s.session_id = ${sessionId} and s.principal_id = ${hostAccountId}
+      and s.principal_type = 'host_account' and s.state = 'active'
+    order by r.closed_at desc limit 1
+  `;
+  return row ? { ref: requestRef(row.id), finished: true,
+    reply: { kind: "completed_tutorial", text: tutorialCompletionText(await hostConversationLanguage(db, hostAccountId), null) },
+    calendarEventCreated: false, guestNotified: false,
+  } : null;
 }
 
 export async function tutorialOffered(db: Queryable, hostAccountId: string) {

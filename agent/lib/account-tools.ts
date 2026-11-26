@@ -1,3 +1,4 @@
+import { recordAccountRead } from "./account-turn";
 import { defineTool } from "eve/tools";
 import { z } from "zod";
 import { accountRequestCall, accountRequestInput, accountSentCall, assertSentAnswer, batchDecisionsInput, decideAccountRequests } from "../../lib/server/account-assistant-tools";
@@ -35,7 +36,9 @@ export function accountTools() {
       execute: async (input, ctx) => {
         const { ref } = input;
         const target = await accountRequestCall(database(), call(ctx), ref);
-        return readAccountRequestForTool(database(), target);
+        const result = await readAccountRequestForTool(database(), target);
+        recordAccountRead(ctx.session.turn.id, target.requestId!);
+        return result;
       },
     }),
     evaluate_candidates: defineTool({

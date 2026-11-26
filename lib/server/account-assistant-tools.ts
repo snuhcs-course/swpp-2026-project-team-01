@@ -19,7 +19,7 @@ export const accountRequestInput = z.object({ ref: z.string().trim().min(1).max(
 export async function accountRequestCall(db: Database, call: HostReviewToolCall, ref: string, action?: "approve" | "decline" | "cancel"): Promise<HostReviewToolCall> {
   const actor = await authorizeSetupTool(db, call.auth, call.sessionId);
   if (!(await channelOfTurn(db, call.sessionId, actor.id))) throw new HostReviewToolDeniedError();
-  const requests = await listHostRequests(db, actor.id, { limit: null });
+  const requests = await listHostRequests(db, actor.id, { limit: null, includeFinishedSamples: action === undefined });
   const matches = requests.filter(item => item.requestId === ref);
   let found = matches.length ? matches : matchHostRequests(requests, ref, { exactName: true });
   if (action === "approve" && found.length > 1) {
@@ -137,5 +137,10 @@ export async function decideAccountRequests(db: Database, call: HostReviewToolCa
       results.push({ ref: item.ref, action: item.action, result: { problem: "Unavailable, ambiguous or failed item. Clarify only it; other results stand." } });
     }
   }
-  return { results, note: "Use each item result independently. A successful sample:true result finishes the tutorial; repeat its message and do not call another finish or booking-status tool for it. A real approved item is not confirmed booked; read_booking_status reports confirmation only if needed." };
+  const completedActions = results.flatMap(item => {
+    const outcome = z.object({ ok: z.literal(true), result: z.object({ sample: z.literal(true), finished: z.literal(true), message: z.string() }) }).safeParse(item.result);
+    return outcome.success ? [{ ref: item.ref, kind: "completed_tutorial", text: outcome.data.result.message }] : [];
+  });
+  return { reply: completedActions.length === results.length ? { kind: "completed_actions", text: completedActions.map(item => item.text).join("\n") } : null,
+    completedActions, results, note: "Use each item result independently. A successful sample:true result finishes the tutorial; repeat its message and do not call another finish or booking-status tool for it. A real approved item is not confirmed booked; read_booking_status reports confirmation only if needed." };
 }

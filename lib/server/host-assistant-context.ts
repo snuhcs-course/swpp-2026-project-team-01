@@ -1,3 +1,4 @@
+import { completedTutorialForTurn } from "./host-tutorial";
 import { createHash } from "node:crypto";
 import { z } from "zod";
 import type { ModelMessage } from "ai";
@@ -143,10 +144,10 @@ export async function captureContext(db: Database, call: SetupToolCall, scope: s
       const envelope = z.object({ memory: memorySchema, notice: z.string() }).safeParse(row.content);
       const memory = envelope.success ? envelope.data.memory : null;
       const question = questionSchema.safeParse(row.content);
-      const deferred = z.object({ text: z.string() }).safeParse(row.content);
+      const deferred = z.object({ text: z.string(), acknowledgement: z.string() }).safeParse(row.content);
       const acknowledged = row.kind === "memory" ? memory !== null && envelope.success && reply.includes(envelope.data.notice)
         : row.kind === "question" ? question.success && reply.includes(question.data.question)
-          : deferred.success && reply.includes(deferred.data.text);
+          : deferred.success && reply.includes(deferred.data.acknowledgement);
       // Unacknowledged writes never become recalled facts; clear their content.
       await tx`
         update app.host_assistant_context set confirmed = ${acknowledged},
@@ -161,13 +162,14 @@ export async function captureContext(db: Database, call: SetupToolCall, scope: s
 
 export async function accountSnapshot(deps: SetupDependencies, call: SetupToolCall) {
   const actor = await authorizeSetupTool(deps.db, call.auth, call.sessionId);
-  const [received, sent, zone, setup, bookings] = await Promise.all([
+  const [received, sent, zone, setup, bookings, completedTutorial] = await Promise.all([
     listHostRequests(deps.db, actor.id), listSentRequests(deps.db, actor.id), readHostTimezone(deps.db, actor.id),
     readSetupState(deps, actor.id, { includeCalendars: false }),
     deps.db<{ ref: string; start_at: Date; end_at: Date }[]>`
       select request_id::text as ref, start_at, end_at from app.bookings where host_account_id = ${actor.id}
         and state = 'confirmed' and end_at > now() and start_at < now() + interval '7 days' order by start_at limit 100
     `,
+    completedTutorialForTurn(deps.db, actor.id, call.sessionId),
   ]);
   const versions = await deps.db<{ request_id: string; version: number | null; revision: number }[]>`
     select r.id as request_id, r.revision, max(p.version)::int as version from app.requests r
@@ -175,7 +177,7 @@ export async function accountSnapshot(deps: SetupDependencies, call: SetupToolCa
     where r.host_account_id = ${actor.id} and r.state <> 'draft' group by r.id
   `;
   return {
-    current: currentTime(zone), timezone: zone, setupStep: setup ? modelProjection(setup, true).nextAction : "connect_calendar",
+    completedTutorial, current: currentTime(zone), timezone: zone, setupStep: setup ? modelProjection(setup, true).nextAction : "connect_calendar",
     pending: received.filter(item => item.needsDecision).map(item => ({ ref: requestRef(item.requestId), state: item.state, proposed: item.proposalStart, ...versions.find(row => row.request_id === item.requestId) })),
     bookings: bookings.map(item => ({ ...item, ref: requestRef(item.ref) })),
     sent: sent.map(item => ({ ref: requestRef(item.requestId), state: item.state, proposed: item.proposalStart, booked: item.bookedStart })),

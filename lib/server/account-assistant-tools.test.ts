@@ -38,7 +38,7 @@ describe("account assistant refs and independent decisions", () => {
   });
   it("resolves any owned ref without changing session authority", async () => {
     expect(await accountRequestCall(db, call, requestRef(b))).toEqual({ ...call, requestId: b });
-    expect(listHostRequests).toHaveBeenCalledWith(db, owner, { limit: null });
+    expect(listHostRequests).toHaveBeenCalledWith(db, owner, { limit: null, includeFinishedSamples: true });
     await expect(accountRequestCall(db, call, "Woo")).rejects.toThrow("ambiguous");
     await expect(accountRequestCall(db, call, "foreign-ref")).rejects.toThrow("unavailable");
     vi.mocked(channelOfTurn).mockResolvedValue(null);

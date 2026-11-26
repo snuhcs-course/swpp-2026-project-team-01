@@ -1,9 +1,16 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { MemoryTurnStartedContext } from "eve/memory";
+import { accountTurnReads, recordAccountRead } from "../../agent/lib/account-turn";
+import { readAccountRequestForTool } from "./host-review-tools";
 import { accountMemoryProvider } from "../../agent/memory/account";
 import { authorizeSetupTool } from "./setup-tools";
 import { accountSnapshot, captureContext, contextAuthority, readContext } from "./host-assistant-context";
 
+vi.mock("eve/context", () => ({ defineState: <T>(_name: string, initial: () => T) => {
+  let state = initial();
+  return { get: () => state, update: (change: (value: T) => T) => { state = change(state); } };
+} }));
+vi.mock("./host-review-tools", () => ({ readAccountRequestForTool: vi.fn() }));
 vi.mock("./setup-tools", async importOriginal => ({ ...await importOriginal<typeof import("./setup-tools")>(), authorizeSetupTool: vi.fn() }));
 vi.mock("./setup", () => ({ setupDependenciesFromEnvironment: () => ({ db: "test-db" }) }));
 vi.mock("./database", () => ({ database: () => "test-db" }));
@@ -20,6 +27,7 @@ const ctx: MemoryTurnStartedContext = {
 };
 beforeEach(() => {
   vi.resetAllMocks();
+  accountTurnReads.update(() => ({ turnId: null, requestIds: [] }));
   vi.mocked(authorizeSetupTool).mockResolvedValue({ id: "owner", kind: "host_account" });
   vi.mocked(contextAuthority).mockResolvedValue({ actor: { id: "owner", kind: "host_account" }, turn: { inputId: "input", message: "[Telegram] hello", channel: "telegram" } });
   vi.mocked(readContext).mockResolvedValue([]);
@@ -27,7 +35,7 @@ beforeEach(() => {
 describe("account custom memory provider lifecycle", () => {
   it("uses three stable replacement ids and reloads state after compaction", async () => {
     const snapshot: Awaited<ReturnType<typeof accountSnapshot>> = {
-      current: { now: "now", thisWeek: "this", nextWeek: "next" }, timezone: "UTC", setupStep: "ready", bookings: [], sent: [], note: "navigation",
+      completedTutorial: null, current: { now: "now", thisWeek: "this", nextWeek: "next" }, timezone: "UTC", setupStep: "ready", bookings: [], sent: [], note: "navigation",
       pending: [{ ref: "A", version: 1, revision: 2, request_id: "request-a", state: "awaiting_host_approval", proposed: null }],
     };
     vi.mocked(accountSnapshot).mockResolvedValue(snapshot);
@@ -40,6 +48,16 @@ describe("account custom memory provider lifecycle", () => {
     expect(next.messages[2]!.content).toContain('"memories":[]');
     expect(captureContext).not.toHaveBeenCalled();
     expect(readContext).toHaveBeenCalledWith("test-db", "owner", "scoped-key");
+  });
+  it("re-authorizes and reloads this turn's read IDs after compaction instead of losing the read result", async () => {
+    recordAccountRead("turn-one", "request-one");
+    recordAccountRead("turn-one", "request-one");
+    await accountMemoryProvider.recall["compaction.completed"](ctx);
+    expect(readAccountRequestForTool).toHaveBeenCalledExactlyOnceWith("test-db", expect.objectContaining({ requestId: "request-one", sessionId: "session" }));
+    vi.mocked(readAccountRequestForTool).mockClear();
+    await accountMemoryProvider.recall["turn.started"]({ ...ctx, turn: { ...ctx.turn, id: "next-turn" } });
+    expect(readAccountRequestForTool).not.toHaveBeenCalled();
+    expect(accountTurnReads.get().requestIds).toEqual([]);
   });
   it("retains only this turn's staged acknowledgements across compaction without confirming them", async () => {
     vi.mocked(readContext).mockResolvedValue([

@@ -1,3 +1,4 @@
+import { scheduleReply, setupConfirmationReply } from "./account-replies";
 import { createHash } from "node:crypto";
 import { listSentRequests } from "./host-sent-requests";
 import { z } from "zod";
@@ -7,7 +8,7 @@ import { channelOfTurn, linkedMessagingTurn } from "./channel-selection";
 import { CommandError, runCommand } from "./commands";
 import { CalendarAccessError, openHostCalendar } from "./google-calendar";
 import { hostRequestsForModel, openProposalVersions } from "./host-review-tools";
-import { chooseTutorialCommand, TUTORIAL_TEXT, tutorialChoiceInput } from "./host-tutorial";
+import { completedTutorialForTurn, chooseTutorialCommand, TUTORIAL_TEXT, tutorialChoiceInput } from "./host-tutorial";
 import { listHostRequests, readHostTimezone } from "./host-requests";
 import { settingsRef } from "./request-ref";
 import { computeSetupProposal, differsFromConfirmed, readSetupState, missingFields, setupDependenciesFromEnvironment, withStatedAnswers, type SetupDependencies } from "./setup";
@@ -46,7 +47,9 @@ import { enqueueSettingsButtonRetirement } from "./telegram-jobs";
 
 export async function listHostRequestsForSetupTool(deps: SetupDependencies, call: SetupToolCall) {
   const actor = await authorizeSetupTool(deps.db, call.auth, call.sessionId);
-  return hostRequestsForModel(await listHostRequests(deps.db, actor.id), await readHostTimezone(deps.db, actor.id), new Date(), await listSentRequests(deps.db, actor.id), await openProposalVersions(deps.db, actor.id));
+  const listing = hostRequestsForModel(await listHostRequests(deps.db, actor.id), await readHostTimezone(deps.db, actor.id), new Date(), await listSentRequests(deps.db, actor.id), await openProposalVersions(deps.db, actor.id));
+  const completedTutorial = await completedTutorialForTurn(deps.db, actor.id, call.sessionId);
+  return { reply: completedTutorial?.reply ?? null, completedTutorial, ...listing };
 }
 
 export async function disconnectCalendarForTool(deps: SetupDependencies, call: SetupToolCall) {
@@ -75,7 +78,7 @@ export async function readScheduleForSetupTool(deps: SetupDependencies, call: Se
   const actor = await authorizeSetupTool(deps.db, call.auth, call.sessionId);
   const schedule = await readHostSchedule(deps.db, deps.calendar, actor.id, readScheduleToolInput.parse(input));
   const requests = await listHostRequestsForSetupTool(deps, call);
-  return { ...schedule,
+  return { reply: scheduleReply(schedule, requests, await hostConversationLanguage(deps.db, actor.id)), ...schedule,
     nearbyBookings: requests.requests.filter(item => item.booked?.week === "this_week" || item.booked?.week === "next_week"),
     nearbySentBookings: requests.sent.filter(item => item.booked?.week === "this_week" || item.booked?.week === "next_week"),
   };
@@ -183,6 +186,7 @@ export async function confirmSettingsForTool(deps: SetupDependencies, call: Setu
     await deps.db.begin((tx) => enqueueSettingsButtonRetirement(tx, actor.id, retryKey));
     const language = await hostConversationLanguage(deps.db, actor.id);
     return {
+      reply: setupConfirmationReply(language, outcome.result.links.booking, outcome.result.tutorialOffered ? TUTORIAL_TEXT[language].offer : null, outcome.result.tutorialOffered),
       links: outcome.result.links,
       // The first save ends setup (issue #368); a later one only saves changes.
       message: outcome.result.tutorialOffered

@@ -30,6 +30,11 @@ all at its start.
   service's earlier messages or the examples here are Korean. Keep replies
   short and ask one question at a time, except the setup's place question, which also asks how
   the host meets and travels; echo what you understood before you record it.
+- A typed tool reply groups the whole response in reply.text and its sections
+  or parts. Keep that response together, including other-week confirmed
+  bookings, a booking link, or a completed-action receipt. An empty open-request
+  list does not undo a completed action. Reply to a deferred item with the
+  service acknowledgement, never with the host's first-person words.
 - Never point to a card or button, and never ask the host to type a command or
   a reference. Say what they can tell you instead, such as "tell me to book it"
   or "tell me what to change".

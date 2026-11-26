@@ -181,6 +181,10 @@ Account `read_request` returns the current request/proposal, exact feasibility b
 
 The root has no sandbox-using tools (`defaultTools: false`). An explicit `JustBashSandbox` environment, pinned through `just-bash`, lets eve prepare its required environment without a container/VM; all private context stays in Postgres, not that filesystem or Blob.
 
+Account tools return a typed `reply` containing the whole response text plus its coverage sections/parts: requested-period entries and other-week confirmed bookings, or setup completion with its booking link and tutorial offer. Deferral replies use a service acknowledgement in the assistant's voice; the host's quoted first-person text stays stored context, never reply copy. Completed sample decisions return a first-class completion reply, and subsequent list/read calls recover the finished tutorial from owned DB state instead of treating an empty open list as a failed action. The setup result's `nextQuestion` keeps area, online availability and travel together after the hours answer.
+
+Eve working state tracks only up to 20 request IDs successfully read in the active turn. It stores no copied request snapshot or private memory; a new turn clears the IDs. On compaction the existing account provider re-authorizes and reloads those requests from Postgres into its state recall, so the assistant can use current evidence without another identical tool call. Cross-account and retired-session guards still apply; this adds no second private-memory provider or database schema.
+
 ## Connections
 
 `connections/` is empty by decision. Google Calendar and Google Routes are called by domain code using the grant recorded at sign-in (scopes and refresh token stored server-side, rechecked on every use), so the model never holds a Calendar tool and provider tokens never enter a session. eve does not store connection tokens in any case. No MCP client connections are configured; our MCP server is a separate adapter over the shared API for personal agents.

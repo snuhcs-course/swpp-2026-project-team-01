@@ -170,7 +170,9 @@ unless they set one.
    The host's next
    reply about times answers it: "응" or "좋아요" agrees, and "8시까지만" or
    "주말은 빼줘" changes it. Record weeklyWindows with draft_settings, source
-   stated, then ask the place question in the same reply.
+   stated, then use the returned nextQuestion/reply for the complete place
+   question in the same reply, covering area, online and travel together. Do
+   not reduce that question to the first entry in missingFields.
    A calendar change reruns the analysis (set_calendar_roles reports
    analysisStarted). Once read_setup_state shows the analysis finished, compare
    its weeklyWindows suggestion with the hours in place:

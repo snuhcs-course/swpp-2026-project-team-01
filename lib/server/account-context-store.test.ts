@@ -66,6 +66,14 @@ describe("account context transactional writes", () => {
     expect(sql.mock.calls.at(-1)).toContain(false);
     expect(encodedValue(jsonParameter(sql.mock.calls.at(-1)!))).toEqual({});
   });
+  it("confirms deferral only from a service acknowledgement, never the host's own first-person text", async () => {
+    const row = { ...entry, kind: "deferred", entry_key: "later", revision: 1, confirmed: false, operation_id: "turn:save", source_input_id: "input", content: { text: "음, 좀 생각해볼게", acknowledgement: "알겠어요. 편하실 때 결정해 주세요." } };
+    for (const [index, reply] of [row.content.text, row.content.acknowledgement].entries()) {
+      sql.mockResolvedValueOnce([row]).mockResolvedValueOnce([{ entry_key: `capture-${index}` }]).mockResolvedValueOnce([]);
+      await captureContext(database(), call, "scope", `capture-${index}`, [{ role: "assistant", content: reply }], "turn");
+      expect(sql.mock.calls.at(-1)).toContain(index === 1);
+    }
+  });
   it("a delayed capture confirms only its original turn and never a later question", async () => {
     const old = { ...entry, kind: "memory", entry_key: "old-fact", revision: 1, confirmed: false, operation_id: "old-turn:save", source_input_id: "old-input" };
     const newer = { kind: "question", entry_key: "latest", revision: 2, confirmed: false, content: { question: "New question?" }, operation_id: "new-turn:question", source_input_id: "new-input" };
