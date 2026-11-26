@@ -6,15 +6,19 @@
 ## MODIFIED Requirements
 
 ### Requirement: Channel offered by device with Telegram
-The linking card, the link step after sign-in and the landing's start before sign-in SHALL offer the configured channels by device. Android SHALL get WhatsApp when configured, otherwise SMS when configured, otherwise Telegram, with a choice to use each other configured channel instead. iPhone, iPad and Mac SHALL get iMessage with a choice to use each other configured channel instead, SMS included. Other devices SHALL first ask which app the host uses on their phone, among the configured channels. A channel that is not configured SHALL NOT be offered.
+The linking card, the link step after sign-in and the landing's start before sign-in SHALL offer the configured channels by device. iPhone, iPad and Mac SHALL get iMessage, with a choice to use each other configured channel instead. Every other device SHALL get SMS when it is configured, with a choice to use each other configured channel instead. When SMS is not configured or its gateway is stale, Android SHALL get WhatsApp when configured and Telegram otherwise, and other devices SHALL first ask which app the host uses on their phone, among the configured channels. A channel that is not configured SHALL NOT be offered.
 
 #### Scenario: Android without WhatsApp
-- **WHEN** an Android host opens the link step while WhatsApp is not configured and SMS is
-- **THEN** it offers **Connect SMS** with **Use Telegram instead** and no WhatsApp or iMessage action
-
-#### Scenario: Android without WhatsApp or SMS
-- **WHEN** an Android host opens the link step while neither WhatsApp nor SMS is configured
+- **WHEN** an Android host opens the link step while SMS and WhatsApp are not configured
 - **THEN** it offers **Connect Telegram** and no WhatsApp, SMS or iMessage action
+
+#### Scenario: Android host with SMS
+- **WHEN** an Android host opens the link step while SMS and Telegram are configured
+- **THEN** it offers **Connect SMS** with **Use Telegram instead** and no iMessage action
+
+#### Scenario: Windows computer with SMS
+- **WHEN** a host opens the link step in a browser on Windows while SMS is configured
+- **THEN** it offers **Connect SMS** with the other configured channels as choices
 
 #### Scenario: iPhone host
 - **WHEN** an iPhone host opens the linking card while Telegram and SMS are configured
