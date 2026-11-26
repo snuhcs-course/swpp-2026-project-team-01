@@ -202,7 +202,7 @@ Photon and eve documentation for the iMessage channel. Phase 6 relied on the Spe
 
 ## Photon SMS
 
-SMS is specified by the [`sms-channel` change](../../openspec/changes/sms-channel/proposal.md) and is not built yet. It runs on Photon's Beta (2.0) API at `https://api.photon.codes/v1`, not on the Spectrum host `spectrum.photon.codes` that iMessage and WhatsApp use. The Beta project is `FineMeatime` (`pho_prj_01m6h26pn8fap8znkf4rc98v53`), in the Beta dashboard at `app.beta.photon.codes`. The API's OpenAPI document is `https://api.photon.codes/openapi.json`.
+Not used. On 2026-11-26 the [`sms-channel` change](../../openspec/changes/sms-channel/proposal.md) moved SMS to an Android gateway phone (SMS Gate), after the spike below showed that Photon's SMS reaches US numbers only, and only after a 10DLC campaign is approved. The campaign "Find Me a Time scheduling" was submitted on 2026-11-26 and is in review; keeping or withdrawing it is the user's call. What follows records Photon's SMS as found. It runs on Photon's Beta (2.0) API at `https://api.photon.codes/v1`, not on the Spectrum host `spectrum.photon.codes` that iMessage and WhatsApp use. The Beta project is `FineMeatime` (`pho_prj_01m6h26pn8fap8znkf4rc98v53`), in the Beta dashboard at `app.beta.photon.codes`. The API's OpenAPI document is `https://api.photon.codes/openapi.json`.
 
 ### Spike, 2026-11-26
 
