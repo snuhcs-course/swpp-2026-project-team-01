@@ -68,15 +68,33 @@ export function groupSettings(env: Environment = process.env): GroupSettings {
 
 const escape = (text: string) => text.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 
-// Whether a message calls the assistant: it starts with "@", or names it. A
-// Latin name counts only as a whole word ("eve", not "every" or "seven"); a
-// Korean one anywhere, since Korean attaches particles ("이브야", "타임래빗한테").
+// Particles that may follow a Korean name when it is called ("이브야",
+// "타임래빗한테"); a Korean name followed by anything else, or preceded by a
+// Hangul syllable ("드라이브", "크리스마스 이브에"), is part of another word.
+const PARTICLES = ["", "야", "아", "님", "씨", "한테", "에게", "께", "랑", "이랑", "는", "은", "가", "이", "도", "요"];
+const HANGUL = /[\uac00-\ud7a3]/;
+
+function namesKorean(text: string, name: string) {
+  for (let at = text.indexOf(name); at >= 0; at = text.indexOf(name, at + 1)) {
+    if (at > 0 && HANGUL.test(text[at - 1]!)) continue;
+    const rest = text.slice(at + name.length);
+    const particle = PARTICLES.find((candidate) => rest.startsWith(candidate) && !HANGUL.test(rest[candidate.length] ?? ""));
+    if (particle !== undefined) return true;
+  }
+  return false;
+}
+
+function namesLatin(text: string, name: string) {
+  return new RegExp(`(?<![A-Za-z0-9])${escape(name)}(?![A-Za-z0-9])`, "i").test(text) && !/christmas\s+eve/i.test(text);
+}
+
+// Whether a message calls the assistant: it names the account or the assistant,
+// with or without "@" in front. A Latin name counts only as a whole word ("eve",
+// not "every" or "seven"), and an "@" before someone else's name ("@김철수")
+// calls no one.
 export function callsAssistant(text: string, names: readonly string[] = GROUP_NAMES) {
   const trimmed = text.trim();
-  if (trimmed.startsWith("@")) return true;
-  return names.some((name) =>
-    /^[\x20-\x7e]+$/.test(name) ? new RegExp(`(?<![A-Za-z0-9])${escape(name)}(?![A-Za-z0-9])`, "i").test(trimmed) : trimmed.includes(name),
-  );
+  return names.some((name) => (/^[\x20-\x7e]+$/.test(name) ? namesLatin(trimmed, name) : namesKorean(trimmed, name)));
 }
 
 export const groupContext = (groupId: string) => `kakaotalk_group:${groupId}`;
@@ -109,7 +127,8 @@ async function keepContext(tx: Transaction, tokenKey: TokenKey, groupId: string,
             ${sentAt ?? new Date()})
     on conflict (receipt_id) do nothing
   `;
-  // Only the newest messages of the last day are kept.
+  // Only the newest messages of this group are kept; app.sweep_kakaotalk_group_messages
+  // removes every group's lines past 24 hours each hour.
   await tx`
     delete from app.kakaotalk_group_messages
     where group_id = ${groupId}
@@ -119,17 +138,20 @@ async function keepContext(tx: Transaction, tokenKey: TokenKey, groupId: string,
   `;
 }
 
-// The kept context of a group, oldest first, removed as it is taken.
-async function takeContext(tx: Transaction, keys: readonly TokenKey[], groupId: string) {
-  const rows = await tx<{ id: string; text_ciphertext: string; sealed_key_id: string; created_at: Date }[]>`
-    delete from app.kakaotalk_group_messages
+// The kept context of a group, oldest first, with the IDs of its rows. It is
+// not removed here: the call's input removes exactly these rows in the
+// transaction that records it, so a deferred or failed call loses nothing and a
+// recorded one never sends them twice.
+async function readContext(tx: Transaction, keys: readonly TokenKey[], groupId: string) {
+  const rows = await tx<{ id: string; text_ciphertext: string; sealed_key_id: string }[]>`
+    select id, text_ciphertext, sealed_key_id from app.kakaotalk_group_messages
     where group_id = ${groupId} and created_at >= now() - make_interval(hours => ${GROUP_CONTEXT_HOURS})
-    returning id, text_ciphertext, sealed_key_id, created_at
+    order by created_at, id
   `;
-  const lines: string[] = [];
-  for (const row of [...rows].sort((a, b) => a.created_at.getTime() - b.created_at.getTime() || (a.id < b.id ? -1 : 1))) {
+  const lines: { readonly id: string; readonly line: string }[] = [];
+  for (const row of rows) {
     try {
-      lines.push(openToken(keys, { ciphertext: row.text_ciphertext, keyId: row.sealed_key_id }, groupMessageContext(row.id)));
+      lines.push({ id: row.id, line: openToken(keys, { ciphertext: row.text_ciphertext, keyId: row.sealed_key_id }, groupMessageContext(row.id)) });
     } catch {
       // A line that no longer opens is dropped.
     }
@@ -144,12 +166,19 @@ export function groupInput(roomName: string | null, context: readonly string[], 
   return `${header}\n${earlier}Message to you:\n${call}`;
 }
 
-// Calls answered in the last 24 hours: in this group, and in every group.
+// A group reply's dedupe key: the one marker that tells a group's reply from a
+// host's or guest's (the claim, the counter and the reply's cut use it).
+export const GROUP_REPLY_PREFIX = "group-input:";
+
+// Calls answered in the last 24 hours: in this group, and in every group. The
+// count is taken under one lock, held until the reply row is recorded, so
+// parallel receipts of different groups never pass the total together.
 async function repliesToday(tx: Transaction, roomHash: string) {
+  await tx`select pg_advisory_xact_lock(hashtextextended('app.kakaotalk_group_replies', 0))`;
   const [row] = await tx<{ group: number; all: number }[]>`
     select count(*) filter (where recipient_hash = ${roomHash})::int as group, count(*)::int as all
     from app.imessage_outbox
-    where channel = 'kakaotalk' and kind = 'turn' and binding_id is null and requester_binding_id is null
+    where channel = 'kakaotalk' and kind = 'turn' and dedupe_key like ${`${GROUP_REPLY_PREFIX}%`}
       and created_at > now() - interval '24 hours'
   `;
   return row!;
@@ -194,8 +223,13 @@ async function createGroupSession(deps: ConversationDependencies, principal: Pri
 }
 
 // Records the call as the group discussion's input (keyed by the receipt, so a
-// retried job finds it) and delivers it; the input's ID.
-export async function acceptGroupMessage(deps: ConversationDependencies, groupId: string, input: { readonly clientInputId: string; readonly message: string }) {
+// retried job finds it), removes the context rows it carries in the same
+// transaction, and delivers it; the input's ID.
+export async function acceptGroupMessage(
+  deps: ConversationDependencies,
+  groupId: string,
+  input: { readonly clientInputId: string; readonly message: string; readonly contextIds?: readonly string[] },
+) {
   const principal: Principal = { id: groupId, type: "kakaotalk_group" };
   const recorded = await withPrincipalAuthority(deps.db, principal, async (tx) => {
     const discussionId = await lockGroupDiscussion(tx, groupId);
@@ -216,11 +250,24 @@ export async function acceptGroupMessage(deps: ConversationDependencies, groupId
       values (${discussionId}, ${input.clientInputId}, ${protectedInput.fingerprint}, ${protectedInput.protectedFingerprint}, ${protectedInput.message})
       returning id
     `;
+    if (input.contextIds?.length) {
+      await tx`delete from app.kakaotalk_group_messages where group_id = ${groupId} and id = any(${input.contextIds}::uuid[])`;
+    }
     return { discussionId, inputId: created!.id, state: "accepted" };
   });
   if (recorded.state === "accepted") {
     try {
-      const session = (await latestSession(deps.db, recorded.discussionId)) ?? (await createGroupSession(deps, principal, recorded.discussionId, 1));
+      // A group has no recovery page: a failed generation is replaced by the next
+      // one here, and its unfinished input goes on in it, so one failure never
+      // silences the group.
+      let session = (await latestSession(deps.db, recorded.discussionId)) ?? (await createGroupSession(deps, principal, recorded.discussionId, 1));
+      if (session.state === "failed") {
+        session = await createGroupSession(deps, principal, recorded.discussionId, session.generation + 1);
+        await deps.db`
+          update app.conversation_inputs set state = 'accepted', session_id = null, sent_at = null, received_session_id = null
+          where discussion_id = ${recorded.discussionId} and state <> 'completed'
+        `;
+      }
       if (session.state === "active") await deliverNext(deps, principal, recorded.discussionId);
     } catch (error) {
       // A runtime refusal leaves the input accepted; the next call or recovery delivers it.
@@ -262,30 +309,44 @@ export async function receiveGroupMessage(tx: Transaction, deps: GroupDependenci
   if (!group) return "ignored";
   const line = contextLine(message.senderName, message.text);
 
-  const replies = await repliesToday(tx, group.roomHash);
-  const answer = callsAssistant(message.text, settings.names) && replies.group < settings.groupDailyReplies && replies.all < settings.groupsDailyReplies;
-  if (!answer) {
-    await keepContext(tx, deps.tokenKey, group.id, message.receiptId, line, message.sentAt);
-    return "ignored";
-  }
-
-  // A retry of this receipt finds the input it recorded and sends no context again.
+  // A retry of this receipt finds the input it recorded: its reply is recorded
+  // whatever the limits say now, and no context goes again.
   const [earlier] = await tx<{ id: string }[]>`
     select i.id from app.conversation_inputs i join app.discussions d on d.id = i.discussion_id
     where d.principal_type = 'kakaotalk_group' and d.principal_id = ${group.id} and i.client_input_id = ${message.receiptId}
   `;
   let inputId = earlier?.id ?? null;
+
   if (!inputId) {
-    const context = await takeContext(tx, deps.tokenKeys, group.id);
-    let text = groupInput(message.roomName, context, line);
-    // The oldest context goes first when the input would be too long.
-    while (getChatMessageLengthError(text) && context.length > 0) {
-      context.shift();
-      text = groupInput(message.roomName, context, line);
+    // An untitled group cannot be answered (its chat-list label lists members),
+    // so its calls stay context rather than running a model for nothing.
+    const replies = await repliesToday(tx, group.roomHash);
+    const answer =
+      Boolean(message.roomName?.trim()) &&
+      callsAssistant(message.text, settings.names) &&
+      replies.group < settings.groupDailyReplies &&
+      replies.all < settings.groupsDailyReplies;
+    if (!answer) {
+      await keepContext(tx, deps.tokenKey, group.id, message.receiptId, line, message.sentAt);
+      return "ignored";
+    }
+
+    const context = await readContext(tx, deps.tokenKeys, group.id);
+    let text = groupInput(message.roomName, context.map((entry) => entry.line), line);
+    // The oldest context goes first when the input would be too long; what is
+    // left out is removed with the rest.
+    let sent = context.length;
+    while (getChatMessageLengthError(text) && sent > 0) {
+      sent -= 1;
+      text = groupInput(message.roomName, context.slice(context.length - sent).map((entry) => entry.line), line);
     }
     if (getChatMessageLengthError(text)) return "ignored";
     try {
-      inputId = await acceptGroupMessage(deps.conversation, group.id, { clientInputId: message.receiptId, message: text });
+      inputId = await acceptGroupMessage(deps.conversation, group.id, {
+        clientInputId: message.receiptId,
+        contextIds: context.map((entry) => entry.id),
+        message: text,
+      });
     } catch (error) {
       if (error instanceof AdmissionLimitError) throw new GroupAdmissionDeferred();
       if (error instanceof ConversationInputError) return "ignored";
@@ -295,7 +356,7 @@ export async function receiveGroupMessage(tx: Transaction, deps: GroupDependenci
 
   await recordOutbound(tx, {
     channel: "kakaotalk",
-    dedupeKey: `input:${inputId}`,
+    dedupeKey: `${GROUP_REPLY_PREFIX}${inputId}`,
     inputId,
     kind: "turn",
     recipient: { address: message.roomId, spaceId: message.roomId },

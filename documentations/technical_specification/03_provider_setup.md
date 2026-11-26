@@ -323,7 +323,7 @@ KakaoTalk is the transport of the proposed host KakaoTalk channel in the [`host-
   - `KAKAOTALK_ACTIVE_RELAY`: `mac` or `android` (the default). The service refuses the other relay's events, claims and heartbeats with `409`, so only one relay acts on the account. To switch, stop the old relay, set the variable and deploy, then start the new one; claims resume after its first heartbeat.
   - A message the Mac relay finds in another room after sending is recorded as `relay_wrong_room` and listed as `kakaotalk_wrong_room` in the operator snapshot.
 - **Group chats.** The proposed [`kakaotalk-group-conversations` change](../../openspec/changes/kakaotalk-group-conversations/proposal.md#decisions) has the Mac relay send every member's group text. The assistant answers a message that calls it, in the group, from a conversation owned by no host and with no tools.
-  - `KAKAOTALK_GROUP_NAMES`: comma-separated names that call the assistant, besides a message starting with `@`. The default is `TimeRabbit,타임래빗,eve,이브`.
+  - `KAKAOTALK_GROUP_NAMES`: comma-separated names that call the assistant, with or without `@` in front. The default is `TimeRabbit,타임래빗,eve,이브`.
   - `KAKAOTALK_GROUP_DAILY_REPLIES` and `KAKAOTALK_GROUPS_DAILY_REPLIES`: calls answered per group and across groups in 24 hours, by default 30 and 300.
   - The relay's `config.json` takes `"groupMessages": false` to keep group text on the Mac.
 - **Terms.** Kakao's terms prohibit programs that use the service in ways Kakao has not authorized, and the account may be suspended (Q1). Hosts keep `/app` and email.

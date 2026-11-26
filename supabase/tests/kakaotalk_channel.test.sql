@@ -11,7 +11,7 @@ begin;
 
 create extension if not exists pgtap with schema extensions;
 
-select plan(23);
+select plan(26);
 
 select is_empty(
   $$
@@ -147,6 +147,32 @@ select lives_ok(
   $$ insert into app.discussions (principal_type, principal_id, audience)
      values ('kakaotalk_group', gen_random_uuid(), 'group_chat') $$,
   'a KakaoTalk group chat has its own discussion, owned by no host'
+);
+
+insert into app.kakaotalk_groups (id, room_hash, room_ciphertext, sealed_key_id)
+values ('00000000-0000-4000-8000-0000000000f1', repeat('a', 64), 'r', 'k');
+insert into app.kakaotalk_group_messages (group_id, receipt_id, text_ciphertext, sealed_key_id, created_at)
+values ('00000000-0000-4000-8000-0000000000f1', gen_random_uuid(), 'old', 'k', now() - interval '25 hours'),
+       ('00000000-0000-4000-8000-0000000000f1', gen_random_uuid(), 'new', 'k', now() - interval '1 hour');
+insert into app.discussions (id, principal_type, principal_id, audience, created_at)
+values ('00000000-0000-4000-8000-0000000000f2', 'kakaotalk_group', '00000000-0000-4000-8000-0000000000f1', 'group_chat', now() - interval '40 days');
+select app.sweep_kakaotalk_group_messages();
+
+select is(
+  (select array_agg(text_ciphertext) from app.kakaotalk_group_messages where group_id = '00000000-0000-4000-8000-0000000000f1'),
+  array['new'],
+  'the sweep removes group context lines past 24 hours and keeps newer ones'
+);
+
+select is_empty(
+  $$ select 1 from app.discussions where id = '00000000-0000-4000-8000-0000000000f2' $$,
+  'the sweep deletes a group conversation 30 days after its last call'
+);
+
+select is(
+  (select schedule || ' ' || command from cron.job where jobname = 'app-kakaotalk-group-messages'),
+  '17 * * * * select app.sweep_kakaotalk_group_messages()',
+  'the group sweep runs every hour'
 );
 
 select is((select relay_kind from app.kakaotalk_relay_heartbeats), 'android', 'a heartbeat row names the phone unless the Mac relay sent it');

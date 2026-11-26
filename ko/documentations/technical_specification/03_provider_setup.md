@@ -324,7 +324,7 @@ KakaoTalk은 팀원 승인을 기다리는 [`host-kakaotalk-channel` 변경](../
   - `KAKAOTALK_ACTIVE_RELAY`: `mac` 또는 `android`(기본값)입니다. 서비스는 다른 릴레이의 이벤트, 클레임, 하트비트를 `409`로 거부하므로 계정에 대해 한 릴레이만 동작합니다. 전환하려면 이전 릴레이를 멈추고, 변수를 설정해 배포한 다음, 새 릴레이를 시작합니다. 클레임은 새 릴레이의 첫 하트비트 뒤에 재개됩니다.
   - Mac 릴레이가 보낸 뒤 다른 대화방에서 찾은 메시지는 `relay_wrong_room`으로 기록되고 운영자 스냅샷에는 `kakaotalk_wrong_room`으로 표시됩니다.
 - **그룹 채팅.** 제안된 [`kakaotalk-group-conversations` 변경](../../openspec/changes/kakaotalk-group-conversations/proposal.md#decisions)은 Mac 릴레이가 그룹의 모든 구성원의 텍스트를 보내게 합니다. 어시스턴트는 자신을 부르는 메시지에 그룹 안에서 답하며, 이때 어떤 호스트도 소유하지 않은 대화와 도구 없는 상태로 답합니다.
-  - `KAKAOTALK_GROUP_NAMES`: `@`로 시작하는 메시지 외에 어시스턴트를 부르는 이름을 쉼표로 구분한 목록입니다. 기본값은 `TimeRabbit,타임래빗,eve,이브`입니다.
+  - `KAKAOTALK_GROUP_NAMES`: 앞에 `@`가 있든 없든 어시스턴트를 부르는 이름을 쉼표로 구분한 목록입니다. 기본값은 `TimeRabbit,타임래빗,eve,이브`입니다.
   - `KAKAOTALK_GROUP_DAILY_REPLIES`와 `KAKAOTALK_GROUPS_DAILY_REPLIES`: 24시간 동안 그룹별, 그리고 전체 그룹에 걸쳐 답하는 호출 수이며 기본값은 30과 300입니다.
   - 릴레이의 `config.json`에 `"groupMessages": false`를 넣으면 그룹 텍스트를 Mac 안에만 둡니다.
 - **약관.** Kakao의 약관은 Kakao가 허용하지 않은 방식으로 서비스를 이용하는 프로그램을 금지하며, 계정이 정지될 수 있습니다(Q1). 호스트는 `/app`과 이메일을 계속 사용할 수 있습니다.

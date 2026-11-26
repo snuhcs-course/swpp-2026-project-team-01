@@ -947,7 +947,7 @@ The [proposal](../../openspec/changes/kakaotalk-group-conversations/proposal.md#
 |---|---|---|---|---|
 | D1 | Every group the account is in, every member's text | Only code-bound groups; only linked hosts' messages | Proposal; design 1 | Design 1 |
 | D2 | A `kakaotalk_group` principal with a `group_chat` discussion and no tools | Running group messages in a member host's session | Proposal; design 2 | Design 2 and `lib/server/kakaotalk-groups.ts` |
-| D3 | Reply only to a message that starts with `@` or names the account or the assistant; the rest is context for 24 hours | Replying to every message | Proposal; design 3 | Design 3 |
+| D3 | Reply only to a message that names the account or the assistant; the rest is context for 24 hours | Replying to every message; any message starting with `@` | Proposal; design 3 | Design 3 |
 | D4 | Replies only through the Mac relay, to titled groups the name rule picks | Sending to untitled groups by member names | Proposal; design 4 | Design 4 |
-| D5 | 30 calls per group and 300 in total per 24 hours; anonymous model caps; a `group` admission scope | No limit beyond the model caps | Proposal; design 5 | Design 5 |
+| D5 | 30 calls per group and 300 in total per 24 hours; groups' own model allowances; a `group` admission scope | The anonymous model pool | Proposal; design 5 | Design 5 |
 | D6 | Plain, short answers with no tools and no claims of checking or booking | Giving groups the scheduling tools | Proposal; design 6 | Design 6 and `agent/instructions/group-chat.ts` |

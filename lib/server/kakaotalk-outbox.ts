@@ -17,6 +17,7 @@ import {
 } from "./kakaotalk";
 import { authenticateRelay, type RelayDependencies, relayAnswer, relayDependenciesFromEnvironment } from "./kakaotalk-receiver";
 import type { PhotonContent } from "./photon";
+import { GROUP_REPLY_PREFIX } from "./kakaotalk-groups";
 import { channelHash } from "./photon-receiver";
 import { openToken, sealToken, type TokenKey } from "./token-encryption";
 
@@ -147,6 +148,8 @@ type OpenRow = {
   readonly text_ciphertext: string | null;
   readonly sealed_key_id: string | null;
   readonly job_pending: boolean;
+  // Queued more than an hour ago.
+  readonly stale: boolean;
 };
 
 async function suppress(tx: Transaction, id: string, category: string) {
@@ -229,6 +232,7 @@ async function headRows(q: Transaction | Database, recipientHash: string | null 
       select distinct on (o.recipient_hash)
              o.id, o.kind, o.state, o.dedupe_key, o.recipient_hash, o.binding_id, o.host_account_id, o.request_id,
              o.recipient_ciphertext, o.text_ciphertext, o.sealed_key_id, o.created_at,
+             o.created_at < now() - interval '1 hour' as stale,
              exists (
                select 1 from app.jobs j
                where j.kind = 'imessage_send' and j.dedupe_key = 'outbox:' || o.id::text and j.state in ('pending', 'running')
@@ -310,9 +314,10 @@ export async function claimKakaoTalkMessage(
     const check = async (row: OpenRow): Promise<Checked> => {
       if (row.state === "waiting" || row.job_pending) return { status: "blocked" };
       // Only the Mac relay can leave a room (host-kakaotalk-mac-relay design 7).
-      // A group chat's reply has no binding; only the Mac relay reaches a group
-      // (kakaotalk-group-conversations design 4).
-      const groupReply = row.kind === "turn" && !row.binding_id && !row.host_account_id;
+      // A group chat's reply (marked by its dedupe key) goes only through the Mac
+      // relay, and not at all once it is an hour old: a late answer out of
+      // context is worse than none (kakaotalk-group-conversations design 4).
+      const groupReply = row.kind === "turn" && row.dedupe_key.startsWith(GROUP_REPLY_PREFIX);
       if (UNSUPPORTED.has(row.kind) || ((row.kind === "leave_room" || groupReply) && relay !== "mac")) {
         await suppress(tx, row.id, "unsupported");
         return { status: "suppressed" };
@@ -393,7 +398,11 @@ export async function claimKakaoTalkMessage(
         }
       }
 
-      const groupReply = row.kind === "turn" && !row.binding_id && !row.host_account_id;
+      const groupReply = row.kind === "turn" && row.dedupe_key.startsWith(GROUP_REPLY_PREFIX);
+      if (groupReply && row.stale) {
+        await suppress(tx, row.id, "stale");
+        continue;
+      }
       if (groupReply ? rooms.group?.has(roomId) : rooms.posted.has(roomId) || rooms.replyable.has(roomId)) {
         // The host wrote again, so a nudge still waiting for this chat has no point.
         await tx`

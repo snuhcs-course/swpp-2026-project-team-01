@@ -113,7 +113,7 @@ function command(hostAccountId: string, operation: string, input: unknown = {}) 
 }
 
 // Runs the receipt jobs the watcher's events stored, oldest first; their outcomes.
-async function receipts(roomId: string) {
+async function receipts(roomId: string, deps?: ReturnType<typeof im.receiptDeps>) {
   const rows = await db<{ id: string }[]>`
     select id from app.imessage_receipts
     where message_id like ${`kakaotalk:${roomId}:log:%`} and outcome is null
@@ -121,7 +121,7 @@ async function receipts(roomId: string) {
   `;
   const outcomes: string[] = [];
   for (const row of rows) {
-    await im.runReceipt(row.id);
+    await im.runReceipt(row.id, deps);
     const [after] = await db<{ outcome: string }[]>`select outcome from app.imessage_receipts where id = ${row.id}`;
     outcomes.push(after!.outcome);
   }
@@ -408,6 +408,54 @@ describe("a group chat on the Mac relay", () => {
     } finally {
       delete process.env.KAKAOTALK_GROUP_DAILY_REPLIES;
     }
+  });
+
+  it("keeps the context when a call is deferred by admission, and records no input", async () => {
+    current.kakao.add(RECORDED.group, "900000003", "다음 주에 다같이 밥 먹을까?");
+    await current.relay.watchOnce();
+    await receipts(RECORDED.group);
+    current.kakao.add(RECORDED.group, "900000004", "이브야 화요일 어때?");
+    await current.relay.watchOnce();
+    const limited = im.receiptDeps();
+    const deferred = { ...limited, conversation: { ...limited.conversation, admission: { ...limited.conversation.admission, limits: { scopeMinute: 0 } } } };
+    await receipts(RECORDED.group, deferred);
+    expect(await groupInputs()).toEqual([]);
+    const [kept] = await db<{ count: number }[]>`
+      select count(*)::int as count from app.kakaotalk_group_messages m join app.kakaotalk_groups g on g.id = m.group_id where g.room_hash = ${groupHash}
+    `;
+    expect(kept!.count).toBe(1);
+  });
+
+  it("starts the group's next session after a failed one, so the group is answered again", async () => {
+    current.kakao.add(RECORDED.group, "900000003", "@eve 안녕");
+    await current.relay.watchOnce();
+    await receipts(RECORDED.group);
+    await db`
+      update app.agent_sessions s set state = 'failed' from app.discussions d join app.kakaotalk_groups g on g.id = d.principal_id
+      where s.discussion_id = d.id and d.principal_type = 'kakaotalk_group' and g.room_hash = ${groupHash}
+    `;
+    current.kakao.add(RECORDED.group, "900000004", "이브 다시 안녕");
+    await current.relay.watchOnce();
+    expect(await receipts(RECORDED.group)).toEqual(["forwarded"]);
+    const sessions = await db<{ generation: number; state: string }[]>`
+      select s.generation, s.state from app.agent_sessions s join app.discussions d on d.id = s.discussion_id
+      join app.kakaotalk_groups g on g.id = d.principal_id where g.room_hash = ${groupHash} order by s.generation
+    `;
+    expect(sessions.map((session) => [session.generation, session.state])).toEqual([[1, "failed"], [2, "active"]]);
+    // The unfinished first call goes on in the new generation, and the second waits its turn.
+    const states = await db<{ state: string; generation: number | null }[]>`
+      select i.state, s.generation from app.conversation_inputs i left join app.agent_sessions s on s.session_id = i.session_id
+      where i.id = any(${(await groupInputs()).map((row) => row.id)}::uuid[]) order by i.accepted_at
+    `;
+    expect(states.map((row) => [row.state, row.generation])).toEqual([["sent", 2], ["accepted", null]]);
+  });
+
+  it("keeps an untitled group's call as context, since its reply could not be sent", async () => {
+    const untitled = newKakaoTalkRoom();
+    current.kakao.addRoom({ chatId: untitled, kind: "group", memberUserIds: ["900000003"] });
+    current.kakao.add(untitled, "900000003", "@eve 안녕");
+    await current.relay.watchOnce();
+    expect(await receipts(untitled)).toEqual(["ignored"]);
   });
 
   it("forwards a group code only as its hash, and stores no text for it", async () => {

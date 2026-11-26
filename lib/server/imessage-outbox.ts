@@ -604,7 +604,7 @@ export function createImessageSendHandler(load: () => ImessageSendDependencies =
       if (row.kind === "turn" && row.state === "waiting") {
         if (readText === undefined) throw new TurnNotEndedError();
         // A KakaoTalk group's reply has neither binding (kakaotalk-group-conversations design 4).
-        const audience = row.requester_binding_id ? "requester" : row.binding_id || row.host_account_id ? "host" : row.channel === "kakaotalk" ? "group" : "host";
+        const audience = row.dedupe_key.startsWith("group-input:") ? "group" : row.requester_binding_id ? "requester" : "host";
         text = imessageTurnText(readText, deps.origin, audience);
       } else if (row.kind !== "contact_card" && !(row.kind === "template" && row.text_ciphertext === null)) {
         // A template with no parameter (the weekly note notice) has no text.

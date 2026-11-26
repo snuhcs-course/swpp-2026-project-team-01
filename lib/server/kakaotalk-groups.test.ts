@@ -6,15 +6,28 @@ import { callsAssistant, contextLine, GROUP_NAMES, groupInput, groupSettings, is
 // daily limits, and which sessions get the group instructions.
 
 describe("calls", () => {
-  it("counts a message that starts with @ or names the account or the assistant", () => {
-    for (const text of ["@ 다음 주 언제 돼?", "이브야 화요일 어때", "타임래빗한테 물어보자", "Eve, are you there?", "hey TIMERABBIT", "eve?"]) {
-      expect(callsAssistant(text)).toBe(true);
+  it("counts a message that names the account or the assistant, with or without @", () => {
+    for (const text of ["@이브 다음 주 언제 돼?", "이브야 화요일 어때", "이브, 화요일 저녁 괜찮을까?", "타임래빗한테 물어보자", "이브님 안녕", "Eve, are you there?", "hey TIMERABBIT", "@eve 안녕", "eve?"]) {
+      expect(callsAssistant(text), text).toBe(true);
     }
   });
 
-  it("does not count a Latin name inside another word, or a message that names no one", () => {
-    for (const text of ["every evening works", "seven people", "never mind", "다음 주에 다같이 밥 먹을까?", "email me@x.com"]) {
-      expect(callsAssistant(text)).toBe(false);
+  it("does not count a name inside another word, Christmas Eve, or an @ before someone else", () => {
+    for (const text of [
+      "every evening works",
+      "seven people",
+      "never mind",
+      "다음 주에 다같이 밥 먹을까?",
+      "email me@x.com",
+      "드라이브 가자",
+      "라이브 봤어?",
+      "아카이브 링크",
+      "크리스마스 이브에 뭐해",
+      "Christmas Eve plans",
+      "@김철수 언제와",
+      "@ 다음 주 언제 돼?",
+    ]) {
+      expect(callsAssistant(text), text).toBe(false);
     }
   });
 
