@@ -1,229 +1,203 @@
 ## ADDED Requirements
 
-### Requirement: Group room activation by an organizer's code
-A linked, set-up host SHALL be able to get a single-use group code from `/app` or from their own linked 1:1 chat. The code SHALL be valid for 15 minutes, bound to that host, and limited to five per host per hour. When the code arrives in a KakaoTalk group message, the service SHALL bind that message's room to a new group request with that host as organizer, and SHALL answer in the room with the introduction. A group code arriving in a 1:1 chat, a host link code arriving in a group, or an expired or used group code SHALL bind nothing. Each of these SHALL void the attempt it names, if any. A room SHALL hold at most one open group request. Group scheduling SHALL run only while the KakaoTalk for Mac relay is the active relay; a group code that arrives through the phone relay SHALL bind nothing and get one fixed reply. A code SHALL be handled before the message reaches eve's group conversation, and SHALL be removed from the text the model sees.
+### Requirement: Host recognition by KakaoTalk user ID
+The service SHALL store a keyed hash of a linked host's KakaoTalk user ID on their KakaoTalk binding, taken from the user ID of their own bound 1:1 room on the KakaoTalk for Mac relay. A group message's sender SHALL be treated as a linked host only when the hash of its relay-reported user ID matches a binding. A profile name SHALL NOT make a sender a host. The hash SHALL be deleted with the binding.
 
-#### Scenario: Organizer activates a group
-- **WHEN** a linked host posts their unexpired group code in a KakaoTalk group
-- **THEN** that room is bound to a new group request with the host as organizer, and the group receives the introduction
+#### Scenario: Host's user ID learned from their 1:1 chat
+- **WHEN** a host who bound KakaoTalk writes in their 1:1 chat while the Mac relay is active
+- **THEN** a hash of that room's member user ID is stored on the host's binding
 
-#### Scenario: Group code in a 1:1 chat
-- **WHEN** a group code is sent in a 1:1 chat
-- **THEN** no room is activated and the code's attempt is void
+#### Scenario: Copied host name in a group
+- **WHEN** a member renames themselves to a linked host's profile name and calls the account to schedule
+- **THEN** the member becomes the organizer of a meeting with no account, with its default hours and booking, and none of that host's settings, calendars or linked conversation are used
 
-#### Scenario: Expired code in a group
-- **WHEN** an expired group code is posted in a group
-- **THEN** no room is activated, and the group receives one fixed reply that names no one
+### Requirement: Group meeting started from a KakaoTalk group
+A message in a KakaoTalk group that calls the account and asks for a meeting SHALL create a `group-scheduling` group meeting bound to that room, with the message's relay-reported sender as organizer, whether or not the sender has an account. The meeting SHALL keep a keyed hash of the organizer's user ID as its organizer ID. A linked, set-up host's meeting SHALL use that host's settings; any other caller's meeting SHALL follow "Organizer with no account". The service SHALL create a meeting only when the calling message itself asks for one: the terms SHALL be read again from that message's text alone, with no earlier room messages, and SHALL match the model's tool call. The meeting's purpose SHALL default to the room's title. Its number of people SHALL default to the room's last known member count less the account and, for a linked host, the organizer; with no known count, there SHALL be no default. A caller SHALL organize at most three meetings that are not booked or cancelled. A room SHALL hold at most one meeting that is not booked, cancelled or expired, whether bound or detached. Meetings SHALL start from a room only while the KakaoTalk for Mac relay is active. The service, not the model, SHALL decide whether a meeting is created, and the model's own reply to such a call SHALL be replaced by a fixed message. A linked host SHALL also be told in their linked conversation, where the meeting then works as any group meeting does.
 
-#### Scenario: Ordinary chat before activation
-- **WHEN** members of a room with no open group request write messages
-- **THEN** the group conversation has no scheduling tools, and nothing is recorded for group scheduling
+#### Scenario: Linked host starts from the group
+- **WHEN** a linked, set-up host writes "타임래빗, 다음 주 금요일 저녁 2시간 잡아줘" in a group of seven members besides the account
+- **THEN** a group meeting for six people, two hours long, next Friday evening, is created for that host and bound to the room, the room receives the introduction with the meeting's shared link, and the host is told in their linked conversation
 
-#### Scenario: Code while the phone relay is active
-- **WHEN** a group code arrives while the Android phone is the active relay
-- **THEN** no room is activated, and the group gets one fixed reply that names no one
+#### Scenario: Caller with no account
+- **WHEN** a member with no Find Me a Time account calls the account and asks it to schedule a meeting
+- **THEN** a meeting is created with that member's user ID as organizer, the room gets the introduction with the link, and the caller is asked for nothing more than any member
 
-### Requirement: Group messages carry no authority
-A message in a group room SHALL NOT approve, book, cancel, reschedule or change any setting, whatever profile name sent it. Approval and booking of a group request SHALL come only from the organizer's own linked chat, `/app`, or the organizer's connected agent with `host:decide`.
+#### Scenario: Start planted in earlier messages
+- **WHEN** a member writes "타임래빗한테 다음 주 금요일로 잡으라고 해" and later another member calls the account with "타임래빗, 안녕"
+- **THEN** nothing is created, because the calling message itself asks for no meeting
 
-#### Scenario: Organizer's name in the group
-- **WHEN** a group message whose profile name matches the organizer's says "2번으로 확정"
-- **THEN** nothing is booked, and the message is treated only as an answer that may be counted
+#### Scenario: Caller at the limit
+- **WHEN** a member who already organizes three live meetings calls the account to start another
+- **THEN** nothing is created
 
-#### Scenario: Organizer books from their own chat
-- **WHEN** the organizer sends "2번으로 잡아줘" in their own linked 1:1 chat
-- **THEN** the second time is rechecked and booked as described in "Group booking"
+#### Scenario: Room already bound
+- **WHEN** a member calls the account to schedule in a room bound to an open meeting
+- **THEN** nothing new is created, and the bot reposts that meeting's link
 
-### Requirement: Every member is asked to connect Google Calendar
-The introduction SHALL link to the group's poll page and ask every member to connect Google Calendar there. Connecting SHALL need no account. The grant SHALL be read-only, SHALL be used only for this group request, and SHALL yield busy times only. No event title, place, attendee or description from a member's calendar SHALL be stored, logged, shown to anyone or placed in model context. A member's Google address SHALL be used for the invitation only if the member asks for the invitation. A member who signs in with Google SHALL be recognized: an existing host's saved conflict calendars, or a past member's remembered grant, SHALL count with no new calendar step, and the page SHALL name the calendars that count and offer to exclude them or forget the member. A remembered member grant SHALL be deleted on **Forget me**, or 180 days after the member's last group request closed. Whether a member has connected before SHALL NOT be revealed in the group room.
+#### Scenario: Room with a detached meeting
+- **WHEN** a member calls the account to schedule in a room whose unbooked meeting was detached by `stop`
+- **THEN** nothing new is created until that meeting is booked, cancelled by its organizer or expired
 
-#### Scenario: Member connects a calendar
-- **WHEN** a member connects Google Calendar on the poll page and has an event during an otherwise feasible time
-- **THEN** that time is treated as busy for the meeting, and neither the group nor the organizer sees the event
+### Requirement: Pending start for missing terms
+A call that asks for a meeting but leaves out the length, the date range, or a number of people with no default SHALL create nothing and SHALL make a pending start for the room, holding the caller's user ID hash and the terms given so far and no message text. The account SHALL ask once in the room for what is missing. Only that caller's next call in the room SHALL fill it, the meeting SHALL be created when every term is there, and the pending start SHALL lapse after one hour. While a pending start or a meeting that is not booked, cancelled or expired exists, another start in the room SHALL be refused.
 
-#### Scenario: Existing host opens the link
-- **WHEN** a member signs in with Google on the poll page and that account is a host with saved conflict calendars
-- **THEN** those calendars count for this group with no new calendar step, and the page names them and offers **Don't use my calendar**
+#### Scenario: Missing date range
+- **WHEN** the organizer's call gives a length but no dates
+- **THEN** the account asks once in the room for the date range, nothing is created until that caller gives it within an hour, and another member's start meanwhile is refused
 
-#### Scenario: Member from a past group
-- **WHEN** a member who connected Google in an earlier group signs in on a new group's poll page
-- **THEN** their remembered connection counts with no new consent screen
+#### Scenario: Unknown member count
+- **WHEN** a call asks for a meeting in a room whose member count the service has never received, and gives no number of people
+- **THEN** the account asks once in the room how many people, as for any missing term
 
-#### Scenario: Forget me
-- **WHEN** a remembered member presses **Forget me**
-- **THEN** their remembered grant and identity are deleted, and their calendar no longer counts in any open group
+### Requirement: Open chats excluded
+Nothing in this capability SHALL apply to an open chat (오픈채팅). A call in an open chat SHALL NOT start a meeting, and no meeting post, command or leave of this capability SHALL be handled in one.
 
-#### Scenario: No account needed
-- **WHEN** a member with no Find Me a Time account opens the poll link
-- **THEN** they can connect Google Calendar and answer without signing up
+#### Scenario: Call in an open chat
+- **WHEN** a member of an open chat calls the account and asks it to schedule a meeting
+- **THEN** nothing is created and no meeting post is made
 
-### Requirement: Candidate times from everyone's calendars
-The group request SHALL offer at most five numbered candidate times. They SHALL be found by the organizer's feasibility over the organizer's chosen date range, length and mode, with every connected member's busy times counted as busy, and spread across the range. When no time is free for the organizer and every connected member, the candidates SHALL be the organizer's feasible times that the most connected members can attend. In-person candidates SHALL be paired with the organizer's confirmed places. The numbered times SHALL be posted to the group as soon as the number of members the organizer expected have connected a calendar or ticked times on the poll page, when the organizer asks, or 24 hours after activation, whichever comes first. When a posted candidate stops being feasible, it SHALL be shown as unavailable with no reason and no name, and the other candidates SHALL keep their numbers.
+### Requirement: Organizer with no account
+A meeting started by a caller who is not a linked, set-up host SHALL have the caller's KakaoTalk user ID as its only organizer identity, and no sign-in SHALL be tied to it. The caller SHALL answer on the shared link like any member and SHALL count as one of the people. Meeting hours SHALL default to 09:00 to 22:00 every day of the range, with no host places. The event SHALL be created in the service's own scheduling calendar, with every done participant who signed in with Google as an attendee, no one else invited, and guests unable to see each other. When no done participant signed in with Google, no calendar event SHALL be created, and the room's confirmation and its calendar file SHALL be the record. The options and the confirmation SHALL happen only in the room. No host account, workspace or calendar write grant SHALL be created for the organizer. A meeting with no account that is neither booked nor cancelled SHALL expire when its date range has passed.
 
-#### Scenario: Times posted to the group
-- **WHEN** three members have connected calendars and the organizer asks for the times
-- **THEN** the group sees up to five numbered times that are feasible for the organizer and free for all three members
+#### Scenario: Caller who never opens the link
+- **WHEN** the caller of a meeting never opens its link and the meeting fills
+- **THEN** the options are found from the participants' answers and posted to the room, and the caller can still confirm one, with no invitation of their own
 
-#### Scenario: Expected members have connected
-- **WHEN** the organizer expected four members and the fourth member connects a calendar
-- **THEN** the numbered times are posted with the next group message, without waiting for 24 hours
+#### Scenario: Organizer who painted
+- **WHEN** an organizer with no account painted their answer and confirms option 2
+- **THEN** one event is created in the service's scheduling calendar for the members who signed in with Google, and the organizer gets the room's confirmation and calendar file, not an invitation
 
-#### Scenario: No time free for everyone
-- **WHEN** no feasible time is free for every connected member
-- **THEN** the times that the most connected members can attend are offered instead
+#### Scenario: No one used Google
+- **WHEN** every done participant painted their answer and the organizer confirms option 1
+- **THEN** no calendar event is created, and the room gets the confirmation with a calendar file
 
-#### Scenario: A late calendar removes a posted time
-- **WHEN** a member connects a calendar after the times were posted and is busy during time 3
-- **THEN** time 3 is shown as unavailable with no reason and no name, and times 1, 2, 4 and 5 keep their numbers
+#### Scenario: Guests hidden from each other
+- **WHEN** an event is created in the service's scheduling calendar
+- **THEN** each attendee's invitation does not list the other attendees' emails
 
-### Requirement: Fallback answers without a calendar
-A member who does not connect a calendar SHALL be able to answer by ticking times on the poll page, or, after the times are posted, by telling the bot in the group which times work. A group answer SHALL be recorded only for the sender of that message, taken from the relay event, and the bot SHALL repeat the recorded times in the group. It SHALL be shown under the sender's profile name and keyed by the sender's KakaoTalk user ID, SHALL replace only that user's earlier group answer, and SHALL count the same as a page answer with no label. Group answers and poll page answers SHALL never be merged by name. A poll page answer SHALL be editable and deletable only from the device that made it.
+### Requirement: Two-tap participant flow
+For a meeting bound to a room, the shared link SHALL let a member be done in two taps: Google sign-in with identity and read-only Calendar on one consent screen, then one send on a grid of the date range with their busy times already filled in and no event titles. Name and email SHALL come from the Google account. No account setup, profile, handle or question SHALL come before availability is collected, and `group-scheduling`'s question and messenger step SHALL be left out. The member MAY paint extra unavailable times before sending, and the sent grid SHALL be stored as their confirmed unavailable times. The link SHALL keep working: a member who opens it again SHALL see their own answer and the done count, and SHALL be able to change their stored answer until the meeting closes, without the calendar being read again. The page SHALL NOT show who else is done or what anyone answered. No message in the room SHALL record availability or any answer for a member.
 
-#### Scenario: Numbers in the group
-- **WHEN** a member writes "1 3" in an activated room after the times are posted
-- **THEN** times 1 and 3 are counted as working for that member, shown under their profile name, and the bot repeats them
+#### Scenario: Member done in two taps
+- **WHEN** a member opens the link from the room, taps **구글로 계속하기**, approves the consent screen and taps **이대로 보내기**
+- **THEN** they are done, with their calendar's busy times as their unavailable times, and nothing else was asked
 
-#### Scenario: Copied profile name
-- **WHEN** a second member renames themselves to another member's profile name and writes "2"
-- **THEN** a second answer is counted, and the first member's answer is unchanged
+#### Scenario: Member returns
+- **WHEN** a done member opens the link again before the meeting closes
+- **THEN** they see their own grid and the done count, and can change it, and their calendar is not read again
 
-#### Scenario: Other text in the group
-- **WHEN** a member writes "다음 주 바빠서 잘 모르겠어" in an activated room
-- **THEN** no answer is recorded for anyone
+#### Scenario: Numbers in the room
+- **WHEN** a member writes "1 3" in a bound room
+- **THEN** nothing is recorded for that member
 
-#### Scenario: Answer for someone else
-- **WHEN** a member writes "민수는 2번 된대" in an activated room
-- **THEN** no answer is recorded for 민수, and at most the sender's own answer is recorded
+### Requirement: Painting without Google
+For a meeting bound to a room, the shared link SHALL also offer to paint availability with no sign-in: the member types a name, paints the times they can meet on the same grid, and sends. Unpainted times SHALL count as times they cannot meet, and the answer SHALL be stored as a participant request of the meeting with no grant and no email, holding the typed name, a hash of a device-bound edit token, and the unpainted times as unavailable intervals. One device SHALL hold at most one painted answer per meeting, and only that device SHALL change it until the close. A painted answer SHALL count toward the done count and the options, and SHALL NOT count toward the number that closes the meeting on its own. When the done count reaches the number with painted answers among them, the room SHALL be told that everyone has answered, and the meeting SHALL close when the organizer closes it. A painted member SHALL get no Google invitation.
 
-#### Scenario: Member deletes their answer
-- **WHEN** a member presses **Delete my answer** on the poll page from the device that answered
-- **THEN** their name, times, email and calendar connection are deleted and the counts change
+#### Scenario: Member without Google
+- **WHEN** a member taps **구글 없이 직접 칠하기**, types a name, paints Friday evening and sends
+- **THEN** they are done, and only Friday evening counts as a time they can meet
 
-### Requirement: Introduction and stop
-The first message to an activated room SHALL state that it comes from Find Me a Time, name the organizer by display name, give the poll link with the request to connect Google Calendar, say that only busy times are read, say that anyone can write to the account 1:1 for what they would rather not say in the group, and say that anyone can stop the scheduling. It SHALL link to the privacy policy, and SHALL NOT contradict the group conversation's own statement of what the account reads in groups. A `stop` or `그만` from any member SHALL close the group request as stopped, remove the scheduling tools from the room's conversation, and tell the organizer in their own chat.
+#### Scenario: Second painted answer from one device
+- **WHEN** a device that already sent a painted answer opens the link and paints again
+- **THEN** its earlier answer is changed, and no second answer is added
 
-#### Scenario: Any member stops the bot
-- **WHEN** a member who is not the organizer sends `그만`
-- **THEN** the group request closes as stopped, the room's conversation loses the scheduling tools, and the organizer is told in their 1:1 chat
+#### Scenario: Painted answers reach the number
+- **WHEN** a meeting for six has four signed-in and two painted answers
+- **THEN** the meeting stays open, the room is told that everyone has answered, and it closes when the organizer sends the close command
 
-### Requirement: What the group sees
-The group projection, which is all that group scheduling gives to fixed group messages and to the group conversation, SHALL contain only the organizer's display name, the meeting length and mode, candidate times and their places, per-time counts and the display names of members who said a time works, the poll link, and the booking confirmation. No group message, fixed or from the model, SHALL contain:
+### Requirement: Done count in the room
+When members of a bound meeting finish, the room SHALL get one fixed line with the done count against the set number and the link, at most once every 30 minutes, naming no one.
 
-- Calendar event titles, places, attendees or busy reasons of the organizer or any member.
-- The organizer's rules, hours, notes, exceptions, weekly load or other requests.
-- Which member's calendar blocks a time, or who said no time works.
-- Members' emails, or whether a member connected a calendar, except the reuse question in "Member identity and the reuse question".
-- A link code, booking link or `/app` link.
+#### Scenario: Several members finish
+- **WHEN** three members finish within ten minutes
+- **THEN** the room gets one line such as "4/6명 완료했어요" with the link, and no names
 
-#### Scenario: Member asks why a time is missing
-- **WHEN** a member writes "왜 목요일은 없어?" in an activated room
-- **THEN** the bot says nothing about the organizer's calendar or rules, and no message reveals why Thursday is missing
+### Requirement: What the room sees
+Every post to a bound room, and the group conversation's context, SHALL contain only the organizer's display name, the meeting's purpose, length and date range, the shared link, the number of done participants against the set number, the numbered options with their time, place or online mode and, when at least three participants are done, the number of done participants who can make each, and the confirmation. No room post, fixed or from the model, SHALL contain:
 
-#### Scenario: Member presses for private details
-- **WHEN** a member asks the bot in the group to list the organizer's other meetings or who is busy on Thursday
-- **THEN** the reply contains none of them, because the group conversation's context holds only the group projection
+- Who is done or has opened the link, or who cannot make an option.
+- Any participant's events, unavailable times, usual place or travel mode.
+- The organizer's rules, hours, notes, exceptions or other requests.
+- Any email, booking link or account-specific `/app` link.
 
-#### Scenario: Counts posted
-- **WHEN** the group is shown the current counts
-- **THEN** each time shows a number and the names who said it works, and no member's email, calendar connection or busy reason appears
+#### Scenario: Member asks who is busy
+- **WHEN** a member calls the account and asks who cannot make option 2
+- **THEN** the reply names no one, because the group conversation's context holds only the room projection
 
-### Requirement: Scheduling tools in the group conversation
-Codes, `stop`, `그만` and `/kickout` SHALL be handled before a group message reaches eve's group conversation, whatever the model would do. While a room has an open group request, the group conversation SHALL get only these scheduling tools: the group projection, the poll link, and recording an answer for the sender of the current message, whose user ID SHALL come from the relay event and SHALL NOT be a tool argument. The group conversation SHALL have no tool that books, cancels, changes the request or reads any calendar, rule, private note or email. The introduction, the posted times, the confirmation, the reuse question and the goodbye SHALL be fixed templates.
+#### Scenario: Member asks for progress
+- **WHEN** a member calls the account and asks how many have answered
+- **THEN** the reply gives the done count against the set number and no names
 
-#### Scenario: Stop never reaches the model
-- **WHEN** a member sends `그만` in an activated room
-- **THEN** the group request closes before the group conversation sees the message
+#### Scenario: Small meeting
+- **WHEN** a meeting closes with two done participants
+- **THEN** the room's options show no per-option counts
 
-#### Scenario: Model is asked to book
-- **WHEN** a member asks the bot in the group to book time 2
+### Requirement: Options posted to the room
+When a bound meeting closes, the room SHALL receive the options that `group-scheduling` sends the organizer, with the numbers `group-scheduling` gives them, each with its count as "What the room sees" allows and no names. For an organizer with no account, the service SHALL number the options the same way. When the organizer asks for more options, the new options SHALL go to the room as well, continuing the numbering. A meeting that closes while detached SHALL post its options when its organizer re-attaches the room. The organizer SHALL be able to close the meeting early with the fixed command `<account name> 마감`, handled before the model, which SHALL close it only when the message's relay-reported user ID hashes to the meeting's organizer ID.
+
+#### Scenario: Meeting fills
+- **WHEN** the last expected participant is done
+- **THEN** the organizer gets `group-scheduling`'s notice, and the room gets the same numbered options with counts and no names, without waiting for another room message
+
+#### Scenario: Someone else asks to close
+- **WHEN** a member who is not the organizer writes "타임래빗 마감", or calls the account and asks it to close the meeting now
+- **THEN** the meeting stays open
+
+### Requirement: Organizer confirms in the room
+The organizer SHALL be able to book an offered option by the fixed command `<n>번으로 확정` or `<n>번 확정` in the bound room, handled before the model, from a message whose relay-reported user ID hashes to the meeting's organizer ID. A linked host SHALL still be able to choose in their linked conversation. Booking SHALL follow `group-scheduling`'s host choice, including, for a linked host, the recheck of the host's calendars. A recheck that fails SHALL book nothing and tell the room the option is no longer open, with no reason. A second confirmation SHALL book nothing more. The room SHALL receive one fixed confirmation, after which the binding SHALL end. No other room message SHALL book or change the meeting, only the organizer's fixed cancel command SHALL cancel it, and the group conversation SHALL have no tool that books or cancels.
+
+#### Scenario: Organizer confirms
+- **WHEN** the organizer writes "2번으로 확정" in the room after the options were posted
+- **THEN** option 2 is booked as one event with every done participant who signed in with Google as an attendee, and the room gets one confirmation
+
+#### Scenario: Someone else confirms
+- **WHEN** a member who is not the organizer, even one showing the organizer's profile name, writes "2번으로 확정"
+- **THEN** nothing is booked
+
+#### Scenario: Model asked to book
+- **WHEN** a member calls the account and asks it to book option 2
 - **THEN** nothing is booked, because the group conversation has no booking tool
 
-#### Scenario: Replayed event
-- **WHEN** the relay delivers the same answer message twice
-- **THEN** the answer is recorded once
+#### Scenario: Option became busy
+- **WHEN** a linked host confirms an option that is now busy on their calendar
+- **THEN** nothing is booked, and the room is told the option is no longer open, with no reason
 
-### Requirement: Group booking
-The organizer SHALL book a group request by naming one candidate time from their own chat, `/app` or their agent. Booking SHALL recheck the organizer's conflict calendars for that time before dispatch. A time that no longer fits SHALL book nothing and leave the other times available. The event SHALL be created in the organizer's booking destination, with a fixed provider identity so it is created at most once. Its attendees SHALL be the members who left an email on the poll page. The group SHALL receive one confirmation with the time, the place or join link, and a calendar file link. After booking, the group request SHALL close, the scheduling tools SHALL leave the room's conversation, and the account SHALL stay in the room.
+### Requirement: Commands and tools in the group conversation
+The organizer's confirmation, the organizer's `<account name> 마감` and `<account name> 취소`, `<account name> stop` or `<account name> 그만` from any member, and `/kickout` SHALL be handled before a group message reaches eve's group conversation, whatever the model would do. A call SHALL get the tool that starts a group meeting in any group. While a room is bound, a call SHALL also get the room projection and the shared link. Every such tool SHALL take its sender from the relay event and SHALL have no sender argument. The introduction, the done-count line, the options, the confirmation and the goodbye SHALL be fixed templates.
 
-#### Scenario: Booking a settled poll
-- **WHEN** the organizer books time 2 in their 1:1 chat and the time still fits
-- **THEN** one event is created in the organizer's booking destination, members with an email are invited, the group gets one confirmation and the scheduling tools leave the room's conversation
+#### Scenario: Stop never reaches the model
+- **WHEN** a member sends "타임래빗 그만" in a bound room
+- **THEN** the binding ends before the group conversation sees the message
 
-#### Scenario: Chosen time became busy
-- **WHEN** the organizer books a time that is now busy on their calendar
-- **THEN** nothing is booked, the organizer is told, and they can choose another time
+#### Scenario: A bare word is not a command
+- **WHEN** a member sends "그만" in a bound room, without the account's name
+- **THEN** the binding stays, and the message is an ordinary group message
 
-### Requirement: Group request lifetime and retention
-A group request SHALL close only when it is booked, when the organizer cancels, or after `stop`; it SHALL NOT close because time has passed. When every candidate has passed, the organizer SHALL be asked once, in their own chat, for a new date range. Members' answers, display names and emails SHALL be deleted 30 days after the group request closes. No group message text SHALL be stored beyond parsing.
+### Requirement: Introduction, stop and cancel
+The first post to a newly bound room SHALL be a fixed template that says it comes from Find Me a Time, names the organizer, states the meeting's purpose, length and range, gives the shared link with what it collects, says how anyone can stop it in the room, and links to the privacy policy. A message from any member that calls the account with only `stop` or `그만` SHALL detach the room: nothing more about the meeting SHALL be posted in the room, and the meeting SHALL stay open on its link. `stop` SHALL NOT cancel a meeting. A linked host SHALL be told in their linked conversation, where the meeting goes on. A later call from the organizer in that room SHALL re-attach it. Only the organizer SHALL cancel a meeting from the room, with the fixed command `<account name> 취소`, or, for a linked host, in their linked conversation. The account SHALL NOT start a 1:1 chat with any member. A room binding SHALL be deleted 30 days after it ends.
 
-#### Scenario: Unbooked poll stays open
-- **WHEN** a month passes after activation without a booking, a cancel or `stop`
-- **THEN** the group request is still open and the room's conversation still has the scheduling tools
+#### Scenario: Any member stops the bot in the room
+- **WHEN** a member who is not the organizer sends "타임래빗 그만" in a room bound to a linked host's meeting
+- **THEN** the room gets nothing more about the meeting, the meeting stays open, and the host is told in their linked conversation
 
-#### Scenario: All candidates have passed
-- **WHEN** the last candidate time passes without a booking
-- **THEN** the organizer is asked once in their own chat for a new date range, and the group is sent nothing
+#### Scenario: Stop with an organizer who has no account
+- **WHEN** a member sends "타임래빗 그만" in a room whose meeting's organizer has no account
+- **THEN** the meeting stays open on its link, the room is detached, and the organizer can re-attach it by calling the account
 
-#### Scenario: Retention after closure
-- **WHEN** 30 days pass after a group request closed
-- **THEN** its members' answers, names and emails no longer exist
-
-### Requirement: Member identity and the reuse question
-A member's KakaoTalk identity SHALL be the sender's user ID from the Mac relay, remembered as a hash only. A member SHALL tie it to their poll page identity by sending, after Google sign-in, the one-time member code shown on the page, in the group or in a 1:1 chat with the account. The code SHALL be single-use and valid for 15 minutes, and the bot SHALL say nothing about it in the group. An activated room's member user IDs SHALL be kept as hashes while its group request is open. When a recognized member who connected Google in an earlier group writes in a newly activated group, the member SHALL be asked once, in that group, whether to reuse that connection, with yes, no and forget-me answers. Only an answer from the same KakaoTalk user ID SHALL count, and only a "yes" SHALL reuse the connection. The account SHALL NOT start a 1:1 chat with any member; it SHALL answer only 1:1 chats a member started. A member SHALL NOT be identified by profile name. The identity and its tie SHALL be deleted on **Forget me**, or 180 days after the member's last group request closed.
-
-#### Scenario: Member code ties an identity
-- **WHEN** a member signed in on the poll page sends the `FMAT-M` code shown there in the group
-- **THEN** the sender's user ID is tied to that poll page identity, the page shows the tie, and the group gets no message about it
-
-#### Scenario: Reuse question in the group
-- **WHEN** a recognized member who connected Google before writes in a newly activated group
-- **THEN** the bot asks them once in the group whether to reuse the connection, and names no calendar
-
-#### Scenario: Someone else answers
-- **WHEN** another member answers "네" to that question
-- **THEN** the connection is not reused
-
-#### Scenario: No first message
-- **WHEN** a member has never written to the account 1:1
-- **THEN** the account sends that member no 1:1 message
-
-#### Scenario: Member says no
-- **WHEN** the member answers "아니요" to the reuse question
-- **THEN** the earlier connection is not used for that group, and the member can still connect or tick on the poll page
-
-#### Scenario: Same profile name, different person
-- **WHEN** a 1:1 sender whose profile name matches a member, but whose user ID is not in any activated group, writes to the account
-- **THEN** the sender gets one fixed reply that names no group
-
-### Requirement: Private notes from a member's 1:1 chat
-A member of an activated group SHALL be able to tell the account, in that chat, limits they do not want to say in the group. The bot SHALL read the limits back in the 1:1 chat and SHALL apply them only after the member agrees. When the member is in more than one open group, the bot SHALL ask which group first. Applied limits SHALL count as that member's busy or less-preferred times for that group only. The note's text SHALL NOT be stored after the limits are confirmed. Neither the note, the limits nor the fact that a note exists SHALL appear in any group message or in the organizer's view. A 1:1 sender SHALL be matched to groups only by their user ID against the activated rooms' member lists. A sender in no activated group SHALL get one fixed reply that names no group.
-
-#### Scenario: Private constraint shapes the times
-- **WHEN** a member of an activated group writes "목요일 저녁은 안 된다고 단톡엔 말하기 좀 그래" and confirms the read-back
-- **THEN** Thursday evening is treated as busy for that member, and the group sees only the resulting candidate times
-
-#### Scenario: Group asks about a removed time
-- **WHEN** a member asks in the group why a Thursday evening time disappeared
-- **THEN** no group message mentions the note, the member or any reason
-
-#### Scenario: Sender in no group sends a constraint
-- **WHEN** a 1:1 sender whose user ID is in no activated group writes a constraint
-- **THEN** nothing is applied, and the reply names no group
+#### Scenario: Someone else tries to cancel
+- **WHEN** a member who is not the organizer sends "타임래빗 취소"
+- **THEN** the meeting is not cancelled
 
 ### Requirement: Leaving the room
-A `/kickout` from any member of any group SHALL make the account post one fixed goodbye and leave that room. If the room has an open group request, it SHALL close as stopped and the organizer SHALL be told in their own chat. The account SHALL NOT leave a room on its own, booked or not. A leave that does not succeed SHALL keep the group request closed and SHALL be reported to the organizer, if there is one. While the phone is the active relay, `/kickout` SHALL only close the group request.
+A whole message `/kickout` from any member of any group SHALL make the account post one fixed goodbye and leave that room, ending any binding as `stop` does. The account SHALL NOT leave a room on its own, booked or not. A leave that does not succeed SHALL be reported to the organizer, if there is one.
 
-#### Scenario: Any member kicks the bot out
-- **WHEN** a member who is not the organizer types `/kickout` in an activated room
-- **THEN** the group gets one goodbye, the account leaves that room, and the organizer is told in their 1:1 chat
+#### Scenario: Any member kicks the account out
+- **WHEN** a member types `/kickout` in a bound room
+- **THEN** the room gets one goodbye, the account leaves it, and the organizer is told
 
 #### Scenario: Booked room stays
-- **WHEN** a group's meeting was booked and has ended, and nobody sends `/kickout`
-- **THEN** the account stays in the room, and its conversation has no scheduling tools
-
-#### Scenario: Kickout from a room never activated
-- **WHEN** a member types `/kickout` in a group where no code was ever posted
-- **THEN** the account posts the goodbye and leaves, and no organizer is told
+- **WHEN** a room's meeting was booked and nobody sends `/kickout`
+- **THEN** the account stays in the room
 
 ### Requirement: Confirming the room before posting or leaving
 Before the Mac relay posts in or leaves a group whose name is missing or contained in another room's name, it SHALL open each chat-list row with that room's label in turn and act only in the window that shows the message being answered, with the same sender name and text. A post that answers no message SHALL need the window to show the room's three newest messages from the database, in order. When no window or more than one window matches, nothing SHALL be posted or left. The Mac relay's check after every send, and its check that only this room left the database after a leave, SHALL still apply.
@@ -231,10 +205,6 @@ Before the Mac relay posts in or leaves a group whose name is missing or contain
 #### Scenario: Untitled group
 - **WHEN** a member types `/kickout` in a group with no name of its own
 - **THEN** the relay opens the rows labeled with that group's member names, and leaves only the one whose window shows that `/kickout`
-
-#### Scenario: Two rooms with the same name
-- **WHEN** the account must post in a room whose name another room also has
-- **THEN** only the room whose window shows the message being answered gets the post
 
 #### Scenario: No window matches
 - **WHEN** no opened window shows the message being answered

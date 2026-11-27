@@ -1,0 +1,23 @@
+{
+  "branch": "docs/simplify-group-chat-scheduling",
+  "user": "dodo41142727@gmail.com",
+  "sessions": {
+    "claude:0c7dcfa5-4867-4be7-8053-df722b81b19f": {
+      "agent": "claude-code",
+      "client": "claude-desktop",
+      "agent_ms": 0,
+      "models": {
+        "claude-opus-5-5": {
+          "input": 154,
+          "cache_read": 15520743,
+          "cache_write_5m": 0,
+          "cache_write_1h": 533719,
+          "output": 135739,
+          "reasoning": 0
+        }
+      },
+      "first": "2026-11-26T11:28:58.764Z",
+      "last": "2026-11-27T04:12:49.607Z"
+    }
+  }
+}
