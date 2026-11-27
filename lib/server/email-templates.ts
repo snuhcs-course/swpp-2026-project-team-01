@@ -12,6 +12,7 @@ import {
   renderBookingEmail,
   whenLine,
 } from "./booking-emails";
+import { emailSignatureHtml } from "./email-signature";
 
 // The transactional email templates use English copy and render as HTML with
 // a plain-text alternative. Templates render at dispatch from the
@@ -189,6 +190,8 @@ function render(language: RequestLanguage, copy: Copy, secrets: EmailSecrets & {
     `<tr><td bgcolor="#FFFFFF" style="background-color:#FFFFFF;border:1px solid #D4D9E2;border-top:4px solid #2C3E63;border-radius:16px;padding:34px 36px 30px">`,
     `<p style="margin:0 0 12px;color:#586172;font-family:Arial,Helvetica,sans-serif;font-size:11px;font-weight:700;letter-spacing:1.2px;line-height:16px">${escapeHtml(copy.eyebrow)}</p>`,
     `<h1 style="margin:0 0 18px;color:#1E2430;font-family:Georgia,'Times New Roman',serif;font-size:30px;font-weight:400;line-height:1.2">${escapeHtml(copy.title)}</h1>`,
+    // Thyme signs in above the greeting, as the sender of the card.
+    emailSignatureHtml("0 0 18px"),
     `<p style="margin:0 0 14px;color:#1E2430;font-size:${copy.compactGreeting ? 15 : 16}px;line-height:24px">${escapeHtml(copy.greeting)}</p>`,
     ...copy.paragraphs.map((paragraph) => `<p style="margin:0 0 18px;color:#3E444E;font-size:15px;line-height:24px">${escapeHtml(paragraph)}</p>`),
     ...(copy.details ? [

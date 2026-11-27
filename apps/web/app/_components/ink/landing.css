@@ -50,8 +50,8 @@ body:has(.ld) { background: var(--canvas); }
 .ink .ld-caption { min-height: 2.2em; margin-bottom: 28px; font-family: var(--serif); font-size: clamp(28px, 2.9cqi, 42px); line-height: 1.1; letter-spacing: -0.015em; text-wrap: balance; animation: ld-in 400ms ease-out both; }
 .ink:lang(ko) .ld-caption { font-weight: 500; line-height: 1.3; letter-spacing: -0.03em; word-break: keep-all; }
 .ink .ld-live-head { display: flex; align-items: center; gap: 12px; }
-.ink .ld-avatar { display: grid; place-items: center; flex: none; width: 40px; height: 40px; border-radius: 9999px; background: var(--panel-me); color: var(--panel);
-  font-family: var(--font-instrument-serif), Georgia, serif; font-style: italic; font-size: 24px; line-height: 1; }
+.ink .ld-avatar { display: block; flex: none; width: 44px; height: 44px; }
+.ink .ld-avatar img { display: block; width: 100%; height: 100%; object-fit: contain; }
 .ink .ld-who strong { display: block; font-size: 15px; font-weight: 600; line-height: 1.3; }
 .ink .ld-who span { display: block; font-size: 13px; line-height: 1.3; color: var(--panel-mist); }
 .ink .ld-live-tag { margin-left: auto; padding: 6px 12px; border-radius: 9999px; background: var(--panel-bubble); font-size: 13px; font-weight: 500; color: var(--panel-mist); white-space: nowrap; }

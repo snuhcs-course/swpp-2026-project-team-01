@@ -2,6 +2,7 @@
 // decorative: the control around them carries the label.
 
 import type { MessagingChannel } from "@lib/contracts/messaging-channel";
+import { thymeAvatarPath } from "@lib/contracts/thyme-avatar";
 
 export function GoogleLogo() {
   return (
@@ -33,14 +34,11 @@ export function Chevron({ direction }: { readonly direction: "prev" | "next" }) 
   );
 }
 
-// Placeholder profile picture for Thyme until a real avatar is drawn.
+// Thyme's profile picture (THYME_AVATAR picks the character).
 export function Avatar() {
   return (
     <span aria-hidden="true" className="avatar">
-      <svg viewBox="0 0 40 40">
-        <circle cx="20" cy="15.5" r="7" />
-        <path d="M5 40c1.6-8 7.6-13 15-13s13.4 5 15 13z" />
-      </svg>
+      <img alt="" draggable={false} height={40} src={thymeAvatarPath(128)} width={40} />
     </span>
   );
 }

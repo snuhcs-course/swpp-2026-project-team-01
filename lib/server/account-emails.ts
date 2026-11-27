@@ -1,4 +1,5 @@
 import type { RequestLanguage } from "../contracts/request";
+import { emailSignatureHtml } from "./email-signature";
 
 // The account emails of self-service deletion (self-service-account-deletion
 // D5): the host is told when their deletion is scheduled, cancelled by a
@@ -114,7 +115,7 @@ export function renderAccountEmail(
           `<p style="margin:24px 0"><a href="${escapeHtml(link.url)}" style="background:#111;color:#fff;padding:12px 20px;border-radius:8px;text-decoration:none;display:inline-block">${escapeHtml(link.label)}</a></p>`,
         ]
       : []),
-    `<p style="color:#555;font-size:14px">Find Me a Time</p>`,
+    emailSignatureHtml(),
     `</body></html>`,
   ].join("");
   const text = [

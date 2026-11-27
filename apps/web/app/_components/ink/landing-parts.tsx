@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import { PERMISSION_REASONS } from "@lib/contracts/permission-reasons";
+import { thymeAvatarPath } from "@lib/contracts/thyme-avatar";
 import { CopyButton } from "./chrome";
 import { COPY, type ExampleRow, type Locale } from "./copy";
 import { GoogleLogo } from "./icons";
@@ -142,7 +143,7 @@ export function LiveThread({ locale }: { readonly locale: Locale }) {
       </figcaption>
       <div className="ld-live-head">
         <span aria-hidden="true" className="ld-avatar">
-          T
+          <img alt="" draggable={false} height={44} src={thymeAvatarPath(128)} width={44} />
         </span>
         <span className="ld-who">
           <strong>Thyme</strong>

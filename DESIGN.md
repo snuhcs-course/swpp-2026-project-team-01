@@ -73,7 +73,9 @@ Calm editorial paper with confident ink-blue and ink-night surfaces. The convers
 
 The mark is served as an alpha mask (`apps/web/public/logo-mask.png`) and tinted `primary`, next to the wordmark "Find Me a Time" in Instrument Serif at 28px (24px on phones). The mark is 22px (18px on phones). `.wordmark-lockup` in `globals.css` draws the same lockup for Tailwind screens from one text node, so a heading or link keeps "Find Me a Time" as its accessible name.
 
-A new logo is in progress (2026-10-14 meeting): a calligraphic mark, an SVG favicon, and a chat profile picture. Until it lands:
+Thyme's profile picture is a hand-drawn cat (2026-11-26 meeting): the same character beside Thyme's replies in the web conversations, on the landing's example conversation, in the email signature and as the messenger profile photos. `THYME_AVATAR` in `lib/contracts/thyme-avatar.ts` picks it (blue now, pink also drawn); the files are in `apps/web/public/thyme/`. Show the cat on its own at 40–44px, with no circle, backdrop or crop behind it (the messengers crop their profile photos round themselves). It is decorative where the name "Thyme" sits beside it.
+
+A new logo is in progress (2026-10-14 meeting): a calligraphic mark and an SVG favicon. Until it lands:
 
 - Keep the mark and the wordmark as separate elements. The wordmark is live text.
 - Do not stretch, rotate, add shadows, enclose the mark in a badge, or animate it as a loading indicator.
@@ -164,7 +166,7 @@ The host web has no conversation with Thyme; the guest's booking conversation ke
 - **Cards** are 16px; **conversation cards and dialogs** are 24px boards; **soft boards** are 20–24px.
 - **Chat bubbles** are 22px with a 6px tail corner on the speaker's side (bottom left for Thyme, bottom right for the person).
 - **Menus** are 16px with 10px, 44px-high rows.
-- Avatars, badges and counters are round.
+- Avatars, badges and counters are round; Thyme's cat is the exception and stands without a circle.
 
 Do not add hairline lists, glossy highlights, glass effects, simulated paper, or resting shadows; the landing's glass cards are the one exception.
 
@@ -243,7 +245,7 @@ Review a landing page, a conversation with long messages, a proposal awaiting ho
 ## Known gaps
 
 - 은우 has not yet reviewed D or the landing's G first screen as design owner.
-- The logo mask is shown at 18–22px with no simplified small-size version. The new calligraphic logo, SVG favicon and chat profile picture are in progress.
+- The logo mask is shown at 18–22px with no simplified small-size version. The new calligraphic logo and SVG favicon are in progress.
 - Host and guest app screens are English only; their Korean headings are styled but untranslated.
 - `warning` and `success` are carried over from the olive palette; recheck them when status badges are built out.
 - There is no dark theme. It needs its own contrast and visual review; do not invert the palette automatically.
