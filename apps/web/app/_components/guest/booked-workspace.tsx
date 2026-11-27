@@ -6,6 +6,7 @@ import { useCallback, useMemo, useState } from "react";
 import { Receipt } from "@/app/_components/booking-receipt";
 import { ClosedImessageUpdates } from "@/app/_components/requester/cards";
 import { Message, MessageContent, MessageHeader } from "@/components/ui/message";
+import { ThymeAvatar } from "@/components/chat/message";
 import type { ChatRequestError } from "@/lib/chat/discussion";
 import { guestDiscussionClient } from "@/lib/chat/guest";
 import { GuestConversation, type ThreadEntry } from "./guest-conversation";
@@ -118,7 +119,8 @@ export function BookedCard({
 }) {
   return (
     <article className="w-full min-w-0" data-guest-card="booked">
-      <Message>
+      <Message className="gap-2.5">
+        <ThymeAvatar />
         <MessageContent className="gap-1.5 text-base leading-[1.65] text-foreground">
           <MessageHeader>Thyme</MessageHeader>
           <p className="px-3 break-words" role="status">
