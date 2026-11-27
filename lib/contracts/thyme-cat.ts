@@ -26,6 +26,11 @@ export function thymeCatPath(cat: ThymeCat, size: 128 | 256 = 256) {
   return `/thyme/blue-${cat}-${size}.png`;
 }
 
+// The 512px WEBP Telegram fetches for sendSticker after a guest's reply (D7).
+export function thymeStickerPath(cat: ThymeCat) {
+  return `/thyme/blue-${cat}-sticker.webp`;
+}
+
 // The shape of a message part this needs, so it does not depend on eve's types.
 export type CatPart = {
   readonly type: string;

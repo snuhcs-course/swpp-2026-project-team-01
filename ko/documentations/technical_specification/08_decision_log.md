@@ -961,4 +961,4 @@ Dohyeon Park이 2026-11-25에 Photon의 10DLC 캠페인 등록을 시작한 뒤,
 | D4 | 모델은 부작용 없는 `show_cat` 도구로 신호를 보내며, 이 호출은 도구 기록에 보이지 않습니다 | 답장 글 속의 숨은 표시를 모든 채널 경로에서 지우기 | 제안서, `meeting-requests` 델타 | 제안서, 그다음 `agent/tools/request.ts` |
 | D5 | `output-error` 상태의 도구 부분은 죄송한 고양이를 부르고, 출력으로 돌아온 거절은 부르지 않습니다 | 모든 `recorded: false` | 제안서 | 제안서, 그다음 `lib/contracts/thyme-cat.ts` |
 | D6 | 메시지당 고양이 하나: 요청된 행복한 고양이, 죄송한 고양이, 기록된 행복한 고양이 순서입니다. 요청이 없으면 직전 Thyme 메시지의 고양이를 다시 쓰지 않습니다 | 고양이 여러 마리, 반복 규칙 없음 | 제안서, `chat-workspaces` 델타 | 제안서, 그다음 `catsOfThread` |
-| D7 | 웹만 먼저. Telegram 스티커(`sendSticker`, 무료)는 나중에 정합니다 | 모든 채널에 고양이 | 제안서 | 메신저용 새 변경 |
+| D7 | 웹과 게스트의 Telegram 답장. 답장의 마지막 글 뒤에 URL로 `sendSticker`를 보내되 실패해도 답장에는 영향이 없고, 고양이는 그 턴에 기록된 도구 결과로 정합니다(오너, 2026-11-28) | 답장 글 속 이모지; 별도 outbox 행; 호스트의 Telegram 답장; iMessage, WhatsApp, KakaoTalk | 제안서 | `lib/server/thyme-cat-turns.ts`, `lib/server/telegram.ts` |

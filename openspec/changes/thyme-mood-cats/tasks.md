@@ -20,8 +20,14 @@
 - [x] 4.2 Append requester eval cases: correcting its own mistake calls `show_cat` with `sorry`; a time no longer free calls none; "show me the happy cat" calls `show_cat` with `happy`; a recorded agreement calls none. Not run here: they call the paid model.
 - [x] 4.3 Verify that `turnReplyText` and the messenger outbox text of a turn with `show_cat` are unchanged.
 
-## 5. Release
+## 5. Telegram
 
-- [ ] 5.1 Teammate review.
-- [ ] 5.2 Run the appended eval cases with the real model and record the result in documentation 13.
-- [ ] 5.3 Check the stickers on the deployed guest page, then archive this change.
+- [x] 5.1 Add the happy and sorry stickers as 512px WEBP to `apps/web/public/thyme/`, with their paths in `lib/contracts/thyme-cat.ts`.
+- [x] 5.2 Choose a turn's cat from its recorded `action.result` events, with the session's previous Thyme turn for the no-repeat rule. Verify unit tests for a recorded agreement, a refused one, a failed tool, `show_cat` and the no-repeat rule.
+- [x] 5.3 Send the cat with `sendSticker` after a guest's Telegram turn reply, best effort, and never on a host's reply or another channel. Verify that a refused sticker leaves the reply accepted and that a refused text sends no sticker.
+
+## 6. Release
+
+- [ ] 6.1 Teammate review.
+- [ ] 6.2 Run the appended eval cases with the real model and record the result in documentation 13.
+- [ ] 6.3 Check the stickers on the deployed guest page and in a guest's Telegram chat, then archive this change.
