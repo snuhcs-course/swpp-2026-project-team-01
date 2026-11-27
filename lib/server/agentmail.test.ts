@@ -111,6 +111,15 @@ describe("turn reply text", () => {
     expect(turnReplyText([event(["d1"], "[iMessage] ")], ["d1"])).toBeNull();
   });
 
+  it("carries nothing of show_cat, whose step ends in a tool call and writes no text (thyme-mood-cats)", () => {
+    const events = [
+      event(["d1"], "", "tool-calls"),
+      { data: { input: { cat: "sorry" }, toolName: "show_cat" }, meta: { at: "", deliveryIds: ["d1"] }, type: "tool.called" } as never,
+      event(["d1"], "Sorry, that was 14:00 KST, not UTC."),
+    ];
+    expect(turnReplyText(events, ["d1"])).toBe("Sorry, that was 14:00 KST, not UTC.");
+  });
+
   it("adds the footer in the request's language", () => {
     expect(withFooter("Hi", "en")).toMatch(/^Hi\n\n--\nTo pick a time/);
     expect(withFooter("안녕하세요", "ko")).toContain("예약 링크");

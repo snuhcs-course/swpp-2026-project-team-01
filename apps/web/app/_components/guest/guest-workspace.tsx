@@ -1,6 +1,7 @@
 "use client";
 
 import type { DiscussionEvent } from "@lib/contracts/discussion-events";
+import { catsOfThread } from "@lib/contracts/thyme-cat";
 import type { RequestState } from "@lib/contracts/request";
 import type { OpenRequesterView, RequesterView, ThreadCard } from "@lib/contracts/requester-view";
 import { displayTime } from "@lib/contracts/timezone";
@@ -580,6 +581,7 @@ function IntakeTranscript({ bookingId }: { readonly bookingId: string }) {
   }, [bookingId]);
 
   const messages = useMemo(() => (events ? projectMessages(events) : []), [events]);
+  const cats = useMemo(() => catsOfThread(messages), [messages]);
 
   if (!events || messages.length === 0) return null;
 
@@ -587,8 +589,8 @@ function IntakeTranscript({ bookingId }: { readonly bookingId: string }) {
     <details className="rounded-3xl bg-card px-5 py-4 text-sm" open>
       <summary className="cursor-pointer font-medium">Your conversation on the public page</summary>
       <div aria-label="Earlier conversation, read only" className="flex flex-col gap-2 pt-3" role="log">
-        {messages.map((message) => (
-          <AgentMessage canRespond={false} isStreaming={false} key={message.id} message={message} onInputResponses={() => {}} />
+        {messages.map((message, index) => (
+          <AgentMessage canRespond={false} cat={cats[index]} isStreaming={false} key={message.id} message={message} onInputResponses={() => {}} />
         ))}
       </div>
     </details>

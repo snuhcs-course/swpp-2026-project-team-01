@@ -1,5 +1,6 @@
 import { defineDynamic, defineTool } from "eve/tools";
 import { z } from "zod";
+import { SHOW_CAT_TOOL, showCatToolInput } from "../../lib/contracts/thyme-cat";
 import { switchConversationForTool, switchConversationToolInput } from "../../lib/server/channel-selection";
 import { database } from "../../lib/server/database";
 import { START_REQUEST_DESCRIPTION, startRequestDependenciesFromEnvironment, startRequestForTool, startRequestToolInput } from "../../lib/server/host-sent-requests";
@@ -162,6 +163,14 @@ function requesterTools() {
         "Email the guest their booking link again, when they ask for it or say they lost it. It goes only to their confirmed email address, never to an address they name, and is limited to a few per hour. It never shows the link here.",
       inputSchema: z.object({}),
       execute: (_input, toolCtx) => resendBookingLinkForTool(database(), call(toolCtx)),
+    }),
+    // thyme-mood-cats D4: a signal to the web conversation only. It changes no
+    // record and no reply text, so channel replies carry nothing of it.
+    [SHOW_CAT_TOOL]: defineTool({
+      description:
+        "Put Thyme's cat at the end of this reply on the web conversation. sorry: once, in the turn where you correct or apologize for your own mistake. happy: only when the guest asks to see the happy cat. It changes nothing on the request and writes nothing; write your reply as usual.",
+      inputSchema: showCatToolInput,
+      execute: (input) => ({ shown: input.cat }),
     }),
   };
 }

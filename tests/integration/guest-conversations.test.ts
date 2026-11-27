@@ -51,6 +51,8 @@ const REQUESTER_TOOLS = [
   "change_booking",
   "resend_booking_link",
   "use_host_calendars",
+  // thyme-mood-cats: the web conversation's cat, with no side effect.
+  "show_cat",
 ];
 
 beforeAll(async () => {

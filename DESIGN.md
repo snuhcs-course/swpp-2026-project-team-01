@@ -75,6 +75,8 @@ The mark is served as an alpha mask (`apps/web/public/logo-mask.png`) and tinted
 
 Thyme's profile picture is a hand-drawn cat (2026-11-26 meeting): the same character beside Thyme's replies in the web conversations, on the landing's example conversation, in the email signature and as the messenger profile photos. `THYME_AVATAR` in `lib/contracts/thyme-avatar.ts` picks it (blue now, pink also drawn); the files are in `apps/web/public/thyme/`. Show the cat on its own at 40–44px, with no circle, backdrop or crop behind it (the messengers crop their profile photos round themselves). It is decorative where the name "Thyme" sits beside it.
 
+Two more drawings of the same cat close some of Thyme's messages on the guest's web conversation, like the mark at the end of a magazine piece ([`thyme-mood-cats`](openspec/changes/thyme-mood-cats/proposal.md)): the happy cat after a recorded decision, the sorry cat after Thyme's own mistake. Each sits as a 48px sticker on the bubble's bottom-right corner, tilted 8°, with a faint 1px drop shadow, at most one per message. Never draw them smaller than 36px: below that the two faces read the same. They are decorative.
+
 A new logo is in progress (2026-10-14 meeting): a calligraphic mark and an SVG favicon. Until it lands:
 
 - Keep the mark and the wordmark as separate elements. The wordmark is live text.
