@@ -1,6 +1,6 @@
 import type { DashboardData } from "@lib/server/host-dashboard";
 import { describe, expect, it, vi } from "vitest";
-import { createDashboardCache, dateAt, FRESH_MS, periodRange, shiftPeriod } from "./host-dashboard-data";
+import { createDashboardCache, dateAt, FRESH_MS, periodRange, shiftPeriod, weekHours } from "./host-dashboard-data";
 
 function answer(timeZone: string): DashboardData {
   return { events: [], googleWarning: null, timeZone } as unknown as DashboardData;
@@ -99,5 +99,35 @@ describe("dashboard cache", () => {
     fail = false;
     await cache.load(week);
     expect(fetchRange).toHaveBeenCalledTimes(3);
+  });
+});
+
+describe("weekHours", () => {
+  const open = (start: string, end: string) => ({ start, end });
+
+  it("covers the host's open hours, not a fixed day (#482)", () => {
+    expect(weekHours([open("10:00", "20:00")], [])).toEqual({ start: 10, end: 20 });
+  });
+
+  it("runs from the earliest opening to the latest closing, rounding out to whole hours", () => {
+    expect(weekHours([open("09:30", "12:00"), open("13:00", "18:15")], [])).toEqual({ start: 9, end: 19 });
+  });
+
+  it("widens to hold a timed event outside the open hours", () => {
+    expect(weekHours([open("10:00", "20:00")], [{ start: 7 * 60, end: 8 * 60 }, { start: 21 * 60, end: 21 * 60 + 30 }])).toEqual({ start: 7, end: 22 });
+  });
+
+  it("runs an overnight window and an event past midnight to the day's edges", () => {
+    expect(weekHours([open("22:00", "02:00")], [])).toEqual({ start: 0, end: 24 });
+    expect(weekHours([open("10:00", "18:00")], [{ start: 23 * 60, end: 60 }])).toEqual({ start: 10, end: 24 });
+  });
+
+  it("keeps an event that starts and ends at the same moment in its own hour, not to midnight", () => {
+    expect(weekHours([open("08:00", "18:00")], [{ start: 9 * 60, end: 9 * 60 }])).toEqual({ start: 8, end: 18 });
+    expect(weekHours([open("08:00", "18:00")], [{ start: 21 * 60, end: 21 * 60 }])).toEqual({ start: 8, end: 22 });
+  });
+
+  it("falls back to 08:00 to 19:00 with no hours and no events", () => {
+    expect(weekHours([], [])).toEqual({ start: 8, end: 19 });
   });
 });

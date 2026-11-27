@@ -195,7 +195,7 @@ A workspace with a confirmed failed runtime SHALL show a safe explanation and an
 - **THEN** the workspace reports that outcome without claiming recovery, exposing credentials or discarding unsent text
 
 ### Requirement: Host calendar Dashboard
-The Dashboard SHALL show confirmed Find Me a Time bookings received by the signed-in account, timed requests the account sent as a verified guest, and events from selected Google calendars in the account's saved timezone. The sources SHALL have distinct colors and text labels. A confirmed booking also present in Google Calendar SHALL appear only once. The Dashboard SHALL provide week and month views, previous and next period navigation, a return to today, source filters, and details for a selected day and event. Calendar details SHALL be available only to the authenticated account. A Google Calendar access error SHALL leave Find Me a Time bookings and sent requests visible with an explanation. Period navigation SHALL keep the date and time grid visible, showing loading feedback in the event area while the period's events are fetched; a period loaded earlier in the visit SHALL show its events at once, the adjacent periods SHALL be fetched ahead, and the events shown SHALL always be those of the selected period.
+The Dashboard SHALL show confirmed Find Me a Time bookings received by the signed-in account, timed requests the account sent as a verified guest, and events from selected Google calendars in the account's saved timezone. The sources SHALL have distinct colors and text labels. A confirmed booking also present in Google Calendar SHALL appear only once. The Dashboard SHALL provide week and month views, previous and next period navigation, a return to today, source filters, and details for a selected day and event. Calendar details SHALL be available only to the authenticated account. A Google Calendar access error SHALL leave Find Me a Time bookings and sent requests visible with an explanation. Period navigation SHALL keep the date and time grid visible, showing loading feedback in the event area while the period's events are fetched; a period loaded earlier in the visit SHALL show its events at once, the adjacent periods SHALL be fetched ahead, and the events shown SHALL always be those of the selected period. The Week view SHALL cover the hours from the earliest opening to the latest closing of the host's weekly hours, widened to hold every timed event of the week, and from 08:00 to 19:00 when there are neither. The period title, period navigation, view switch, source filters, timezone and the Week view's day headers SHALL stay at the top of the screen while the host scrolls the calendar; on a narrow screen the source filters and timezone MAY scroll away.
 
 #### Scenario: Compare sources
 - **WHEN** a host opens a week containing a Google event and a confirmed Find Me a Time booking
@@ -208,6 +208,18 @@ The Dashboard SHALL show confirmed Find Me a Time bookings received by the signe
 #### Scenario: Google Calendar access fails
 - **WHEN** Google Calendar cannot be read for the host
 - **THEN** confirmed Find Me a Time bookings remain visible and a status message explains the Google Calendar problem
+
+#### Scenario: Week covers the open hours
+- **WHEN** a host whose weekly hours are 10:00 to 20:00 opens the Week view
+- **THEN** the grid runs from 10:00 to 20:00, so the 19:00 hour and its meetings are shown
+
+#### Scenario: No weekly hours yet
+- **WHEN** a host with no weekly hours and no timed events that week opens the Week view
+- **THEN** the grid runs from 08:00 to 19:00
+
+#### Scenario: Controls stay in view
+- **WHEN** the host scrolls down the Week view to the evening hours on a wide screen
+- **THEN** the period title, navigation, view switch, source filters and day headers remain visible at the top of the screen
 
 #### Scenario: Changing weeks
 - **WHEN** the host moves to the next week and back in the Week view

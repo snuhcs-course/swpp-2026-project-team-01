@@ -1,3 +1,4 @@
+import type { WeeklyWindow } from "@lib/contracts/setup";
 import type { DashboardData } from "@lib/server/host-dashboard";
 
 // The Dashboard's periods and the events loaded for them. Each period asks for
@@ -28,6 +29,34 @@ export function shiftPeriod(anchor: Date, view: View, direction: number) {
 export function periodRange(anchor: Date, view: View) {
   const days = periodDays(anchor, view);
   return `${new Date(days[0]!.getTime() - DAY).toISOString()}|${new Date(days.at(-1)!.getTime() + 2 * DAY).toISOString()}`;
+}
+
+// The hours the week grid draws, as whole hours [start, end) of the local day.
+// It runs from the earliest opening to the latest closing of the host's weekly
+// hours, widened to hold the week's timed events; an overnight window runs to
+// midnight and from midnight. With neither, it is 08:00 to 19:00.
+export const DEFAULT_WEEK_HOURS = { start: 8, end: 19 } as const;
+
+const clockMinutes = (clock: string) => Number(clock.slice(0, 2)) * 60 + Number(clock.slice(3, 5));
+
+export function weekHours(
+  windows: readonly Pick<WeeklyWindow, "start" | "end">[],
+  // Each timed event's start and end, in minutes of its local day; an end before
+  // the start runs past midnight, and an end equal to the start is a moment.
+  events: readonly { readonly start: number; readonly end: number }[],
+) {
+  const spans: [number, number][] = [];
+  for (const window of windows) {
+    const start = clockMinutes(window.start), end = clockMinutes(window.end);
+    if (end > start) spans.push([start, end]);
+    else spans.push([start, 1440], [0, end]);
+  }
+  for (const event of events) spans.push([event.start, event.end < event.start ? 1440 : Math.max(event.end, event.start + 1)]);
+  const used = spans.filter(([start, end]) => end > start);
+  if (used.length === 0) return { ...DEFAULT_WEEK_HOURS };
+  const start = Math.floor(Math.min(...used.map(([from]) => from)) / 60);
+  const end = Math.ceil(Math.max(...used.map(([, to]) => to)) / 60);
+  return { start, end: Math.max(end, start + 1) };
 }
 
 export type FetchRange = (from: string, to: string) => Promise<DashboardData>;
