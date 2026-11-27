@@ -20,7 +20,7 @@ import {
   useRequesterCards,
 } from "@/app/_components/requester/cards";
 import { AppliedDetailsCard, CandidatesCard, DetailsCard, MeetingDetailsList, ModeChoiceCard, ProposalCard, ReviewCard, searchedFor } from "@/app/_components/requester/request-cards";
-import { AgentMessage } from "@/components/chat/message";
+import { AgentMessage, ThymeAvatar } from "@/components/chat/message";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -334,7 +334,8 @@ function SummaryRow({ label, value }: { readonly label: string; readonly value: 
 function FixedMessage({ text }: { readonly text: string }) {
   return (
     <article className="w-full min-w-0" data-authored-message="">
-      <Message>
+      <Message className="gap-2.5">
+        <ThymeAvatar />
         <MessageContent className="gap-1.5 text-base leading-[1.65] text-foreground">
           <MessageHeader>Thyme</MessageHeader>
           <p className="px-3 break-words">{text}</p>

@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import { ChatItem } from "@/components/chat/conversation";
-import { AgentThinking } from "@/components/chat/message";
+import { AgentThinking, ThymeAvatar } from "@/components/chat/message";
 import { Message, MessageContent, MessageHeader } from "@/components/ui/message";
 import { storageKey } from "./format";
 import type { SetupState } from "@/lib/setup/client";
@@ -177,7 +177,8 @@ export function AuthoredMessages({
       {messages.map((message) => (
         <ChatItem key={message.id} messageId={`authored-${message.id}`}>
           <article className="w-full min-w-0" data-authored-message={message.id}>
-            <Message>
+            <Message className="gap-2.5">
+              <ThymeAvatar />
               <MessageContent className="gap-1.5 text-base leading-[1.65] text-foreground">
                 <MessageHeader>Thyme</MessageHeader>
                 <p className="px-3 break-words">
