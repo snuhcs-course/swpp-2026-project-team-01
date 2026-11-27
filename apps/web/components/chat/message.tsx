@@ -9,7 +9,7 @@ import { Bubble, BubbleContent } from "@/components/ui/bubble";
 import { Button } from "@/components/ui/button";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { Input } from "@/components/ui/input";
-import { Message, MessageContent, MessageHeader } from "@/components/ui/message";
+import { Message, MessageAvatar, MessageContent, MessageHeader } from "@/components/ui/message";
 import {
   Trace,
   TraceCollapsible,
@@ -20,6 +20,7 @@ import {
   TraceTitle,
 } from "@/components/ui/trace";
 import { cn } from "@/lib/utils";
+import { thymeAvatarPath } from "@lib/contracts/thyme-avatar";
 
 // About 28 words a second at one word per tick.
 const STREAM_TEXT_TICK_MS = 35;
@@ -37,8 +38,9 @@ export type AgentInputResponse = {
 export type DescribeTool = (part: EveDynamicToolPart) => string | undefined;
 
 // One turn, on the shadcn/ui Message pattern: the host's text is a muted Bubble
-// at the end; Thyme's reply is markdown under a "Thyme" header, with its steps
-// (reasoning and tool calls) as Trace lines above the text.
+// at the end; Thyme's reply is markdown under a "Thyme" header beside Thyme's
+// profile picture, with its steps (reasoning and tool calls) as Trace lines
+// above the text.
 export function AgentMessage({
   canRespond,
   describeTool,
@@ -82,7 +84,8 @@ export function AgentMessage({
           </MessageContent>
         </Message>
       ) : (
-        <Message>
+        <Message className="gap-2.5">
+          <ThymeAvatar />
           <MessageContent className="gap-1.5 text-base leading-[1.65] text-foreground">
             <MessageHeader>Thyme</MessageHeader>
             {parts}
@@ -95,18 +98,20 @@ export function AgentMessage({
 
 // Thyme at work with no new text yet: from a send until the first token, and
 // during tool calls or between steps. Under a reply already on screen it
-// continues that message; otherwise it holds Thyme's slot with its header. The
-// dots are still under reduced motion, where the words show beside them.
+// continues that message, indented to its text; otherwise it holds Thyme's slot
+// with the profile picture and header. The dots are still under reduced motion,
+// where the words show beside them.
 export function AgentThinking({ withHeader }: { readonly withHeader: boolean }) {
   const indicator = (
-    <div className="flex h-[1.65em] items-center gap-2 text-muted-foreground" role="status">
+    <div className={cn("flex h-[1.65em] items-center gap-2 text-muted-foreground", withHeader ? undefined : "pl-[42px]")} role="status">
       <LinearDots size={18} />
       <span className="sr-only text-sm motion-reduce:not-sr-only">Thyme is thinking…</span>
     </div>
   );
 
   return withHeader ? (
-    <Message>
+    <Message className="gap-2.5">
+      <ThymeAvatar />
       <MessageContent className="gap-1.5 text-base leading-[1.65] text-foreground">
         <MessageHeader>Thyme</MessageHeader>
         {indicator}
@@ -114,6 +119,16 @@ export function AgentThinking({ withHeader }: { readonly withHeader: boolean }) 
     </Message>
   ) : (
     indicator
+  );
+}
+
+// Thyme's profile picture beside its replies (THYME_AVATAR picks the character).
+// Decorative: the "Thyme" header beside it already names the speaker.
+export function ThymeAvatar({ className }: { readonly className?: string }) {
+  return (
+    <MessageAvatar className={cn("size-8 min-w-8 self-start bg-secondary", className)}>
+      <img alt="" className="size-full object-contain" draggable={false} height={32} src={thymeAvatarPath(128)} width={32} />
+    </MessageAvatar>
   );
 }
 

@@ -297,7 +297,7 @@ Telegram is the transport of the host Telegram channel, proposed on 2026-11-04 i
 
 - **Bot.** `@findmeatime_bot`, created by the user with [@BotFather](https://t.me/BotFather) on 2026-11-04. The token is the bot's only credential; `/revoke` in @BotFather replaces it.
 - **Variables.** `TELEGRAM_BOT_TOKEN`, `TELEGRAM_BOT_USERNAME` (`findmeatime_bot`) and `TELEGRAM_WEBHOOK_SECRET` (32 or more random URL-safe characters) on Vercel Production only, under the messaging gate; tests point `TELEGRAM_API_URL` at a loopback stand-in. The user keeps the token and username in the main checkout's `.env` for local runs.
-- **Webhook.** `https://findmeatime.com/telegram/webhook`, registered by `npm run telegram:webhook` with `setWebhook` (`secret_token`, `allowed_updates` `message`, `callback_query` and `my_chat_member`, `max_connections` 10) and `setMyCommands`, then checked with `getWebhookInfo`, printed without the token. The script reads `TELEGRAM_BOT_TOKEN` and `TELEGRAM_WEBHOOK_SECRET` from the environment or the root env files; when the secret is unset it generates 48 URL-safe characters, appends them to the checkout's `.env` without printing them, and stops so the same value can be set on Vercel Production and deployed before the webhook is registered. It refuses any origin but `https://findmeatime.com` and any `TELEGRAM_API_URL` that is not a loopback stand-in. Telegram sends the secret in `X-Telegram-Bot-Api-Secret-Token` and signs nothing else. It retries an unanswered update for up to 24 hours.
+- **Webhook.** `https://findmeatime.com/telegram/webhook`, registered by `npm run telegram:webhook` with `setWebhook` (`secret_token`, `allowed_updates` `message`, `callback_query` and `my_chat_member`, `max_connections` 10), `setMyCommands` and `setMyProfilePhoto` ([Thyme's profile picture](#thymes-profile-picture)), then checked with `getWebhookInfo`, printed without the token. The script reads `TELEGRAM_BOT_TOKEN` and `TELEGRAM_WEBHOOK_SECRET` from the environment or the root env files; when the secret is unset it generates 48 URL-safe characters, appends them to the checkout's `.env` without printing them, and stops so the same value can be set on Vercel Production and deployed before the webhook is registered. It refuses any origin but `https://findmeatime.com` and any `TELEGRAM_API_URL` that is not a loopback stand-in. Telegram sends the secret in `X-Telegram-Bot-Api-Secret-Token` and signs nothing else. It retries an unanswered update for up to 24 hours.
 - **Limits.** About one message per second to one chat and 30 per second overall; 4,096 characters per message; 64 bytes of `callback_data`; messages can be edited for 48 hours. A bot can message a user only after the user started it, and gets `403` once the user blocks it.
 - **Privacy.** Bot chats are not end-to-end encrypted and stay on Telegram's servers; the card and the privacy policy say so.
 
@@ -330,7 +330,17 @@ KakaoTalk is the transport of the proposed host KakaoTalk channel in the [`host-
 
 Never sign the product's KakaoTalk account in, set the relay secrets, or send a KakaoTalk message from an agent session without the user's approval.
 
-## PostHog
+## Thyme's profile picture
+
+Thyme has one profile picture on every channel, picked by `THYME_AVATAR` in [`lib/contracts/thyme-avatar.ts`](../../lib/contracts/thyme-avatar.ts) (the blue cat since 2026-11-26; a pink cat is also drawn). The web conversations, the landing's example conversation and the email signature read it from code. The messengers keep their own copy of `apps/web/public/thyme/<id>-profile.jpg` (1024 px JPEG on white), set again whenever `THYME_AVATAR` changes:
+
+- **Telegram.** `npm run telegram:webhook` sets it with the Bot API's `setMyProfilePhoto` (Bot API 9.4) along with the webhook; `npm run telegram:webhook -- --photo-only` sets only the photo and needs no webhook secret. Like the webhook, run it only with the user's approval.
+- **iMessage.** Photon has no API to set a line's Name and Photo, which the contact card Thyme shares carries, and Free-plan lines come from Photon's shared pool. Sending a vCard of our own with the photo instead is an open follow-up.
+- **WhatsApp.** The business profile photo of `PHOTON_WHATSAPP_NUMBER`; optional while WhatsApp stays hidden (issue #221).
+- **KakaoTalk.** The relay account's profile photo, on the relay phone.
+
+Emails load the picture from `https://findmeatime.com/thyme/<id>-128.png`, so a picture newly picked shows in emails only after it is deployed to production.
+
 
 Product analytics for the web app, the agent and the messaging channels, in the [`web-analytics` change](../../openspec/changes/web-analytics/proposal.md) (#469, which replaces the Google Analytics tag of #341). It uses PostHog Cloud through `posthog-js` in the browser and `posthog-node` on the server (D1, D7).
 

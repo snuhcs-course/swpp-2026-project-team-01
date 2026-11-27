@@ -6,7 +6,8 @@ import type { AddressInfo } from "node:net";
 // TELEGRAM_API_URL pointed here. It answers POST /bot<token>/<method> for
 // sendMessage, sendPhoto (multipart, the photo recorded as its name, type,
 // size and bytes), editMessageReplyMarkup, answerCallbackQuery, sendChatAction, setMessageReaction,
-// setWebhook, setMyCommands and getWebhookInfo as the Bot API does, records
+// setWebhook, setMyCommands, setMyProfilePhoto (multipart, a static photo whose
+// attach:// name must be an uploaded file) and getWebhookInfo as the Bot API does, records
 // every call with the token it named, and keeps the webhook and commands set.
 // The next call can be told to answer 403 (blocked), 429 with retry_after, 400,
 // a 5xx, or to drop its answer after recording it.
@@ -39,7 +40,7 @@ export type FakeTelegram = {
 // A file a multipart call uploaded, as the stand-in records it under its field.
 export type FakeTelegramFile = { readonly name: string; readonly type: string; readonly size: number; readonly bytes: Buffer };
 
-const METHODS = new Set(["sendMessage", "sendPhoto", "editMessageReplyMarkup", "answerCallbackQuery", "sendChatAction", "setMessageReaction", "setWebhook", "setMyCommands", "getWebhookInfo"]);
+const METHODS = new Set(["sendMessage", "sendPhoto", "editMessageReplyMarkup", "answerCallbackQuery", "sendChatAction", "setMessageReaction", "setWebhook", "setMyCommands", "setMyProfilePhoto", "getWebhookInfo"]);
 
 function json(response: ServerResponse, status: number, body: unknown) {
   response.writeHead(status, { "content-type": "application/json" });
@@ -147,6 +148,21 @@ export async function startFakeTelegram(options: { readonly port?: number } = {}
         commands.splice(0, commands.length, ...((params.commands as FakeTelegram["commands"]) ?? []));
         json(response, 200, { ok: true, result: true });
         return;
+      case "setMyProfilePhoto": {
+        let photo: { type?: unknown; photo?: unknown } | null = null;
+        try {
+          photo = typeof params.photo === "string" ? (JSON.parse(params.photo) as { type?: unknown; photo?: unknown }) : null;
+        } catch {
+          photo = null;
+        }
+        const attached = typeof photo?.photo === "string" && photo.photo.startsWith("attach://") ? params[photo.photo.slice("attach://".length)] : undefined;
+        if (photo?.type !== "static" || !attached || typeof attached !== "object") {
+          refusal(response, 400, "Bad Request: the profile photo must be a static photo uploaded as a new file");
+          return;
+        }
+        json(response, 200, { ok: true, result: true });
+        return;
+      }
       case "getWebhookInfo":
         json(response, 200, {
           ok: true,

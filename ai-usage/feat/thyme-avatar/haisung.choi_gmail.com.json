@@ -1,0 +1,57 @@
+{
+  "branch": "feat/thyme-avatar",
+  "user": "haisung.choi@gmail.com",
+  "sessions": {
+    "claude:89f5152b-891e-43d7-a8f9-e709c8cfaf7f": {
+      "agent": "claude-code",
+      "client": "claude-desktop",
+      "agent_ms": 0,
+      "models": {
+        "claude-opus-5-5": {
+          "input": 178,
+          "cache_read": 13891122,
+          "cache_write_5m": 0,
+          "cache_write_1h": 247009,
+          "output": 54530,
+          "reasoning": 0
+        }
+      },
+      "first": "2026-11-26T11:25:22.173Z",
+      "last": "2026-11-27T11:15:49.473Z"
+    },
+    "claude:89f5152b-891e-43d7-a8f9-e709c8cfaf7f/agent-ab222cabebee08ce7": {
+      "agent": "claude-code",
+      "client": "claude-desktop",
+      "agent_ms": 0,
+      "models": {
+        "claude-haiku-5-5": {
+          "input": 8,
+          "cache_read": 97913,
+          "cache_write_5m": 103142,
+          "cache_write_1h": 0,
+          "output": 5164,
+          "reasoning": 0
+        }
+      },
+      "first": "2026-11-26T13:10:57.620Z",
+      "last": "2026-11-26T13:11:58.694Z"
+    },
+    "claude:89f5152b-891e-43d7-a8f9-e709c8cfaf7f/agent-ad268fdf66238346d": {
+      "agent": "claude-code",
+      "client": "claude-desktop",
+      "agent_ms": 0,
+      "models": {
+        "claude-haiku-5-5": {
+          "input": 10,
+          "cache_read": 40765,
+          "cache_write_5m": 19013,
+          "cache_write_1h": 0,
+          "output": 3970,
+          "reasoning": 0
+        }
+      },
+      "first": "2026-11-26T12:43:11.794Z",
+      "last": "2026-11-26T12:43:26.426Z"
+    }
+  }
+}

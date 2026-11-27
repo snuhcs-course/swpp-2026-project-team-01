@@ -12,6 +12,7 @@ import {
   renderBookingEmail,
   whenLine,
 } from "./booking-emails";
+import { emailSignatureHtml } from "./email-signature";
 
 // The transactional email templates use English copy and render as HTML with
 // a plain-text alternative. Templates render at dispatch from the
@@ -207,7 +208,8 @@ function render(language: RequestLanguage, copy: Copy, secrets: EmailSecrets & {
           `</td></tr></table>`,
         ]
       : []),
-    `<p style="margin:26px 0 0;color:#586172;font-size:12px;line-height:19px">${escapeHtml(copy.footer)}</p>`,
+    emailSignatureHtml(),
+    `<p style="margin:24px 0 0;color:#586172;font-size:12px;line-height:19px">${escapeHtml(copy.footer)}</p>`,
     `</td></tr>`,
     `</table></td></tr></table>`,
     `</body></html>`,

@@ -1,4 +1,5 @@
 import type { RequestLanguage } from "../contracts/request";
+import { emailSignatureHtml } from "./email-signature";
 
 // The booking confirmation and the requester status notifications
 // (host-review-and-booking design 9), rendered with English copy and
@@ -266,7 +267,7 @@ function page(language: RequestLanguage, title: string, body: readonly string[])
     `<!doctype html><html lang="${language}"><head><meta charset="utf-8"><meta name="referrer" content="no-referrer"><title>${escapeHtml(title)}</title></head>`,
     `<body style="font-family:system-ui,-apple-system,sans-serif;line-height:1.5;color:#111;max-width:560px;margin:0 auto;padding:24px">`,
     ...body,
-    `<p style="color:#555;font-size:14px">Find Me a Time</p>`,
+    emailSignatureHtml(),
     `</body></html>`,
   ].join("");
 }
