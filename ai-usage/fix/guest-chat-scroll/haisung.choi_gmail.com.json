@@ -1,0 +1,40 @@
+{
+  "branch": "fix/guest-chat-scroll",
+  "user": "haisung.choi@gmail.com",
+  "sessions": {
+    "claude:62db04bb-9fa3-4a68-aa73-0fef212f56f8": {
+      "agent": "claude-code",
+      "client": "claude-desktop",
+      "agent_ms": 0,
+      "models": {
+        "claude-opus-5-5": {
+          "input": 10,
+          "cache_read": 876293,
+          "cache_write_5m": 0,
+          "cache_write_1h": 6547,
+          "output": 3636,
+          "reasoning": 0
+        }
+      },
+      "first": "2026-11-27T11:51:50.717Z",
+      "last": "2026-11-27T11:52:27.824Z"
+    },
+    "claude:89f5152b-891e-43d7-a8f9-e709c8cfaf7f": {
+      "agent": "claude-code",
+      "client": "claude-desktop",
+      "agent_ms": 0,
+      "models": {
+        "claude-opus-5-5": {
+          "input": 4,
+          "cache_read": 372320,
+          "cache_write_5m": 0,
+          "cache_write_1h": 2570,
+          "output": 1310,
+          "reasoning": 0
+        }
+      },
+      "first": "2026-11-27T11:52:20.706Z",
+      "last": "2026-11-27T11:52:25.558Z"
+    }
+  }
+}
