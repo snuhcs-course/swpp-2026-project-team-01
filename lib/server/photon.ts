@@ -62,7 +62,8 @@ export type PhotonContent =
   // Buttons only on WhatsApp, inside the window (the outbox decides). On
   // Telegram (host-telegram-channel design 7 and 8): the row's inline keyboard,
   // and silent delivery for a notice that needs nothing.
-  | { readonly kind: "text"; readonly text: string; readonly buttons?: WhatsAppButtons; readonly keyboard?: TelegramButtons | null; readonly silent?: boolean }
+  // sticker: on Telegram only, the URL of Thyme's cat sent after the text (thyme-mood-cats D7).
+  | { readonly kind: "text"; readonly text: string; readonly buttons?: WhatsAppButtons; readonly keyboard?: TelegramButtons | null; readonly silent?: boolean; readonly sticker?: string }
   | { readonly kind: "contact_card" }
   // Best-effort signals about the host's message messageId: mark it (on iMessage,
   // the conversation) read, add a tapback or reaction, show typing. Never a

@@ -949,3 +949,16 @@ Dohyeon Park이 2026-11-25에 Photon의 10DLC 캠페인 등록을 시작한 뒤,
 | D4 | 이름 규칙으로 고른, 제목이 있는 그룹에만 Mac 릴레이를 통해 답합니다 | 구성원 이름으로 제목 없는 그룹에 보내기 | 제안서, 설계 4 | 설계 4 |
 | D5 | 24시간 동안 그룹당 30회, 전체 300회 호출. 그룹 자체의 모델 허용량과 `group` 허용 범위 | 익명 모델 풀 | 제안서, 설계 5 | 설계 5 |
 | D6 | 도구 없이 짧고 평이하게 답하며, 확인했다거나 예약했다는 주장은 하지 않습니다 | 그룹에 일정 도구 제공 | 제안서, 설계 6 | 설계 6과 `agent/instructions/group-chat.ts` |
+## `thyme-mood-cats`
+
+[제안서](../../openspec/changes/thyme-mood-cats/proposal.md#decisions)는 2026-11-27에 오너와 함께 내린 이 선택들을 기록합니다. 팀원이 이 변경을 검토할 때까지 **보류 중**입니다.
+
+| # | 선택 | 대안 | 기록 위치 | 바꾸려면 |
+|---|---|---|---|---|
+| D1 | 말풍선 오른쪽 아래 모서리에 8° 기울인 48px 고양이 스티커 | 마지막 단어 뒤 인라인 마크, 마지막 줄 끝 도장, 본문 아래 선 위의 마크, 프사 표정 바꾸기 | 제안서, `DESIGN.md` | 제안서, 그다음 `apps/web/components/chat/message.tsx`의 `ThymeCatSticker` |
+| D2 | 게스트의 웹 대화에서 결정은 기록된 동의, `read_booking_status`가 알리는 예약, 예약 완료 안내입니다 | 확정된 예약만 | 제안서, `chat-workspaces` 델타 | 제안서, 그다음 `lib/contracts/thyme-cat.ts` |
+| D3 | 행복한 고양이는 메시지의 도구 부분에 있는 기록에서 나오며, `show_cat`으로는 게스트가 요청할 때만 나옵니다 | 모델이 스스로 결정 | 제안서, 두 델타 | 제안서, 그다음 `lib/contracts/thyme-cat.ts`와 `agent/instructions/requester.ts` |
+| D4 | 모델은 부작용 없는 `show_cat` 도구로 신호를 보내며, 이 호출은 도구 기록에 보이지 않습니다 | 답장 글 속의 숨은 표시를 모든 채널 경로에서 지우기 | 제안서, `meeting-requests` 델타 | 제안서, 그다음 `agent/tools/request.ts` |
+| D5 | `output-error` 상태의 도구 부분은 죄송한 고양이를 부르고, 출력으로 돌아온 거절은 부르지 않습니다 | 모든 `recorded: false` | 제안서 | 제안서, 그다음 `lib/contracts/thyme-cat.ts` |
+| D6 | 메시지당 고양이 하나: 요청된 행복한 고양이, 죄송한 고양이, 기록된 행복한 고양이 순서입니다. 요청이 없으면 직전 Thyme 메시지의 고양이를 다시 쓰지 않습니다 | 고양이 여러 마리, 반복 규칙 없음 | 제안서, `chat-workspaces` 델타 | 제안서, 그다음 `catsOfThread` |
+| D7 | 웹과 게스트의 Telegram 답장. 답장의 마지막 글 뒤에 URL로 `sendSticker`를 보내되 실패해도 답장에는 영향이 없고, 고양이는 그 턴에 기록된 도구 결과로 정합니다(오너, 2026-11-28) | 답장 글 속 이모지; 별도 outbox 행; 호스트의 Telegram 답장; iMessage, WhatsApp, KakaoTalk | 제안서 | `lib/server/thyme-cat-turns.ts`, `lib/server/telegram.ts` |

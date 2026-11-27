@@ -457,6 +457,7 @@ export const THANKS_REACTION = "👍";
 // cannot be drawn sends nothing. A signal is setMessageReaction
 // on the host's message and sendChatAction typing. An edit removes a sent
 // message's buttons, and a callback answer stops a tapped button's spinner.
+// A guest's reply may end with Thyme's cat, a sendSticker by URL, best effort.
 // Anything else is not a Telegram message. The recipient address is the chat ID.
 // Once one part was accepted, a later failure is uncertain, since resending
 // would repeat parts.
@@ -532,6 +533,12 @@ export function telegramTransport(
         const result = await client.send({ method: "sendMessage", params });
         if (result.status !== "accepted") return index > 0 ? { status: "uncertain" } : fromTelegram(result, chatId, null);
         last = messageIdOf(result.result);
+      }
+      // Thyme's cat after the reply (thyme-mood-cats D7) is decoration: its
+      // outcome never changes the reply's, and it is never sent again.
+      if (content.sticker) {
+        await wait(TELEGRAM_CHAT_SPACING_MS);
+        await client.send({ method: "sendSticker", params: { chat_id: chatId, sticker: content.sticker } });
       }
       return { messageId: last, spaceId: chatId, status: "accepted" };
     },

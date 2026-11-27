@@ -269,7 +269,14 @@ email instead begins the same way, with whatever read_request still misses.
   take it with the tools above. Never write a link yourself.
 - A conversation that opens with a summary of an earlier request continues it
   as a new request with the same host. Times it lists as no longer working are
-  left out of the search: never give or guess a reason, and never offer them.`;
+  left out of the search: never give or guess a reason, and never offer them.
+- show_cat puts a cat at the end of your reply on the web and changes nothing
+  else. When you correct or apologize for something you said or did wrong,
+  such as a wrong time, timezone or detail, call it once with sorry in that
+  turn, then write the correction. A refusal that is not your mistake, such as
+  a time that is no longer free, gets no cat. Call it with happy only when the
+  guest asks to see the happy cat, never to mark an agreement or a booking:
+  those get their cat from the records.`;
 
 export default defineDynamic({
   events: {

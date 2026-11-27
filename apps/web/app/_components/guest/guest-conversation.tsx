@@ -3,6 +3,7 @@
 import { type DiscussionEvent, isRedeliveredInput } from "@lib/contracts/discussion-events";
 import { REVISED_SUMMARY_PREFIX } from "@lib/contracts/request";
 import { HOST_QUESTION_PREFIX } from "@lib/contracts/host-question";
+import { catsOfThread } from "@lib/contracts/thyme-cat";
 import { isCurrentTurnBoundaryEvent } from "eve/client";
 import { conversationReducer, type EveMessage } from "eve/react";
 import { AlertCircleIcon, XIcon } from "lucide-react";
@@ -286,6 +287,8 @@ export function GuestConversation({
 
   const { messages, times } = useMemo(() => project(events), [events]);
   const placed = useMemo(() => placeEntries(messages, times, entries), [entries, messages, times]);
+  // Thyme's happy or sorry cat on each reply, from the thread's own records (thyme-mood-cats).
+  const cats = useMemo(() => catsOfThread(messages), [messages]);
   const busy = phase !== "ready";
   const openTurn = useMemo(() => hasOpenTurn(events), [events]);
   const lastMessage = messages.at(-1);
@@ -345,6 +348,7 @@ export function GuestConversation({
                 <ChatItem key={message.id} messageId={message.id} scrollAnchor={message.id === anchorId}>
                   <AgentMessage
                     canRespond={false}
+                    cat={cats[index]}
                     isStreaming={phase === "streaming" && index === messages.length - 1}
                     message={message}
                     onInputResponses={() => {}}

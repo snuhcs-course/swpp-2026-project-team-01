@@ -1,6 +1,7 @@
 "use client";
 
 import type { DiscussionEvent } from "@lib/contracts/discussion-events";
+import { catsOfThread } from "@lib/contracts/thyme-cat";
 import { useEffect, useMemo, useState } from "react";
 import { projectMessages } from "@/app/_components/guest/guest-conversation";
 import { AgentMessage } from "@/components/chat/message";
@@ -30,6 +31,7 @@ export function SentRequestConversation({ bookingPath, requestId }: { readonly b
   }, [requestId]);
 
   const messages = useMemo(() => (events ? projectMessages(events) : []), [events]);
+  const cats = useMemo(() => catsOfThread(messages), [messages]);
 
   return (
     <div className="flex min-w-0 flex-col gap-3 border-t border-border px-5 pt-4 pb-5 text-sm sm:px-6" id={`request-panel-${requestId}`} role="region">
@@ -42,8 +44,8 @@ export function SentRequestConversation({ bookingPath, requestId }: { readonly b
       {events && messages.length === 0 ? <p className="text-muted-foreground">No messages in this conversation.</p> : null}
       {messages.length > 0 ? (
         <div aria-label="Your conversation, read only" className="flex flex-col gap-2" role="log">
-          {messages.map((message) => (
-            <AgentMessage canRespond={false} isStreaming={false} key={message.id} message={message} onInputResponses={() => {}} />
+          {messages.map((message, index) => (
+            <AgentMessage canRespond={false} cat={cats[index]} isStreaming={false} key={message.id} message={message} onInputResponses={() => {}} />
           ))}
         </div>
       ) : null}

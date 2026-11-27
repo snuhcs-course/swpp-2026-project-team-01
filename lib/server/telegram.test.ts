@@ -312,6 +312,36 @@ describe("telegramTransport", () => {
     expect(waits).toEqual([1000]);
   });
 
+  it("sends Thyme's cat after the text, and a refused sticker leaves the reply accepted (thyme-mood-cats D7)", async () => {
+    const sticker = "https://findmeatime.com/thyme/blue-happy-sticker.webp";
+    const sent: { method: string }[] = [];
+    const waits: number[] = [];
+    const client = {
+      endpoint: "x",
+      send: async (call: { method: string }) => {
+        sent.push(call);
+        return call.method === "sendSticker" ? { category: "provider_rejected" as const, status: "rejected" as const } : { result: { message_id: 7 }, status: "accepted" as const };
+      },
+    };
+    const withCat = { ...request("Booked!"), content: { kind: "text" as const, sticker, text: "Booked!" } };
+
+    expect(await telegramTransport(client, async (ms) => waits.push(ms)).send(withCat)).toEqual({ messageId: "7", spaceId: "42", status: "accepted" });
+    expect(sent).toEqual([
+      { method: "sendMessage", params: { chat_id: "42", text: "Booked!" } },
+      { method: "sendSticker", params: { chat_id: "42", sticker } },
+    ]);
+    expect(waits).toEqual([1000]);
+  });
+
+  it("sends no sticker when the text was refused", async () => {
+    const sent: { method: string }[] = [];
+    const refusing = { endpoint: "x", send: async (call: { method: string }) => (sent.push(call), { category: "blocked" as const, status: "rejected" as const }) };
+    const withCat = { ...request("Booked!"), content: { kind: "text" as const, sticker: "https://x/s.webp", text: "Booked!" } };
+
+    expect(await telegramTransport(refusing).send(withCat)).toEqual({ category: "blocked", status: "rejected" });
+    expect(sent.map((call) => call.method)).toEqual(["sendMessage"]);
+  });
+
   it("passes on a first refusal and is uncertain once a part went out", async () => {
     const refusing = { endpoint: "x", send: async () => ({ category: "blocked" as const, status: "rejected" as const }) };
     expect(await telegramTransport(refusing).send(request("hi"))).toEqual({ category: "blocked", status: "rejected" });

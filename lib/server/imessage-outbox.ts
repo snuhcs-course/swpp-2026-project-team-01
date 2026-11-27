@@ -1,8 +1,10 @@
 import type { MessageStreamEvent } from "eve/client";
 import { type StoredChannel, stripChannelMarkers } from "../contracts/messaging-channel";
+import { type ThymeCat, thymeStickerPath } from "../contracts/thyme-cat";
 import { agentUrlFromEnvironment, type ConversationRuntime, eveRuntime } from "./conversations";
 import { database, type Database, type Transaction } from "./database";
 import { turnReplyText } from "./email-replies";
+import { turnCat } from "./thyme-cat-turns";
 import { SAMPLE_NOTICE_PREFIX } from "./imessage-notices";
 import { internalSigningKey, signInternalBearer } from "./internal-bearer";
 import { type JobHandler, publishJob } from "./jobs";
@@ -429,9 +431,9 @@ async function turnReply(deps: ImessageSendDependencies, outboxId: string) {
   `;
 
   if (input?.preview_queued) return { previewQueued: true } as const;
-  if (!input || input.session_state === "failed") return { text: null };
+  if (!input || input.session_state === "failed") return { cat: null, text: null };
   if (input.state !== "completed") throw new TurnNotEndedError();
-  if (!input.session_id || input.delivery_ids.length === 0) return { text: null };
+  if (!input.session_id || input.delivery_ids.length === 0) return { cat: null, text: null };
 
   const bearer = signInternalBearer(
     {
@@ -449,7 +451,7 @@ async function turnReply(deps: ImessageSendDependencies, outboxId: string) {
     events.push(event);
   }
 
-  return { text: turnReplyText(events, input.delivery_ids) };
+  return { cat: turnCat(events, input.delivery_ids), text: turnReplyText(events, input.delivery_ids) };
 }
 
 export type SendJobOutcome = { readonly outboxId: string | null; readonly state: OutboxState | "missing" };
@@ -482,6 +484,7 @@ export function createImessageSendHandler(load: () => ImessageSendDependencies =
     if (!peek) return { outboxId, state: "missing" };
 
     let readText: string | null | undefined;
+    let readCat: ThymeCat | null = null;
 
     if (peek.kind === "turn" && peek.state === "waiting" && peek.input_id) {
       try {
@@ -491,6 +494,7 @@ export function createImessageSendHandler(load: () => ImessageSendDependencies =
           return { outboxId, state: "suppressed" };
         }
         readText = reply.text;
+        readCat = reply.cat;
       } catch (error) {
         if (!(error instanceof TurnNotEndedError)) throw error;
         // A turn that has not ended within the wait gets no reply.
@@ -600,12 +604,15 @@ export function createImessageSendHandler(load: () => ImessageSendDependencies =
       }
 
       let text: string | null = null;
+      // A guest's Telegram reply ends with its cat as a sticker (thyme-mood-cats D7).
+      let sticker: string | null = null;
 
       if (row.kind === "turn" && row.state === "waiting") {
         if (readText === undefined) throw new TurnNotEndedError();
         // A KakaoTalk group's reply has neither binding (kakaotalk-group-conversations design 4).
         const audience = row.dedupe_key.startsWith("group-input:") ? "group" : row.requester_binding_id ? "requester" : "host";
         text = imessageTurnText(readText, deps.origin, audience);
+        if (readCat && readText && audience === "requester" && row.channel === "telegram") sticker = `${deps.origin.replace(/\/+$/, "")}${thymeStickerPath(readCat)}`;
       } else if (row.kind !== "contact_card" && !(row.kind === "template" && row.text_ciphertext === null)) {
         // A template with no parameter (the weekly note notice) has no text.
         // Every other message, a turn reply already frozen by an attempt that
@@ -635,7 +642,7 @@ export function createImessageSendHandler(load: () => ImessageSendDependencies =
             dispatched_at = now() + make_interval(secs => ${waitMs / 1000}), updated_at = now()
         where id = ${row.id}
       `;
-      return { recipient: JSON.parse(recipientJson) as PhotonRecipient, row, state: "dispatching" as const, text, transport: rowTransport, waitMs };
+      return { recipient: JSON.parse(recipientJson) as PhotonRecipient, row, state: "dispatching" as const, sticker, text, transport: rowTransport, waitMs };
     });
 
     if (claim.state !== "dispatching") return { outboxId, state: claim.state };
@@ -646,7 +653,7 @@ export function createImessageSendHandler(load: () => ImessageSendDependencies =
     try {
       result = await claim.transport.send({
         channel: claim.row.channel,
-        content: contentOf(claim.row, claim.text, whatsAppButtonsEnabled(deps.env)),
+        content: withSticker(contentOf(claim.row, claim.text, whatsAppButtonsEnabled(deps.env)), claim.sticker),
         idempotencyKey: claim.row.id,
         recipient: claim.recipient,
       });
@@ -920,6 +927,12 @@ export function contentOf(
   return opened.buttons && buttonsOn && row.channel === "whatsapp"
     ? { buttons: opened.buttons, kind: "text", text: opened.text }
     : { kind: "text", text: opened.text };
+}
+
+// A Telegram text reply with the sticker URL to send after it; any other
+// content is unchanged.
+export function withSticker(content: PhotonContent, sticker: string | null): PhotonContent {
+  return sticker && content.kind === "text" ? { ...content, sticker } : content;
 }
 
 // What a signal row asks for (host-imessage-channel design 18, and on WhatsApp

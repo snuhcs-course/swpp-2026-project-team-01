@@ -21,6 +21,7 @@ import {
 } from "@/components/ui/trace";
 import { cn } from "@/lib/utils";
 import { thymeAvatarPath } from "@lib/contracts/thyme-avatar";
+import { SHOW_CAT_TOOL, type ThymeCat, thymeCatPath } from "@lib/contracts/thyme-cat";
 
 // About 28 words a second at one word per tick.
 const STREAM_TEXT_TICK_MS = 35;
@@ -40,15 +41,18 @@ export type DescribeTool = (part: EveDynamicToolPart) => string | undefined;
 // One turn, on the shadcn/ui Message pattern: the host's text is a muted Bubble
 // at the end; Thyme's reply is markdown under a "Thyme" header beside Thyme's
 // profile picture, with its steps (reasoning and tool calls) as Trace lines
-// above the text.
+// above the text. A settled reply may end with Thyme's cat (thyme-mood-cats),
+// chosen by the conversation from the thread's records.
 export function AgentMessage({
   canRespond,
+  cat = null,
   describeTool,
   isStreaming,
   message,
   onInputResponses,
 }: {
   readonly canRespond: boolean;
+  readonly cat?: ThymeCat | null;
   readonly describeTool?: DescribeTool;
   readonly isStreaming: boolean;
   readonly message: EveMessage;
@@ -59,6 +63,7 @@ export function AgentMessage({
     -1,
   );
   const isUser = message.role === "user";
+  const sticker = !isUser && !isStreaming ? cat : null;
   const parts = (
     <AgentMessageParts
       canRespond={canRespond}
@@ -73,7 +78,7 @@ export function AgentMessage({
   );
 
   return (
-    <article className={cn("w-full min-w-0", message.metadata?.optimistic ? "opacity-90" : undefined)}>
+    <article className={cn("w-full min-w-0", message.metadata?.optimistic ? "opacity-90" : undefined, sticker ? "pb-4" : undefined)}>
       {isUser ? (
         <Message align="end">
           <MessageContent>
@@ -86,9 +91,10 @@ export function AgentMessage({
       ) : (
         <Message className="gap-2.5">
           <ThymeAvatar />
-          <MessageContent className="gap-1.5 text-base leading-[1.65] text-foreground">
+          <MessageContent className={cn("gap-1.5 text-base leading-[1.65] text-foreground", sticker ? "relative pr-[34px]!" : undefined)}>
             <MessageHeader>Thyme</MessageHeader>
             {parts}
+            {sticker ? <ThymeCatSticker cat={sticker} /> : null}
           </MessageContent>
         </Message>
       )}
@@ -130,6 +136,24 @@ export function ThymeAvatar({ className }: { readonly className?: string }) {
     <MessageAvatar className={cn("size-10 min-w-10 self-start overflow-visible rounded-none bg-transparent", className)}>
       <img alt="" className="size-full object-contain" draggable={false} height={40} src={thymeAvatarPath(128)} width={40} />
     </MessageAvatar>
+  );
+}
+
+// Thyme's happy or sorry cat as a sticker on the bubble's bottom-right corner
+// (thyme-mood-cats D1). Decorative: the words carry the meaning, so assistive
+// technology skips it. The bubble it sits on must be position: relative.
+export function ThymeCatSticker({ cat }: { readonly cat: ThymeCat }) {
+  return (
+    <img
+      alt=""
+      aria-hidden="true"
+      className="pointer-events-none absolute -right-4 -bottom-[18px] size-12 rotate-[8deg] select-none drop-shadow-[0_1px_1px_rgba(30,36,48,0.18)]"
+      data-thyme-cat={cat}
+      draggable={false}
+      height={48}
+      src={thymeCatPath(cat, 256)}
+      width={48}
+    />
   );
 }
 
@@ -177,7 +201,8 @@ function AgentMessageParts({
 
   parts.forEach((part, index) => {
     if (part.type === "dynamic-tool") {
-      pendingTools.push(part);
+      // show_cat only signals the cat; it is not a step to show.
+      if (resolveToolName(part) !== SHOW_CAT_TOOL) pendingTools.push(part);
       return;
     }
 

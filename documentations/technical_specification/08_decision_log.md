@@ -951,3 +951,17 @@ The [proposal](../../openspec/changes/kakaotalk-group-conversations/proposal.md#
 | D4 | Replies only through the Mac relay, to titled groups the name rule picks | Sending to untitled groups by member names | Proposal; design 4 | Design 4 |
 | D5 | 30 calls per group and 300 in total per 24 hours; groups' own model allowances; a `group` admission scope | The anonymous model pool | Proposal; design 5 | Design 5 |
 | D6 | Plain, short answers with no tools and no claims of checking or booking | Giving groups the scheduling tools | Proposal; design 6 | Design 6 and `agent/instructions/group-chat.ts` |
+
+## `thyme-mood-cats`
+
+The [proposal](../../openspec/changes/thyme-mood-cats/proposal.md#decisions) records these choices, taken with the owner on 2026-11-27. They are **pending** until a teammate reviews the change.
+
+| # | Choice | Alternatives | Recorded in | To change it |
+|---|---|---|---|---|
+| D1 | A 48px cat sticker on the bubble's bottom-right corner, tilted 8° | An inline mark after the last word; a stamp at the end of the last line; a mark on a rule under the text; changing the avatar's face | Proposal; `DESIGN.md` | Proposal, then `ThymeCatSticker` in `apps/web/components/chat/message.tsx` |
+| D2 | On the guest's web conversation, a decision is a recorded agreement, a booking `read_booking_status` reports, or the booked notice | Only a confirmed booking | Proposal; `chat-workspaces` delta | Proposal, then `lib/contracts/thyme-cat.ts` |
+| D3 | The happy cat comes from the records in the message's tool parts, and from `show_cat` only when the guest asks for it | The model deciding on its own | Proposal; both deltas | Proposal, then `lib/contracts/thyme-cat.ts` and `agent/instructions/requester.ts` |
+| D4 | The model signals through a `show_cat` tool with no side effect, hidden from the tool trace | A hidden marker in the reply text, stripped on every channel path | Proposal; `meeting-requests` delta | Proposal, then `agent/tools/request.ts` |
+| D5 | A tool part in `output-error` brings the sorry cat; a refusal returned as an output does not | Every `recorded: false` | Proposal | Proposal, then `lib/contracts/thyme-cat.ts` |
+| D6 | One cat per message: a requested happy cat, then sorry, then a recorded happy cat; never the previous Thyme message's cat again unless requested | Several cats; no repeat rule | Proposal; `chat-workspaces` delta | Proposal, then `catsOfThread` |
+| D7 | The web and a guest's Telegram replies: a best-effort `sendSticker` by URL after the reply's last text, chosen from the turn's recorded tool results (owner, 2026-11-28) | An emoji in the reply text; a separate outbox row; the host's Telegram replies; iMessage, WhatsApp and KakaoTalk | Proposal | `lib/server/thyme-cat-turns.ts`, `lib/server/telegram.ts` |
