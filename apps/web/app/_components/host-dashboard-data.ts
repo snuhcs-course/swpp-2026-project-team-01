@@ -41,8 +41,8 @@ const clockMinutes = (clock: string) => Number(clock.slice(0, 2)) * 60 + Number(
 
 export function weekHours(
   windows: readonly Pick<WeeklyWindow, "start" | "end">[],
-  // Each timed event's start and end, in minutes of its local day; an end at or
-  // before the start runs past midnight.
+  // Each timed event's start and end, in minutes of its local day; an end before
+  // the start runs past midnight, and an end equal to the start is a moment.
   events: readonly { readonly start: number; readonly end: number }[],
 ) {
   const spans: [number, number][] = [];
@@ -51,7 +51,7 @@ export function weekHours(
     if (end > start) spans.push([start, end]);
     else spans.push([start, 1440], [0, end]);
   }
-  for (const event of events) spans.push([event.start, event.end > event.start ? event.end : 1440]);
+  for (const event of events) spans.push([event.start, event.end < event.start ? 1440 : Math.max(event.end, event.start + 1)]);
   const used = spans.filter(([start, end]) => end > start);
   if (used.length === 0) return { ...DEFAULT_WEEK_HOURS };
   const start = Math.floor(Math.min(...used.map(([from]) => from)) / 60);
@@ -59,7 +59,7 @@ export function weekHours(
   return { start, end: Math.max(end, start + 1) };
 }
 
-export type FetchRange =(from: string, to: string) => Promise<DashboardData>;
+export type FetchRange = (from: string, to: string) => Promise<DashboardData>;
 
 export const fetchDashboardRange: FetchRange = async (from, to) => {
   const response = await fetch(`/api/host/dashboard?from=${encodeURIComponent(from)}&to=${encodeURIComponent(to)}`, { cache: "no-store" });

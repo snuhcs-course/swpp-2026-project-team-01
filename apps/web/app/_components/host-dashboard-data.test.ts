@@ -122,6 +122,11 @@ describe("weekHours", () => {
     expect(weekHours([open("10:00", "18:00")], [{ start: 23 * 60, end: 60 }])).toEqual({ start: 10, end: 24 });
   });
 
+  it("keeps an event that starts and ends at the same moment in its own hour, not to midnight", () => {
+    expect(weekHours([open("08:00", "18:00")], [{ start: 9 * 60, end: 9 * 60 }])).toEqual({ start: 8, end: 18 });
+    expect(weekHours([open("08:00", "18:00")], [{ start: 21 * 60, end: 21 * 60 }])).toEqual({ start: 8, end: 22 });
+  });
+
   it("falls back to 08:00 to 19:00 with no hours and no events", () => {
     expect(weekHours([], [])).toEqual({ start: 8, end: 19 });
   });
