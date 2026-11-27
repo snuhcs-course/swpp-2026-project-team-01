@@ -293,6 +293,15 @@ export function GuestConversation({
     (phase === "sending" || phase === "streaming") && (pendingText !== null || openTurn) && !isWritingText(lastMessage);
   const failed = status?.state === "failed";
   const [recovering, setRecovering] = useState(false);
+  // Only the guest's latest message is a scroll anchor. The scroller jumps to
+  // the first anchor it has not scrolled to itself whenever an item is swapped
+  // for another (the pending message for the recorded one), and it never
+  // scrolled to the anchors that came with the history, so with every guest
+  // message marked it jumped back to the oldest one after a send.
+  const anchorId = useMemo(() => {
+    if (pendingText) return "pending";
+    return messages.findLast((message) => message.role === "user" && !authoredNote(message))?.id ?? null;
+  }, [messages, pendingText]);
 
   const recover = useCallback(async () => {
     if (!onRecover || status?.generation == null) return;
@@ -333,7 +342,7 @@ export function GuestConversation({
                   <p className="px-3 text-sm text-muted-foreground">{note}</p>
                 </ChatItem>
               ) : (
-                <ChatItem key={message.id} messageId={message.id} scrollAnchor={message.role === "user"}>
+                <ChatItem key={message.id} messageId={message.id} scrollAnchor={message.id === anchorId}>
                   <AgentMessage
                     canRespond={false}
                     isStreaming={phase === "streaming" && index === messages.length - 1}
