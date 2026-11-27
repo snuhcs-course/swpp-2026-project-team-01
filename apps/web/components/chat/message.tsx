@@ -103,7 +103,7 @@ export function AgentMessage({
 // where the words show beside them.
 export function AgentThinking({ withHeader }: { readonly withHeader: boolean }) {
   const indicator = (
-    <div className={cn("flex h-[1.65em] items-center gap-2 text-muted-foreground", withHeader ? undefined : "pl-[42px]")} role="status">
+    <div className={cn("flex h-[1.65em] items-center gap-2 text-muted-foreground", withHeader ? undefined : "pl-[50px]")} role="status">
       <LinearDots size={18} />
       <span className="sr-only text-sm motion-reduce:not-sr-only">Thyme is thinking…</span>
     </div>
@@ -123,11 +123,12 @@ export function AgentThinking({ withHeader }: { readonly withHeader: boolean }) 
 }
 
 // Thyme's profile picture beside its replies (THYME_AVATAR picks the character).
-// Decorative: the "Thyme" header beside it already names the speaker.
+// Decorative: the "Thyme" header beside it already names the speaker. The cat
+// stands on its own, without the avatar's round backdrop or clip.
 export function ThymeAvatar({ className }: { readonly className?: string }) {
   return (
-    <MessageAvatar className={cn("size-8 min-w-8 self-start bg-secondary", className)}>
-      <img alt="" className="size-full object-contain" draggable={false} height={32} src={thymeAvatarPath(128)} width={32} />
+    <MessageAvatar className={cn("size-10 min-w-10 self-start overflow-visible rounded-none bg-transparent", className)}>
+      <img alt="" className="size-full object-contain" draggable={false} height={40} src={thymeAvatarPath(128)} width={40} />
     </MessageAvatar>
   );
 }

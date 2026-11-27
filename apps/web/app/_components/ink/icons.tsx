@@ -38,7 +38,7 @@ export function Chevron({ direction }: { readonly direction: "prev" | "next" }) 
 export function Avatar() {
   return (
     <span aria-hidden="true" className="avatar">
-      <img alt="" draggable={false} height={36} src={thymeAvatarPath(128)} width={36} />
+      <img alt="" draggable={false} height={40} src={thymeAvatarPath(128)} width={40} />
     </span>
   );
 }

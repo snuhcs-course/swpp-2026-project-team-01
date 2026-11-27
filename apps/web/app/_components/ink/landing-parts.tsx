@@ -143,7 +143,7 @@ export function LiveThread({ locale }: { readonly locale: Locale }) {
       </figcaption>
       <div className="ld-live-head">
         <span aria-hidden="true" className="ld-avatar">
-          <img alt="" draggable={false} height={40} src={thymeAvatarPath(128)} width={40} />
+          <img alt="" draggable={false} height={44} src={thymeAvatarPath(128)} width={44} />
         </span>
         <span className="ld-who">
           <strong>Thyme</strong>
