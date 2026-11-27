@@ -417,6 +417,9 @@ function Block({
   const time = block.allDay ? null : clock(block.start, locale, timeZone);
   const title = block.title || t.untitled;
   const name = `${title}${time ? ` ${time}` : ""}`;
+  // A block of 30 minutes or less is drawn at the 24px minimum, room for one
+  // line, so it shows only its title; the time stays in its accessible name.
+  const showTime = time !== null && block.endMinute - block.startMinute > 30;
   const candidate = block.kind === "candidate" && item ? item : null;
   const free = choice === "free";
   // The classifier's reason, on hover, so the week stays uncluttered.
@@ -438,7 +441,7 @@ function Block({
         type="button"
       >
         <span className="block w-full truncate font-semibold">{title}</span>
-        {time ? <span className={cn("block w-full truncate tabular-nums", candidate && "text-muted-foreground")}>{time}</span> : null}
+        {showTime ? <span className={cn("block w-full truncate tabular-nums", candidate && "text-muted-foreground")}>{time}</span> : null}
       </button>
     </PopoverTrigger>
   );
